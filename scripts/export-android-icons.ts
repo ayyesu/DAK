@@ -28,8 +28,10 @@ type IconVariant = "dev" | "nightly" | "prod";
 const ADAPTIVE_CANVAS = 432;
 // 288dp at xxxhdpi: the full Android 12+ splash canvas, so the icon needs no upscaling.
 const SPLASH_CANVAS = 1152;
-// Icon Composer's layer sources use a 128pt viewBox; the wordmark path spans this box.
-const TEXT = { x: 15.53, y: 37, width: 94.5, height: 57 };
+// Icon Composer's layer sources use a 128pt viewBox; the wordmark path spans this box
+// once its own layer transform is applied. The box below is the transformed
+// bounding box of the DAK wordmark in assets/*/app-icon.icon/Assets/text.svg.
+const TEXT = { x: 24, y: 45.72, width: 80.01, height: 36.59 };
 // Wordmark width as a fraction of the 108dp canvas. The visible area is 72dp (66dp
 // guaranteed), so 0.48 leaves the letters at ~72% of the mask with room for the
 // launcher's own zoom effects.
@@ -108,10 +110,18 @@ const renderForeground = Effect.fn("androidIcons.renderForeground")(function* (
   size: number,
 ) {
   const text = yield* readLayerSource(repositoryRoot, "prod", "text.svg");
-  const paths = text.match(/<path[^>]*\/>/g) ?? [];
+  // The wordmark layer carries its own transform (raw composer coordinates
+  // mapped into the 128pt viewBox). Preserve it so the TEXT box above, which
+  // is measured in transformed space, stays accurate.
+  const group = text.match(/<g transform="([^"]+)">([\s\S]*?)<\/g>/);
+  const sourceTransform = group?.[1] ?? "";
+  const paths = group?.[2].match(/<path[^>]*\/>/g) ?? [];
   return yield* rasterize(
     "foreground",
-    canvasSvg(size, `<g transform="${wordmarkTransform(size)}">${paths.join("")}</g>`),
+    canvasSvg(
+      size,
+      `<g transform="${wordmarkTransform(size)}"><g transform="${sourceTransform}">${paths.join("")}</g></g>`,
+    ),
     size,
   );
 });
