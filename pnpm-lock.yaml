@@ -108,7 +108,7 @@ patchedDependencies:
   '@react-native-menu/menu@2.0.0': a4866ecfcd44f318043de839d20110c17e14909004900f002ffe12050376f2ba
   '@react-navigation/native-stack@7.17.6': e667c3cef8c78bb9ff4882ee5bd23a432247b843060a9499eb5f07e9e2295552
   alchemy@2.0.0-beta.80: bea1b6c0c0b23157fd5f439a1d7feff430f28ac1621ba135d8a13eeec60ccacd
-  dbus-next@0.10.2: cfff57561b0ee59b5addb3b2e6c6f20906e967507a530ab67e8db8108e520ba4
+  dbus-next@0.10.2: 1a8fe17c589a53776c92b64dfe11bc7093ea3c33a912f8544830cd8cca7da08d
   effect@4.0.1: a33cba07c41f32374c2aaa86ea4a84d3ab9a872a78c94b65e929b19f8361856f
   expo-audio@58.0.4: c20cb927d6848c53e7bf6ec14fe12f19daae9210165d2dbaf4e0f97ce31e8742
   expo-blur@58.0.3: d0311b0c0b05bd94393bd9a84653cb42503d5f3c8a19eb2627c34ace08bedf18
@@ -158,12 +158,6 @@ importers:
       '@crowecawcaw/xa11y':
         specifier: 0.13.0
         version: 0.13.0
-      '@effect/platform-node':
-        specifier: 4.0.1
-        version: 4.0.1(bufferutil@4.1.0)(effect@4.0.1(patch_hash=a33cba07c41f32374c2aaa86ea4a84d3ab9a872a78c94b65e929b19f8361856f))(redis@6.2.1)(utf-8-validate@6.0.6)
-      '@napi-rs/keyring':
-        specifier: ^1.3.0
-        version: 1.3.0
       '@dak/client-runtime':
         specifier: workspace:*
         version: link:../../packages/client-runtime
@@ -179,9 +173,15 @@ importers:
       '@dak/tailscale':
         specifier: workspace:*
         version: link:../../packages/tailscale
+      '@effect/platform-node':
+        specifier: 4.0.1
+        version: 4.0.1(bufferutil@4.1.0)(effect@4.0.1(patch_hash=a33cba07c41f32374c2aaa86ea4a84d3ab9a872a78c94b65e929b19f8361856f))(redis@6.2.1)(utf-8-validate@6.0.6)
+      '@napi-rs/keyring':
+        specifier: ^1.3.0
+        version: 1.3.0
       dbus-next:
         specifier: 0.10.2
-        version: 0.10.2(patch_hash=cfff57561b0ee59b5addb3b2e6c6f20906e967507a530ab67e8db8108e520ba4)
+        version: 0.10.2(patch_hash=1a8fe17c589a53776c92b64dfe11bc7093ea3c33a912f8544830cd8cca7da08d)
       effect:
         specifier: 4.0.1
         version: 4.0.1(patch_hash=a33cba07c41f32374c2aaa86ea4a84d3ab9a872a78c94b65e929b19f8361856f)
@@ -253,6 +253,24 @@ importers:
       '@clerk/expo':
         specifier: 4.6.8
         version: 4.6.8(patch_hash=b8b22ab733de5bea846ad9e88046c10582352fe9ad86f314f368b2a823f0f281)(9fda653cb5598772915b4a39a7aee91d)
+      '@dak/client-runtime':
+        specifier: workspace:*
+        version: link:../../packages/client-runtime
+      '@dak/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@dak/mobile-markdown-text':
+        specifier: file:./modules/dak-markdown-text
+        version: file:apps/mobile/modules/dak-markdown-text(8ce024e5c91a32c2f93f4b9e3b3d6bbc)
+      '@dak/mobile-review-diff-native':
+        specifier: file:./modules/dak-review-diff
+        version: file:apps/mobile/modules/dak-review-diff
+      '@dak/mobile-terminal-native':
+        specifier: file:./modules/dak-terminal
+        version: file:apps/mobile/modules/dak-terminal
+      '@dak/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@effect/atom-react':
         specifier: 4.0.1
         version: 4.0.1(effect@4.0.1(patch_hash=a33cba07c41f32374c2aaa86ea4a84d3ab9a872a78c94b65e929b19f8361856f))(react@19.3.0)(scheduler@0.28.0)
@@ -304,24 +322,6 @@ importers:
       '@shikijs/themes':
         specifier: 4.2.0
         version: 4.2.0
-      '@dak/client-runtime':
-        specifier: workspace:*
-        version: link:../../packages/client-runtime
-      '@dak/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@dak/mobile-markdown-text':
-        specifier: file:./modules/dak-markdown-text
-        version: file:apps/mobile/modules/dak-markdown-text(afae94297d61d3a65abc2214f9b05422)
-      '@dak/mobile-review-diff-native':
-        specifier: file:./modules/dak-review-diff
-        version: file:apps/mobile/modules/dak-review-diff
-      '@dak/mobile-terminal-native':
-        specifier: file:./modules/dak-terminal
-        version: file:apps/mobile/modules/dak-terminal
-      '@dak/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@tabler/icons-react-native':
         specifier: ^3.44.0
         version: 3.44.0(react-native-svg@15.15.5(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0))(react@19.3.0)
@@ -591,12 +591,6 @@ importers:
         specifier: ^3.4.0
         version: 3.4.0
     devDependencies:
-      '@effect/vitest':
-        specifier: 4.0.1
-        version: 4.0.1(patch_hash=359f6fb2f7b3ec145bb72208edb9034f02489791aa2491a55cdbd69bd56ee0d2)(@types/node@24.12.4)(@vitest/ui@5.0.1)(bufferutil@4.1.0)(effect@4.0.1(patch_hash=a33cba07c41f32374c2aaa86ea4a84d3ab9a872a78c94b65e929b19f8361856f))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(msw@2.12.11(@types/node@24.12.4)(typescript@7.0.2))(terser@5.48.0)(typescript@7.0.2)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
-      '@modelcontextprotocol/sdk':
-        specifier: 1.29.0
-        version: 1.29.0(zod@4.6.5)
       '@dak/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -612,6 +606,12 @@ importers:
       '@dak/web':
         specifier: workspace:*
         version: link:../web
+      '@effect/vitest':
+        specifier: 4.0.1
+        version: 4.0.1(patch_hash=359f6fb2f7b3ec145bb72208edb9034f02489791aa2491a55cdbd69bd56ee0d2)(@types/node@24.12.4)(@vitest/ui@5.0.1)(bufferutil@4.1.0)(effect@4.0.1(patch_hash=a33cba07c41f32374c2aaa86ea4a84d3ab9a872a78c94b65e929b19f8361856f))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(msw@2.12.11(@types/node@24.12.4)(typescript@7.0.2))(terser@5.48.0)(typescript@7.0.2)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
+      '@modelcontextprotocol/sdk':
+        specifier: 1.29.0
+        version: 1.29.0(zod@4.6.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -642,6 +642,15 @@ importers:
       '@clerk/react':
         specifier: 6.16.1
         version: 6.16.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@dak/client-runtime':
+        specifier: workspace:*
+        version: link:../../packages/client-runtime
+      '@dak/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@dak/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@daypicker/react':
         specifier: ^10.0.1
         version: 10.0.1(@types/react@19.3.0)(react@19.2.6)
@@ -675,15 +684,6 @@ importers:
       '@pierre/trees':
         specifier: 1.0.0-beta.6
         version: 1.0.0-beta.6(@pierre/theme@1.1.0)(@shikijs/themes@4.3.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(shiki@4.2.0)
-      '@dak/client-runtime':
-        specifier: workspace:*
-        version: link:../../packages/client-runtime
-      '@dak/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@dak/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@tanstack/react-pacer':
         specifier: ^0.19.4
         version: 0.19.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -871,6 +871,15 @@ importers:
       '@clerk/backend':
         specifier: 3.18.1
         version: 3.18.1(react-dom@19.3.0(react@19.3.0))(react@19.2.6)
+      '@dak/client-runtime':
+        specifier: workspace:*
+        version: link:../../packages/client-runtime
+      '@dak/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@dak/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@effect/sql-pg':
         specifier: 4.0.1
         version: 4.0.1(effect@4.0.1(patch_hash=a33cba07c41f32374c2aaa86ea4a84d3ab9a872a78c94b65e929b19f8361856f))
@@ -883,15 +892,6 @@ importers:
       '@noble/hashes':
         specifier: 'catalog:'
         version: 1.8.0
-      '@dak/client-runtime':
-        specifier: workspace:*
-        version: link:../../packages/client-runtime
-      '@dak/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@dak/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       alchemy:
         specifier: 2.0.0-beta.80
         version: 2.0.0-beta.80(patch_hash=bea1b6c0c0b23157fd5f439a1d7feff430f28ac1621ba135d8a13eeec60ccacd)(d02b4e60a6a3c6b542dfa700209cf5ce)
@@ -1048,15 +1048,15 @@ importers:
 
   packages/shared:
     dependencies:
+      '@dak/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@noble/curves':
         specifier: 'catalog:'
         version: 1.9.1
       '@noble/hashes':
         specifier: 'catalog:'
         version: 1.8.0
-      '@dak/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       effect:
         specifier: 4.0.1
         version: 4.0.1(patch_hash=a33cba07c41f32374c2aaa86ea4a84d3ab9a872a78c94b65e929b19f8361856f)
@@ -1126,6 +1126,12 @@ importers:
 
   scripts:
     dependencies:
+      '@dak/shared':
+        specifier: workspace:*
+        version: link:../packages/shared
+      '@dak/tailscale':
+        specifier: workspace:*
+        version: link:../packages/tailscale
       '@effect/platform-node':
         specifier: 4.0.1
         version: 4.0.1(bufferutil@4.1.0)(effect@4.0.1(patch_hash=a33cba07c41f32374c2aaa86ea4a84d3ab9a872a78c94b65e929b19f8361856f))(redis@6.2.1)(utf-8-validate@6.0.6)
@@ -1135,12 +1141,6 @@ importers:
       '@electron/osx-sign':
         specifier: 2.7.0
         version: 2.7.0
-      '@dak/shared':
-        specifier: workspace:*
-        version: link:../packages/shared
-      '@dak/tailscale':
-        specifier: workspace:*
-        version: link:../packages/tailscale
       effect:
         specifier: 4.0.1
         version: 4.0.1(patch_hash=a33cba07c41f32374c2aaa86ea4a84d3ab9a872a78c94b65e929b19f8361856f)
@@ -2232,6 +2232,26 @@ packages:
   '@cursor/sdk@1.0.35':
     resolution: {integrity: sha512-CJQR4ocRFm74N1miSqSSrhWyEbvTRIJGyMfHQvZlcBIYzLMXCVPmb1bV82L4NJ8mG9TyvbckEjERjbnzpG5akQ==}
     engines: {node: '>=22.13'}
+
+  '@dak/mobile-markdown-text@file:apps/mobile/modules/dak-markdown-text':
+    resolution: {directory: apps/mobile/modules/dak-markdown-text, type: directory}
+    peerDependencies:
+      '@dak/client-runtime': '*'
+      '@dak/shared': '*'
+      expo: '*'
+      expo-asset: '*'
+      expo-clipboard: '*'
+      expo-haptics: '*'
+      expo-symbols: '*'
+      react: '*'
+      react-native: '*'
+      react-native-nitro-markdown: '*'
+
+  '@dak/mobile-review-diff-native@file:apps/mobile/modules/dak-review-diff':
+    resolution: {directory: apps/mobile/modules/dak-review-diff, type: directory}
+
+  '@dak/mobile-terminal-native@file:apps/mobile/modules/dak-terminal':
+    resolution: {directory: apps/mobile/modules/dak-terminal, type: directory}
 
   '@date-fns/tz@1.5.0':
     resolution: {integrity: sha512-lwYN/vDPeNRULcepoE/LO2Pgx+7/RV+S9ARfbc9lr2DtGkOD7pAiruHvbR1RX3Qyf6ja47EWJDMsNK5vK08DJg==}
@@ -5056,26 +5076,6 @@ packages:
   '@szmarczak/http-timer@4.0.6':
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
-
-  '@dak/mobile-markdown-text@file:apps/mobile/modules/dak-markdown-text':
-    resolution: {directory: apps/mobile/modules/dak-markdown-text, type: directory}
-    peerDependencies:
-      '@dak/client-runtime': '*'
-      '@dak/shared': '*'
-      expo: '*'
-      expo-asset: '*'
-      expo-clipboard: '*'
-      expo-haptics: '*'
-      expo-symbols: '*'
-      react: '*'
-      react-native: '*'
-      react-native-nitro-markdown: '*'
-
-  '@dak/mobile-review-diff-native@file:apps/mobile/modules/dak-review-diff':
-    resolution: {directory: apps/mobile/modules/dak-review-diff, type: directory}
-
-  '@dak/mobile-terminal-native@file:apps/mobile/modules/dak-terminal':
-    resolution: {directory: apps/mobile/modules/dak-terminal, type: directory}
 
   '@tabler/icons-react-native@3.44.0':
     resolution: {integrity: sha512-/Ppp68bpl9vQQsI/c+YiDC9dnLq4JUo0YI5qP72OQMC1WmCaRzdYn3CU79q01M2L3MfXO9a8WctWN8ay1Odkow==}
@@ -12934,6 +12934,23 @@ snapshots:
       '@cursor/sdk-linux-x64': 1.0.35
       '@cursor/sdk-win32-x64': 1.0.35
 
+  '@dak/mobile-markdown-text@file:apps/mobile/modules/dak-markdown-text(8ce024e5c91a32c2f93f4b9e3b3d6bbc)':
+    dependencies:
+      '@dak/client-runtime': link:packages/client-runtime
+      '@dak/shared': link:packages/shared
+      expo: 58.0.2(56fc8ddb8129740412739f0f0a6ee025)
+      expo-asset: 58.0.10(expo@58.0.2)(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0)(typescript@7.0.2)
+      expo-clipboard: 58.0.3(expo@58.0.2)(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0)
+      expo-haptics: 58.0.4(expo@58.0.2)
+      expo-symbols: 58.0.3(expo-font@58.0.5(expo@58.0.2)(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0))(expo@58.0.2)(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0)
+      react: 19.3.0
+      react-native: 0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6)
+      react-native-nitro-markdown: 0.5.8(patch_hash=642b47830730acff3761fe29cf54271d18b493c0070c750097850b7ea032e00c)(react-native-nitro-modules@0.35.9(patch_hash=daf4a639ce3f951af630a3711e4082d58e3a11e5a79f45efb0b59925327ebde2)(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0))(react-native-svg@15.15.5(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0))(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0)
+
+  '@dak/mobile-review-diff-native@file:apps/mobile/modules/dak-review-diff': {}
+
+  '@dak/mobile-terminal-native@file:apps/mobile/modules/dak-terminal': {}
+
   '@date-fns/tz@1.5.0': {}
 
   '@daypicker/react@10.0.1(@types/react@19.3.0)(react@19.2.6)':
@@ -15531,23 +15548,6 @@ snapshots:
     dependencies:
       defer-to-connect: 2.0.1
 
-  '@dak/mobile-markdown-text@file:apps/mobile/modules/dak-markdown-text(afae94297d61d3a65abc2214f9b05422)':
-    dependencies:
-      '@dak/client-runtime': link:packages/client-runtime
-      '@dak/shared': link:packages/shared
-      expo: 58.0.2(56fc8ddb8129740412739f0f0a6ee025)
-      expo-asset: 58.0.10(expo@58.0.2)(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0)(typescript@7.0.2)
-      expo-clipboard: 58.0.3(expo@58.0.2)(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0)
-      expo-haptics: 58.0.4(expo@58.0.2)
-      expo-symbols: 58.0.3(expo-font@58.0.5(expo@58.0.2)(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0))(expo@58.0.2)(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0)
-      react: 19.3.0
-      react-native: 0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6)
-      react-native-nitro-markdown: 0.5.8(patch_hash=642b47830730acff3761fe29cf54271d18b493c0070c750097850b7ea032e00c)(react-native-nitro-modules@0.35.9(patch_hash=daf4a639ce3f951af630a3711e4082d58e3a11e5a79f45efb0b59925327ebde2)(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0))(react-native-svg@15.15.5(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0))(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0)
-
-  '@dak/mobile-review-diff-native@file:apps/mobile/modules/dak-review-diff': {}
-
-  '@dak/mobile-terminal-native@file:apps/mobile/modules/dak-terminal': {}
-
   '@tabler/icons-react-native@3.44.0(react-native-svg@15.15.5(react-native@0.88.0-rc.3(@babel/core@7.29.7)(@react-native/metro-config@0.88.0-rc.3(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@6.0.6))(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@tabler/icons': 3.44.0
@@ -17772,7 +17772,7 @@ snapshots:
 
   dayjs@1.11.23: {}
 
-  dbus-next@0.10.2(patch_hash=cfff57561b0ee59b5addb3b2e6c6f20906e967507a530ab67e8db8108e520ba4):
+  dbus-next@0.10.2(patch_hash=1a8fe17c589a53776c92b64dfe11bc7093ea3c33a912f8544830cd8cca7da08d):
     dependencies:
       '@nornagon/put': 0.0.8
       event-stream: 3.3.4
