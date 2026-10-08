@@ -1,0 +1,17 @@
+{
+  "name": "@dak/mobile-terminal-native",
+  "version": "0.0.0",
+  "private": true,
+  "expo-module": {
+    "ios": {
+      "modules": [
+        "DakTerminalModule"
+      ]
+    },
+    "android": {
+      "modules": [
+        "expo.modules.dakterminal.DakTerminalModule"
+      ]
+    }
+  }
+}

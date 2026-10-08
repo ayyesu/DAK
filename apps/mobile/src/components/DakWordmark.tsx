@@ -1,0 +1,32 @@
+import type { ColorValue } from "react-native";
+import Svg, { Path } from "react-native-svg";
+import { withUniwind } from "uniwind";
+
+const ThemedPath = withUniwind(Path);
+
+/**
+ * The DAK brand mark, matching the desktop sidebar's DakWordmark SVG
+ * (apps/web Sidebar.tsx). Width derives from the viewBox aspect ratio.
+ */
+export function DakWordmark(props: {
+  readonly height: number;
+  readonly color?: ColorValue;
+  readonly colorClassName?: string;
+}) {
+  const aspectRatio = 632 / 289;
+  return (
+    <Svg
+      accessibilityLabel="DAK"
+      height={props.height}
+      width={props.height * aspectRatio}
+      viewBox="206 342 632 289"
+    >
+      <ThemedPath
+        d="M518 346L438 486L405 547L382 586L378 595L357 630L442 630L518 503L522 508L524 513L563 578L592 630L670 630L671 631L681 630L658 587L613 510L602 489L597 482L519 346ZM739 345L732 349L686 395L626 452L609 470L737 623L743 627L752 630L811 630L812 631L819 631L820 630L833 631L837 630L838 631L830 621L761 547L695 480L830 343L747 343ZM207 342L206 343L206 411L210 412L283 412L297 415L309 420L321 428L330 437L340 453L345 472L345 494L341 510L330 530L314 546L298 555L279 560L208 562L206 564L207 565L206 566L207 631L280 631L281 630L298 629L311 625L320 621L334 612L355 591L372 568L386 546L406 509L412 496L417 481L420 465L419 438L412 414L399 391L392 382L378 368L360 355L343 347L319 342Z"
+        color={props.color}
+        colorClassName={props.colorClassName}
+        fill="currentColor"
+      />
+    </Svg>
+  );
+}

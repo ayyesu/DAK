@@ -1,0 +1,17 @@
+{
+  "name": "@dak/mobile-review-diff-native",
+  "version": "0.0.0",
+  "private": true,
+  "expo-module": {
+    "ios": {
+      "modules": [
+        "DakReviewDiffModule"
+      ]
+    },
+    "android": {
+      "modules": [
+        "expo.modules.dakreviewdiff.DakReviewDiffModule"
+      ]
+    }
+  }
+}

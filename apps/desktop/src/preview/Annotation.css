@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--dak-font-sans);
+  --font-mono: var(--dak-font-mono);
+  --color-background: var(--dak-background);
+  --color-foreground: var(--dak-foreground);
+  --color-popover: var(--dak-popover);
+  --color-popover-foreground: var(--dak-popover-foreground);
+  --color-primary: var(--dak-primary);
+  --color-primary-foreground: var(--dak-primary-foreground);
+  --color-muted: var(--dak-muted);
+  --color-muted-foreground: var(--dak-muted-foreground);
+  --color-accent: var(--dak-accent);
+  --color-accent-foreground: var(--dak-accent-foreground);
+  --color-border: var(--dak-border);
+  --color-input: var(--dak-input);
+  --color-ring: var(--dak-ring);
+  --radius-sm: calc(var(--dak-radius) - 4px);
+  --radius-md: calc(var(--dak-radius) - 2px);
+  --radius-lg: var(--dak-radius);
+  --radius-xl: calc(var(--dak-radius) + 4px);
+  --radius-2xl: calc(var(--dak-radius) + 8px);
+}
+
+:host {
+  --dak-font-sans:
+    "DM Sans Variable", "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+    sans-serif;
+  --dak-font-mono:
+    "SF Mono", "SFMono-Regular", "JetBrains Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --dak-radius: 0.625rem;
+  --dak-background: white;
+  --dak-foreground: oklch(0.269 0 0);
+  --dak-popover: white;
+  --dak-popover-foreground: oklch(0.269 0 0);
+  --dak-primary: oklch(0.488 0.217 264);
+  --dak-primary-foreground: white;
+  --dak-muted: rgb(0 0 0 / 4%);
+  --dak-muted-foreground: oklch(0.556 0 0);
+  --dak-accent: rgb(0 0 0 / 4%);
+  --dak-accent-foreground: oklch(0.269 0 0);
+  --dak-border: rgb(0 0 0 / 8%);
+  --dak-input: rgb(0 0 0 / 10%);
+  --dak-ring: oklch(0.488 0.217 264);
+  color: var(--dak-foreground);
+  font-family: var(--dak-font-sans);
+}
+
+* {
+  box-sizing: border-box;
+  border-color: var(--dak-border);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--dak-ring) 72%, transparent);
+  outline-offset: 1px;
+}

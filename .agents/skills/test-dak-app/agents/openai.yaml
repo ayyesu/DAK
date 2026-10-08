@@ -1,0 +1,4 @@
+interface:
+  display_name: "DAK App Testing"
+  short_description: "Test web and desktop in DAK's Browser panel"
+  default_prompt: "Use $test-dak-app to verify the affected web or desktop flow through DAK's Browser panel."

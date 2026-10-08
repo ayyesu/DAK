@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1f2328"/><stop offset="1" stop-color="#0e1013"/></linearGradient>
+    <linearGradient id="hl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".09"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7ee0d2"/><stop offset="1" stop-color="#2fa59a"/></linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#hl)"/>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="3"/>
+  <!-- the b: a stem and a box for its bowl -->
+  <rect x="300" y="246" width="84" height="420" rx="42" fill="#eceae6"/>
+  <rect x="300" y="420" width="384" height="246" rx="64" fill="none" stroke="#eceae6" stroke-width="84"/>
+  <!-- the dak: water under it -->
+  <path d="M286 770 q54 -34 108 0 t108 0 t108 0 t108 0" fill="none" stroke="url(#teal)" stroke-width="30" stroke-linecap="round"/>
+</svg>

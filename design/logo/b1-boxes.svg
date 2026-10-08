@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#25282d"/><stop offset="1" stop-color="#121417"/></linearGradient><linearGradient id="hl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".09"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#hl)"/><rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="3"/>
+  <!-- stem -->
+  <rect x="300" y="262" width="96" height="500" rx="26" fill="#ecebe7"/>
+  <!-- two boxes docked to the stem: the bowls of the B -->
+  <rect x="356" y="262" width="300" height="228" rx="58" fill="none" stroke="#ecebe7" stroke-width="80"/>
+  <rect x="356" y="490" width="360" height="272" rx="66" fill="none" stroke="#5fc4b8" stroke-width="80"/>
+</svg>

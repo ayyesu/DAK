@@ -1,0 +1,12 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["DakNativeControlsModule", "DakKeyboardCommandsModule"]
+  },
+  "android": {
+    "modules": [
+      "expo.modules.daknativecontrols.DakNativeControlsModule",
+      "expo.modules.daknativecontrols.DakKeyboardCommandsModule"
+    ]
+  }
+}

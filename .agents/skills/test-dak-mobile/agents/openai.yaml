@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test DAK Mobile"
+  short_description: "Test iOS and Android in DAK's Device panel"
+  default_prompt: "Use $test-dak-mobile to verify the affected native mobile flow through DAK's Device panel and AgentDevice."

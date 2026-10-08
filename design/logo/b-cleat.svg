@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#173943"/><stop offset="1" stop-color="#0b1a1f"/></linearGradient>
+    <linearGradient id="hl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".10"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#hl)"/>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="3"/>
+  <!-- cleat: horns, neck, base -->
+  <rect x="252" y="372" width="520" height="88" rx="44" fill="#eef1ee"/>
+  <path d="M432 452 h160 l-26 150 h-108 z" fill="#eef1ee"/>
+  <rect x="352" y="590" width="320" height="58" rx="18" fill="#eef1ee"/>
+  <!-- water -->
+  <path d="M262 712 q42 -30 84 0 t84 0 t84 0 t84 0 t84 0 t84 0" fill="none" stroke="#5fc4c0" stroke-width="22" stroke-linecap="round"/>
+</svg>
