@@ -130,12 +130,31 @@ function installElectronRuntime(electronDir, version) {
     if (hostPlatform === "darwin") {
       runChecked("ditto", ["-x", "-k", zipPath, NodePath.join(electronDir, "dist")]);
     } else {
-      runChecked("python3", [
-        "-c",
-        "import os, sys, zipfile; os.makedirs(sys.argv[2], exist_ok=True); zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])",
-        zipPath,
-        NodePath.join(electronDir, "dist"),
-      ]);
+      // Windows rarely has `python3` on PATH: the standard python.org installer
+      // provides `python` (and the `py` launcher), while a bare `python3`
+      // often resolves to the Microsoft Store stub, which exits 9009. Try
+      // each candidate so one working interpreter is enough.
+      const extractCode =
+        "import os, sys, zipfile; os.makedirs(sys.argv[2], exist_ok=True); zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])";
+      const extractDest = NodePath.join(electronDir, "dist");
+      const extractCandidates = [
+        ["python3", ["-c", extractCode, zipPath, extractDest]],
+        ["python", ["-c", extractCode, zipPath, extractDest]],
+        ["py", ["-3", "-c", extractCode, zipPath, extractDest]],
+      ];
+      let lastExtractError;
+      for (const [command, args] of extractCandidates) {
+        try {
+          runChecked(command, args);
+          lastExtractError = undefined;
+          break;
+        } catch (error) {
+          lastExtractError = error;
+        }
+      }
+      if (lastExtractError) {
+        throw lastExtractError;
+      }
     }
   } finally {
     NodeFS.rmSync(tempDir, { recursive: true, force: true });
