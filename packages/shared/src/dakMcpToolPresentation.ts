@@ -69,7 +69,10 @@ export type DakMcpToolSummaryAction =
   | "canvas-undo"
   | "canvas-trash"
   | "canvas-restore"
-  | "canvas-export";
+  | "canvas-export"
+  | "canvas-inspect"
+  | "canvas-measure"
+  | "canvas-screenshot";
 
 export interface DakMcpToolDefinition {
   readonly displayName: string;
@@ -337,6 +340,12 @@ const DAK_MCP_TOOLS: Readonly<Record<string, DakMcpToolDefinition>> = {
   dak_canvas_trash: tool(["Trash", "Trashing", "Trashed", "a design"], "canvas-trash"),
   dak_canvas_restore: tool(["Restore", "Restoring", "Restored", "a design"], "canvas-restore"),
   dak_canvas_export: tool(["Export", "Exporting", "Exported", "a design"], "canvas-export"),
+  dak_canvas_inspect: tool(["Inspect", "Inspecting", "Inspected", "a design"], "canvas-inspect"),
+  dak_canvas_measure: tool(["Measure", "Measuring", "Measured", "a design"], "canvas-measure"),
+  dak_canvas_screenshot: tool(
+    ["Screenshot", "Screenshotting", "Screenshotted", "a design"],
+    "canvas-screenshot",
+  ),
 };
 
 /**

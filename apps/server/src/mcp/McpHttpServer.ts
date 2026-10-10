@@ -57,6 +57,9 @@ import {
 } from "./toolkits/device/tools.ts";
 import * as HtmlHandlers from "./toolkits/html/handlers.ts";
 import { HtmlPreviewTool, HtmlPreviewToolkit, HtmlRenderToolkit } from "./toolkits/html/tools.ts";
+import * as CanvasHandlers from "./toolkits/canvas/handlers.ts";
+import { CanvasToolkit } from "./toolkits/canvas/tools.ts";
+import * as CanvasChangeBus from "../canvas/CanvasChangeBus.ts";
 
 /** Where an MCP client discovers how to sign in (RFC 9728), at this request's own origin. */
 const mcpResourceMetadataUrl = (request: HttpServerRequest.HttpServerRequest) =>
@@ -815,6 +818,17 @@ const layerEnvironmentRegistration = toolkitRegistration(
 
 const layerProjectRegistration = toolkitRegistration(ProjectToolkit, ProjectHandlers.layer);
 
+/**
+ * Canvas designs, registered here like every other toolkit. This one line is what makes the whole
+ * `dak_canvas_*` surface reachable by an agent — the toolkit and its handlers existed and passed
+ * their own tests, but nothing put them on `/mcp`. The bus is provided because an edit announces
+ * itself the same way a live view listens for it.
+ */
+export const layerCanvasToolkitRegistration = toolkitRegistration(
+  CanvasToolkit,
+  CanvasHandlers.layer,
+).pipe(Layer.provideMerge(CanvasChangeBus.layer));
+
 const layerAttachmentRegistration = toolkitRegistration(
   AttachmentToolkit,
   AttachmentHandlers.layer,
@@ -853,6 +867,7 @@ export const layer = Layer.mergeAll(
   layerThreadToolkit,
   layerAttachmentRegistration,
   layerProjectRegistration,
+  layerCanvasToolkitRegistration,
   layerEnvironmentRegistration,
   layerPreviewControlsRegistration,
   layerWorktreeToolkitRegistration,

@@ -49,7 +49,7 @@ it.effect("stores only a token hash, resolves the bearer token, and revokes by t
     const resolved = yield* registry.resolve(token);
     expect(resolved?.thread.threadId).toBe(threadId);
     expect(resolved?.capabilities).toEqual(
-      new Set(["preview", "orchestration", "worktree", "pull-requests"]),
+      new Set(["preview", "orchestration", "worktree", "pull-requests", "canvas"]),
     );
 
     yield* registry.revokeThread(threadId);
@@ -82,18 +82,23 @@ it.effect("always grants pull-requests and gates browser and device access indep
         .resolve(issued.config.authorizationHeader.replace(/^Bearer\s+/, ""))
         .pipe(Effect.map((scope) => [...(scope?.capabilities ?? [])].sort()));
 
+    // `canvas` is unconditional for a thread caller, like the other non-browser ones: a design
+    // belongs to the project the thread is working in, so it is never gated on a setting.
     expect(yield* capabilitiesOf(withPreview)).toEqual([
+      "canvas",
       "orchestration",
       "preview",
       "pull-requests",
       "worktree",
     ]);
     expect(yield* capabilitiesOf(withoutPreview)).toEqual([
+      "canvas",
       "orchestration",
       "pull-requests",
       "worktree",
     ]);
     expect(yield* capabilitiesOf(withDevice)).toEqual([
+      "canvas",
       "device",
       "orchestration",
       "pull-requests",

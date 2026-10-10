@@ -236,6 +236,9 @@ export const layer = McpToolAccess.toLayer(CanvasToolkit, {
           ...(input.selector === undefined ? {} : { selector: input.selector }),
           ...(input.region === undefined ? {} : { region: input.region }),
           ...(input.save === undefined ? {} : { save: input.save }),
+          // Inlining is opt-in per call rather than always-on: it doubles the answer, and only a
+          // transport that can render an image block wants it.
+          ...(input.includeImage === undefined ? {} : { includeImageData: input.includeImage }),
         }),
       );
     }),

@@ -127,6 +127,12 @@ it.effect("production mcp layer lists worktree tools over http", () =>
       // than replacing them.
       expect(toolNames).toContain("preview_status");
       expect(toolNames).toContain("delegate_task");
+      // Canvas designs had a toolkit, handlers, and passing tests of their own while no line of the
+      // production layer put them on /mcp, so no agent could reach a single dak_canvas_* tool. Named
+      // here so a toolkit that exists but is never registered cannot pass unnoticed again.
+      expect(toolNames).toContain("dak_canvas_screenshot");
+      expect(toolNames).toContain("dak_canvas_create");
+      expect(toolNames).toContain("dak_canvas_inspect");
 
       // The handoff tool mutates thread state, reaches the network (origin
       // fetch), and runs project setup scripts, so its MCP hints must not

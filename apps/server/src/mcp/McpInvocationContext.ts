@@ -17,6 +17,12 @@ const ALL_MCP_CAPABILITIES = [
   "worktree",
   "device",
   "pull-requests",
+  /**
+   * Design documents in a project workspace. Only a thread caller is granted it:
+   * a design is something the user reviews in DAK, so an agent signed in from
+   * outside a thread has nowhere to show the result.
+   */
+  "canvas",
 ] as const;
 export type McpCapability = (typeof ALL_MCP_CAPABILITIES)[number];
 

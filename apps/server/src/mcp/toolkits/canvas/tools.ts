@@ -329,6 +329,13 @@ const CanvasScreenshotTool = Tool.make("dak_canvas_screenshot", {
         description: "Write the PNGs. Default true; false returns dimensions only.",
       }),
     ),
+    includeImage: Schema.optional(
+      Schema.Boolean.annotate({
+        description:
+          "Attach each PNG to the result as well as writing it. Default true, because the attached " +
+          "image is what lets you see the design without opening anything. Set false for paths alone.",
+      }),
+    ),
     projectId: ProjectTarget,
   }),
   success: CanvasScreenshotAnswer,
