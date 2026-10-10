@@ -1,0 +1,9 @@
+ICC sRGB profile terms of use
+
+This profile is made available by the International Color Consortium, and may
+be copied, distributed, embedded, made, used, and sold without restriction.
+Altered versions must have the original identification and copyright
+information removed and must not be misrepresented as the original profile.
+
+Source: https://registry.color.org/rgb-registry/srgbprofiles
+Profile: sRGB2014.icc

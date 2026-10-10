@@ -1,0 +1,1 @@
+export default {"material":{},"phosphor":{"arr":8,"bat":9,"cal":9,"car":7,"cha":6,"che":4,"cir":13,"clo":7,"cur":4,"fil":7,"fol":8,"han":6,"hea":4,"lin":4,"num":8,"pen":4,"per":15,"pho":7,"sea":6,"spe":4,"sta":4,"tex":6,"tra":4,"use":6},"feather":{}};

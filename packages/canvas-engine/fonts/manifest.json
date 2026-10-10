@@ -1,0 +1,41 @@
+{
+  "$comment": "Fonts DAK owns, as opposed to fonts vendored from upstream. These are not in vendor-manifest.json because they are not drift from penkrahq/penkra-apps: upstream resolves them from its own npm dependencies and ships no font files for them. Keeping them here keeps canvas-vendor.ts check clean while still recording where every byte came from.",
+  "fonts": [
+    {
+      "file": "jetbrains-mono-400.ttf",
+      "family": "JetBrains Mono",
+      "style": "Regular",
+      "sha256": "a0bf60ef0f83c5ed4d7a75d45838548b1f6873372dfac88f71804491898d138f",
+      "bytes": 273900,
+      "license": "OFL-1.1",
+      "licenseFile": "JetBrainsMono-OFL.txt",
+      "source": {
+        "kind": "official-release",
+        "project": "JetBrains/JetBrainsMono",
+        "version": "2.304",
+        "url": "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip",
+        "pathInArchive": "fonts/ttf/JetBrainsMono-Regular.ttf",
+        "conversion": null,
+        "$comment": "Taken as the official TTF. The vendored engine's font map names a .woff2 for this face, but bytes reach provider.registerFont unmodified and CanvasKit needs TTF/OTF, so a woff2 would fail to load. Renamed from JetBrainsMono-Regular.ttf to the weight the engine asks for."
+      }
+    },
+    {
+      "file": "jetbrains-mono-500.ttf",
+      "family": "JetBrains Mono",
+      "style": "Medium",
+      "sha256": "31c92d01a8a08528b718a43addf0ad3df0af2ca4b7b3290a452f70f358e14d3d",
+      "bytes": 273860,
+      "license": "OFL-1.1",
+      "licenseFile": "JetBrainsMono-OFL.txt",
+      "source": {
+        "kind": "official-release",
+        "project": "JetBrains/JetBrainsMono",
+        "version": "2.304",
+        "url": "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip",
+        "pathInArchive": "fonts/ttf/JetBrainsMono-Medium.ttf",
+        "conversion": null,
+        "$comment": "As above, from the official TTF rather than the woff2 @fontsource would give."
+      }
+    }
+  ]
+}

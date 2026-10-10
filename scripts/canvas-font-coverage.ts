@@ -1,0 +1,175 @@
+#!/usr/bin/env node
+// @effect-diagnostics nodeBuiltinImport:off - A build-verification script, not service code.
+// @effect-diagnostics globalConsole:off - Its output is the build log for a step that gates `check`.
+/**
+ * Reconciles the faces the vendored engine promises against the files DAK actually ships.
+ *
+ * The renderer loads a font by looking it up in `BUNDLED_FONT_FILES` and, when it is not found,
+ * reaching for a bare `@open-pencil/core` import that no package depends on. The result is that a
+ * design using a missing face fails with `ERR_MODULE_NOT_FOUND` — a module-resolution error raised
+ * long after the vendoring step that dropped it, aimed at nobody. That is how Inter ExtraBold came
+ * to be absent for so long: the subset list in `canvas-vendor.ts` and the engine's font map were two
+ * independent hand-maintained lists that were never compared.
+ *
+ * So the two are compared here, and every face must resolve to one of exactly three answers:
+ * shipped, deliberately excluded with a reason, or an error. Adding a face upstream without shipping
+ * it now fails `canvas-vendor.ts check` instead of failing a user's render.
+ */
+import * as NodeFS from "node:fs";
+import * as NodePath from "node:path";
+import * as NodeURL from "node:url";
+
+const repoRoot = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)), "..");
+const snapshotDir = NodePath.join(repoRoot, "packages", "canvas-engine", "upstream");
+const screenshotModule = NodePath.join(snapshotDir, "src", "document-screenshot.mjs");
+
+/**
+ * Where a face may live, in the order the loader tries them.
+ *
+ * Mirrors `configureScreenshotFonts`' host loader, which tries the source directory then the vendored
+ * font directory. Keeping the order here means a face counts as shipped wherever the renderer would
+ * actually find it, rather than wherever it happens to sit.
+ */
+const FONT_SEARCH_DIRECTORIES = [
+  NodePath.join(snapshotDir, "src"),
+  NodePath.join(snapshotDir, "vendor", "open-pencil", "fonts"),
+  // Faces DAK owns rather than vendored. `document-screenshot.mjs` tries this directory last, after
+  // the two above, so a face here is reached by exactly the code path a vendored one would be.
+  NodePath.join(repoRoot, "packages", "canvas-engine", "fonts"),
+] as const;
+
+/**
+ * Faces DAK ships under a different filename than the engine asks for.
+ *
+ * The vendored map names `.woff2` for these, and the answer is not to ship a woff2: bytes go
+ * straight from the loader to `provider.registerFont` with no decompression, and CanvasKit accepts
+ * only TTF/OTF. So the file is shipped as the official TTF under its own weight-based name and the
+ * engine's request is mapped onto it. Renaming is recorded here rather than left implicit, because a
+ * reader comparing the engine's font map against the shipped directory would otherwise see a mismatch
+ * with no explanation.
+ */
+export const CANVAS_FONT_FILENAME_ALIASES: Readonly<Record<string, string>> = {
+  "jetbrains-mono-400.woff2": "jetbrains-mono-400.ttf",
+  "jetbrains-mono-500.woff2": "jetbrains-mono-500.ttf",
+};
+
+/**
+ * Faces the engine lists that DAK deliberately does not ship.
+ *
+ * Each needs a reason next to it, because "excluded" is the answer that silently becomes a bug: the
+ * whole point of writing this list is that a reader can tell an intentional gap from an accident.
+ */
+export const CANVAS_EXCLUDED_FONT_FILES: ReadonlyArray<{
+  readonly file: string;
+  readonly reason: string;
+}> = [
+  {
+    file: "NotoColorEmoji.ttf",
+    reason:
+      "10.5 MB for glyphs almost no design uses, and 87% of the font payload. Fetched on demand " +
+      "for a document that references it, which is why `unknown_font` is a Canvas failure code " +
+      "rather than a silent substitution.",
+  },
+  {
+    file: "material-symbols-outlined.woff2",
+    reason:
+      'Unused. Material Symbols reach a document only as a `type: "icon"` node whose geometry ' +
+      "comes from `icon-chunks/*.json`; no operation, skill, or exporter sets it as a font family. " +
+      "The engine's own map lists it as a last-resort fallback that never runs once the host font " +
+      "provider answers. Shipping it would add a variable font for no reachable code path.",
+  },
+  {
+    file: "material-symbols-rounded.woff2",
+    reason: "Same as material-symbols-outlined.woff2: icons resolve as vector paths, not glyphs.",
+  },
+  {
+    file: "material-symbols-sharp.woff2",
+    reason: "Same as material-symbols-outlined.woff2: icons resolve as vector paths, not glyphs.",
+  },
+];
+
+/** The faces the engine promises, parsed out of its own map rather than restated here. */
+export function readPromisedFontFiles(
+  modulePath: string = screenshotModule,
+): ReadonlyArray<{ readonly family: string; readonly file: string }> {
+  const source = NodeFS.readFileSync(modulePath, "utf8");
+  // `BUNDLED_FONT_FILES` is a `new Map([["Family|Style", "file"], …])`. Reading it from the engine
+  // is the whole point: a restated copy is the bug this module exists to prevent.
+  const entries = [...source.matchAll(/\["([^"]+)",\s*"([^"]+)"\]/g)].map((match) => ({
+    family: match[1] ?? "",
+    file: match[2] ?? "",
+  }));
+  if (entries.length === 0) {
+    throw new Error(
+      `Could not read BUNDLED_FONT_FILES out of ${modulePath}. If the engine renamed the map, fix ` +
+        `this parser rather than assuming the font list is empty.`,
+    );
+  }
+  return entries;
+}
+
+export type CanvasFontCoverage =
+  | {
+      readonly family: string;
+      readonly file: string;
+      readonly status: "shipped";
+      readonly path: string;
+    }
+  | {
+      readonly family: string;
+      readonly file: string;
+      readonly status: "excluded";
+      readonly reason: string;
+    }
+  | { readonly family: string; readonly file: string; readonly status: "missing" };
+
+/** Classifies every promised face as shipped, deliberately excluded, or missing. */
+export function checkFontCoverage(
+  entries: ReadonlyArray<{ readonly family: string; readonly file: string }>,
+  searchDirectories: ReadonlyArray<string> = FONT_SEARCH_DIRECTORIES,
+): ReadonlyArray<CanvasFontCoverage> {
+  return entries.map((entry) => {
+    const shippedName = CANVAS_FONT_FILENAME_ALIASES[entry.file] ?? entry.file;
+    const found = searchDirectories
+      .map((directory) => NodePath.join(directory, shippedName))
+      .find((candidate) => NodeFS.existsSync(candidate));
+    if (found !== undefined) {
+      return { ...entry, status: "shipped", path: found };
+    }
+    const excluded = CANVAS_EXCLUDED_FONT_FILES.find((item) => item.file === entry.file);
+    if (excluded !== undefined) {
+      return { ...entry, status: "excluded", reason: excluded.reason };
+    }
+    return { ...entry, status: "missing" };
+  });
+}
+
+const promised = readPromisedFontFiles();
+const coverage = checkFontCoverage(promised);
+
+for (const entry of coverage) {
+  if (entry.status === "shipped") {
+    console.log(`  shipped   ${entry.family.padEnd(32)} ${entry.file}`);
+  } else if (entry.status === "excluded") {
+    console.log(`  excluded  ${entry.family.padEnd(32)} ${entry.file}`);
+  } else {
+    console.log(`  MISSING   ${entry.family.padEnd(32)} ${entry.file}`);
+  }
+}
+
+const missing = coverage.filter((entry) => entry.status === "missing");
+const excluded = coverage.filter((entry) => entry.status === "excluded");
+console.log("");
+console.log(
+  `${String(promised.length)} promised: ${String(coverage.length - missing.length - excluded.length)} shipped, ${String(excluded.length)} excluded, ${String(missing.length)} missing.`,
+);
+
+if (missing.length > 0) {
+  console.error(
+    `\ncanvas-font-coverage: ${missing.length} promised face(s) are neither shipped nor declared ` +
+      `excluded.\n  ${missing.map((entry) => `${entry.family} -> ${entry.file}`).join("\n  ")}\n` +
+      `A design using one of these fails to render with ERR_MODULE_NOT_FOUND. Either vendor the ` +
+      `file or add it to CANVAS_EXCLUDED_FONT_FILES with a reason.`,
+  );
+  process.exit(1);
+}

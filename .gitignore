@@ -48,3 +48,7 @@ node_modules/
 
 # Local harness scratch state.
 .freebuff/
+
+# CanvasKit's WASM, placed beside the vendored engine by
+# packages/canvas-engine/scripts/place-canvaskit.mjs. Generated, never vendored.
+packages/canvas-engine/upstream/src/canvaskit.wasm
