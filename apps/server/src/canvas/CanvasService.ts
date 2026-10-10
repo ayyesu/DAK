@@ -3,6 +3,7 @@ import {
   CANVAS_ISSUE_LIMIT,
   CANVAS_ISSUE_SAMPLE_SIZE,
   CanvasFailure,
+  CanvasTouchedNode,
   type CanvasArtifactResult,
   type CanvasCreateResult,
   type CanvasDocumentSummary,
@@ -21,10 +22,67 @@ import {
   checkExecutionResultLimits,
   checkExportDestination,
   decideConflictRetry,
+  detectModuleViewportMismatch,
   resolveTrashConfirmation,
   summarizeReviewIssues,
 } from "./canvasInvariants.ts";
 import { CANVAS_RASTER_CAP } from "./CanvasPorts.ts";
+import type { CanvasMeasureResult } from "../mcp/toolkits/canvas/measure.ts";
+import { normalizeForRender } from "./canvasNormalize.ts";
+import {
+  absoluteBoxes,
+  findEmptyButtonShapes,
+  measureTextNodes,
+  textNodeIds,
+} from "./canvasText.ts";
+import {
+  findBoundsOverflow,
+  findEmptyFrames,
+  findFramesOverlap,
+  findLowContrast,
+  findOffFrame,
+  findSiblingOverlap,
+  findTextOverflow,
+  findUnnamedFrames,
+  narrowToSelector,
+  summarizeInspect,
+} from "./canvasInspect.ts";
+import type { CanvasInspectIssue, CanvasInspectResult } from "@dak/contracts";
+
+const findNodeIn = (document: unknown, id: string): Record<string, unknown> | undefined => {
+  const visit = (node: unknown): Record<string, unknown> | undefined => {
+    const candidate = node as { id?: unknown; children?: unknown };
+    if (candidate.id === id) return candidate as Record<string, unknown>;
+    for (const child of (candidate.children ?? []) as ReadonlyArray<unknown>) {
+      const found = visit(child);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  };
+  for (const child of Array.isArray((document as { children?: unknown }).children)
+    ? (document as { children: ReadonlyArray<unknown> }).children
+    : []) {
+    const found = visit(child);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+};
+
+/** A filled control with no label, expressed as an inspect issue. */
+const findEmptyControls = (
+  document: unknown,
+  boxes: ReadonlyMap<string, { x: number; y: number; width: number; height: number }>,
+): ReadonlyArray<CanvasInspectIssue> =>
+  findEmptyButtonShapes(document, boxes).map((shape) => ({
+    code: "empty_control" as const,
+    severity: "major" as const,
+    nodeIds: [shape.id],
+    numbers: { width: shape.width, height: Math.round(shape.height) },
+    fix:
+      `This is a filled ${shape.width}x${Math.round(shape.height)} shape with no text on it, so it ` +
+      `reads as a button the user cannot read. A shape cannot hold children: replace it with a ` +
+      `frame of the same geometry and put the label inside, or drop it if it was decoration.`,
+  }));
 import type {
   CanvasDocument,
   CanvasEngine,
@@ -143,6 +201,30 @@ export class CanvasService extends Context.Service<
       },
       CanvasFailure
     >;
+    /**
+     * Everything wrong with a design that can be established without looking at it.
+     *
+     * Measured from the same shaper and the same normalized boxes the renderer draws from, so an
+     * issue reported here is a fact about the design rather than a guess about it. This is the
+     * programmatic half of a review: the screenshot is the other half, and neither replaces the
+     * other.
+     */
+    readonly inspect: (input: {
+      readonly documentId: string;
+      /** A node id or Canvas selector; narrows the answer to that node's subtree. */
+      readonly selector?: string;
+    }) => Effect.Effect<CanvasInspectResult, CanvasFailure>;
+    /**
+     * Real boxes for the nodes an author needs to place against.
+     *
+     * A text node's height is the height of its wrapped lines, which is rarely what was written, so
+     * an agent placing one element under another has no way to know where the first one ended without
+     * being told.
+     */
+    readonly measure: (input: {
+      readonly documentId: string;
+      readonly selectors?: ReadonlyArray<string>;
+    }) => Effect.Effect<CanvasMeasureResult, CanvasFailure>;
   }
 >()("dak/canvas/CanvasService") {}
 
@@ -527,7 +609,158 @@ export const make = (deps: CanvasServiceDeps): CanvasService["Service"] => {
       });
     });
 
-  return { create, list, read, execute, undo, trash, restore, extract, renderRegion };
+  /**
+   * Every issue, measured, in one answer.
+   *
+   * The document is normalized first, so a design whose headline wraps is measured against the
+   * layout it will actually be drawn with rather than the one it was authored as.
+   */
+  const inspect: CanvasService["Service"]["inspect"] = (input) =>
+    Effect.gen(function* () {
+      const { payload } = yield* Effect.tryPromise({
+        try: () => store.getDocumentForExecution(input.documentId),
+        catch: () => failure("document_not_found", "That design does not exist in this project."),
+      });
+      const materialized = yield* Effect.tryPromise({
+        try: () => engine.materialize(payload),
+        catch: () => failure("storage_failed", "This design could not be read right now."),
+      });
+      const normalized = yield* Effect.promise(() => normalizeForRender(materialized));
+      const measured = yield* Effect.promise(() =>
+        measureTextNodes(normalized, textNodeIds(normalized)),
+      );
+      const boxes = absoluteBoxes(normalized, measured);
+
+      const scoped =
+        input.selector === undefined ? normalized : narrowToSelector(normalized, input.selector);
+
+      const issues = [
+        ...findTextOverflow(scoped, measured),
+        ...findBoundsOverflow(scoped, boxes),
+        ...findOffFrame(scoped, boxes),
+        ...findEmptyControls(scoped, boxes),
+        ...findEmptyFrames(scoped, boxes),
+        ...findSiblingOverlap(scoped, boxes),
+        ...findFramesOverlap(scoped, boxes),
+        ...findUnnamedFrames(scoped),
+        // The grouped viewport mismatch, re-expressed with a fix line: the invariant's own message
+        // explains the problem, but an inspect answer owes the caller a way forward.
+        ...detectModuleViewportMismatch(scoped).map((issue) => ({
+          code: "viewport_mismatch" as const,
+          severity: "major" as const,
+          nodeIds: issue.nodeIds ?? (issue.nodeId === undefined ? [] : [issue.nodeId]),
+          numbers: { frames: (issue.nodeIds ?? []).length },
+          fix:
+            `${issue.message ?? "These frames are drawn at a phone width for this module."} A ` +
+            `design's module is fixed when it is created, so the fix is to create the design again ` +
+            `with the module that matches its width rather than to change this one.`,
+        })),
+        ...findLowContrast(scoped),
+      ];
+      const summary = summarizeInspect(issues);
+      return {
+        issues: summary.issues,
+        counts: summary.counts,
+        omitted: summary.omitted,
+        measuredTextNodes: measured.size,
+      } satisfies CanvasInspectResult;
+    });
+
+  /**
+   * Boxes an author can place against.
+   *
+   * Measured from the normalized document, so a wrapped headline reports the height it will actually
+   * occupy rather than the height someone wrote. Selectors that match nothing are reported back,
+   * because an empty answer about a node that does not exist reads as "nothing there".
+   */
+  const measure: CanvasService["Service"]["measure"] = (input) =>
+    Effect.gen(function* () {
+      const { payload } = yield* Effect.tryPromise({
+        try: () => store.getDocumentForExecution(input.documentId),
+        catch: () => failure("document_not_found", "That design does not exist in this project."),
+      });
+      const materialized = yield* Effect.tryPromise({
+        try: () => engine.materialize(payload),
+        catch: () => failure("storage_failed", "This design could not be read right now."),
+      });
+      const normalized = yield* Effect.promise(() => normalizeForRender(materialized));
+      const measured = yield* Effect.promise(() =>
+        measureTextNodes(normalized, textNodeIds(normalized)),
+      );
+      const boxes = absoluteBoxes(normalized, measured);
+      const requested = input.selectors ?? [];
+      const unmatched: string[] = [];
+      const ids: string[] = [];
+
+      const find = (node: unknown, selector: string): string | undefined => {
+        const wanted = selector.startsWith("#")
+          ? selector.slice(1)
+          : (selector.split("/").pop() ?? selector);
+        const search = (candidate: any): string | undefined => {
+          if (candidate?.id === wanted || candidate?.name === selector) return candidate.id;
+          for (const child of (candidate?.children ?? []) as ReadonlyArray<unknown>) {
+            const found = search(child);
+            if (found !== undefined) return found;
+          }
+          return undefined;
+        };
+        for (const child of (normalized as { children?: ReadonlyArray<unknown> }).children ?? []) {
+          const found = search(child);
+          if (found !== undefined) return found;
+        }
+        return undefined;
+      };
+
+      if (requested.length === 0) {
+        for (const child of (normalized as { children?: ReadonlyArray<{ id?: unknown }> })
+          .children ?? []) {
+          if (typeof child.id === "string") ids.push(child.id);
+        }
+      } else {
+        for (const selector of requested) {
+          const id = find(normalized, selector);
+          if (id === undefined) unmatched.push(selector);
+          else ids.push(id);
+        }
+      }
+
+      const nodes = ids.flatMap((id) => {
+        const box = boxes.get(id);
+        if (box === undefined) return [];
+        const node = (findNodeIn(normalized, id) ?? {}) as Record<string, unknown>;
+        return [
+          {
+            id,
+            type: typeof node.type === "string" ? node.type : "unknown",
+            ...(typeof node.name === "string" && node.name.length > 0 ? { name: node.name } : {}),
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+          } satisfies CanvasTouchedNode,
+        ];
+      });
+
+      return {
+        nodes,
+        measuredTextNodes: measured.size,
+        unmatchedSelectors: unmatched,
+      } satisfies CanvasMeasureResult;
+    });
+
+  return {
+    create,
+    list,
+    read,
+    execute,
+    undo,
+    trash,
+    restore,
+    extract,
+    renderRegion,
+    inspect,
+    measure,
+  };
 };
 
 export const layer = (deps: CanvasServiceDeps) => Layer.succeed(CanvasService, make(deps));

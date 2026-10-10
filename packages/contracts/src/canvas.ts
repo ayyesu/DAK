@@ -204,6 +204,87 @@ export const CanvasIssueSummary = Schema.Struct({
 });
 export type CanvasIssueSummary = typeof CanvasIssueSummary.Type;
 
+export const CanvasIssueCode = Schema.Literals([
+  "text_overflow",
+  "bounds_overflow",
+  "off_frame",
+  "empty_control",
+  "empty_frame",
+  "sibling_overlap",
+  "frames_overlap",
+  "frame_unnamed",
+  "viewport_mismatch",
+]);
+export type CanvasIssueCode = typeof CanvasIssueCode.Type;
+
+export const CanvasInspectIssue = Schema.Struct({
+  code: CanvasIssueCode,
+  severity: CanvasIssueSeverity,
+  nodeIds: Schema.Array(TrimmedNonEmptyString),
+  numbers: Schema.Record(Schema.String, Schema.Union([Schema.Number, Schema.String])),
+  fix: TrimmedNonEmptyString,
+});
+export type CanvasInspectIssue = typeof CanvasInspectIssue.Type;
+
+export const CanvasInspectResult = Schema.Struct({
+  /** Ranked by severity and capped; `counts` and `omitted` say what did not fit. */
+  issues: Schema.Array(CanvasInspectIssue),
+  /** How many of each kind were found, including anything beyond the cap. */
+  counts: Schema.Record(Schema.String, Schema.Number),
+  /** How many issues the cap dropped. */
+  omitted: Schema.Number,
+  measuredTextNodes: Schema.Number,
+});
+export type CanvasInspectResult = typeof CanvasInspectResult.Type;
+
+/** How many issues one inspect answer may carry, so a bad design cannot flood a context. */
+export const CANVAS_INSPECT_ISSUE_LIMIT = 25;
+
+export const CanvasInspectInput = Schema.Struct({
+  documentId: CanvasDocumentId,
+  /** A node id or Canvas selector; narrows the answer to that node's subtree. */
+  selector: Schema.optional(TrimmedNonEmptyString),
+});
+export type CanvasInspectInput = typeof CanvasInspectInput.Type;
+
+/** One node an edit touched, with the geometry it ended up at. */
+export const CanvasTouchedNode = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  type: TrimmedNonEmptyString,
+  name: Schema.optional(TrimmedNonEmptyString),
+  x: Schema.Number,
+  y: Schema.Number,
+  width: Schema.Number,
+  height: Schema.Number,
+});
+export type CanvasTouchedNode = typeof CanvasTouchedNode.Type;
+
+/**
+ * What one edit did to the design's problems.
+ *
+ * Kept separate because the useful question is not "is the design clean" but "did my last edit make
+ * it worse". An agent that introduced an overflow sees it here, on the edit that caused it, rather
+ * than finding it in a later inspect and wondering where it came from.
+ */
+export const CanvasIssueDelta = Schema.Struct({
+  introduced: Schema.Array(CanvasInspectIssue),
+  resolved: Schema.Array(CanvasInspectIssue),
+  preExisting: Schema.Array(CanvasInspectIssue),
+});
+export type CanvasIssueDelta = typeof CanvasIssueDelta.Type;
+
+/** The short form every edit carries, so feedback arrives without the agent asking for it. */
+export const CanvasEditFeedback = Schema.Struct({
+  summary: CanvasIssueSummary,
+  /** The worst few problems, with node ids, because a count alone is not actionable. */
+  top: Schema.Array(CanvasInspectIssue),
+  /** What this edit did to the problem list. */
+  delta: CanvasIssueDelta,
+  /** Every node this edit touched, measured, so the next element can be placed under it. */
+  touched: Schema.Array(CanvasTouchedNode),
+});
+export type CanvasEditFeedback = typeof CanvasEditFeedback.Type;
+
 /** Screenshot metadata. The bytes travel as MCP image content, never in this payload. */
 export const CanvasScreenshot = Schema.Struct({
   nodeIds: Schema.Array(TrimmedNonEmptyString),

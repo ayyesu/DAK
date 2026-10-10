@@ -197,6 +197,30 @@ export const layer = McpToolAccess.toLayer(CanvasToolkit, {
     }),
   ),
 
+  dak_canvas_inspect: McpToolAccess.reads((input) =>
+    Effect.gen(function* () {
+      yield* requireCanvasCapability;
+      const caller = yield* readCaller();
+      const { service } = yield* forProject(caller, input.projectId);
+      return yield* service.inspect({
+        documentId: input.documentId,
+        ...(input.selector === undefined ? {} : { selector: input.selector }),
+      });
+    }),
+  ),
+
+  dak_canvas_measure: McpToolAccess.reads((input) =>
+    Effect.gen(function* () {
+      yield* requireCanvasCapability;
+      const caller = yield* readCaller();
+      const { service } = yield* forProject(caller, input.projectId);
+      return yield* service.measure({
+        documentId: input.documentId,
+        ...(input.selectors === undefined ? {} : { selectors: input.selectors }),
+      });
+    }),
+  ),
+
   dak_canvas_undo: McpToolAccess.actsAsCaller((input) =>
     Effect.gen(function* () {
       yield* requireCanvasCapability;

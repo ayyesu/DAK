@@ -5,6 +5,7 @@ import {
   CanvasEditResult,
   CanvasExtractFormat,
   CanvasFailure,
+  CanvasInspectResult,
   CanvasListResult,
   CanvasModule,
   CanvasOutline,
@@ -15,6 +16,7 @@ import {
   ProjectId,
   TrimmedNonEmptyString,
 } from "@dak/contracts";
+import { CanvasMeasureResult } from "./measure.ts";
 import * as Schema from "effect/Schema";
 import * as Crypto from "effect/Crypto";
 import { Tool, Toolkit } from "effect/ai";
@@ -262,11 +264,72 @@ const CanvasExportTool = Tool.make("dak_canvas_export", {
   .annotate(Tool.Idempotent, true)
   .annotate(Tool.OpenWorld, false);
 
+/**
+ * `dak_canvas_inspect` and `dak_canvas_measure`, kept together because both are read-only answers
+ * about a design's geometry and neither draws anything.
+ */
+const CanvasInspectTool = Tool.make("dak_canvas_inspect", {
+  ...shared,
+  description:
+    "Check a design for problems you cannot see by reading the file: text that will be clipped, " +
+    "content that runs outside its frame, nodes outside the frame they belong to, shapes that look " +
+    "like buttons with no label, empty frames, two text runs drawn over each other, overlapping " +
+    "frames, unnamed frames, a phone-width frame in a design whose module says otherwise, and text " +
+    "below a readable contrast ratio. Every issue comes with severity, the nodes it names, the " +
+    "numbers behind it and a one-line fix. This is the programmatic half of a review: it will not " +
+    "tell you a layout is boring or a headline is weak, so look at a screenshot too. Pass a " +
+    "selector to narrow the answer to one node. Issues are capped at 25 and ranked by severity; " +
+    "`counts` says how many of each kind were found in total, so a capped answer is never mistaken " +
+    "for a clean one.",
+  parameters: Schema.Struct({
+    documentId: CanvasDocumentId.annotate({ description: "Design to check." }),
+    selector: Schema.optional(
+      TrimmedNonEmptyString.annotate({
+        description: "A node id or selector. Narrows the answer to that node's subtree.",
+      }),
+    ),
+    projectId: ProjectTarget,
+  }),
+  success: CanvasInspectResult,
+})
+  .annotate(Tool.Title, "Inspect a design")
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, true)
+  .annotate(Tool.OpenWorld, false);
+
+const CanvasMeasureTool = Tool.make("dak_canvas_measure", {
+  ...shared,
+  description:
+    "Measure nodes in a design and get their real boxes, in design units: x, y, width, height. Use " +
+    "this to place one element below another — measure the headline, add its height to its y, and " +
+    "you will not overlap whatever is next. Wrap makes this necessary rather than optional: a text " +
+    "node's height is the height of its wrapped lines, which is usually not what you wrote. " +
+    "Omit selectors to measure every top-level frame.",
+  parameters: Schema.Struct({
+    documentId: CanvasDocumentId.annotate({ description: "Design to measure." }),
+    selectors: Schema.optional(
+      Schema.Array(TrimmedNonEmptyString)
+        .check(Schema.isMaxLength(200))
+        .annotate({ description: "Node ids or selectors. Omit for every top-level frame." }),
+    ),
+    projectId: ProjectTarget,
+  }),
+  success: CanvasMeasureResult,
+})
+  .annotate(Tool.Title, "Measure a design")
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, true)
+  .annotate(Tool.OpenWorld, false);
+
 export const CanvasToolkit = Toolkit.make(
   CanvasCreateTool,
   CanvasListTool,
   CanvasReadTool,
   CanvasEditTool,
+  CanvasInspectTool,
+  CanvasMeasureTool,
   CanvasUndoTool,
   CanvasTrashTool,
   CanvasRestoreTool,

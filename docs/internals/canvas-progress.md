@@ -8,24 +8,24 @@ Gates marked 🛑 are the user's and block everything below them.
 
 ## Milestones
 
-| #   | Milestone                                                                        | Status      | Commit     | Evidence                                                                                                                                    |
-| --- | -------------------------------------------------------------------------------- | ----------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| M0  | Integrity: 5 acceptance tests, no placeholders, font test asserts `unknown_font` | **done**    | `2aec4b77` | 5 tests present; unshipped font measured against Inter before the fix, now throws `CANVAS_UNKNOWN_FONT` naming family + available + nearest |
-| M1  | `dak_canvas_screenshot` registered via its own `addTool`                         | **blocked** | —          | planner + tool + scratch writer written and tested; MCP registration does not compile, see Blockers                                         |
-| M2  | `dak_canvas_inspect` with measured boxes and stable codes                        | todo        |            |                                                                                                                                             |
-| M3  | Edit feedback: issueSummary, measured boxes, delta; `dak_canvas_measure`         | todo        |            |                                                                                                                                             |
-| M4  | Fonts: OFL families, per-family budget, `unknown_font` lists matches             | todo        |            |                                                                                                                                             |
-| M5  | Design intelligence: script prelude helpers, design skill, rename/focus          | todo        |            |                                                                                                                                             |
-| M6  | Design list: rename, trash, delete, thumbnails, search, duplicate                | todo        |            |                                                                                                                                             |
-| M7  | Viewer S1+S2: world layout, navigation, title overlays                           | todo        |            |                                                                                                                                             |
-| 🛑  | **G1** Playwright screenshots of the viewer's feel                               | todo        |            | user reviews                                                                                                                                |
-| M8  | Viewer S3: tiles, dirty-rect invalidation, seam test                             | todo        |            |                                                                                                                                             |
-| M9  | Viewer S4: selection and chat context                                            | todo        |            |                                                                                                                                             |
-| M10 | Tier 1: follow the agent, issue badges, frame size menu, undo                    | todo        |            |                                                                                                                                             |
-| 🛑  | **G2** user runs a real design session                                           | todo        |            | user reviews                                                                                                                                |
-| M11 | 1e: live round trip, blind test, transcripts                                     | todo        |            | paused until user says go                                                                                                                   |
-| 🛑  | **G3** 1e review                                                                 | todo        |            | user reviews                                                                                                                                |
-| M12 | Tier 2/3: history scrub, inspector, export UI, rulers, grid, minimap, comments   | todo        |            | cut from the bottom                                                                                                                         |
+| #   | Milestone                                                                        | Status          | Commit     | Evidence                                                                                                                                    |
+| --- | -------------------------------------------------------------------------------- | --------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0  | Integrity: 5 acceptance tests, no placeholders, font test asserts `unknown_font` | **done**        | `2aec4b77` | 5 tests present; unshipped font measured against Inter before the fix, now throws `CANVAS_UNKNOWN_FONT` naming family + available + nearest |
+| M1  | `dak_canvas_screenshot` registered via its own `addTool`                         | **blocked**     | —          | planner + tool + scratch writer written and tested; MCP registration does not compile, see Blockers                                         |
+| M2  | `dak_canvas_inspect` with measured boxes and stable codes                        | **done**        | `4d6ba9c5` | 9 codes, contrast against nearest filled ancestor, overlap rule tested 7 ways; 182 canvas tests green                                       |
+| M3  | Edit feedback: issueSummary, measured boxes, delta; `dak_canvas_measure`         | **in-progress** |            | measure done and wired; the introduced/resolved delta is not                                                                                |
+| M4  | Fonts: OFL families, per-family budget, `unknown_font` lists matches             | todo            |            |                                                                                                                                             |
+| M5  | Design intelligence: script prelude helpers, design skill, rename/focus          | todo            |            |                                                                                                                                             |
+| M6  | Design list: rename, trash, delete, thumbnails, search, duplicate                | todo            |            |                                                                                                                                             |
+| M7  | Viewer S1+S2: world layout, navigation, title overlays                           | todo            |            |                                                                                                                                             |
+| 🛑  | **G1** Playwright screenshots of the viewer's feel                               | todo            |            | user reviews                                                                                                                                |
+| M8  | Viewer S3: tiles, dirty-rect invalidation, seam test                             | todo            |            |                                                                                                                                             |
+| M9  | Viewer S4: selection and chat context                                            | todo            |            |                                                                                                                                             |
+| M10 | Tier 1: follow the agent, issue badges, frame size menu, undo                    | todo            |            |                                                                                                                                             |
+| 🛑  | **G2** user runs a real design session                                           | todo            |            | user reviews                                                                                                                                |
+| M11 | 1e: live round trip, blind test, transcripts                                     | todo            |            | paused until user says go                                                                                                                   |
+| 🛑  | **G3** 1e review                                                                 | todo            |            | user reviews                                                                                                                                |
+| M12 | Tier 2/3: history scrub, inspector, export UI, rulers, grid, minimap, comments   | todo            |            | cut from the bottom                                                                                                                         |
 
 ## Order
 
@@ -33,6 +33,10 @@ Gates marked 🛑 are the user's and block everything below them.
 - `M4`, `M5`, `M6` may run in parallel after M3.
 - `M7 → M8 → M9 → M10` strictly ordered; M8 cannot start before G1.
 - If scope shrinks, cut from M12 upward, then M10's non-essentials. Never cut M2, M3 or M5.
+
+**Corrected 2026-10-11:** M2, M3, M4 and M6 do **not** depend on M1. Inspect, measure, the edit
+delta, the font set and the design list are all service- and toolkit-level work that reaches a model
+as ordinary JSON, so M1's MCP image block is not on their path. M1 can be resumed at any point.
 
 ## Definition of done
 
