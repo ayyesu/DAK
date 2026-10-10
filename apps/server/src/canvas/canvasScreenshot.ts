@@ -33,13 +33,34 @@ export const CANVAS_SCREENSHOT_MAX_EDGE = 1568;
 export const CANVAS_SCREENSHOT_TARGET_WIDTH = 1568;
 
 /**
- * How far a small frame may be enlarged.
+ * How far a small frame may be enlarged when the caller asked for a specific piece of it.
  *
  * Upscaling adds no detail, but it does make the image the same size as the one the user is looking
  * at, so what the agent reviews and what the user sees agree. Past this the pixels are just
  * interpolation and the file is wasted bandwidth.
  */
 export const CANVAS_SCREENSHOT_MAX_UPSCALE = 4;
+
+/**
+ * How far a whole frame may be enlarged.
+ *
+ * Lower than a crop's, and deliberately. A 390px-wide page at 4x is 1560px wide, which spends the
+ * entire 1568px resolution budget on width and leaves a 392px slice — so a 6000px page needs sixteen
+ * of them. At 2x the page is 780px across, still comfortably legible for a vision model, and a
+ * slice is 784px of design height, which brings a phone-sized page down to about eight. Legibility
+ * is per slice and slice count is per page, and the second number is what decides whether the agent
+ * can see the whole design in one call.
+ */
+export const CANVAS_SCREENSHOT_MAX_WHOLE_FRAME_UPSCALE = 2;
+
+/**
+ * How many sections one call returns, on top of the overview.
+ *
+ * A cap the agent can hit rather than a cap that silently drops images. Everything is still written
+ * to disk; this only decides how many arrive as images in one answer, and the rest are reachable
+ * with `sectionIndex`.
+ */
+export const CANVAS_SCREENSHOT_MAX_SECTIONS = 7;
 
 /** The cheap whole-target image a view shows before the sharp crops land. */
 export const CANVAS_SCREENSHOT_OVERVIEW_MAX_EDGE = 384;
@@ -78,12 +99,24 @@ export interface CanvasScreenshotPart {
  */
 export const planScreenshot = (
   target: CanvasBox,
+  options: {
+    /**
+     * True when the caller named a selector or a region, so only this piece of the design is being
+     * asked about. A crop gets the full upscale budget because there is nothing else competing for
+     * it; a whole frame does not, because its slice count does.
+     */
+    readonly targeted?: boolean | undefined;
+  } = {},
 ): {
   readonly scale: number;
   readonly tall: boolean;
 } => {
+  const upscale =
+    options.targeted === true
+      ? CANVAS_SCREENSHOT_MAX_UPSCALE
+      : CANVAS_SCREENSHOT_MAX_WHOLE_FRAME_UPSCALE;
   const scale = Math.min(
-    CANVAS_SCREENSHOT_MAX_UPSCALE,
+    upscale,
     Math.max(1, CANVAS_SCREENSHOT_TARGET_WIDTH / Math.max(1, target.width)),
   );
   return { scale, tall: target.height * scale > CANVAS_SCREENSHOT_MAX_EDGE };
@@ -155,9 +188,19 @@ export const renderScreenshot = async (
     readonly nodeId: string;
     readonly box: CanvasBox;
     readonly boundaries: ReadonlyArray<number>;
+    /** Which page of sections to return; omitted is the first. */
+    readonly sectionIndex?: number | undefined;
+    /** True when the caller named a selector or a region rather than asking for the whole frame. */
+    readonly targeted?: boolean | undefined;
   },
-): Promise<ReadonlyArray<CanvasScreenshotPart>> => {
-  const plan = planScreenshot(target.box);
+): Promise<{
+  readonly parts: ReadonlyArray<CanvasScreenshotPart>;
+  /** The next `sectionIndex` to ask for, or undefined when this was the last page. */
+  readonly nextSectionIndex: number | undefined;
+  /** How many sections the whole target needs, so a caller can tell how many pages there are. */
+  readonly totalSections: number;
+}> => {
+  const plan = planScreenshot(target.box, { targeted: target.targeted });
   const parts: CanvasScreenshotPart[] = [];
 
   if (plan.tall) {
@@ -181,10 +224,14 @@ export const renderScreenshot = async (
       scale: plan.scale,
     });
     parts.push({ role: "section", y: 0, height: target.box.height, image });
-    return parts;
+    return { parts, nextSectionIndex: undefined, totalSections: 1 };
   }
 
-  for (const section of planSections(target.box, plan.scale, target.boundaries)) {
+  const all = planSections(target.box, plan.scale, target.boundaries);
+  const start = Math.min(Math.max(0, Math.floor(target.sectionIndex ?? 0)), all.length);
+  const page = all.slice(start, start + CANVAS_SCREENSHOT_MAX_SECTIONS);
+
+  for (const section of page) {
     const image = await renderer.renderRegion({
       payload,
       nodeId: target.nodeId,
@@ -193,7 +240,12 @@ export const renderScreenshot = async (
     });
     parts.push({ role: "section", y: section.y - target.box.y, height: section.height, image });
   }
-  return parts;
+  const next = start + page.length;
+  return {
+    parts,
+    nextSectionIndex: next < all.length ? next : undefined,
+    totalSections: all.length,
+  };
 };
 
 /** The PNG bytes of every part, decoded once for an MCP image content block. */

@@ -329,6 +329,14 @@ export const CanvasScreenshotTool = Tool.make("dak_canvas_screenshot", {
         description: "Write the PNGs. Default true; false returns dimensions only.",
       }),
     ),
+    sectionIndex: Schema.optional(
+      Schema.Number.annotate({
+        description:
+          "Which page of sections to return, for a frame too tall for one answer. Omit for the " +
+          "first. The answer carries nextSectionIndex when there is more; call again with it to " +
+          "see the rest. Every section is written to a path either way.",
+      }),
+    ),
     includeImage: Schema.optional(
       Schema.Boolean.annotate({
         description:

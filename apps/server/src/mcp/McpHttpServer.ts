@@ -578,6 +578,11 @@ interface ImageToolImage {
   readonly data: string;
   readonly width: number;
   readonly height: number;
+  /**
+   * Rendered height in pixels, where a tool reports design units separately. An image block's
+   * dimensions describe pixels, so this wins when present.
+   */
+  readonly heightPx?: number;
 }
 
 interface ImageToolResult {
@@ -747,7 +752,10 @@ const registerImageTool = <T extends Tool.Any, E, R>(
                       continue;
                     }
                     totalBytes += bytes;
-                    kept.push(image);
+                    kept.push(
+                      // The metadata keeps design units; the block gets pixels.
+                      image.heightPx === undefined ? image : { ...image, height: image.heightPx },
+                    );
                   }
                 }
                 // A cap that silently drops images reads to the agent as "that was the whole

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   CANVAS_SCREENSHOT_MAX_EDGE,
+  CANVAS_SCREENSHOT_MAX_SECTIONS,
+  CANVAS_SCREENSHOT_MAX_UPSCALE,
+  CANVAS_SCREENSHOT_MAX_WHOLE_FRAME_UPSCALE,
   CANVAS_SCREENSHOT_TARGET_WIDTH,
   CANVAS_SCREENSHOT_SLICE_OVERLAP,
   planScreenshot,
@@ -21,7 +24,7 @@ const box = (width: number, height: number) => ({ x: 0, y: 0, width, height });
 
 describe("screenshot planning", () => {
   it("keeps a design that already fits as a single image", () => {
-    // 390 wide at the 4x cap is 1560 wide and 1200 tall, both inside the limit.
+    // 390 wide at the whole-frame cap is 780 wide and 600 tall, both inside the limit.
     const plan = planScreenshot(box(390, 300));
     expect(plan.tall).toBe(false);
     expect(planSections(box(390, 300), plan.scale, [])).toHaveLength(1);
@@ -31,17 +34,48 @@ describe("screenshot planning", () => {
     // The bug being guarded: a 390x5250 page fitted to a 1568 long edge is 117px wide.
     const plan = planScreenshot(box(390, 5250));
     expect(plan.scale).toBeGreaterThan(1);
-    expect(390 * plan.scale).toBeGreaterThanOrEqual(CANVAS_SCREENSHOT_TARGET_WIDTH * 0.99);
+    // A whole frame is held to the lower cap, so this is 780 rather than 1560. Still far from 117.
+    expect(390 * plan.scale).toBeGreaterThan(700);
     expect(plan.tall).toBe(true);
   });
 
+  it("gives a whole frame less scale than a crop, because its slice count depends on it", () => {
+    // The whole-frame cap exists for one reason: at 4x a 390px page is 1560 wide, which leaves a
+    // 392px slice and turns a 6000px page into sixteen of them. At 2x the slice is 784px and the
+    // page is about eight. A targeted crop still gets the full budget.
+    const whole = planScreenshot(box(390, 5250)).scale;
+    const crop = planScreenshot(box(390, 5250), { targeted: true }).scale;
+    expect(whole).toBe(CANVAS_SCREENSHOT_MAX_WHOLE_FRAME_UPSCALE);
+    expect(crop).toBe(CANVAS_SCREENSHOT_MAX_UPSCALE);
+    expect(whole).toBeLessThan(crop);
+  });
+
+  it("keeps a 6000px phone page to about one page of sections", () => {
+    // The planner's whole job: a phone-sized landing page should not need a dozen calls to review.
+    // Before the whole-frame cap this was twenty parts; now it is nine, which is two paged calls.
+    const target = box(390, 6000);
+    const plan = planScreenshot(target);
+    const sections = planSections(target, plan.scale, []);
+    const pages = Math.ceil(sections.length / CANVAS_SCREENSHOT_MAX_SECTIONS);
+    expect(sections.length).toBeLessThanOrEqual(CANVAS_SCREENSHOT_MAX_SECTIONS * 2);
+    expect(pages).toBeLessThanOrEqual(2);
+    // Each slice is still within the long edge, so nothing is rendered oversized.
+    for (const section of sections) {
+      expect(section.height * plan.scale).toBeLessThanOrEqual(CANVAS_SCREENSHOT_MAX_EDGE + 1);
+    }
+  });
+
   it("enlarges a small frame to the width text is read at, and no further", () => {
-    expect(planScreenshot(box(390, 800)).scale).toBeCloseTo(4, 5);
+    // Targeted, so the full 4x budget applies: nothing else is competing for the pixels.
+    expect(planScreenshot(box(390, 800), { targeted: true }).scale).toBeCloseTo(4, 5);
+    expect(planScreenshot(box(3900, 800), { targeted: true }).scale).toBe(1);
+    // The whole-frame cap still refuses to go past 2x.
+    expect(planScreenshot(box(390, 800)).scale).toBeCloseTo(2, 5);
     expect(planScreenshot(box(3900, 800)).scale).toBe(1);
   });
 
   it("splits a long design into crops that each fit the long edge", () => {
-    const plan = planScreenshot(box(390, 5250));
+    const plan = planScreenshot(box(390, 5250), { targeted: true });
     const sections = planSections(box(390, 5250), plan.scale, []);
     expect(sections.length).toBeGreaterThan(3);
     for (const section of sections) {

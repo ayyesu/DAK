@@ -6,7 +6,6 @@ import {
   planSections,
   renderScreenshot,
   type CanvasBox,
-  type CanvasScreenshotPart,
 } from "./canvasScreenshot.ts";
 import * as Effect from "effect/Effect";
 import { writeScratchScreenshots } from "./canvasScreenshotScratch.ts";
@@ -33,6 +32,10 @@ export interface CanvasScreenshotAnswerShape {
   readonly bounds: CanvasBox;
   readonly scale: number;
   readonly tall: boolean;
+  /** How many sections this frame needs in total, so a caller can tell how many pages there are. */
+  readonly totalSections: number;
+  /** The next `sectionIndex` to ask for. Absent when this was the last page. */
+  readonly nextSectionIndex?: number;
   readonly parts: ReadonlyArray<{
     readonly role: "overview" | "section";
     readonly y: number;
@@ -107,6 +110,11 @@ export interface ScreenshotRequest {
    * was just rendered, so an inlined image and the file at `path` are the same picture.
    */
   readonly includeImageData?: boolean | undefined;
+  /**
+   * Which page of sections to return, for a frame too tall for one call. Omitted is the first page;
+   * the answer carries `nextSectionIndex` when there is more.
+   */
+  readonly sectionIndex?: number | undefined;
 }
 
 export const answerCanvasScreenshot = async (
@@ -156,7 +164,13 @@ export const answerCanvasScreenshot = async (
           height: request.region.height,
         };
 
-  const parts: ReadonlyArray<CanvasScreenshotPart> = await renderScreenshot(
+  // A selector or a region means the caller asked about one specific piece, so that piece gets the
+  // full upscale budget; a whole frame does not, because its slice count does.
+  const targeted =
+    request.region !== undefined ||
+    (request.selector !== undefined && request.nodeId === undefined);
+
+  const { parts, nextSectionIndex, totalSections } = await renderScreenshot(
     {
       renderRegion: (input) =>
         Effect.runPromise(
@@ -174,7 +188,13 @@ export const answerCanvasScreenshot = async (
         ),
     },
     undefined as never,
-    { nodeId, box: target, boundaries: sectionBoundaries(document, nodeId, boxes) },
+    {
+      nodeId,
+      box: target,
+      boundaries: sectionBoundaries(document, nodeId, boxes),
+      targeted,
+      ...(request.sectionIndex === undefined ? {} : { sectionIndex: request.sectionIndex }),
+    },
   );
 
   const saved =
@@ -187,8 +207,10 @@ export const answerCanvasScreenshot = async (
     target: String(frame.name ?? nodeId),
     nodeId,
     bounds: target,
-    scale: planScreenshot(target).scale,
+    scale: planScreenshot(target, { targeted }).scale,
     tall: parts.length > 1,
+    totalSections,
+    ...(nextSectionIndex === undefined ? {} : { nextSectionIndex }),
     maxEdge: CANVAS_SCREENSHOT_MAX_EDGE,
     parts: parts.map((part, index) => ({
       role: part.role,

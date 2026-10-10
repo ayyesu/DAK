@@ -50,6 +50,14 @@ export const CanvasScreenshotAnswer = Schema.Struct({
   scale: Schema.Number,
   /** True when the target was split into more than one image. */
   tall: Schema.Boolean,
+  /** How many sections this frame needs in total, so a caller can tell how many pages there are. */
+  totalSections: Schema.Number,
+  /**
+   * The next `sectionIndex` to ask for. Absent when this was the last page. The sections not in this
+   * page are still written to their paths, so nothing is lost — this is about how many images one
+   * answer carries, not about what exists.
+   */
+  nextSectionIndex: Schema.optional(Schema.Number),
   maxEdge: Schema.Number,
   parts: Schema.Array(CanvasScreenshotPart),
 });

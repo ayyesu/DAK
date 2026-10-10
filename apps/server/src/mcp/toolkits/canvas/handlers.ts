@@ -157,17 +157,16 @@ const requireCanvasCapability = McpInvocationContext.McpInvocationContext.pipe(
 const screenshotResult = (answer: CanvasScreenshotAnswerShape) => ({
   ...answer,
   parts: answer.parts.map((part) => ({
-    mimeType: part.mimeType,
-    width: part.width,
-    height: part.heightPx,
-    /** Kept so the text part can say what each image is and where the full-size file is. */
     role: part.role,
     y: part.y,
-    designHeight: part.height,
-    ...(part.path === undefined ? {} : { path: part.path }),
-    // The tool's success schema names this `heightPx`, because `height` is the part's height in
-    // design units and the two are genuinely different numbers. The transport needs the pixel one.
+    // The tool's own schema already means design units by `height` and pixels by `heightPx`, so this
+    // passes them through unchanged rather than renaming. Overwriting `height` with the pixel value
+    // here made every section look 2x too tall and broke any coverage arithmetic done on it.
+    height: part.height,
+    width: part.width,
     heightPx: part.heightPx,
+    mimeType: part.mimeType,
+    ...(part.path === undefined ? {} : { path: part.path }),
     // Omitted rather than empty when the caller asked for paths only: an empty string is not a
     // valid image and the schema (rightly) rejects it.
     ...(part.data === undefined ? {} : { data: part.data }),
@@ -197,6 +196,7 @@ export const screenshotLayer = McpToolAccess.toLayer(CanvasScreenshotToolkit, {
           // caller that wants only the paths is a client that cannot render an image anyway. The
           // ordinary toolkit route never attaches images, so it passes `includeImage: false`.
           includeImageData: input.includeImage !== false,
+          ...(input.sectionIndex === undefined ? {} : { sectionIndex: input.sectionIndex }),
         }),
       );
       return screenshotResult(answer);

@@ -159,33 +159,32 @@ it.effect(
         expect(sections.length).toBeGreaterThan(1);
 
         const images = contentOfType(result, "image");
-        // One block per attached part, in order: the overview first, then every section.
+        // One block per part, in order: the overview first, then every section on this page.
         expect(images.length).toBeGreaterThan(1);
         expect(images.length).toBeLessThanOrEqual(8);
+        expect(images).toHaveLength(metadata.parts.length);
         for (const image of images) {
           expect(image.mimeType).toBe("image/png");
           // A real PNG, not a base64 string that only decodes to nothing.
           expect(Buffer.from(image.data).subarray(0, 8)).toEqual(PNG_MAGIC);
         }
 
-        // The cap is stated rather than silent, and it says where the rest still is.
-        const trimmed = (contentOfType(result, "text") as ReadonlyArray<{ readonly text: string }>)
-          .map((entry) => entry.text)
-          .find((text) => text.includes("image limit"));
-        expect(trimmed).toBeDefined();
-        expect(trimmed).toContain("paths");
-
-        // The text carries the geometry and the file paths but never the pixels: the base64 is what
-        // would bloat this block, and it is already in the image blocks.
+        // Nothing is trimmed: the planner now keeps a page inside the cap on purpose, so the
+        // transport cap is a backstop rather than the thing doing the work. This is the assertion
+        // that would fail if the planner regressed back to slicing the whole page at once.
         const text = contentOfType(result, "text") as ReadonlyArray<{ readonly text: string }>;
         expect(text.length).toBeGreaterThan(0);
+        const joined = text.map((entry) => entry.text).join("\n");
+        expect(joined).not.toContain("image limit");
+        // Every part is on disk regardless, so nothing is unreachable.
+        expect(joined).toContain(".png");
+
+        // The text carries the geometry but never the pixels: the base64 is what would bloat this
+        // block, and it is already in the image blocks.
         for (const entry of text) {
           expect(entry.text).not.toMatch(/iVBORw0KGgo/);
           expect(Buffer.from(entry.text).length).toBeLessThan(60_000);
         }
-        // Every part, attached or trimmed, is still written to disk, so nothing is unreachable.
-        const joined = text.map((entry) => entry.text).join("\n");
-        expect(joined).toContain(".png");
       }),
     ).pipe(Effect.provide(layerTest)),
   { timeout: 180_000 },
@@ -334,6 +333,205 @@ it.effect(
       }),
     ).pipe(Effect.provide(layerTest)),
   { timeout: 180_000 },
+);
+
+/**
+ * The scale and the paging.
+ *
+ * A 390x6000 page used to come back as twenty parts: the planner scaled it 4x to fill the width
+ * budget, which left a 392px slice and therefore sixteen of them. Twenty images is not a page an
+ * agent can read, so the whole-frame scale is capped lower and the sections are paged. This test
+ * pins both halves: one call stays inside the image cap, and walking the cursor covers the entire
+ * height with the same 64px overlap a single call would have had.
+ */
+it.effect(
+  "pages a tall phone page so one call fits the cap and the pages cover it whole",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const created = yield* callTool("dak_canvas_create", {
+          title: "Long page",
+          module: "generic",
+          projectId: PROJECT_ID,
+        });
+        const documentId = (created.structuredContent as { documentId: string }).documentId;
+        const frameId = (created.structuredContent as { starterFrameId: string }).starterFrameId;
+        yield* callTool("dak_canvas_edit", {
+          documentId,
+          projectId: PROJECT_ID,
+          code: `Update("${frameId}", { width: 390, height: 6000 }); return 1;`,
+        });
+
+        type Page = {
+          readonly tall: boolean;
+          readonly scale: number;
+          readonly bounds: { readonly height: number };
+          readonly totalSections: number;
+          readonly nextSectionIndex?: number;
+          readonly parts: ReadonlyArray<{
+            readonly role: string;
+            readonly y: number;
+            /** Design units; `heightPx` is the rendered pixel height. */
+            readonly height: number;
+            readonly width: number;
+          }>;
+        };
+
+        // Page through until the cursor runs out, collecting what each page covered.
+        const seen: Array<{ readonly y: number; readonly height: number }> = [];
+        let page = yield* callTool("dak_canvas_screenshot", {
+          documentId,
+          projectId: PROJECT_ID,
+        });
+        let pages = 0;
+        let first: Page | undefined;
+        for (;;) {
+          const metadata = page.structuredContent as Page;
+          first ??= metadata;
+          pages += 1;
+          expect(contentOfType(page, "image").length).toBeLessThanOrEqual(8);
+          for (const part of metadata.parts) {
+            if (part.role === "section") seen.push({ y: part.y, height: part.height });
+          }
+          if (metadata.nextSectionIndex === undefined) break;
+          page = yield* callTool("dak_canvas_screenshot", {
+            documentId,
+            projectId: PROJECT_ID,
+            sectionIndex: metadata.nextSectionIndex,
+          });
+          // A cursor that never advances would page forever, so the loop is bounded too.
+          expect(pages).toBeLessThan(20);
+        }
+
+        expect(first?.tall).toBe(true);
+        expect(first?.bounds.height).toBe(6000);
+        // A 390px frame at 2x is 780px wide: wide enough to read, and the reason a 6000px page is a
+        // handful of slices rather than sixteen.
+        expect(first?.scale).toBe(2);
+        expect(first?.parts[0]?.role).toBe("overview");
+        // 6000 / (1568/2 - 64) is a little over eight, so the page is two answers rather than one.
+        expect(pages).toBe(2);
+        expect(first?.nextSectionIndex).toBe(7);
+        expect(first?.totalSections).toBeGreaterThan(7);
+
+        // Covered from the top to the bottom with no hole, and consecutive sections overlap by the
+        // documented 64px so a boundary is never only cut in one place.
+        // `height` is design units and `heightPx` is the rendered height; an answer that reported the
+        // pixel value under the name `height` made every section look twice as tall as it was.
+        expect(seen[0]?.y).toBe(0);
+        expect(seen.at(-1)!.y + seen.at(-1)!.height).toBe(6000);
+        for (let index = 1; index < seen.length; index += 1) {
+          const previous = seen[index - 1]!;
+          const current = seen[index]!;
+          expect(current.y).toBeLessThanOrEqual(previous.y + previous.height);
+          if (current.y < previous.y + previous.height - 1) {
+            expect(previous.y + previous.height - current.y).toBe(64);
+          }
+        }
+
+        // A targeted crop is still allowed the full 4x budget, because there is nothing competing
+        // for it when only one piece of the design was asked about.
+        const cropped = yield* callTool("dak_canvas_screenshot", {
+          documentId,
+          projectId: PROJECT_ID,
+          selector: frameId,
+        });
+        const croppedMeta = cropped.structuredContent as Page;
+        expect(croppedMeta.scale).toBe(4);
+      }),
+    ).pipe(Effect.provide(layerTest)),
+  { timeout: 300_000 },
+);
+
+/**
+ * The planner keeping a page inside the cap, with the transport cap as a backstop underneath.
+ *
+ * A design with many section boundaries is the case most likely to overrun a page, so it is the one
+ * worth pinning: every section must be reachable by following `nextSectionIndex`, and the agent must
+ * never be told something was dropped when it was not.
+ */
+it.effect(
+  "never overruns a page, and names what it dropped if it ever does",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const created = yield* callTool("dak_canvas_create", {
+          title: "Many sections",
+          module: "generic",
+          projectId: PROJECT_ID,
+        });
+        const documentId = (created.structuredContent as { documentId: string }).documentId;
+        const frameId = (created.structuredContent as { starterFrameId: string }).starterFrameId;
+        // Twenty explicit inserts rather than a loop: the design script is a bounded expression
+        // language, not a general JS sandbox, and a test should not depend on loop support.
+        const band = (i: number) =>
+          `Insert("${frameId}", { id: "band${i}", type: "rectangle", x: 0, y: ${i * 300}, ` +
+          `width: 390, height: 280, fill: "#e2e8f0" }); `;
+        const edited = yield* callTool("dak_canvas_edit", {
+          documentId,
+          projectId: PROJECT_ID,
+          // The frame has to be tall enough to need slicing, or twenty boundaries produce one section
+          // and the paging is never exercised.
+          code:
+            `Update("${frameId}", { width: 390, height: 6000 }); ` +
+            Array.from({ length: 20 }, (_, i) => band(i)).join("") +
+            "return 20;",
+        });
+        expect(edited.isError, JSON.stringify(edited.content)).toBeFalsy();
+        // The bands have to be there for the boundaries to exist; an edit that silently did nothing
+        // would leave a short frame and make this test pass for the wrong reason.
+        const listed = yield* callTool("dak_canvas_read", {
+          documentId,
+          projectId: PROJECT_ID,
+        });
+        const outline = listed.structuredContent as {
+          readonly frames: ReadonlyArray<{ readonly childCount: number }>;
+        };
+        expect(outline.frames[0]?.childCount).toBe(20);
+
+        type Page = {
+          readonly totalSections: number;
+          readonly nextSectionIndex?: number;
+          readonly parts: ReadonlyArray<{ readonly role: string; readonly y: number }>;
+        };
+
+        const seen: Array<number> = [];
+        let page = yield* callTool("dak_canvas_screenshot", {
+          documentId,
+          projectId: PROJECT_ID,
+        });
+        let pages = 0;
+        for (;;) {
+          const metadata = page.structuredContent as Page;
+          pages += 1;
+          const text = (contentOfType(page, "text") as ReadonlyArray<{ readonly text: string }>)
+            .map((entry) => entry.text)
+            .join("\n");
+          expect(contentOfType(page, "image").length).toBeLessThanOrEqual(8);
+          const sections = metadata.parts.filter((part) => part.role === "section");
+          if (sections.length + 1 > 8) {
+            // The backstop fired, so the agent has to be told what was left behind and where it is.
+            expect(text).toContain("limit");
+            expect(text).toContain("paths");
+          } else {
+            expect(text).not.toContain("image limit");
+          }
+          for (const part of sections) seen.push(part.y);
+          if (metadata.nextSectionIndex === undefined) break;
+          page = yield* callTool("dak_canvas_screenshot", {
+            documentId,
+            projectId: PROJECT_ID,
+            sectionIndex: metadata.nextSectionIndex,
+          });
+          expect(pages).toBeLessThan(20);
+        }
+
+        // Every section was reachable exactly once, so paging does not skip or repeat.
+        expect(new Set(seen).size).toBe(seen.length);
+        expect(seen.length).toBeGreaterThan(7);
+      }),
+    ).pipe(Effect.provide(layerTest)),
+  { timeout: 300_000 },
 );
 
 /** `save: false` reports the geometry without writing anything. */
