@@ -291,7 +291,7 @@ const CanvasExportTool = Tool.make("dak_canvas_export", {
  * paths are in the answer either way, because there is no way to tell from inside the server whether
  * the model on the other end can see an image or can only open a file.
  */
-const CanvasScreenshotTool = Tool.make("dak_canvas_screenshot", {
+export const CanvasScreenshotTool = Tool.make("dak_canvas_screenshot", {
   ...shared,
   description:
     "Look at a design. Writes PNGs into the project and returns their paths with the region each one " +
@@ -346,6 +346,12 @@ const CanvasScreenshotTool = Tool.make("dak_canvas_screenshot", {
   .annotate(Tool.Idempotent, true)
   .annotate(Tool.OpenWorld, false);
 
+/**
+ * `dak_canvas_screenshot` on its own, because it is registered by hand: `McpServer.toolkit`
+ * serialises every result as JSON text, and the whole point of this tool is that the PNG reaches
+ * the model as an image block. See `registerImageTool`.
+ */
+export const CanvasScreenshotToolkit = Toolkit.make(CanvasScreenshotTool);
 /**
  * `dak_canvas_inspect` and `dak_canvas_measure`, kept together because both are read-only answers
  * about a design's geometry and neither draws anything.
@@ -412,7 +418,6 @@ export const CanvasToolkit = Toolkit.make(
   CanvasEditTool,
   CanvasInspectTool,
   CanvasMeasureTool,
-  CanvasScreenshotTool,
   CanvasUndoTool,
   CanvasTrashTool,
   CanvasRestoreTool,

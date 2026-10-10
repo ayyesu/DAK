@@ -30,6 +30,12 @@ export const CanvasScreenshotPart = Schema.Struct({
   mimeType: Schema.Literal("image/png"),
   /** Absent when the caller asked not to write. */
   path: Schema.optional(TrimmedNonEmptyString),
+  /**
+   * Base64 PNG, present only when the caller asked for it. Deliberately not on the panel's
+   * subscriptions: this is a one-shot answer, and base64 over a socket on every render is the
+   * weight this whole tool exists to avoid.
+   */
+  data: Schema.optional(TrimmedNonEmptyString),
 });
 export type CanvasScreenshotPart = typeof CanvasScreenshotPart.Type;
 

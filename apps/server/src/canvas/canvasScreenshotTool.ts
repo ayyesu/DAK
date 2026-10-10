@@ -41,6 +41,8 @@ export interface CanvasScreenshotAnswerShape {
     readonly heightPx: number;
     readonly mimeType: "image/png";
     readonly path?: string;
+    /** Base64 PNG, present only when the caller asked for it. */
+    readonly data?: string;
   }>;
   readonly maxEdge: number;
 }
@@ -99,6 +101,12 @@ export interface ScreenshotRequest {
   readonly region?: CanvasBox | undefined;
   /** False to skip writing; the parts are still returned with their dimensions. */
   readonly save?: boolean | undefined;
+  /**
+   * True to inline each PNG as base64 alongside its path. Off by default: it doubles the answer's
+   * size, and only a caller that attaches MCP image blocks needs it. The bytes are taken from what
+   * was just rendered, so an inlined image and the file at `path` are the same picture.
+   */
+  readonly includeImageData?: boolean | undefined;
 }
 
 export const answerCanvasScreenshot = async (
@@ -190,6 +198,7 @@ export const answerCanvasScreenshot = async (
       heightPx: part.image.height,
       mimeType: part.image.mimeType,
       ...(saved.paths[index] === undefined ? {} : { path: saved.paths[index] }),
+      ...(request.includeImageData === true ? { data: part.image.data } : {}),
     })),
   };
 };

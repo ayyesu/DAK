@@ -11,12 +11,15 @@ import * as Effect from "effect/Effect";
 
 import * as CanvasProjects from "../../../canvas/CanvasProjects.ts";
 import * as CanvasEngineLive from "../../../canvas/CanvasEngineLive.ts";
-import { answerCanvasScreenshot } from "../../../canvas/canvasScreenshotTool.ts";
+import {
+  answerCanvasScreenshot,
+  type CanvasScreenshotAnswerShape,
+} from "../../../canvas/canvasScreenshotTool.ts";
 import type * as CanvasService from "../../../canvas/CanvasService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import { type Caller, readCaller, resolveProjectId } from "../../threadAccess.ts";
-import { CanvasToolkit } from "./tools.ts";
+import { CanvasScreenshotToolkit, CanvasToolkit } from "./tools.ts";
 
 type CanvasServiceType = CanvasService.CanvasService["Service"];
 
@@ -142,6 +145,65 @@ const requireCanvasCapability = McpInvocationContext.McpInvocationContext.pipe(
   ),
 );
 
+/**
+ * The screenshot tool is registered by hand so its PNGs go out as image blocks, but it still runs
+ * through `McpToolAccess` like every other canvas tool, so the capability check and the caller's
+ * project resolution are the ordinary ones rather than a second implementation of both.
+ *
+ * The answer is reshaped here rather than in the transport: the canvas answer carries `heightPx`
+ * because `height` is the design-space height of the part and the two are genuinely different
+ * numbers, and only the pixels are ever rendered.
+ */
+const screenshotResult = (answer: CanvasScreenshotAnswerShape) => ({
+  ...answer,
+  parts: answer.parts.map((part) => ({
+    mimeType: part.mimeType,
+    width: part.width,
+    height: part.heightPx,
+    /** Kept so the text part can say what each image is and where the full-size file is. */
+    role: part.role,
+    y: part.y,
+    designHeight: part.height,
+    ...(part.path === undefined ? {} : { path: part.path }),
+    // The tool's success schema names this `heightPx`, because `height` is the part's height in
+    // design units and the two are genuinely different numbers. The transport needs the pixel one.
+    heightPx: part.heightPx,
+    // Omitted rather than empty when the caller asked for paths only: an empty string is not a
+    // valid image and the schema (rightly) rejects it.
+    ...(part.data === undefined ? {} : { data: part.data }),
+  })),
+});
+
+/**
+ * Its own layer, because `dak_canvas_screenshot` is registered by hand rather than as part of
+ * `CanvasToolkit`: `McpServer.toolkit` serialises every result as JSON text, and the whole point of
+ * this tool is that the PNG reaches the model as an image block.
+ */
+export const screenshotLayer = McpToolAccess.toLayer(CanvasScreenshotToolkit, {
+  dak_canvas_screenshot: McpToolAccess.reads((input) =>
+    Effect.gen(function* () {
+      yield* requireCanvasCapability;
+      const caller = yield* readCaller();
+      const { service, store, workspaceRoot } = yield* forProject(caller, input.projectId);
+      const engine = CanvasEngineLive.make();
+      const answer = yield* Effect.promise(() =>
+        answerCanvasScreenshot(service, store, engine, workspaceRoot, {
+          documentId: input.documentId,
+          ...(input.nodeId === undefined ? {} : { nodeId: input.nodeId }),
+          ...(input.selector === undefined ? {} : { selector: input.selector }),
+          ...(input.region === undefined ? {} : { region: input.region }),
+          ...(input.save === undefined ? {} : { save: input.save }),
+          // Inlining is opt-out rather than opt-in: this route exists to attach the image, and a
+          // caller that wants only the paths is a client that cannot render an image anyway. The
+          // ordinary toolkit route never attaches images, so it passes `includeImage: false`.
+          includeImageData: input.includeImage !== false,
+        }),
+      );
+      return screenshotResult(answer);
+    }),
+  ),
+});
+
 export const layer = McpToolAccess.toLayer(CanvasToolkit, {
   dak_canvas_create: McpToolAccess.actsAsCaller((input) =>
     Effect.gen(function* () {
@@ -220,27 +282,6 @@ export const layer = McpToolAccess.toLayer(CanvasToolkit, {
         documentId: input.documentId,
         ...(input.selectors === undefined ? {} : { selectors: input.selectors }),
       });
-    }),
-  ),
-
-  dak_canvas_screenshot: McpToolAccess.reads((input) =>
-    Effect.gen(function* () {
-      yield* requireCanvasCapability;
-      const caller = yield* readCaller();
-      const { service, store, workspaceRoot } = yield* forProject(caller, input.projectId);
-      const engine = CanvasEngineLive.make();
-      return yield* Effect.promise(() =>
-        answerCanvasScreenshot(service, store, engine, workspaceRoot, {
-          documentId: input.documentId,
-          ...(input.nodeId === undefined ? {} : { nodeId: input.nodeId }),
-          ...(input.selector === undefined ? {} : { selector: input.selector }),
-          ...(input.region === undefined ? {} : { region: input.region }),
-          ...(input.save === undefined ? {} : { save: input.save }),
-          // Inlining is opt-in per call rather than always-on: it doubles the answer, and only a
-          // transport that can render an image block wants it.
-          ...(input.includeImage === undefined ? {} : { includeImageData: input.includeImage }),
-        }),
-      );
     }),
   ),
 

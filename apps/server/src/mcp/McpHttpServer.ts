@@ -58,8 +58,13 @@ import {
 import * as HtmlHandlers from "./toolkits/html/handlers.ts";
 import { HtmlPreviewTool, HtmlPreviewToolkit, HtmlRenderToolkit } from "./toolkits/html/tools.ts";
 import * as CanvasHandlers from "./toolkits/canvas/handlers.ts";
-import { CanvasToolkit } from "./toolkits/canvas/tools.ts";
+import {
+  CanvasScreenshotTool,
+  CanvasScreenshotToolkit,
+  CanvasToolkit,
+} from "./toolkits/canvas/tools.ts";
 import * as CanvasChangeBus from "../canvas/CanvasChangeBus.ts";
+import * as ProjectService from "../project/ProjectService.ts";
 
 /** Where an MCP client discovers how to sign in (RFC 9728), at this request's own origin. */
 const mcpResourceMetadataUrl = (request: HttpServerRequest.HttpServerRequest) =>
@@ -568,15 +573,33 @@ const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot
   });
 });
 
+interface ImageToolImage {
+  readonly mimeType: "image/png";
+  readonly data: string;
+  readonly width: number;
+  readonly height: number;
+}
+
 interface ImageToolResult {
-  readonly screenshot: {
-    readonly mimeType: "image/png";
-    readonly data: string;
-    readonly width: number;
-    readonly height: number;
-  };
+  readonly screenshot?: ImageToolImage;
+  /**
+   * Several images in order, for a tool that produces more than one: a tall canvas frame answers
+   * with a small overview followed by sharp section crops. `screenshot` is the single-image form
+   * and `parts` is the superset, so a tool that already returns `screenshot` needs no change.
+   */
+  readonly parts?: ReadonlyArray<ImageToolImage>;
   readonly [key: string]: unknown;
 }
+
+/** How many images one tool call may attach before the rest are dropped. */
+const MAX_IMAGE_PARTS = 8;
+/**
+ * Roughly 24MB of base64, chosen because it is the ceiling several MCP clients already impose on a
+ * single tool result. Past it a client may reject the whole call rather than the images, which would
+ * cost the agent the text answer too — so the cap drops images and says so, instead of risking the
+ * entire result.
+ */
+const MAX_IMAGE_PART_BYTES = 3 * 1024 * 1024;
 
 /**
  * Failures surface only their tag unless the tool describes them: the remote
@@ -676,33 +699,85 @@ const registerImageTool = <T extends Tool.Any, E, R>(
             Effect.matchCauseEffect({
               onFailure: imageToolFailure(tool.name, operation, failureText),
               onSuccess: ({ encodedResult }) => {
-                const { screenshot, ...rest } = encodedResult as ImageToolResult;
+                const { screenshot, parts, ...rest } = encodedResult as ImageToolResult;
                 const includeImage =
                   (payload as { readonly includeImage?: boolean } | undefined)?.includeImage !==
                   false;
-                const metadata = {
-                  ...rest,
-                  screenshot: {
-                    mimeType: screenshot.mimeType,
-                    width: screenshot.width,
-                    height: screenshot.height,
-                  },
-                };
+                // The single-image form keeps its old shape exactly: one `screenshot` in the
+                // metadata, one image block. Only the multi-image form is new.
+                const images = parts ?? (screenshot === undefined ? [] : [screenshot]);
+                // A part may carry no bytes at all: a caller that asked for paths only still gets
+                // the geometry, and there is nothing to attach. Skipped rather than decoded, because
+                // `Buffer.from(undefined)` is a type error rather than an empty image.
+                const attachable = images.filter(
+                  (image): image is ImageToolImage & { readonly data: string } =>
+                    typeof image.data === "string" && image.data.length > 0,
+                );
+                const metadata =
+                  screenshot === undefined
+                    ? {
+                        ...rest,
+                        // Dimensions travel without the pixels; the base64 is what would bloat this
+                        // text block by orders of magnitude.
+                        parts: images.map(({ data: _data, ...dimension }) => dimension),
+                      }
+                    : {
+                        ...rest,
+                        screenshot: {
+                          mimeType: screenshot.mimeType,
+                          width: screenshot.width,
+                          height: screenshot.height,
+                        },
+                      };
+                const kept: Array<ImageToolImage> = [];
+                let droppedByCount = 0;
+                let droppedByBytes = 0;
+                let totalBytes = 0;
+                // A caller that opted out is not over any limit, so it is never told it was.
+                if (includeImage) {
+                  for (const image of attachable) {
+                    if (kept.length >= MAX_IMAGE_PARTS) {
+                      droppedByCount += 1;
+                      continue;
+                    }
+                    // Measured on the base64 that actually goes over the wire, not decoded pixels.
+                    const bytes = image.data.length;
+                    if (totalBytes + bytes > MAX_IMAGE_PART_BYTES && kept.length > 0) {
+                      droppedByBytes += 1;
+                      continue;
+                    }
+                    totalBytes += bytes;
+                    kept.push(image);
+                  }
+                }
+                // A cap that silently drops images reads to the agent as "that was the whole
+                // design", so it is stated in the text. It also names the paths, which are not
+                // capped, so nothing is actually unreachable.
+                const trimmed =
+                  droppedByCount + droppedByBytes === 0
+                    ? []
+                    : [
+                        {
+                          type: "text" as const,
+                          text:
+                            `Attached ${kept.length} of ${images.length} images; ` +
+                            `${droppedByCount} over the ${MAX_IMAGE_PARTS}-image limit and ` +
+                            `${droppedByBytes} over the ${Math.round(MAX_IMAGE_PART_BYTES / (1024 * 1024))}MB limit. ` +
+                            `Every part is still written to the paths in this answer — open those for the rest.`,
+                        },
+                      ];
                 return Effect.succeed(
                   new McpSchema.CallToolResult({
                     isError: false,
                     structuredContent: metadata,
                     content: [
                       { type: "text", text: JSON.stringify(metadata) },
-                      ...(includeImage
-                        ? [
-                            {
-                              type: "image" as const,
-                              data: new Uint8Array(Buffer.from(screenshot.data, "base64")),
-                              mimeType: screenshot.mimeType,
-                            },
-                          ]
-                        : []),
+                      ...trimmed,
+                      ...kept.map((image) => ({
+                        type: "image" as const,
+                        data: new Uint8Array(Buffer.from(image.data, "base64")),
+                        mimeType: image.mimeType,
+                      })),
                     ],
                   }),
                 );
@@ -730,6 +805,28 @@ const registerDeviceScreenshot = Effect.fn("McpHttpServer.registerDeviceScreensh
       ),
     "screenshot",
     "Device screenshot failed.",
+  );
+});
+
+const registerCanvasScreenshot = Effect.fn("McpHttpServer.registerCanvasScreenshot")(function* () {
+  const threads = yield* ThreadManagementService.ThreadManagementService;
+  const projects = yield* ProjectService.ProjectService;
+  const bus = yield* CanvasChangeBus.CanvasChangeBus;
+  const built = yield* CanvasScreenshotToolkit;
+  yield* registerImageTool(
+    CanvasScreenshotTool,
+    (payload) =>
+      built
+        .handle("dak_canvas_screenshot", payload)
+        .pipe(Stream.unwrap, Stream.run(Sink.last()), Effect.flatMap(Effect.fromOption)),
+    (effect) =>
+      effect.pipe(
+        Effect.provideService(ThreadManagementService.ThreadManagementService, threads),
+        Effect.provideService(ProjectService.ProjectService, projects),
+        Effect.provideService(CanvasChangeBus.CanvasChangeBus, bus),
+      ),
+    "screenshot",
+    "Canvas screenshot failed.",
   );
 });
 
@@ -824,9 +921,9 @@ const layerProjectRegistration = toolkitRegistration(ProjectToolkit, ProjectHand
  * their own tests, but nothing put them on `/mcp`. The bus is provided because an edit announces
  * itself the same way a live view listens for it.
  */
-export const layerCanvasToolkitRegistration = toolkitRegistration(
-  CanvasToolkit,
-  CanvasHandlers.layer,
+export const layerCanvasToolkitRegistration = Layer.mergeAll(
+  toolkitRegistration(CanvasToolkit, CanvasHandlers.layer),
+  imageToolRegistration(registerCanvasScreenshot(), CanvasHandlers.screenshotLayer),
 ).pipe(Layer.provideMerge(CanvasChangeBus.layer));
 
 const layerAttachmentRegistration = toolkitRegistration(
