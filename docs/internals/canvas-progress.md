@@ -13,10 +13,11 @@ Gates marked 🛑 are the user's and block everything below them.
 | M0  | Integrity: 5 acceptance tests, no placeholders, font test asserts `unknown_font` | **done** | `2aec4b77` | 5 tests present; unshipped font measured against Inter before the fix, now throws `CANVAS_UNKNOWN_FONT` naming family + available + nearest                          |
 | M1a | `dak_canvas_screenshot` as an ordinary toolkit tool, answers with file paths     | **done** | `310f469e` | 5 handler tests through `McpToolAccess`; PNG header read back off disk; frame at x=120 crops from its own origin; tall frame gives an overview plus gapless sections |
 | M1b | Canvas toolkit registered on `/mcp` so the tools are reachable at all            | **done** | `bb85e186` | 79 tools listed before, none named `dak_canvas_*`; assertion added to the `tools/list` HTTP test and confirmed to fail without the fix                               |
-| M1c | Same screenshots also attached as MCP image blocks                               | **done** | `4b3ac86d` | `registerImageTool` reads a `parts` array; single-`screenshot` tools untouched. Tall frame → 8 image blocks, cap note in text, no base64 in text. 216 tests green    |
+| M1c | Same screenshots also attached as MCP image blocks                               | **done** | `4b3ac86d` | `registerImageTool` reads a `parts` array; single-`screenshot` tools untouched. Tall frame → 8 image blocks, cap note in text, no base64 in text                     |
+| M1d | Whole-frame scale capped at 2x, sections paged via `nextSectionIndex`            | **done** | `0cfb3a73` | 390x6000 went from 20 parts to 9 (2 pages). Also fixed the handler reporting pixel height as `height`, which made every section look 2x too tall                     |
 | M2  | `dak_canvas_inspect` with measured boxes and stable codes                        | **done** | `ac78509e` | 9 codes, contrast against nearest filled ancestor, overlap rule tested 7 ways; 182 canvas tests green                                                                |
 | M3  | Edit feedback: issueSummary, measured boxes, delta; `dak_canvas_measure`         | **done** | `7cbace3d` | delta test: breaking edit reports `frames_overlap` as introduced, the fixing edit reports it resolved, a no-op reports no delta; 184 canvas tests green              |
-| M4  | Fonts: OFL families, per-family budget, `unknown_font` lists matches             | todo     |            |                                                                                                                                                                      |
+| M4  | Fonts: OFL families, per-family budget, `unknown_font` lists matches             | **done** | `249902ef` | 7 shipped / 4 excluded / 0 missing, now enforced by `canvas:verify`. `unknown_font` behaviour landed in M0 (`2aec4b77`); per-family budget and coverage tests here   |
 | M5  | Design intelligence: script prelude helpers, design skill, rename/focus          | todo     |            |                                                                                                                                                                      |
 | M6  | Design list: rename, trash, delete, thumbnails, search, duplicate                | todo     |            |                                                                                                                                                                      |
 | M7  | Viewer S1+S2: world layout, navigation, title overlays                           | todo     |            |                                                                                                                                                                      |
@@ -76,7 +77,8 @@ Not yet started; needs a decision between these.
 ### Standing verification rule
 
 Run `npm run canvas:verify` before **every** canvas commit. It runs the canvas suite, the
-toolkit-wide `core.test.ts`, and the HTTP registration test together.
+toolkit-wide `core.test.ts`, the HTTP registration test, the font coverage tests, and the font
+coverage gate itself.
 
 This exists because each of those passed on its own while the canvas toolkit was not in
 `McpHttpServer.layer` at all (fixed in `bb85e186`), and because `core.test.ts` was already failing
@@ -93,10 +95,10 @@ with this work's changes reverted.
   (`dakMcpToolPresentation.ts`) and re-running: same 5 failures. None of those four test files or
   their subjects were touched by any commit here.
 - `apps/server/src/mcp/McpHttpServer.test.ts` → `saves the snapshot PNG on request and reports its
-path`. A Windows path-escaping bug: the assertion expects an unescaped `C:\...` path inside a JSON
-  text block, which double-escapes the backslashes. Confirmed to fail identically with the
-  committed `McpHttpServer.ts` restored. Not fixed here because it is unrelated to Canvas and a
-  silent drive-by fix would hide it from whoever owns it.
+path`. One line: a Windows path-escaping bug, where the assertion expects an unescaped `C:\...`
+  path inside a JSON text block and the backslashes come back doubled. Confirmed to fail identically
+  with the committed `McpHttpServer.ts` restored. Not fixed here — unrelated to Canvas, and a silent
+  drive-by fix would hide it from whoever owns it.
 - Lint: `CanvasRenderBudget.test.ts` (`dak(namespace-node-imports)`) and `CanvasViewService.test.ts`
   (7× `dak(no-manual-effect-runtime-in-tests)`). Pre-existing, in files this work does not touch.
 
