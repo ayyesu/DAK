@@ -407,6 +407,30 @@ export function summarizeDakToolCalls(
     case "capabilities":
       label = phrase("Checked", "check", `orchestration capabilities ${times}`);
       break;
+    case "canvas-create":
+      label = phrase("Created", "create", quantity(selected.length, "design"));
+      break;
+    case "canvas-list":
+      label = phrase("Listed", "list", `designs ${times}`);
+      break;
+    case "canvas-read":
+      label = phrase("Read", "read", quantity(selected.length, "design"));
+      break;
+    case "canvas-edit":
+      label = phrase("Edited", "edit", quantity(selected.length, "design"));
+      break;
+    case "canvas-undo":
+      label = phrase("Undid", "undo", quantity(selected.length, "design edit"));
+      break;
+    case "canvas-trash":
+      label = phrase("Trashed", "trash", quantity(selected.length, "design"));
+      break;
+    case "canvas-restore":
+      label = phrase("Restored", "restore", quantity(selected.length, "design"));
+      break;
+    case "canvas-export":
+      label = phrase("Exported", "export", quantity(selected.length, "design"));
+      break;
   }
   return { label, failedCount };
 }

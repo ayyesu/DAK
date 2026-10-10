@@ -79,11 +79,31 @@ export interface CanvasAppendInput {
   readonly expectedSequence: number;
 }
 
-/** A committed change to one document, published so a live view knows its sequence moved. */
+/**
+ * A committed change to one document, published so a live view knows its sequence moved.
+ *
+ * `title` and `module` travel with it because the design view that reacts to a change usually does
+ * not know the document yet — that is the whole point of following activity rather than naming an
+ * id — and a tab that has to wait for a render before it can be labelled reads as a blank tab the
+ * agent left behind.
+ */
 export interface CanvasDocumentChange {
   readonly documentId: string;
   readonly sequence: number;
   readonly trashed: boolean;
+  readonly title: string;
+  readonly module: CanvasModule;
+}
+
+/**
+ * A change with the project it belongs to.
+ *
+ * The store is built per project and does not know one; the bus serves the whole environment and
+ * has to, so a subscriber can tell another project's design from its own. The project is attached
+ * where the two meet, in `CanvasProjects`.
+ */
+export interface CanvasActivity extends CanvasDocumentChange {
+  readonly projectId: string;
 }
 
 export interface CanvasStore {
@@ -156,6 +176,22 @@ export interface CanvasViewport {
   readonly y: number;
   readonly width: number;
   readonly height: number;
+}
+
+/**
+ * The widest and tallest a single raster may be, in device pixels.
+ *
+ * The vendored exporter refuses anything larger, and it refuses by throwing rather than by
+ * shrinking. A region that exceeds it has to fail with a clear message: quietly returning a
+ * narrower strip than the caller asked for is how a screenshot ends up showing part of a design
+ * with nothing saying so.
+ */
+export const CANVAS_RASTER_CAP = 8192;
+
+/** One rendered region of a document, in design units and a scale applied on top. */
+export interface CanvasRegionRequest {
+  readonly bounds: CanvasViewport;
+  readonly scale?: number | undefined;
 }
 
 export interface CanvasEngineScreenshot {
@@ -251,5 +287,30 @@ export interface CanvasEngine {
     readonly artifacts: ReadonlyArray<string>;
     readonly consequences: ReadonlyArray<string>;
     readonly rasterized: ReadonlyArray<string>;
+  }>;
+
+  /**
+   * Rasterizes one region of a node at a chosen scale, and nothing else.
+   *
+   * The single raster primitive. A whole-frame render is this with the frame's own bounds; a
+   * screenshot of a selector is this with the selector's bounds; a tile is this with the tile's
+   * bounds. Having one is the only way those three can be relied on to agree — three call sites
+   * with three sets of defaults is how a panel ends up disagreeing with an export.
+   *
+   * The document is normalized before it is drawn, so a region of a panel, a region of a
+   * screenshot and a region of an export are all cut from the same geometry.
+   */
+  readonly renderRegion: (input: {
+    readonly payload: CanvasDocumentPayload;
+    readonly nodeId: string;
+    readonly bounds: CanvasViewport;
+    readonly scale?: number | undefined;
+    /** Cap on the rendered edge length, applied after the scale. */
+    readonly maxEdge?: number | undefined;
+  }) => Promise<{
+    readonly width: number;
+    readonly height: number;
+    readonly data: string;
+    readonly mimeType: "image/png";
   }>;
 }

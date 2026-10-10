@@ -61,7 +61,15 @@ export type DakMcpToolSummaryAction =
   | "browser"
   | "device"
   | "html-preview"
-  | "html-render";
+  | "html-render"
+  | "canvas-create"
+  | "canvas-list"
+  | "canvas-read"
+  | "canvas-edit"
+  | "canvas-undo"
+  | "canvas-trash"
+  | "canvas-restore"
+  | "canvas-export";
 
 export interface DakMcpToolDefinition {
   readonly displayName: string;
@@ -285,7 +293,10 @@ const DAK_MCP_TOOLS: Readonly<Record<string, DakMcpToolDefinition>> = {
   dak_thread_search: tool(["Search", "Searching", "Searched", "thread content"], "thread-search"),
   dak_thread_transfers: tool(["Read", "Reading", "Read", "thread transfers"], "thread-transfers"),
   dak_thread_organize: tool(["Organize", "Organizing", "Organized", "a thread"], "thread-organize"),
-  dak_thread_update: tool(["Update", "Updating", "Updated", "DAK thread metadata"], "thread-update"),
+  dak_thread_update: tool(
+    ["Update", "Updating", "Updated", "DAK thread metadata"],
+    "thread-update",
+  ),
   dak_worktree_list: tool(["List", "Listing", "Listed", "workspace branches"], "worktree-list"),
   dak_preview_list: tool(["List", "Listing", "Listed", "preview tabs"], "browser", "browser"),
   dak_preview_close: tool(["Close", "Closing", "Closed", "a preview tab"], "browser", "browser"),
@@ -300,7 +311,10 @@ const DAK_MCP_TOOLS: Readonly<Record<string, DakMcpToolDefinition>> = {
   dak_thread_launch: tool(["Launch", "Launching", "Launched", "a project thread"], "thread-create"),
   dak_project_list: tool(["List", "Listing", "Listed", "projects"], "project-list"),
   dak_project_read: tool(["Read", "Reading", "Read", "a project"], "project-read"),
-  dak_project_create: tool(["Register", "Registering", "Registered", "a project"], "project-create"),
+  dak_project_create: tool(
+    ["Register", "Registering", "Registered", "a project"],
+    "project-create",
+  ),
   dak_project_update: tool(["Update", "Updating", "Updated", "a project"], "project-update"),
   dak_project_delete: tool(["Delete", "Deleting", "Deleted", "a project"], "project-delete"),
   dak_project_clone: tool(["Clone", "Cloning", "Cloned", "a repository"], "project-clone"),
@@ -315,6 +329,14 @@ const DAK_MCP_TOOLS: Readonly<Record<string, DakMcpToolDefinition>> = {
   dak_thread_send_attachments: tool(["Send", "Sending", "Sent", "attachments"], "attachment-send"),
   html_preview: tool(["Preview", "Previewing", "Previewed", "an HTML page"], "html-preview"),
   html_render: tool(["Render", "Rendering", "Rendered", "an HTML page"], "html-render"),
+  dak_canvas_create: tool(["Create", "Creating", "Created", "a design"], "canvas-create"),
+  dak_canvas_list: tool(["List", "Listing", "Listed", "designs"], "canvas-list"),
+  dak_canvas_read: tool(["Read", "Reading", "Read", "a design"], "canvas-read"),
+  dak_canvas_edit: tool(["Edit", "Editing", "Edited", "a design"], "canvas-edit"),
+  dak_canvas_undo: tool(["Undo", "Undoing", "Undid", "a design edit"], "canvas-undo"),
+  dak_canvas_trash: tool(["Trash", "Trashing", "Trashed", "a design"], "canvas-trash"),
+  dak_canvas_restore: tool(["Restore", "Restoring", "Restored", "a design"], "canvas-restore"),
+  dak_canvas_export: tool(["Export", "Exporting", "Exported", "a design"], "canvas-export"),
 };
 
 /**
@@ -347,9 +369,7 @@ function resolveDakMcpToolName(value: string): string | null {
     return Object.hasOwn(DAK_MCP_TOOLS, compat) ? compat : tool;
   }
 
-  const namespaceMatch = /^(?<server>dak|dak_code)(?:[.:/]|\s*·\s*)(?<tool>.+)$/i.exec(
-    label,
-  );
+  const namespaceMatch = /^(?<server>dak|dak_code)(?:[.:/]|\s*·\s*)(?<tool>.+)$/i.exec(label);
   if (namespaceMatch?.groups) {
     const tool = namespaceMatch.groups.tool ?? null;
     if (tool !== null && Object.hasOwn(DAK_MCP_TOOLS, tool)) return tool;

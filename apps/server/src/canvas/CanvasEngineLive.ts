@@ -28,6 +28,20 @@ import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 
 import { registerCanvasHostFonts } from "./CanvasHostFonts.ts";
+import { CANVAS_RASTER_CAP } from "./CanvasPorts.ts";
+import {
+  detectFrameOverflow,
+  detectModuleViewportMismatch,
+  type CanvasReviewIssue,
+} from "./canvasInvariants.ts";
+import { normalizeForRender, normalizedDocument } from "./canvasNormalize.ts";
+import {
+  absoluteBoxes,
+  findEmptyButtonShapes,
+  measureTextNodes,
+  textNodeIds,
+  type MeasuredText,
+} from "./canvasText.ts";
 
 import type { CanvasModule } from "@dak/contracts";
 import { HostProcessPlatform } from "@dak/shared/hostProcess";
@@ -221,12 +235,7 @@ const toSeverity = (value: string | undefined): NonNullable<CanvasEngineIssue["s
     ? value
     : "minor";
 
-const normalizeIssue = (finding: {
-  readonly nodeId?: string;
-  readonly kind?: string;
-  readonly severity?: string;
-  readonly message?: string;
-}): CanvasEngineIssue => ({
+const normalizeIssue = (finding: CanvasReviewIssue): CanvasEngineIssue => ({
   ...(finding.nodeId === undefined ? {} : { nodeId: finding.nodeId }),
   kind: finding.kind ?? "other",
   severity: toSeverity(finding.severity),
@@ -238,6 +247,87 @@ const starterFrameIdOf = (document: CanvasDocument, fallbackId: string): string 
   const children = (document as { children?: ReadonlyArray<{ id?: unknown }> } | null)?.children;
   const first = children?.[0]?.id;
   return typeof first === "string" && first.length > 0 ? first : fallbackId;
+};
+
+/**
+ * Problems that need measured text: shapes with no label, and text whose box is too small for the
+ * lines the shaper actually produced.
+ *
+ * Both are measured rather than estimated, because both failed as estimates: a text width guessed
+ * from character count flagged three nodes that fit perfectly well, and a button cannot be told from
+ * a decorative panel by counting characters at all.
+ */
+const measuredIssues = async (
+  document: CanvasDocument,
+  measured: ReadonlyMap<string, MeasuredText>,
+): Promise<ReadonlyArray<CanvasEngineIssue>> => {
+  const ids = textNodeIds(document);
+  if (ids.length === 0) return [];
+  const boxes = absoluteBoxes(document, measured);
+  const issues: CanvasEngineIssue[] = [];
+
+  for (const shape of findEmptyButtonShapes(document, boxes)) {
+    issues.push({
+      nodeId: shape.id,
+      kind: "empty_control",
+      severity: "major",
+      message:
+        `Shape ${JSON.stringify(shape.id)} is a filled ${shape.width}x${Math.round(shape.height)} ` +
+        `rectangle with no text on it, so it reads as a button the user cannot read. Give it a text ` +
+        `node, or remove it if it was meant to be decoration.`,
+    });
+  }
+
+  for (const id of ids) {
+    const entry = measured.get(id);
+    if (entry === undefined) continue;
+    const node = findIn(document, id);
+    if (node === undefined) continue;
+    const declaredHeight = typeof node.height === "number" ? node.height : undefined;
+    if (declaredHeight !== undefined && entry.derivedHeight > declaredHeight + 1) {
+      issues.push({
+        nodeId: id,
+        kind: "text_overflow",
+        severity: "major",
+        message:
+          `Text ${JSON.stringify(id)} needs ${entry.derivedHeight}px for its ${entry.lines} wrapped ` +
+          `line(s) but is ${declaredHeight}px tall, so the last line is clipped. Give it a height of ` +
+          `${entry.derivedHeight} or more.`,
+      });
+    }
+  }
+  return issues;
+};
+
+/**
+ * The structural problems the renderer would show but the engine's own review does not report.
+ *
+ * Returned on the edit that causes them rather than at review time, because by then the agent has
+ * usually moved on and the cost of a wrong layout is invisible until the export fails.
+ */
+const structuralIssues = (document: CanvasDocument): ReadonlyArray<CanvasEngineIssue> =>
+  [...detectFrameOverflow(document), ...detectModuleViewportMismatch(document)].map(normalizeIssue);
+
+const childrenArray = (document: unknown): ReadonlyArray<unknown> =>
+  Array.isArray((document as { children?: unknown }).children)
+    ? (document as { children: ReadonlyArray<unknown> }).children
+    : [];
+
+const findIn = (document: unknown, id: string): Record<string, unknown> | undefined => {
+  const visit = (node: unknown): Record<string, unknown> | undefined => {
+    const candidate = node as { id?: unknown; children?: unknown };
+    if (candidate.id === id) return candidate as Record<string, unknown>;
+    for (const child of childrenArray(candidate)) {
+      const found = visit(child);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  };
+  for (const child of childrenArray(document)) {
+    const found = visit(child);
+    if (found !== undefined) return found;
+  }
+  return undefined;
 };
 
 const toScreenshots = (
@@ -336,6 +426,16 @@ export const make = (options: CanvasEngineOptions = {}): CanvasEngine => {
         });
       }
 
+      // The commit path normalizes for reporting and rasterizing but does NOT write the measured
+      // heights back: doing so turned every silent text node into its own mutation, so a single
+      // author edit advanced the sequence by dozens and filled the log with changes nobody made.
+      // The document committed is exactly the document the script produced.
+      //
+      // Deliberately uncached: an execution has no document identity yet, and keying it on a
+      // placeholder would hand the next unrelated edit the previous one's measurements.
+      const rendered = (await normalizeForRender(execution.document)) as typeof execution.document;
+      const measured = await measureTextNodes(rendered, textNodeIds(rendered));
+
       // Forward and inverse are computed from the very model the script ran against, so the inverse
       // is a faithful undo of the forward and the pair can be appended as one coherent mutation.
       const updates = createDocumentOperationUpdates(model, execution.document);
@@ -344,14 +444,18 @@ export const make = (options: CanvasEngineOptions = {}): CanvasEngine => {
       Y.applyUpdate(model.doc, updates.forward);
       const state = encodeState(model);
 
-      const issues = reviewDocumentIssues(execution.document).map(normalizeIssue);
+      const issues = [
+        ...reviewDocumentIssues(rendered).map(normalizeIssue),
+        ...structuralIssues(rendered),
+        ...(await measuredIssues(rendered, measured)),
+      ];
 
       const screenshots =
         execution.screenshots.length === 0
           ? []
           : toScreenshots(
               await takeDocumentScreenshots(
-                execution.document,
+                rendered,
                 execution.screenshots.map((request) => ({ nodeIds: request.nodeIds })),
               ),
             );
@@ -389,7 +493,12 @@ export const make = (options: CanvasEngineOptions = {}): CanvasEngine => {
     viewport?: CanvasViewport | undefined;
   }): Promise<ReadonlyArray<CanvasEngineScreenshot>> => {
     if (input.nodeIds.length === 0) return [];
-    const document = await materializeDocument(input.payload);
+    const document = (
+      await normalizedDocument({
+        payload: input.payload,
+        document: await materializeDocument(input.payload),
+      })
+    ).document as CanvasDocument;
     if (input.viewport !== undefined) {
       return toScreenshots(
         await renderViewport(document, input.nodeIds, input.viewport, input.maxEdge),
@@ -405,6 +514,70 @@ export const make = (options: CanvasEngineOptions = {}): CanvasEngine => {
     );
   };
 
+  /**
+   * The one raster primitive.
+   *
+   * Everything that draws — a whole frame, a section of one, a selector, a future tile — is this
+   * function with different bounds, so they cannot drift apart. The document goes through the same
+   * normalization a panel view does, which is why a screenshot of a region is pixel-identical to
+   * that region of the panel.
+   */
+  const renderRegion: CanvasEngine["renderRegion"] = async (
+    input: Parameters<CanvasEngine["renderRegion"]>[0],
+  ) => {
+    const document = (
+      await normalizedDocument({
+        payload: input.payload,
+        document: await materializeDocument(input.payload),
+      })
+    ).document as CanvasDocument;
+    const scale = input.scale ?? 1;
+    const width = Math.ceil(input.bounds.width * scale);
+    const height = Math.ceil(input.bounds.height * scale);
+    // The vendored exporter throws above this rather than shrinking, and a caller that was handed a
+    // narrower strip than it asked for would not know. Refused here, with the number that overflowed.
+    if (width > CANVAS_RASTER_CAP || height > CANVAS_RASTER_CAP) {
+      throw Object.assign(
+        new Error(
+          `Region rasterizes to ${width}x${height}px, past the ${CANVAS_RASTER_CAP}px limit. ` +
+            `Ask for a smaller region or a lower scale; nothing was rendered.`,
+        ),
+        { code: "CANVAS_REGION_TOO_LARGE" },
+      );
+    }
+    const shots = await takeDocumentScreenshots(
+      document,
+      [
+        {
+          nodeIds: [input.nodeId],
+          bounds: {
+            minX: input.bounds.x,
+            minY: input.bounds.y,
+            maxX: input.bounds.x + input.bounds.width,
+            maxY: input.bounds.y + input.bounds.height,
+          },
+        },
+      ],
+      undefined,
+      {
+        scale,
+        ...(input.maxEdge === undefined ? {} : { maxDimension: input.maxEdge }),
+      },
+    );
+    const shot = shots[0];
+    if (shot === undefined) {
+      throw Object.assign(new Error(`Node ${input.nodeId} produced no raster.`), {
+        code: "CANVAS_REGION_EMPTY",
+      });
+    }
+    return {
+      width: shot.width,
+      height: shot.height,
+      data: shot.data,
+      mimeType: "image/png" as const,
+    };
+  };
+
   const extract = async (input: {
     payload: CanvasDocumentPayload;
     nodeIds: ReadonlyArray<string>;
@@ -412,7 +585,12 @@ export const make = (options: CanvasEngineOptions = {}): CanvasEngine => {
     destination: string;
     scale?: number | undefined;
   }) => {
-    const document = await materializeDocument(input.payload);
+    const document = (
+      await normalizedDocument({
+        payload: input.payload,
+        document: await materializeDocument(input.payload),
+      })
+    ).document as CanvasDocument;
     const destination = paths.toEngine(input.destination);
     const report =
       input.nodeIds.length === 1
@@ -441,6 +619,7 @@ export const make = (options: CanvasEngineOptions = {}): CanvasEngine => {
     execute,
     materialize: materializeDocument,
     renderFrames,
+    renderRegion,
     extract,
   };
 };

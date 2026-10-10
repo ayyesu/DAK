@@ -1,0 +1,2083 @@
+{
+  "title": "Portfolio Landing Page",
+  "module": "web",
+  "sequence": 28,
+  "frameId": "fb46be5d-3f1a-4dec-8410-bf270c40c498",
+  "nodeCount": 133,
+  "textCount": 78,
+  "document": {
+    "module": "web",
+    "axes": {},
+    "variables": {},
+    "paragraphStyles": {},
+    "imports": {},
+    "flows": [],
+    "children": [
+      {
+        "type": "frame",
+        "id": "fb46be5d-3f1a-4dec-8410-bf270c40c498",
+        "name": "Home",
+        "x": 120,
+        "y": 100,
+        "width": 390,
+        "height": 844,
+        "role": "route",
+        "fill": "#ffffff",
+        "children": [
+          {
+            "type": "rectangle",
+            "id": "hero-glow",
+            "x": 45,
+            "y": 120,
+            "width": 300,
+            "height": 150,
+            "fill": "#dbeafe",
+            "cornerRadius": 999
+          },
+          {
+            "type": "rectangle",
+            "id": "nav-bg",
+            "x": 16,
+            "y": 16,
+            "width": 358,
+            "height": 56,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "nav-logo",
+            "content": "<> Home",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 7
+              }
+            ],
+            "x": 32,
+            "y": 33,
+            "width": 120,
+            "fontSize": 16,
+            "fill": "#2563eb",
+            "fontWeight": 700,
+            "textAlign": "start"
+          },
+          {
+            "type": "rectangle",
+            "id": "nav-cta",
+            "x": 314,
+            "y": 26,
+            "width": 44,
+            "height": 36,
+            "fill": "#0f172a",
+            "cornerRadius": 999
+          },
+          {
+            "type": "text",
+            "id": "hero-badge",
+            "content": "● Available for new opportunities",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 33
+              }
+            ],
+            "x": 16,
+            "y": 100,
+            "width": 358,
+            "fontSize": 12,
+            "fill": "#059669",
+            "fontWeight": 600,
+            "textAlign": "center"
+          },
+          {
+            "type": "text",
+            "id": "hero-kicker",
+            "content": "BACKEND · AI ENGINEERING",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 24
+              }
+            ],
+            "x": 16,
+            "y": 130,
+            "width": 358,
+            "fontSize": 11,
+            "fill": "#2563eb",
+            "fontWeight": 700,
+            "textAlign": "center"
+          },
+          {
+            "type": "text",
+            "id": "hero-h1",
+            "content": "Hi, I'm Daniel Kissiedu",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 23
+              }
+            ],
+            "x": 16,
+            "y": 155,
+            "width": 358,
+            "fontSize": 38,
+            "fill": "#0f172a",
+            "fontWeight": 800,
+            "textAlign": "center"
+          },
+          {
+            "type": "text",
+            "id": "hero-sub",
+            "content": "A Software Engineer specializing in Backend Development and AI Engineering, transforming ideas into intelligent, production-ready applications.",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 143
+              }
+            ],
+            "x": 16,
+            "y": 260,
+            "width": 358,
+            "fontSize": 16,
+            "fill": "#475569",
+            "fontWeight": 400,
+            "textAlign": "center"
+          },
+          {
+            "type": "rectangle",
+            "id": "tech-0",
+            "x": 16,
+            "y": 370,
+            "width": 80,
+            "height": 28,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "tech-t-0",
+            "content": "Python",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 6
+              }
+            ],
+            "x": 16,
+            "y": 377,
+            "width": 80,
+            "fontSize": 12,
+            "fill": "#475569",
+            "fontWeight": 500,
+            "textAlign": "center"
+          },
+          {
+            "type": "rectangle",
+            "id": "tech-1",
+            "x": 104,
+            "y": 370,
+            "width": 80,
+            "height": 28,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "tech-t-1",
+            "content": "TypeScript",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 10
+              }
+            ],
+            "x": 104,
+            "y": 377,
+            "width": 80,
+            "fontSize": 12,
+            "fill": "#475569",
+            "fontWeight": 500,
+            "textAlign": "center"
+          },
+          {
+            "type": "rectangle",
+            "id": "tech-2",
+            "x": 192,
+            "y": 370,
+            "width": 80,
+            "height": 28,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "tech-t-2",
+            "content": "Next.js",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 7
+              }
+            ],
+            "x": 192,
+            "y": 377,
+            "width": 80,
+            "fontSize": 12,
+            "fill": "#475569",
+            "fontWeight": 500,
+            "textAlign": "center"
+          },
+          {
+            "type": "rectangle",
+            "id": "tech-3",
+            "x": 280,
+            "y": 370,
+            "width": 80,
+            "height": 28,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "tech-t-3",
+            "content": "Node.js",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 7
+              }
+            ],
+            "x": 280,
+            "y": 377,
+            "width": 80,
+            "fontSize": 12,
+            "fill": "#475569",
+            "fontWeight": 500,
+            "textAlign": "center"
+          },
+          {
+            "type": "rectangle",
+            "id": "tech-4",
+            "x": 16,
+            "y": 406,
+            "width": 80,
+            "height": 28,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "tech-t-4",
+            "content": "PostgreSQL",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 10
+              }
+            ],
+            "x": 16,
+            "y": 413,
+            "width": 80,
+            "fontSize": 12,
+            "fill": "#475569",
+            "fontWeight": 500,
+            "textAlign": "center"
+          },
+          {
+            "type": "rectangle",
+            "id": "tech-5",
+            "x": 104,
+            "y": 406,
+            "width": 80,
+            "height": 28,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "tech-t-5",
+            "content": "Docker",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 6
+              }
+            ],
+            "x": 104,
+            "y": 413,
+            "width": 80,
+            "fontSize": 12,
+            "fill": "#475569",
+            "fontWeight": 500,
+            "textAlign": "center"
+          },
+          {
+            "type": "rectangle",
+            "id": "tech-6",
+            "x": 192,
+            "y": 406,
+            "width": 80,
+            "height": 28,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "tech-t-6",
+            "content": "AWS",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 3
+              }
+            ],
+            "x": 192,
+            "y": 413,
+            "width": 80,
+            "fontSize": 12,
+            "fill": "#475569",
+            "fontWeight": 500,
+            "textAlign": "center"
+          },
+          {
+            "type": "rectangle",
+            "id": "tech-7",
+            "x": 280,
+            "y": 406,
+            "width": 80,
+            "height": 28,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "tech-t-7",
+            "content": "LLMs",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 4
+              }
+            ],
+            "x": 280,
+            "y": 413,
+            "width": 80,
+            "fontSize": 12,
+            "fill": "#475569",
+            "fontWeight": 500,
+            "textAlign": "center"
+          },
+          {
+            "type": "rectangle",
+            "id": "btn-primary",
+            "x": 16,
+            "y": 448,
+            "width": 358,
+            "height": 52,
+            "fill": "#2563eb",
+            "cornerRadius": 999
+          },
+          {
+            "type": "text",
+            "id": "btn-primary-t",
+            "content": "Get In Touch →",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 14
+              }
+            ],
+            "x": 16,
+            "y": 464,
+            "width": 358,
+            "fontSize": 16,
+            "fill": "#ffffff",
+            "fontWeight": 600,
+            "textAlign": "center"
+          },
+          {
+            "type": "rectangle",
+            "id": "btn-sec",
+            "x": 16,
+            "y": 508,
+            "width": 358,
+            "height": 52,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#cbd5e1",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "btn-sec-t",
+            "content": "View Projects",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 13
+              }
+            ],
+            "x": 16,
+            "y": 524,
+            "width": 358,
+            "fontSize": 16,
+            "fill": "#0f172a",
+            "fontWeight": 600,
+            "textAlign": "center"
+          },
+          {
+            "type": "text",
+            "id": "hero-social",
+            "content": "GitHub  ·  LinkedIn  ·  ayyesu.tech@gmail.com",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 45
+              }
+            ],
+            "x": 16,
+            "y": 572,
+            "width": 358,
+            "fontSize": 13,
+            "fill": "#64748b",
+            "fontWeight": 500,
+            "textAlign": "center"
+          }
+        ],
+        "layout": "none"
+      },
+      {
+        "type": "frame",
+        "id": "frame-projects",
+        "name": "Projects",
+        "x": 550,
+        "y": 100,
+        "width": 390,
+        "height": 1550,
+        "role": "route",
+        "fill": "#ffffff",
+        "children": [
+          {
+            "type": "text",
+            "id": "sec1-eyebrow",
+            "content": "PORTFOLIO",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 9
+              }
+            ],
+            "x": 16,
+            "y": 16,
+            "width": 358,
+            "fontSize": 12,
+            "fill": "#2563eb",
+            "fontWeight": 700,
+            "textAlign": "center"
+          },
+          {
+            "type": "text",
+            "id": "sec1-h",
+            "content": "Featured Projects",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 17
+              }
+            ],
+            "x": 16,
+            "y": 38,
+            "width": 358,
+            "fontSize": 28,
+            "fill": "#0f172a",
+            "fontWeight": 800,
+            "textAlign": "center"
+          },
+          {
+            "type": "text",
+            "id": "sec1-sub",
+            "content": "Backend + AI builds, production-ready.",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 38
+              }
+            ],
+            "x": 16,
+            "y": 81,
+            "width": 358,
+            "fontSize": 14,
+            "fill": "#64748b",
+            "fontWeight": 400,
+            "textAlign": "center"
+          },
+          {
+            "type": "frame",
+            "id": "proj-0",
+            "x": 16,
+            "y": 130,
+            "width": 358,
+            "height": 440,
+            "fill": "#ffffff",
+            "cornerRadius": 24,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "rectangle",
+                "id": "proj-img-0",
+                "x": 0,
+                "y": 0,
+                "width": 358,
+                "height": 200,
+                "fill": "#dbeafe",
+                "cornerRadius": 24
+              },
+              {
+                "type": "text",
+                "id": "proj-tag-0",
+                "content": "Python · FastAPI · OpenAI",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 25
+                  }
+                ],
+                "x": 16,
+                "y": 214,
+                "width": 326,
+                "fontSize": 12,
+                "fill": "#2563eb",
+                "fontWeight": 600,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "proj-t-0",
+                "content": "AI Support Triage",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 17
+                  }
+                ],
+                "x": 16,
+                "y": 238,
+                "width": 326,
+                "fontSize": 22,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "proj-d-0",
+                "content": "LLM triage API with evals + Postgres queue.",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 43
+                  }
+                ],
+                "x": 16,
+                "y": 270,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#64748b",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "rectangle",
+                "id": "proj-btn-0",
+                "x": 16,
+                "y": 340,
+                "width": 140,
+                "height": 40,
+                "fill": "#0f172a",
+                "cornerRadius": 999
+              },
+              {
+                "type": "text",
+                "id": "proj-btn-t-0",
+                "content": "Live Demo",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 9
+                  }
+                ],
+                "x": 16,
+                "y": 352,
+                "width": 140,
+                "fontSize": 13,
+                "fill": "#ffffff",
+                "fontWeight": 600,
+                "textAlign": "center"
+              }
+            ],
+            "layout": "none"
+          },
+          {
+            "type": "frame",
+            "id": "proj-1",
+            "x": 16,
+            "y": 586,
+            "width": 358,
+            "height": 440,
+            "fill": "#ffffff",
+            "cornerRadius": 24,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "rectangle",
+                "id": "proj-img-1",
+                "x": 0,
+                "y": 0,
+                "width": 358,
+                "height": 200,
+                "fill": "#e0e7ff",
+                "cornerRadius": 24
+              },
+              {
+                "type": "text",
+                "id": "proj-tag-1",
+                "content": "Next.js · pgvector · Genkit",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 27
+                  }
+                ],
+                "x": 16,
+                "y": 214,
+                "width": 326,
+                "fontSize": 12,
+                "fill": "#2563eb",
+                "fontWeight": 600,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "proj-t-1",
+                "content": "Docs Search Copilot",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 19
+                  }
+                ],
+                "x": 16,
+                "y": 238,
+                "width": 326,
+                "fontSize": 22,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "proj-d-1",
+                "content": "RAG over docs, 92% grounded answers.",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 36
+                  }
+                ],
+                "x": 16,
+                "y": 270,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#64748b",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "rectangle",
+                "id": "proj-btn-1",
+                "x": 16,
+                "y": 340,
+                "width": 140,
+                "height": 40,
+                "fill": "#0f172a",
+                "cornerRadius": 999
+              },
+              {
+                "type": "text",
+                "id": "proj-btn-t-1",
+                "content": "Live Demo",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 9
+                  }
+                ],
+                "x": 16,
+                "y": 352,
+                "width": 140,
+                "fontSize": 13,
+                "fill": "#ffffff",
+                "fontWeight": 600,
+                "textAlign": "center"
+              }
+            ],
+            "layout": "none"
+          },
+          {
+            "type": "frame",
+            "id": "proj-2",
+            "x": 16,
+            "y": 1042,
+            "width": 358,
+            "height": 440,
+            "fill": "#ffffff",
+            "cornerRadius": 24,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "rectangle",
+                "id": "proj-img-2",
+                "x": 0,
+                "y": 0,
+                "width": 358,
+                "height": 200,
+                "fill": "#ccfbf1",
+                "cornerRadius": 24
+              },
+              {
+                "type": "text",
+                "id": "proj-tag-2",
+                "content": "Node.js · Stripe · Docker",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 25
+                  }
+                ],
+                "x": 16,
+                "y": 214,
+                "width": 326,
+                "fontSize": 12,
+                "fill": "#2563eb",
+                "fontWeight": 600,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "proj-t-2",
+                "content": "Billing Webhooks",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 16
+                  }
+                ],
+                "x": 16,
+                "y": 238,
+                "width": 326,
+                "fontSize": 22,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "proj-d-2",
+                "content": "Idempotent Stripe webhooks at 2k evt/min.",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 41
+                  }
+                ],
+                "x": 16,
+                "y": 270,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#64748b",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "rectangle",
+                "id": "proj-btn-2",
+                "x": 16,
+                "y": 340,
+                "width": 140,
+                "height": 40,
+                "fill": "#0f172a",
+                "cornerRadius": 999
+              },
+              {
+                "type": "text",
+                "id": "proj-btn-t-2",
+                "content": "Live Demo",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 9
+                  }
+                ],
+                "x": 16,
+                "y": 352,
+                "width": 140,
+                "fontSize": 13,
+                "fill": "#ffffff",
+                "fontWeight": 600,
+                "textAlign": "center"
+              }
+            ],
+            "layout": "none"
+          },
+          {
+            "type": "rectangle",
+            "id": "view-proj",
+            "x": 95,
+            "y": 1498,
+            "width": 200,
+            "height": 44,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#cbd5e1",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "view-proj-t",
+            "content": "View all projects →",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 19
+              }
+            ],
+            "x": 95,
+            "y": 1511,
+            "width": 200,
+            "fontSize": 14,
+            "fill": "#0f172a",
+            "fontWeight": 600,
+            "textAlign": "center"
+          }
+        ],
+        "layout": "none"
+      },
+      {
+        "type": "frame",
+        "id": "frame-skills",
+        "name": "Skills",
+        "x": 980,
+        "y": 100,
+        "width": 390,
+        "height": 830,
+        "role": "route",
+        "fill": "#ffffff",
+        "children": [
+          {
+            "type": "text",
+            "id": "sec2-eyebrow",
+            "content": "EXPERTISE",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 9
+              }
+            ],
+            "x": 16,
+            "y": 16,
+            "width": 358,
+            "fontSize": 12,
+            "fill": "#2563eb",
+            "fontWeight": 700,
+            "textAlign": "center"
+          },
+          {
+            "type": "text",
+            "id": "sec2-h",
+            "content": "My Skill Set",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 12
+              }
+            ],
+            "x": 16,
+            "y": 38,
+            "width": 358,
+            "fontSize": 28,
+            "fill": "#0f172a",
+            "fontWeight": 800,
+            "textAlign": "center"
+          },
+          {
+            "type": "frame",
+            "id": "skill-0",
+            "x": 16,
+            "y": 100,
+            "width": 358,
+            "height": 220,
+            "fill": "#ffffff",
+            "cornerRadius": 24,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "text",
+                "id": "skill-t-0",
+                "content": "Backend",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 7
+                  }
+                ],
+                "x": 16,
+                "y": 24,
+                "width": 326,
+                "fontSize": 20,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "skill-s-0",
+                "content": "Node.js 90%  ·  Python 88%  ·  Postgres 85%",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 43
+                  }
+                ],
+                "x": 16,
+                "y": 60,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#475569",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "rectangle",
+                "id": "skill-bar-bg-0",
+                "x": 16,
+                "y": 130,
+                "width": 326,
+                "height": 8,
+                "fill": "#f1f5f9",
+                "cornerRadius": 999
+              },
+              {
+                "type": "rectangle",
+                "id": "skill-bar-0",
+                "x": 16,
+                "y": 130,
+                "width": 255,
+                "height": 8,
+                "fill": "#2563eb",
+                "cornerRadius": 999
+              }
+            ],
+            "layout": "none"
+          },
+          {
+            "type": "frame",
+            "id": "skill-1",
+            "x": 16,
+            "y": 336,
+            "width": 358,
+            "height": 220,
+            "fill": "#ffffff",
+            "cornerRadius": 24,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "text",
+                "id": "skill-t-1",
+                "content": "AI Engineering",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 14
+                  }
+                ],
+                "x": 16,
+                "y": 24,
+                "width": 326,
+                "fontSize": 20,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "skill-s-1",
+                "content": "RAG 90%  ·  Evals 82%  ·  Agents 80%",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 36
+                  }
+                ],
+                "x": 16,
+                "y": 60,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#475569",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "rectangle",
+                "id": "skill-bar-bg-1",
+                "x": 16,
+                "y": 130,
+                "width": 326,
+                "height": 8,
+                "fill": "#f1f5f9",
+                "cornerRadius": 999
+              },
+              {
+                "type": "rectangle",
+                "id": "skill-bar-1",
+                "x": 16,
+                "y": 130,
+                "width": 226,
+                "height": 8,
+                "fill": "#2563eb",
+                "cornerRadius": 999
+              }
+            ],
+            "layout": "none"
+          },
+          {
+            "type": "frame",
+            "id": "skill-2",
+            "x": 16,
+            "y": 572,
+            "width": 358,
+            "height": 220,
+            "fill": "#ffffff",
+            "cornerRadius": 24,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "text",
+                "id": "skill-t-2",
+                "content": "DevOps",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 6
+                  }
+                ],
+                "x": 16,
+                "y": 24,
+                "width": 326,
+                "fontSize": 20,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "skill-s-2",
+                "content": "Docker 85%  ·  AWS 78%  ·  CI/CD 84%",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 36
+                  }
+                ],
+                "x": 16,
+                "y": 60,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#475569",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "rectangle",
+                "id": "skill-bar-bg-2",
+                "x": 16,
+                "y": 130,
+                "width": 326,
+                "height": 8,
+                "fill": "#f1f5f9",
+                "cornerRadius": 999
+              },
+              {
+                "type": "rectangle",
+                "id": "skill-bar-2",
+                "x": 16,
+                "y": 130,
+                "width": 196,
+                "height": 8,
+                "fill": "#2563eb",
+                "cornerRadius": 999
+              }
+            ],
+            "layout": "none"
+          }
+        ],
+        "layout": "none"
+      },
+      {
+        "type": "frame",
+        "id": "frame-experience",
+        "name": "Experience",
+        "x": 1410,
+        "y": 100,
+        "width": 390,
+        "height": 500,
+        "role": "route",
+        "fill": "#ffffff",
+        "children": [
+          {
+            "type": "text",
+            "id": "sec3-eyebrow",
+            "content": "JOURNEY",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 7
+              }
+            ],
+            "x": 16,
+            "y": 16,
+            "width": 358,
+            "fontSize": 12,
+            "fill": "#2563eb",
+            "fontWeight": 700,
+            "textAlign": "center"
+          },
+          {
+            "type": "text",
+            "id": "sec3-h",
+            "content": "Work Experience",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 15
+              }
+            ],
+            "x": 16,
+            "y": 38,
+            "width": 358,
+            "fontSize": 28,
+            "fill": "#0f172a",
+            "fontWeight": 800,
+            "textAlign": "center"
+          },
+          {
+            "type": "frame",
+            "id": "exp-0",
+            "x": 16,
+            "y": 100,
+            "width": 358,
+            "height": 170,
+            "fill": "#ffffff",
+            "cornerRadius": 20,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "text",
+                "id": "exp-role-0",
+                "content": "Backend Engineer — Tech Studio",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 30
+                  }
+                ],
+                "x": 16,
+                "y": 20,
+                "width": 326,
+                "fontSize": 18,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "exp-meta-0",
+                "content": "2023 — Present  ·  Remote  ·  APIs, AI features, Postgres",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 57
+                  }
+                ],
+                "x": 16,
+                "y": 48,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#64748b",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "exp-desc-0",
+                "content": "Shipped triage + search APIs serving 40k req/day.",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 49
+                  }
+                ],
+                "x": 16,
+                "y": 74,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#475569",
+                "fontWeight": 400,
+                "textAlign": "start"
+              }
+            ],
+            "layout": "none"
+          },
+          {
+            "type": "frame",
+            "id": "exp-1",
+            "x": 16,
+            "y": 286,
+            "width": 358,
+            "height": 170,
+            "fill": "#ffffff",
+            "cornerRadius": 20,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "text",
+                "id": "exp-role-1",
+                "content": "Software Engineer — Agency",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 26
+                  }
+                ],
+                "x": 16,
+                "y": 20,
+                "width": 326,
+                "fontSize": 18,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "exp-meta-1",
+                "content": "2021 — 2023  ·  Accra / Remote",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 30
+                  }
+                ],
+                "x": 16,
+                "y": 48,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#64748b",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "exp-desc-1",
+                "content": "Built Next.js + Node apps, Stripe billing, Docker deploys.",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 58
+                  }
+                ],
+                "x": 16,
+                "y": 74,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#475569",
+                "fontWeight": 400,
+                "textAlign": "start"
+              }
+            ],
+            "layout": "none"
+          }
+        ],
+        "layout": "none"
+      },
+      {
+        "type": "frame",
+        "id": "frame-blog",
+        "name": "Blog",
+        "x": 1840,
+        "y": 100,
+        "width": 390,
+        "height": 1210,
+        "role": "route",
+        "fill": "#ffffff",
+        "children": [
+          {
+            "type": "text",
+            "id": "sec4-eyebrow",
+            "content": "BLOG",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 4
+              }
+            ],
+            "x": 16,
+            "y": 16,
+            "width": 358,
+            "fontSize": 12,
+            "fill": "#2563eb",
+            "fontWeight": 700,
+            "textAlign": "center"
+          },
+          {
+            "type": "text",
+            "id": "sec4-h",
+            "content": "Latest Articles",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 15
+              }
+            ],
+            "x": 16,
+            "y": 38,
+            "width": 358,
+            "fontSize": 28,
+            "fill": "#0f172a",
+            "fontWeight": 800,
+            "textAlign": "center"
+          },
+          {
+            "type": "text",
+            "id": "sec4-sub",
+            "content": "Insights, tutorials, and build notes from backend + AI work.",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 60
+              }
+            ],
+            "x": 16,
+            "y": 81,
+            "width": 358,
+            "fontSize": 14,
+            "fill": "#64748b",
+            "fontWeight": 400,
+            "textAlign": "center"
+          },
+          {
+            "type": "frame",
+            "id": "post-0",
+            "x": 16,
+            "y": 130,
+            "width": 358,
+            "height": 320,
+            "fill": "#ffffff",
+            "cornerRadius": 24,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "rectangle",
+                "id": "post-img-0",
+                "x": 0,
+                "y": 0,
+                "width": 358,
+                "height": 160,
+                "fill": "#fef3c7",
+                "cornerRadius": 24
+              },
+              {
+                "type": "text",
+                "id": "post-t-0",
+                "content": "Idempotent webhooks",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 19
+                  }
+                ],
+                "x": 16,
+                "y": 184,
+                "width": 326,
+                "fontSize": 18,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "post-d-0",
+                "content": "How I handle 2k Stripe events/min.",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 34
+                  }
+                ],
+                "x": 16,
+                "y": 212,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#64748b",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "post-link-0",
+                "content": "Read More →",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 11
+                  }
+                ],
+                "x": 16,
+                "y": 262,
+                "width": 326,
+                "fontSize": 13,
+                "fill": "#2563eb",
+                "fontWeight": 600,
+                "textAlign": "start"
+              },
+              {
+                "type": "rectangle",
+                "id": "post-pill-0",
+                "x": 16,
+                "y": 16,
+                "width": 78,
+                "height": 26,
+                "fill": "#ffffff",
+                "cornerRadius": 999
+              },
+              {
+                "type": "text",
+                "id": "post-pill-t-0",
+                "content": "Backend",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 7
+                  }
+                ],
+                "x": 16,
+                "y": 22,
+                "width": 78,
+                "fontSize": 11,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "center"
+              },
+              {
+                "type": "text",
+                "id": "post-meta-0",
+                "content": "Oct 2, 2026 · 6 min read",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 24
+                  }
+                ],
+                "x": 16,
+                "y": 236,
+                "width": 326,
+                "fontSize": 12,
+                "fill": "#94a3b8",
+                "fontWeight": 500,
+                "textAlign": "start"
+              }
+            ],
+            "layout": "none"
+          },
+          {
+            "type": "frame",
+            "id": "post-1",
+            "x": 16,
+            "y": 466,
+            "width": 358,
+            "height": 320,
+            "fill": "#ffffff",
+            "cornerRadius": 24,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "rectangle",
+                "id": "post-img-1",
+                "x": 0,
+                "y": 0,
+                "width": 358,
+                "height": 160,
+                "fill": "#dcfce7",
+                "cornerRadius": 24
+              },
+              {
+                "type": "text",
+                "id": "post-t-1",
+                "content": "RAG evals that work",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 19
+                  }
+                ],
+                "x": 16,
+                "y": 184,
+                "width": 326,
+                "fontSize": 18,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "post-d-1",
+                "content": "Groundedness checks before ship.",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 32
+                  }
+                ],
+                "x": 16,
+                "y": 212,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#64748b",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "post-link-1",
+                "content": "Read More →",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 11
+                  }
+                ],
+                "x": 16,
+                "y": 262,
+                "width": 326,
+                "fontSize": 13,
+                "fill": "#2563eb",
+                "fontWeight": 600,
+                "textAlign": "start"
+              },
+              {
+                "type": "rectangle",
+                "id": "post-pill-1",
+                "x": 16,
+                "y": 16,
+                "width": 78,
+                "height": 26,
+                "fill": "#ffffff",
+                "cornerRadius": 999
+              },
+              {
+                "type": "text",
+                "id": "post-pill-t-1",
+                "content": "AI",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 2
+                  }
+                ],
+                "x": 16,
+                "y": 22,
+                "width": 78,
+                "fontSize": 11,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "center"
+              },
+              {
+                "type": "text",
+                "id": "post-meta-1",
+                "content": "Sep 18, 2026 · 8 min read",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 25
+                  }
+                ],
+                "x": 16,
+                "y": 236,
+                "width": 326,
+                "fontSize": 12,
+                "fill": "#94a3b8",
+                "fontWeight": 500,
+                "textAlign": "start"
+              }
+            ],
+            "layout": "none"
+          },
+          {
+            "type": "frame",
+            "id": "post-2",
+            "x": 16,
+            "y": 802,
+            "width": 358,
+            "height": 320,
+            "fill": "#ffffff",
+            "cornerRadius": 24,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "rectangle",
+                "id": "post-img-2",
+                "x": 0,
+                "y": 0,
+                "width": 358,
+                "height": 160,
+                "fill": "#ffe4e6",
+                "cornerRadius": 24
+              },
+              {
+                "type": "text",
+                "id": "post-t-2",
+                "content": "pgvector in prod",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 16
+                  }
+                ],
+                "x": 16,
+                "y": 184,
+                "width": 326,
+                "fontSize": 18,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "post-d-2",
+                "content": "Indexing + recall tradeoffs.",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 28
+                  }
+                ],
+                "x": 16,
+                "y": 212,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#64748b",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "post-link-2",
+                "content": "Read More →",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 11
+                  }
+                ],
+                "x": 16,
+                "y": 262,
+                "width": 326,
+                "fontSize": 13,
+                "fill": "#2563eb",
+                "fontWeight": 600,
+                "textAlign": "start"
+              },
+              {
+                "type": "rectangle",
+                "id": "post-pill-2",
+                "x": 16,
+                "y": 16,
+                "width": 78,
+                "height": 26,
+                "fill": "#ffffff",
+                "cornerRadius": 999
+              },
+              {
+                "type": "text",
+                "id": "post-pill-t-2",
+                "content": "Postgres",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 8
+                  }
+                ],
+                "x": 16,
+                "y": 22,
+                "width": 78,
+                "fontSize": 11,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "center"
+              },
+              {
+                "type": "text",
+                "id": "post-meta-2",
+                "content": "Sep 02, 2026 · 5 min read",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 25
+                  }
+                ],
+                "x": 16,
+                "y": 236,
+                "width": 326,
+                "fontSize": 12,
+                "fill": "#94a3b8",
+                "fontWeight": 500,
+                "textAlign": "start"
+              }
+            ],
+            "layout": "none"
+          },
+          {
+            "type": "rectangle",
+            "id": "view-blog",
+            "x": 95,
+            "y": 1138,
+            "width": 200,
+            "height": 44,
+            "fill": "#ffffff",
+            "cornerRadius": 999,
+            "stroke": "#cbd5e1",
+            "strokeWidth": 1
+          },
+          {
+            "type": "text",
+            "id": "view-blog-t",
+            "content": "View all articles →",
+            "paragraphs": [
+              {
+                "from": 0,
+                "to": 19
+              }
+            ],
+            "x": 95,
+            "y": 1151,
+            "width": 200,
+            "fontSize": 14,
+            "fill": "#0f172a",
+            "fontWeight": 600,
+            "textAlign": "center"
+          }
+        ],
+        "layout": "none"
+      },
+      {
+        "type": "frame",
+        "id": "frame-contact",
+        "name": "Contact",
+        "x": 2270,
+        "y": 100,
+        "width": 390,
+        "height": 620,
+        "role": "route",
+        "fill": "#ffffff",
+        "children": [
+          {
+            "type": "frame",
+            "id": "cta",
+            "x": 16,
+            "y": 16,
+            "width": 358,
+            "height": 400,
+            "fill": "#0f172a",
+            "cornerRadius": 32,
+            "children": [
+              {
+                "type": "rectangle",
+                "id": "cta-glow",
+                "x": 16,
+                "y": 10,
+                "width": 326,
+                "height": 120,
+                "fill": "#1e40af",
+                "cornerRadius": 999
+              },
+              {
+                "type": "text",
+                "id": "cta-eyebrow",
+                "content": "LET'S WORK TOGETHER",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 19
+                  }
+                ],
+                "x": 16,
+                "y": 30,
+                "width": 326,
+                "fontSize": 12,
+                "fill": "#93c5fd",
+                "fontWeight": 700,
+                "textAlign": "center"
+              },
+              {
+                "type": "text",
+                "id": "cta-h",
+                "content": "Have an idea? Let's build it into something real.",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 49
+                  }
+                ],
+                "x": 16,
+                "y": 55,
+                "width": 326,
+                "fontSize": 28,
+                "fill": "#ffffff",
+                "fontWeight": 800,
+                "textAlign": "center"
+              },
+              {
+                "type": "text",
+                "id": "cta-sub",
+                "content": "From backend APIs to AI-powered products — tell me about your project.",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 70
+                  }
+                ],
+                "x": 16,
+                "y": 160,
+                "width": 326,
+                "fontSize": 14,
+                "fill": "#cbd5e1",
+                "fontWeight": 400,
+                "textAlign": "center"
+              },
+              {
+                "type": "rectangle",
+                "id": "cta-btn",
+                "x": 16,
+                "y": 230,
+                "width": 157,
+                "height": 50,
+                "fill": "#2563eb",
+                "cornerRadius": 999
+              },
+              {
+                "type": "text",
+                "id": "cta-btn-t",
+                "content": "Get In Touch →",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 14
+                  }
+                ],
+                "x": 16,
+                "y": 246,
+                "width": 157,
+                "fontSize": 15,
+                "fill": "#ffffff",
+                "fontWeight": 600,
+                "textAlign": "center"
+              },
+              {
+                "type": "text",
+                "id": "cta-trust",
+                "content": "Usually replies within 24h · Remote-friendly · Open to freelance",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 64
+                  }
+                ],
+                "x": 16,
+                "y": 295,
+                "width": 326,
+                "fontSize": 12,
+                "fill": "#94a3b8",
+                "fontWeight": 500,
+                "textAlign": "center"
+              },
+              {
+                "type": "rectangle",
+                "id": "cta-btn2",
+                "x": 185,
+                "y": 230,
+                "width": 157,
+                "height": 50,
+                "fill": "#ffffff",
+                "cornerRadius": 999
+              },
+              {
+                "type": "text",
+                "id": "cta-btn2-t",
+                "content": "View Projects",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 13
+                  }
+                ],
+                "x": 185,
+                "y": 246,
+                "width": 157,
+                "fontSize": 14,
+                "fill": "#0f172a",
+                "fontWeight": 600,
+                "textAlign": "center"
+              }
+            ],
+            "layout": "none"
+          },
+          {
+            "type": "frame",
+            "id": "footer-bar",
+            "x": 16,
+            "y": 432,
+            "width": 358,
+            "height": 150,
+            "fill": "#ffffff",
+            "cornerRadius": 24,
+            "stroke": "#e2e8f0",
+            "strokeWidth": 1,
+            "children": [
+              {
+                "type": "text",
+                "id": "ft-logo",
+                "content": "<> Daniel Kissiedu",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 18
+                  }
+                ],
+                "x": 16,
+                "y": 16,
+                "width": 326,
+                "fontSize": 16,
+                "fill": "#0f172a",
+                "fontWeight": 700,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "ft-tag",
+                "content": "Backend · AI Engineer",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 21
+                  }
+                ],
+                "x": 16,
+                "y": 40,
+                "width": 326,
+                "fontSize": 13,
+                "fill": "#64748b",
+                "fontWeight": 400,
+                "textAlign": "start"
+              },
+              {
+                "type": "text",
+                "id": "ft-nav",
+                "content": "Projects    Skills    Experience    Blog    Contact",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 51
+                  }
+                ],
+                "x": 16,
+                "y": 66,
+                "width": 326,
+                "fontSize": 13,
+                "fill": "#475569",
+                "fontWeight": 500,
+                "textAlign": "center"
+              },
+              {
+                "type": "text",
+                "id": "ft-social",
+                "content": "GitHub  ·  LinkedIn  ·  ayyesu.tech@gmail.com",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 45
+                  }
+                ],
+                "x": 16,
+                "y": 90,
+                "width": 326,
+                "fontSize": 12,
+                "fill": "#64748b",
+                "fontWeight": 400,
+                "textAlign": "center"
+              },
+              {
+                "type": "text",
+                "id": "ft-copy",
+                "content": "© 2026 Daniel Kissiedu. All rights reserved.",
+                "paragraphs": [
+                  {
+                    "from": 0,
+                    "to": 44
+                  }
+                ],
+                "x": 16,
+                "y": 114,
+                "width": 326,
+                "fontSize": 12,
+                "fill": "#94a3b8",
+                "fontWeight": 400,
+                "textAlign": "center"
+              }
+            ],
+            "layout": "none"
+          }
+        ],
+        "layout": "none"
+      }
+    ]
+  }
+}
