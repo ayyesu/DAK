@@ -82,8 +82,9 @@ const findEmptyControls = (
     numbers: { width: shape.width, height: Math.round(shape.height) },
     fix:
       `This is a filled ${shape.width}x${Math.round(shape.height)} shape with no text on it, so it ` +
-      `reads as a button the user cannot read. A shape cannot hold children: replace it with a ` +
-      `frame of the same geometry and put the label inside, or drop it if it was decoration.`,
+      `reads as a button the user cannot read. A shape cannot hold children, so you cannot fix ` +
+      `this by inserting a label into it: replace it with a frame of the same geometry and put ` +
+      `the label inside, or drop it if it was meant to be decoration.`,
   }));
 import type {
   CanvasDocument,

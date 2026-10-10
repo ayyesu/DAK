@@ -427,4 +427,176 @@ describe("canvas toolkit handlers", () => {
       });
     }),
   );
+
+  describe("the tools an agent reviews a design with", () => {
+    it.effect("inspects a design and reports what is wrong with it", () =>
+      Effect.gen(function* () {
+        const harness = yield* makeHarness();
+        const created = yield* harness.call("dak_canvas_create", {
+          title: "Reviewed",
+          module: "web",
+        });
+
+        // A brand new design is a blank frame, and a blank frame is exactly what `empty_frame` is
+        // for — so a design is not clean until it has something in it. The other assertion below is
+        // measured from here.
+        const blank = yield* harness.call("dak_canvas_inspect", {
+          documentId: created.documentId,
+        });
+        expect(blank.issues.map((issue) => issue.code)).toEqual(["empty_frame"]);
+        expect(blank.issues[0]?.nodeIds).toEqual([created.starterFrameId]);
+        expect(blank.omitted).toBe(0);
+
+        // A filled shape with no label is the defect this exists for.
+        yield* harness.call("dak_canvas_edit", {
+          documentId: created.documentId,
+          code: `Insert("${created.starterFrameId}", { id: "btn", type: "rectangle", x: 16, y: 16, width: 140, height: 44, fill: "#0f172a" }); return 1;`,
+        });
+
+        const after = yield* harness.call("dak_canvas_inspect", {
+          documentId: created.documentId,
+        });
+        expect(after.counts.empty_control).toBe(1);
+        // The frame now has a child, so the one problem it had is gone and only the new one is left.
+        expect(after.counts.empty_frame).toBeUndefined();
+        const issue = after.issues.find((entry) => entry.code === "empty_control");
+        expect(issue?.nodeIds).toEqual(["btn"]);
+        expect(issue?.fix).toContain("frame");
+        expect(issue?.numbers.width).toBe(140);
+      }),
+    );
+
+    it.effect("measures nodes, and says so when a selector matches nothing", () =>
+      Effect.gen(function* () {
+        const harness = yield* makeHarness();
+        const created = yield* harness.call("dak_canvas_create", {
+          title: "Measured",
+          module: "web",
+        });
+
+        const all = yield* harness.call("dak_canvas_measure", {
+          documentId: created.documentId,
+        });
+        expect(all.nodes.map((node) => node.id)).toEqual([created.starterFrameId]);
+        expect(all.unmatchedSelectors).toEqual([]);
+
+        const one = yield* harness.call("dak_canvas_measure", {
+          documentId: created.documentId,
+          selectors: [created.starterFrameId],
+        });
+        expect(one.nodes).toHaveLength(1);
+        expect(one.nodes[0]?.width).toBeGreaterThan(0);
+
+        const missing = yield* harness.call("dak_canvas_measure", {
+          documentId: created.documentId,
+          selectors: ["nope"],
+        });
+        // An empty answer about a node that does not exist reads as "nothing there", so the
+        // selector that matched nothing is reported instead.
+        expect(missing.nodes).toEqual([]);
+        expect(missing.unmatchedSelectors).toEqual(["nope"]);
+      }),
+    );
+
+    it.effect(
+      "writes a real png to disk and returns its path",
+      () =>
+        Effect.gen(function* () {
+          const harness = yield* makeHarness();
+          const created = yield* harness.call("dak_canvas_create", {
+            title: "Looked at",
+            module: "generic",
+          });
+
+          const answer = yield* harness.call("dak_canvas_screenshot", {
+            documentId: created.documentId,
+          });
+          expect(answer.parts.length).toBeGreaterThan(0);
+          const path = answer.parts[0]?.path;
+          expect(path).toBeDefined();
+
+          // A real PNG on disk, not a path that points at nothing.
+          const bytes = yield* Effect.promise(() => NodeFSP.readFile(path as string));
+          expect(bytes.subarray(0, 8)).toEqual(
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+          );
+          expect(answer.parts[0]?.mimeType).toBe("image/png");
+          expect(answer.parts[0]?.width).toBeGreaterThan(0);
+        }),
+      { timeout: 120_000 },
+    );
+
+    it.effect(
+      "crops a frame from its own left edge, not from the page origin",
+      () =>
+        Effect.gen(function* () {
+          const harness = yield* makeHarness();
+          const created = yield* harness.call("dak_canvas_create", {
+            title: "Offset",
+            module: "generic",
+          });
+          // Move the frame to x=120 so a crop taken at x=0 would show three quarters of white.
+          yield* harness.call("dak_canvas_edit", {
+            documentId: created.documentId,
+            code: `Update("${created.starterFrameId}", { x: 120, y: 100 }); return 1;`,
+          });
+
+          const answer = yield* harness.call("dak_canvas_screenshot", {
+            documentId: created.documentId,
+          });
+          expect(answer.bounds.x).toBe(120);
+          expect(answer.bounds.y).toBe(100);
+
+          const path = answer.parts[0]?.path as string;
+          const bytes = yield* Effect.promise(() => NodeFSP.readFile(path));
+          // The PNG header holds the real dimensions; a crop from the wrong origin would be wider.
+          const pngWidth = Buffer.from(bytes).readUInt32BE(16);
+          const pngHeight = Buffer.from(bytes).readUInt32BE(20);
+          expect(pngWidth / pngHeight).toBeCloseTo(answer.bounds.width / answer.bounds.height, 1);
+        }),
+      { timeout: 120_000 },
+    );
+
+    it.effect(
+      "plans sections for a tall frame and offers to write nothing when asked not to",
+      () =>
+        Effect.gen(function* () {
+          const harness = yield* makeHarness();
+          const created = yield* harness.call("dak_canvas_create", {
+            title: "Tall",
+            module: "generic",
+          });
+          yield* harness.call("dak_canvas_edit", {
+            documentId: created.documentId,
+            code: `Update("${created.starterFrameId}", { width: 390, height: 6000 }); return 1;`,
+          });
+
+          const tall = yield* harness.call("dak_canvas_screenshot", {
+            documentId: created.documentId,
+          });
+          expect(tall.tall).toBe(true);
+          // An overview first, then sharp crops, each within the long edge.
+          expect(tall.parts[0]?.role).toBe("overview");
+          expect(tall.parts.length).toBeGreaterThan(2);
+          for (const part of tall.parts.slice(1)) {
+            expect(Math.max(part.width, part.heightPx)).toBeLessThanOrEqual(tall.maxEdge + 1);
+          }
+          // The crops between them must cover the target without a gap.
+          const sections = tall.parts.filter((part) => part.role === "section");
+          for (let index = 1; index < sections.length; index += 1) {
+            expect(sections[index]!.y).toBeLessThan(
+              sections[index - 1]!.y + sections[index - 1]!.height,
+            );
+          }
+
+          const unsaved = yield* harness.call("dak_canvas_screenshot", {
+            documentId: created.documentId,
+            save: false,
+          });
+          expect(unsaved.parts.length).toBe(tall.parts.length);
+          for (const part of unsaved.parts) expect(part.path).toBeUndefined();
+        }),
+      { timeout: 120_000 },
+    );
+  });
 });

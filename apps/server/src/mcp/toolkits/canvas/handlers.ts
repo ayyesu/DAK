@@ -10,6 +10,8 @@ import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 
 import * as CanvasProjects from "../../../canvas/CanvasProjects.ts";
+import * as CanvasEngineLive from "../../../canvas/CanvasEngineLive.ts";
+import { answerCanvasScreenshot } from "../../../canvas/canvasScreenshotTool.ts";
 import type * as CanvasService from "../../../canvas/CanvasService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
@@ -218,6 +220,24 @@ export const layer = McpToolAccess.toLayer(CanvasToolkit, {
         documentId: input.documentId,
         ...(input.selectors === undefined ? {} : { selectors: input.selectors }),
       });
+    }),
+  ),
+
+  dak_canvas_screenshot: McpToolAccess.reads((input) =>
+    Effect.gen(function* () {
+      yield* requireCanvasCapability;
+      const caller = yield* readCaller();
+      const { service, store, workspaceRoot } = yield* forProject(caller, input.projectId);
+      const engine = CanvasEngineLive.make();
+      return yield* Effect.promise(() =>
+        answerCanvasScreenshot(service, store, engine, workspaceRoot, {
+          documentId: input.documentId,
+          ...(input.nodeId === undefined ? {} : { nodeId: input.nodeId }),
+          ...(input.selector === undefined ? {} : { selector: input.selector }),
+          ...(input.region === undefined ? {} : { region: input.region }),
+          ...(input.save === undefined ? {} : { save: input.save }),
+        }),
+      );
     }),
   ),
 

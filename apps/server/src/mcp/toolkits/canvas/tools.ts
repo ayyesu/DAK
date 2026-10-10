@@ -17,6 +17,10 @@ import {
   TrimmedNonEmptyString,
 } from "@dak/contracts";
 import { CanvasMeasureResult } from "./measure.ts";
+import {
+  CanvasScreenshotAnswer,
+  CanvasScreenshotRegion,
+} from "../../../canvas/canvasScreenshotSchema.ts";
 import * as Schema from "effect/Schema";
 import * as Crypto from "effect/Crypto";
 import { Tool, Toolkit } from "effect/ai";
@@ -62,7 +66,14 @@ const ProjectTarget = Schema.optional(
 const CanvasCreateTool = Tool.make("dak_canvas_create", {
   ...shared,
   description:
-    "Start a new blank design in this project and get back its documentId and the starterFrameId to author into. module picks the deliverable: 'generic' stays flexible and extracts to PNG, SVG, and PDF, while 'deck', 'web', and 'mobile' settle on slides, a web page, or a phone screen. preset chooses a physical page size for a blank generic document. Author it with dak_canvas_edit.",
+    "Start a new blank design in this project and get back its documentId and the starterFrameId to author into. " +
+    "module is required and picks the deliverable, and it is fixed for the life of the design: SetModule only " +
+    "works on a generic design with no role-bearing frames, so a web or mobile design cannot be converted " +
+    "afterwards and choosing wrong means starting again. Pick it by the width you are designing for: " +
+    "'web' is a desktop or tablet route and is reviewed at about 1440px wide, 'mobile' is a phone screen at " +
+    "about 390px, 'deck' is landscape slides, and 'generic' has no width of its own — its presets run from a " +
+    "phone card to an A4 sheet, so use it when you genuinely do not know yet. preset chooses a physical page " +
+    "size for a blank generic document. Author it with dak_canvas_edit.",
   parameters: Schema.Struct({
     title: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(255)).annotate({
       description: "Name for the design. The user sees this, so use their wording.",
@@ -146,10 +157,18 @@ const AUTHORING_NOTES =
   'its frame and clipped. To wrap it, set BOTH `textGrowth: "fixed-width-height"` and an explicit ' +
   "`height` on the node — the first stops it growing, the second gives the wrapped lines room. " +
   "Either alone leaves it on one line. " +
-  "(3) Any edit returns the structural problems found in the result: content that leaves its frame " +
-  "(`bounds_overflow`), text that will be cut off (`text_overflow`), a phone-width frame in a `web` " +
-  "design (`viewport_mismatch`). Read them and fix the design rather than assuming the edit landed " +
-  "as drawn.";
+  "(3) A rectangle cannot hold children, so you cannot add a label to a shape by inserting text " +
+  "into it: replace it with a frame of the same geometry and put the label inside. Use Button to " +
+  "get this right the first time. " +
+  "(4) A design's module is fixed when it is created and cannot be changed afterwards. " +
+  "(5) Every edit returns the structural problems found in the result: content that leaves its frame " +
+  "(`bounds_overflow`), text that will be cut off (`text_overflow`), a shape that looks like a button " +
+  "with no label (`empty_control`), two text runs drawn over each other (`sibling_overlap`), " +
+  "a phone-width frame in a `web` design (`viewport_mismatch`), and more. `feedback.delta` says " +
+  "which of those THIS edit introduced and which it resolved, so you can see immediately whether " +
+  "you made the design worse. `feedback.touched` carries the measured box of every node you " +
+  "touched, so you can place the next element under one without guessing — take a screenshot " +
+  "after each section, look at it, and fix what looks wrong before moving on.";
 
 const CanvasEditTool = Tool.make("dak_canvas_edit", {
   ...shared,
@@ -265,6 +284,62 @@ const CanvasExportTool = Tool.make("dak_canvas_export", {
   .annotate(Tool.OpenWorld, false);
 
 /**
+ * `dak_canvas_screenshot`, answering with files rather than pixels.
+ *
+ * Step A of two. It needs no special MCP registration, so it is an ordinary toolkit tool and works
+ * today. Step B attaches the same bytes as image blocks for a harness that passes them through; the
+ * paths are in the answer either way, because there is no way to tell from inside the server whether
+ * the model on the other end can see an image or can only open a file.
+ */
+const CanvasScreenshotTool = Tool.make("dak_canvas_screenshot", {
+  ...shared,
+  description:
+    "Look at a design. Writes PNGs into the project and returns their paths with the region each one " +
+    "covers, so you can open them and see them. Target a frame by nodeId, a node by selector " +
+    "(#id, type:frame, name:nav, or a slash-separated path), or an explicit region in design units; " +
+    "omit all three for the design's first frame. A design short enough comes back as one sharp " +
+    "image; a long one comes back as a small overview plus sharp section crops cut at its section " +
+    "boundaries, because a single image of a long page would be too small to read. " +
+    "WORKFLOW: take a screenshot after you finish each section, open it, look at it, and fix what " +
+    "looks wrong before building the next section. This is the only way to see spacing, hierarchy, " +
+    "contrast, and whether text is clipped — dak_canvas_inspect catches what can be measured and " +
+    "cannot tell you a layout is weak. Do not skip it and do not assume an edit rendered as intended. " +
+    "If an image comes back attached to this result, look at it directly instead of opening the path.",
+  parameters: Schema.Struct({
+    documentId: CanvasDocumentId.annotate({
+      description: "Design to shoot, from dak_canvas_list.",
+    }),
+    nodeId: Schema.optional(
+      TrimmedNonEmptyString.annotate({
+        description: "A frame or node id. Omit for the first frame.",
+      }),
+    ),
+    selector: Schema.optional(
+      TrimmedNonEmptyString.annotate({
+        description: "#id, type:frame, name:nav, or a slash path.",
+      }),
+    ),
+    region: Schema.optional(
+      CanvasScreenshotRegion.annotate({
+        description: "An explicit region in design units. Wins over nodeId and selector.",
+      }),
+    ),
+    save: Schema.optional(
+      Schema.Boolean.annotate({
+        description: "Write the PNGs. Default true; false returns dimensions only.",
+      }),
+    ),
+    projectId: ProjectTarget,
+  }),
+  success: CanvasScreenshotAnswer,
+})
+  .annotate(Tool.Title, "Look at a design")
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, true)
+  .annotate(Tool.OpenWorld, false);
+
+/**
  * `dak_canvas_inspect` and `dak_canvas_measure`, kept together because both are read-only answers
  * about a design's geometry and neither draws anything.
  */
@@ -330,6 +405,7 @@ export const CanvasToolkit = Toolkit.make(
   CanvasEditTool,
   CanvasInspectTool,
   CanvasMeasureTool,
+  CanvasScreenshotTool,
   CanvasUndoTool,
   CanvasTrashTool,
   CanvasRestoreTool,

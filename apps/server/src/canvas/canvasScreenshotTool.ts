@@ -1,83 +1,90 @@
-// @effect-diagnostics nodeBuiltinImport:off - This renders and writes real files.
-import { McpSchema } from "effect/ai";
-import * as Effect from "effect/Effect";
-import * as Schema from "effect/Schema";
-
+// @effect-diagnostics nodeBuiltinImport:off - This writes screenshot scratch files to disk.
 import { base64ToBytes } from "./bytes.ts";
 import {
   CANVAS_SCREENSHOT_MAX_EDGE,
-  planSections,
   planScreenshot,
+  planSections,
   renderScreenshot,
   type CanvasBox,
   type CanvasScreenshotPart,
 } from "./canvasScreenshot.ts";
+import * as Effect from "effect/Effect";
 import { writeScratchScreenshots } from "./canvasScreenshotScratch.ts";
 import { absoluteBoxes } from "./canvasText.ts";
+import { narrowToSelector } from "./canvasInspect.ts";
 import type { CanvasService } from "./CanvasService.ts";
-import type { CanvasFailure } from "@dak/contracts";
+import type { CanvasEngine, CanvasStore } from "./CanvasPorts.ts";
 
 /**
- * `dak_canvas_screenshot` — the agent's eyes.
+ * What `dak_canvas_screenshot` answers with, as data.
  *
- * Registered through the low-level `addTool` rather than `McpServer.toolkit`, because the toolkit
- * serializes a structured result as JSON text and a PNG inside that reaches the model as base64 it
- * cannot look at. `preview_snapshot` in `McpHttpServer.ts` is the same shape and the reason this
- * pattern was already known to work here.
+ * Step A of two. This writes the PNGs and returns their paths as ordinary JSON, which needs no
+ * special MCP registration and therefore already works. Step B attaches the same bytes as image
+ * blocks so a model that can see does not have to open a file. Both halves come from this one
+ * function, so the two can never disagree about what was captured.
  *
- * Both delivery routes are offered because there are two kinds of harness and the server cannot tell
- * them apart: the image block for a model that can see, and a written file whose path is in the text
- * for a model that cannot. `includeImage: false` takes the second without the first, which is also
- * what a caller uses when it only wants to show the user a picture.
+ * The paths are in the answer either way, because not every harness passes image content through to
+ * the model, and there is no way to tell from inside the server which kind is on the other end.
  */
-
-/** The contract, kept here so the schema and the handler cannot drift. */
-export const CanvasScreenshotInput = Schema.Struct({
-  documentId: Schema.String,
-  /** A frame or node id. Omit to shoot the design's first frame. */
-  nodeId: Schema.optional(Schema.String),
-  /** A Canvas selector: `#id`, `type:frame`, `name:nav`, or a slash-separated path. */
-  selector: Schema.optional(Schema.String),
-  /** An explicit region in design units, which wins over nodeId and selector. */
-  region: Schema.optional(
-    Schema.Struct({
-      x: Schema.Number,
-      y: Schema.Number,
-      width: Schema.Number,
-      height: Schema.Number,
-    }),
-  ),
-  /** Set false to get only the written paths, for a harness whose model cannot see images. */
-  includeImage: Schema.optional(Schema.Boolean),
-  /** Write the PNGs into the project workspace and return their paths. Default true. */
-  save: Schema.optional(Schema.Boolean),
-});
-
-export interface ScreenshotTarget {
+export interface CanvasScreenshotAnswerShape {
+  readonly documentId: string;
+  readonly target: string;
   readonly nodeId: string;
-  readonly name: string;
-  readonly box: CanvasBox;
-  readonly boundaries: ReadonlyArray<number>;
+  readonly bounds: CanvasBox;
+  readonly scale: number;
+  readonly tall: boolean;
+  readonly parts: ReadonlyArray<{
+    readonly role: "overview" | "section";
+    readonly y: number;
+    readonly height: number;
+    readonly width: number;
+    readonly heightPx: number;
+    readonly mimeType: "image/png";
+    readonly path?: string;
+  }>;
+  readonly maxEdge: number;
 }
 
-/** The y of every top-level child's box within the target, which is where sections begin. */
-const boundariesOf = (
+const nodeById = (document: unknown, id: string): Record<string, unknown> | undefined => {
+  const search = (node: any): Record<string, unknown> | undefined => {
+    if (node?.id === id) return node;
+    for (const child of (node?.children ?? []) as ReadonlyArray<unknown>) {
+      const found = search(child);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  };
+  for (const child of (document as { children?: unknown[] }).children ?? []) {
+    const found = search(child);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+};
+
+/**
+ * The y of every section-like child inside the target, in target-relative units.
+ *
+ * Only children that are frames, or that carry a role or a name, count as section boundaries. Every
+ * child of a frame has an offset, and treating all of them as boundaries cut a page into dozens of
+ * unusable slivers.
+ */
+const sectionBoundaries = (
   document: unknown,
   nodeId: string,
   boxes: ReadonlyMap<string, CanvasBox>,
 ): ReadonlyArray<number> => {
   const target = boxes.get(nodeId);
   if (target === undefined) return [];
+  const node = nodeById(document, nodeId);
   const boundaries: number[] = [];
-  const findChildren = (node: any): ReadonlyArray<any> => node?.children ?? [];
-  let node = findChildren(document).find((child) => child?.id === nodeId);
-  if (node === undefined) {
-    const search = (candidate: any): any =>
-      candidate?.id === nodeId ? candidate : findChildren(candidate).map(search).find(Boolean);
-    node = search(document);
-  }
-  for (const child of findChildren(node)) {
-    const box = boxes.get(child?.id);
+  for (const child of (node?.children ?? []) as ReadonlyArray<Record<string, unknown>>) {
+    if (typeof child.id !== "string") continue;
+    const isSection =
+      child.type === "frame" ||
+      child.role !== undefined ||
+      (typeof child.name === "string" && child.name.length > 0);
+    if (!isSection) continue;
+    const box = boxes.get(child.id);
     if (box === undefined) continue;
     const top = box.y - target.y;
     if (top > 0 && top < target.height) boundaries.push(top);
@@ -85,137 +92,106 @@ const boundariesOf = (
   return boundaries;
 };
 
-const resolveTarget = (
-  document: unknown,
-  input: {
-    readonly nodeId?: string | undefined;
-    readonly selector?: string | undefined;
-    readonly region?: CanvasBox | undefined;
-  },
-  boxes: ReadonlyMap<string, CanvasBox>,
-): ScreenshotTarget => {
-  if (input.region !== undefined) {
-    return { nodeId: input.nodeId ?? "", name: "region", box: input.region, boundaries: [] };
-  }
-  const id =
-    input.nodeId ??
-    (input.selector !== undefined
-      ? input.selector
-          .replace(/^#|^(?:type|name):/u, "")
-          .split("/")
-          .pop()
-      : undefined);
-  const first = (document as { children?: ReadonlyArray<{ id?: string; name?: string }> })
-    .children?.[0];
-  const nodeId = id ?? first?.id ?? "";
-  const box = boxes.get(nodeId) ?? { x: 0, y: 0, width: 390, height: 844 };
-  return {
-    nodeId,
-    name: String(id ?? first?.name ?? "design"),
-    box,
-    boundaries: boundariesOf(document, nodeId, boxes),
-  };
-};
+export interface ScreenshotRequest {
+  readonly documentId: string;
+  readonly nodeId?: string | undefined;
+  readonly selector?: string | undefined;
+  readonly region?: CanvasBox | undefined;
+  /** False to skip writing; the parts are still returned with their dimensions. */
+  readonly save?: boolean | undefined;
+}
 
-const textOf = (value: unknown): string => JSON.stringify(value);
-
-/**
- * Renders one screenshot and answers with an MCP result carrying the images.
- *
- * Kept separate from the tool registration so it can be called directly by a test without a server,
- * and so the registration is a thin shell around something that is already exercised.
- */
-export const takeCanvasScreenshot = async (
+export const answerCanvasScreenshot = async (
   service: CanvasService["Service"],
-  store: {
-    getDocumentForExecution: (
-      id: string,
-    ) => Promise<{ summary: { id: string; title: string }; payload: never }>;
-  },
-  engine: { renderRegion: (input: never) => Promise<never> },
+  store: CanvasStore,
+  engine: CanvasEngine,
   workspaceRoot: string,
-  input: {
-    readonly documentId: string;
-    readonly nodeId?: string | undefined;
-    readonly selector?: string | undefined;
-    readonly region?: CanvasBox | undefined;
-    readonly includeImage?: boolean | undefined;
-    readonly save?: boolean | undefined;
-  },
-): Promise<McpSchema.CallToolResult> => {
-  const { payload, summary } = await store.getDocumentForExecution(input.documentId);
-  // `service.read` is an Effect; the normalized document is what every other reader uses, so a
-  // screenshot is cut from the same geometry the panel is showing.
+  request: ScreenshotRequest,
+): Promise<CanvasScreenshotAnswerShape> => {
+  // Read through the store first so a design that has been trashed or removed fails here, with the
+  // service's own error, rather than part-way through rendering.
+  await store.getDocumentForExecution(request.documentId);
+  // `service.read` is an Effect; going through it means the document is the one the agent's own
+  // edit path would produce, rather than a second reading that could disagree.
   const read = await Effect.runPromise(
-    (
-      service.read({ documentId: input.documentId }) as Effect.Effect<
-        { document: unknown },
-        CanvasFailure
-      >
-    ).pipe(Effect.orDie),
+    service.read({ documentId: request.documentId }).pipe(Effect.orDie),
   );
   const document = read.document;
   const boxes = absoluteBoxes(document);
-  const target = resolveTarget(document, input, boxes);
+
+  // An explicit region wins over a node, and a node over a selector, so a caller that knows exactly
+  // which part it wants is never second-guessed by the first frame in the document.
+  let nodeId = request.nodeId ?? "";
+  if (request.selector !== undefined && nodeId === "") {
+    const narrowed = narrowToSelector(document, request.selector);
+    nodeId = String((narrowed as { id?: unknown }).id ?? nodeId);
+  }
+  if (nodeId === "") {
+    nodeId = String(
+      (document as { children?: ReadonlyArray<{ id?: string }> }).children?.[0]?.id ?? "",
+    );
+  }
+  const frame = nodeById(document, nodeId) ?? {};
+  const box = boxes.get(nodeId) ?? {
+    x: 0,
+    y: 0,
+    width: Number(frame.width ?? 390),
+    height: Number(frame.height ?? 844),
+  };
+  const target: CanvasBox =
+    request.region === undefined
+      ? box
+      : {
+          x: request.region.x + box.x,
+          y: request.region.y + box.y,
+          width: request.region.width,
+          height: request.region.height,
+        };
 
   const parts: ReadonlyArray<CanvasScreenshotPart> = await renderScreenshot(
-    engine as never,
-    payload,
-    target,
+    {
+      renderRegion: (input) =>
+        Effect.runPromise(
+          // The service's render rather than the engine's: it is the one that refuses an oversized
+          // region with a readable failure instead of letting the engine's throw escape.
+          service
+            .renderRegion({
+              documentId: request.documentId,
+              nodeId: input.nodeId,
+              bounds: input.bounds,
+              ...(input.scale === undefined ? {} : { scale: input.scale }),
+              ...(input.maxEdge === undefined ? {} : { maxEdge: input.maxEdge }),
+            })
+            .pipe(Effect.orDie),
+        ),
+    },
+    undefined as never,
+    { nodeId, box: target, boundaries: sectionBoundaries(document, nodeId, boxes) },
   );
 
   const saved =
-    input.save === false
+    request.save === false
       ? { paths: [] as ReadonlyArray<string> }
-      : await writeScratchScreenshots(workspaceRoot, input.documentId, parts);
+      : await writeScratchScreenshots(workspaceRoot, request.documentId, parts);
 
-  const summaryText = {
-    document: summary.title,
-    target: target.name,
-    parts: parts.map((part) => ({
+  return {
+    documentId: request.documentId,
+    target: String(frame.name ?? nodeId),
+    nodeId,
+    bounds: target,
+    scale: planScreenshot(target).scale,
+    tall: parts.length > 1,
+    maxEdge: CANVAS_SCREENSHOT_MAX_EDGE,
+    parts: parts.map((part, index) => ({
       role: part.role,
       y: Math.round(part.y),
-      designHeight: Math.round(part.height),
+      height: Math.round(part.height),
       width: part.image.width,
-      height: part.image.height,
-      ...(saved.paths[parts.indexOf(part)] === undefined
-        ? {}
-        : { path: saved.paths[parts.indexOf(part)] }),
+      heightPx: part.image.height,
+      mimeType: part.image.mimeType,
+      ...(saved.paths[index] === undefined ? {} : { path: saved.paths[index] }),
     })),
-    ...(saved.error === undefined ? {} : { scratchError: saved.error }),
   };
-
-  const content: McpSchema.CallToolResult["content"] = [
-    {
-      type: "text",
-      text:
-        `${parts.length} image(s) for ${target.name}: ` +
-        parts
-          .map(
-            (part) =>
-              `${part.role} ${part.image.width}x${part.image.height}` +
-              (saved.paths[parts.indexOf(part)] === undefined
-                ? ""
-                : ` at ${saved.paths[parts.indexOf(part)]}`),
-          )
-          .join("; ") +
-        ". If you cannot see the attached images, open the paths above with your file tools. " +
-        textOf(summaryText),
-    },
-    ...(input.includeImage === false
-      ? []
-      : parts.map((part) => ({
-          type: "image" as const,
-          data: base64ToBytes(part.image.data),
-          mimeType: part.image.mimeType,
-        }))),
-  ];
-
-  return new McpSchema.CallToolResult({
-    isError: false,
-    structuredContent: summaryText,
-    content,
-  });
 };
 
-export { CANVAS_SCREENSHOT_MAX_EDGE, planScreenshot, planSections };
+export { base64ToBytes, planSections, planScreenshot };
