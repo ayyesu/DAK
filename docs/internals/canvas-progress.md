@@ -8,26 +8,26 @@ Gates marked 🛑 are the user's and block everything below them.
 
 ## Milestones
 
-| #   | Milestone                                                                        | Status   | Commit     | Evidence                                                                                                                                                                               |
-| --- | -------------------------------------------------------------------------------- | -------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M0  | Integrity: 5 acceptance tests, no placeholders, font test asserts `unknown_font` | **done** | `2aec4b77` | 5 tests present; unshipped font measured against Inter before the fix, now throws `CANVAS_UNKNOWN_FONT` naming family + available + nearest                                            |
-| M1a | `dak_canvas_screenshot` as an ordinary toolkit tool, answers with file paths     | **done** | `310f469e` | 5 handler tests through `McpToolAccess`; PNG header read back off disk; frame at x=120 crops from its own origin; tall frame gives an overview plus gapless sections                   |
-| M1b | Canvas toolkit registered on `/mcp` so the tools are reachable at all            | **done** | `bb85e186` | 79 tools listed before, none named `dak_canvas_*`; assertion added to the `tools/list` HTTP test and confirmed to fail without the fix                                                 |
-| M1c | Same screenshots also attached as MCP image blocks                               | todo     | —          | `registerImageTool` in `McpHttpServer.ts:633` is the existing shape; it reads a single `screenshot` field, so the multi-part answer needs a different mapper or a single stitched part |
-| M2  | `dak_canvas_inspect` with measured boxes and stable codes                        | **done** | `ac78509e` | 9 codes, contrast against nearest filled ancestor, overlap rule tested 7 ways; 182 canvas tests green                                                                                  |
-| M3  | Edit feedback: issueSummary, measured boxes, delta; `dak_canvas_measure`         | **done** | `7cbace3d` | delta test: breaking edit reports `frames_overlap` as introduced, the fixing edit reports it resolved, a no-op reports no delta; 184 canvas tests green                                |
-| M4  | Fonts: OFL families, per-family budget, `unknown_font` lists matches             | todo     |            |                                                                                                                                                                                        |
-| M5  | Design intelligence: script prelude helpers, design skill, rename/focus          | todo     |            |                                                                                                                                                                                        |
-| M6  | Design list: rename, trash, delete, thumbnails, search, duplicate                | todo     |            |                                                                                                                                                                                        |
-| M7  | Viewer S1+S2: world layout, navigation, title overlays                           | todo     |            |                                                                                                                                                                                        |
-| 🛑  | **G1** Playwright screenshots of the viewer's feel                               | todo     |            | user reviews                                                                                                                                                                           |
-| M8  | Viewer S3: tiles, dirty-rect invalidation, seam test                             | todo     |            |                                                                                                                                                                                        |
-| M9  | Viewer S4: selection and chat context                                            | todo     |            |                                                                                                                                                                                        |
-| M10 | Tier 1: follow the agent, issue badges, frame size menu, undo                    | todo     |            |                                                                                                                                                                                        |
-| 🛑  | **G2** user runs a real design session                                           | todo     |            | user reviews                                                                                                                                                                           |
-| M11 | 1e: live round trip, blind test, transcripts                                     | todo     |            | paused until user says go                                                                                                                                                              |
-| 🛑  | **G3** 1e review                                                                 | todo     |            | user reviews                                                                                                                                                                           |
-| M12 | Tier 2/3: history scrub, inspector, export UI, rulers, grid, minimap, comments   | todo     |            | cut from the bottom                                                                                                                                                                    |
+| #   | Milestone                                                                        | Status   | Commit     | Evidence                                                                                                                                                             |
+| --- | -------------------------------------------------------------------------------- | -------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0  | Integrity: 5 acceptance tests, no placeholders, font test asserts `unknown_font` | **done** | `2aec4b77` | 5 tests present; unshipped font measured against Inter before the fix, now throws `CANVAS_UNKNOWN_FONT` naming family + available + nearest                          |
+| M1a | `dak_canvas_screenshot` as an ordinary toolkit tool, answers with file paths     | **done** | `310f469e` | 5 handler tests through `McpToolAccess`; PNG header read back off disk; frame at x=120 crops from its own origin; tall frame gives an overview plus gapless sections |
+| M1b | Canvas toolkit registered on `/mcp` so the tools are reachable at all            | **done** | `bb85e186` | 79 tools listed before, none named `dak_canvas_*`; assertion added to the `tools/list` HTTP test and confirmed to fail without the fix                               |
+| M1c | Same screenshots also attached as MCP image blocks                               | **done** | `4b3ac86d` | `registerImageTool` reads a `parts` array; single-`screenshot` tools untouched. Tall frame → 8 image blocks, cap note in text, no base64 in text. 216 tests green    |
+| M2  | `dak_canvas_inspect` with measured boxes and stable codes                        | **done** | `ac78509e` | 9 codes, contrast against nearest filled ancestor, overlap rule tested 7 ways; 182 canvas tests green                                                                |
+| M3  | Edit feedback: issueSummary, measured boxes, delta; `dak_canvas_measure`         | **done** | `7cbace3d` | delta test: breaking edit reports `frames_overlap` as introduced, the fixing edit reports it resolved, a no-op reports no delta; 184 canvas tests green              |
+| M4  | Fonts: OFL families, per-family budget, `unknown_font` lists matches             | todo     |            |                                                                                                                                                                      |
+| M5  | Design intelligence: script prelude helpers, design skill, rename/focus          | todo     |            |                                                                                                                                                                      |
+| M6  | Design list: rename, trash, delete, thumbnails, search, duplicate                | todo     |            |                                                                                                                                                                      |
+| M7  | Viewer S1+S2: world layout, navigation, title overlays                           | todo     |            |                                                                                                                                                                      |
+| 🛑  | **G1** Playwright screenshots of the viewer's feel                               | todo     |            | user reviews                                                                                                                                                         |
+| M8  | Viewer S3: tiles, dirty-rect invalidation, seam test                             | todo     |            |                                                                                                                                                                      |
+| M9  | Viewer S4: selection and chat context                                            | todo     |            |                                                                                                                                                                      |
+| M10 | Tier 1: follow the agent, issue badges, frame size menu, undo                    | todo     |            |                                                                                                                                                                      |
+| 🛑  | **G2** user runs a real design session                                           | todo     |            | user reviews                                                                                                                                                         |
+| M11 | 1e: live round trip, blind test, transcripts                                     | todo     |            | paused until user says go                                                                                                                                            |
+| 🛑  | **G3** 1e review                                                                 | todo     |            | user reviews                                                                                                                                                         |
+| M12 | Tier 2/3: history scrub, inspector, export UI, rulers, grid, minimap, comments   | todo     |            | cut from the bottom                                                                                                                                                  |
 
 ## Order
 
@@ -72,6 +72,49 @@ per-canvas copy would be a third place to keep in step. Option 1 is wrong on its
 less capable: it would attach the one image the design explicitly produced to be too small to read.
 
 Not yet started; needs a decision between these.
+
+### Standing verification rule
+
+Run `npm run canvas:verify` before **every** canvas commit. It runs the canvas suite, the
+toolkit-wide `core.test.ts`, and the HTTP registration test together.
+
+This exists because each of those passed on its own while the canvas toolkit was not in
+`McpHttpServer.layer` at all (fixed in `bb85e186`), and because `core.test.ts` was already failing
+on missing presentation definitions that a canvas-only run never saw. The gap was not a flaky test;
+it was the verification scope. Run the three together, every time.
+
+### Pre-existing failures, not ours
+
+Recorded so they are not re-investigated at every boundary. Each was confirmed to fail identically
+with this work's changes reverted.
+
+- `packages/shared`: `otelEnvironment` (1), `threadPullRequests` (2), `git` (1), `nodeRuntime` (1).
+  Confirmed by restoring the pre-`bb85e186` copy of the one changed `packages/shared` file
+  (`dakMcpToolPresentation.ts`) and re-running: same 5 failures. None of those four test files or
+  their subjects were touched by any commit here.
+- `apps/server/src/mcp/McpHttpServer.test.ts` → `saves the snapshot PNG on request and reports its
+path`. A Windows path-escaping bug: the assertion expects an unescaped `C:\...` path inside a JSON
+  text block, which double-escapes the backslashes. Confirmed to fail identically with the
+  committed `McpHttpServer.ts` restored. Not fixed here because it is unrelated to Canvas and a
+  silent drive-by fix would hide it from whoever owns it.
+- Lint: `CanvasRenderBudget.test.ts` (`dak(namespace-node-imports)`) and `CanvasViewService.test.ts`
+  (7× `dak(no-manual-effect-runtime-in-tests)`). Pre-existing, in files this work does not touch.
+
+### M1c — image blocks (decided and shipped)
+
+Option 2 was chosen: generalise `registerImageTool` rather than copy `preview_snapshot` a third time.
+Implemented as a superset — `parts` alongside `screenshot` — so `device_screenshot` and
+`html_preview` needed no change and their tests were not edited.
+
+Two things the implementation had to settle that were not obvious in advance:
+
+- **The cap.** 8 images / 24MB, measured on the base64 that actually goes over the wire. A client
+  that rejects an oversized result loses the text answer too, so trimming images is safer than
+  risking the whole result. The trade is real: a very tall frame loses its later sections as images
+  and must be opened from the paths instead. Every part is written to disk regardless, and the trim
+  is stated in the text so the agent knows to look.
+- **`includeImage` defaults to on** for this route, because the route exists to attach the image.
+  The ordinary toolkit path passes `false`. A part with no bytes is skipped rather than decoded.
 
 ### M1 — MCP registration does not compile (historical)
 
