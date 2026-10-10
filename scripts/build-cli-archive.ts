@@ -468,6 +468,9 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   const repoRoot = yield* RepoRoot;
   const serverDir = path.join(repoRoot, "apps/server");
   const executableName = input.platform === "win" ? "dak.exe" : "dak";
+  // The Canvas WASM runtimes, named as the emitted loaders resolve them. Shared with
+  // scripts/place-canvas-assets.ts so the archive cannot stage a different set than the bundle holds.
+  const CANVAS_RUNTIME_ASSETS = ["emscripten-module.wasm", "canvaskit.wasm"] as const;
   // tsdown suffixes cross-built executables with their target (dak-darwin-x64);
   // a host build is plain dak. Prefer the exact target when both exist.
   const targetKey = `${input.platform === "mac" ? "darwin" : input.platform}-${input.arch}`;
@@ -507,6 +510,18 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
 
   yield* Effect.log(`[cli-archive] Staging ${stem}...`);
   yield* fs.copyFile(builtExecutable, path.join(contentDir, executableName));
+  // The single-executable embed only the JavaScript. Canvas loads QuickJS and CanvasKit as WASM
+  // beside the code that resolves them, so a neighbour left out here is a shipped CLI whose canvas
+  // tools throw ENOENT or CANVAS_SCREENSHOT_RUNTIME_UNAVAILABLE the first time an agent edits a
+  // design. Staged next to the executable, which is where the SEA bundle resolves them from.
+  for (const assetName of CANVAS_RUNTIME_ASSETS) {
+    const source = path.join(serverDir, "dist", assetName);
+    yield* requireInput(
+      source,
+      `Run \`node scripts/place-canvas-assets.ts\` first: ${assetName} is required by the Canvas tools.`,
+    );
+    yield* fs.copyFile(source, path.join(contentDir, assetName));
+  }
   yield* stageWebClient(webClient, path.join(contentDir, "client"));
   yield* fs.copy(resourceMonitorDir, path.join(contentDir, "resource-monitor"));
   yield* stageRuntimeExternals({

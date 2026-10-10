@@ -108,6 +108,21 @@ export function readPromisedFontFiles(
   return entries;
 }
 
+/**
+ * The most bytes any one family may cost.
+ *
+ * `CANVAS_BUDGETS.fontBytes` bounds the whole font payload, which is the wrong instrument for a
+ * single runaway family: 2 MB total still allows one family to be 80% of it. A family at that size is
+ * also often not worth carrying — an icon set that should be vector nodes, or a CJK face that should
+ * be a deliberate decision.
+ *
+ * Set from what is actually shipped rather than a round number: Inter is five weights at 1626 KB, so
+ * anything under that fails on a clean checkout and the budget stops being read as a budget. The
+ * headroom to 2 MB is about a quarter, which catches a family that arrives large without failing on
+ * the families already here.
+ */
+export const CANVAS_MAX_FONT_FAMILY_BYTES = 2 * 1024 * 1024;
+
 export type CanvasFontCoverage =
   | {
       readonly family: string;
@@ -122,6 +137,19 @@ export type CanvasFontCoverage =
       readonly reason: string;
     }
   | { readonly family: string; readonly file: string; readonly status: "missing" };
+
+/** Every shipped face's family, with its on-disk size, for the per-family budget. */
+export function measureFamilyBytes(
+  coverage: ReadonlyArray<CanvasFontCoverage>,
+): ReadonlyMap<string, number> {
+  const totals = new Map<string, number>();
+  for (const entry of coverage) {
+    if (entry.status !== "shipped") continue;
+    const family = entry.family.split("|")[0] ?? entry.family;
+    totals.set(family, (totals.get(family) ?? 0) + NodeFS.statSync(entry.path).size);
+  }
+  return totals;
+}
 
 /** Classifies every promised face as shipped, deliberately excluded, or missing. */
 export function checkFontCoverage(
@@ -159,10 +187,31 @@ for (const entry of coverage) {
 
 const missing = coverage.filter((entry) => entry.status === "missing");
 const excluded = coverage.filter((entry) => entry.status === "excluded");
+const oversized = [...measureFamilyBytes(coverage)].filter(
+  ([, bytes]) => bytes > CANVAS_MAX_FONT_FAMILY_BYTES,
+);
 console.log("");
 console.log(
   `${String(promised.length)} promised: ${String(coverage.length - missing.length - excluded.length)} shipped, ${String(excluded.length)} excluded, ${String(missing.length)} missing.`,
 );
+for (const [family, bytes] of measureFamilyBytes(coverage)) {
+  console.log(
+    `  family    ${family.padEnd(32)} ${String(Math.round(bytes / 1024)).padStart(5)} KB of ${String(Math.round(CANVAS_MAX_FONT_FAMILY_BYTES / 1024))} KB`,
+  );
+}
+
+if (oversized.length > 0) {
+  console.error(
+    `\ncanvas-font-coverage: ${oversized.length} font family(ies) exceed the per-family budget of ` +
+      `${String(Math.round(CANVAS_MAX_FONT_FAMILY_BYTES / 1024))} KB.\n` +
+      oversized
+        .map(([family, bytes]) => `  ${family} -> ${String(Math.round(bytes / 1024))} KB`)
+        .join("\n") +
+      `\nEither it does not earn its weight (an icon family should be vector nodes) or shipping it ` +
+      `is a decision worth making deliberately.`,
+  );
+  process.exit(1);
+}
 
 if (missing.length > 0) {
   console.error(
