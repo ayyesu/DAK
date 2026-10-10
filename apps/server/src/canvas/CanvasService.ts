@@ -7,8 +7,10 @@ import {
   type CanvasArtifactResult,
   type CanvasCreateResult,
   type CanvasDocumentSummary,
+  type CanvasEditFeedback,
   type CanvasExecuteResult,
   type CanvasExtractFormat,
+  type CanvasIssueSummary,
   type CanvasListResult,
   type CanvasModule,
   type CanvasOperationId,
@@ -153,7 +155,7 @@ export class CanvasService extends Context.Service<
       readonly documentId: string;
       readonly code: string;
       readonly issueDetail?: "summary" | "all";
-    }) => Effect.Effect<CanvasExecuteResultWithImages, CanvasFailure>;
+    }) => Effect.Effect<CanvasExecuteResultWithFeedback, CanvasFailure>;
     readonly undo: (input: {
       readonly documentId: string;
       readonly operationId?: string;
@@ -236,6 +238,17 @@ export interface CanvasExecuteResultWithImages extends CanvasExecuteResult {
   readonly screenshotImages: ReadonlyArray<CanvasEngineScreenshot>;
 }
 
+/**
+ * An edit's own result, plus what it did to the design's problems.
+ *
+ * Mutable rather than assembled in one go because the delta is only knowable after the append has
+ * committed, and by then the engine's own result already exists. The service owns the field, so the
+ * mutation is contained to the one place that fills it.
+ */
+export interface CanvasExecuteResultWithFeedback extends CanvasExecuteResultWithImages {
+  feedback?: CanvasEditFeedback;
+}
+
 export interface CanvasServiceDeps {
   readonly store: CanvasStore;
   readonly engine: CanvasEngine;
@@ -315,7 +328,7 @@ export const make = (deps: CanvasServiceDeps): CanvasService["Service"] => {
     documentId: string,
     code: string,
     issueDetail: "summary" | "all",
-  ): Effect.Effect<CanvasExecuteResultWithImages, CanvasFailure> =>
+  ): Effect.Effect<CanvasExecuteResultWithFeedback, CanvasFailure> =>
     Effect.gen(function* () {
       const { summary, payload } = yield* Effect.tryPromise({
         try: () => store.getDocumentForExecution(documentId),
@@ -387,7 +400,7 @@ export const make = (deps: CanvasServiceDeps): CanvasService["Service"] => {
           issueSummary,
           screenshots: [],
           screenshotImages: [],
-        } satisfies CanvasExecuteResultWithImages;
+        } satisfies CanvasExecuteResultWithFeedback;
       }
 
       const operationId = deps.newOperationId() as CanvasOperationId;
@@ -440,14 +453,93 @@ export const make = (deps: CanvasServiceDeps): CanvasService["Service"] => {
       } satisfies CanvasExecuteResultWithImages;
     });
 
+  /**
+   * What one edit did to the design's problems.
+   *
+   * The introduced/resolved split is the part that earns its keep: an agent that breaks a layout can
+   * see it on the edit that broke it, instead of meeting it in a later inspect with no idea when it
+   * arrived and no way to know which of its twenty edits was responsible.
+   *
+   * Identity is code plus node ids rather than the message, so a fix that resolves an issue and an
+   * unrelated edit that happens to word a message the same way are not confused for one another.
+   */
+  const issueKey = (issue: CanvasInspectIssue): string =>
+    `${issue.code}:${[...issue.nodeIds].sort().join(",")}`;
+
+  const editFeedback = (
+    documentId: string,
+    summary: CanvasIssueSummary,
+    touchedNodeIds: ReadonlyArray<string>,
+    before: ReadonlyArray<CanvasInspectIssue>,
+  ): Effect.Effect<CanvasEditFeedback, CanvasFailure> =>
+    Effect.gen(function* () {
+      const after = yield* inspect({ documentId }).pipe(Effect.orDie);
+      const beforeKeys = new Set(before.map(issueKey));
+      const afterKeys = new Set(after.issues.map(issueKey));
+      const { payload } = yield* Effect.promise(() => store.getDocumentForExecution(documentId));
+      const materialized = yield* Effect.tryPromise({
+        try: () => engine.materialize(payload),
+        catch: () => failure("storage_failed", "This design could not be read right now."),
+      });
+      const normalized = yield* Effect.promise(() => normalizeForRender(materialized));
+      const measured = yield* Effect.promise(() =>
+        measureTextNodes(normalized, textNodeIds(normalized)),
+      );
+      const boxes = absoluteBoxes(normalized, measured);
+
+      const touched = touchedNodeIds.flatMap((id) => {
+        const box = boxes.get(id);
+        if (box === undefined) return [];
+        const node = findNodeIn(normalized, id) ?? {};
+        return [
+          {
+            id,
+            type: typeof node.type === "string" ? node.type : "unknown",
+            ...(typeof node.name === "string" && node.name.length > 0 ? { name: node.name } : {}),
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+          } satisfies CanvasTouchedNode,
+        ];
+      });
+
+      return {
+        summary,
+        top: after.issues.slice(0, 3),
+        delta: {
+          introduced: after.issues.filter((issue) => !beforeKeys.has(issueKey(issue))),
+          resolved: before.filter((issue) => !afterKeys.has(issueKey(issue))),
+          preExisting: after.issues.filter((issue) => beforeKeys.has(issueKey(issue))),
+        },
+        touched,
+      } satisfies CanvasEditFeedback;
+    });
+
   const execute = (input: { documentId: string; code: string; issueDetail?: "summary" | "all" }) =>
     Effect.gen(function* () {
       const issueDetail = input.issueDetail ?? "summary";
       for (let attempt = 0; ; attempt += 1) {
+        // Read the problem list *before* the script runs. Reading it afterwards would compare the
+        // design against itself, because the append that commits the edit happens inside
+        // `executeOnce`, and every issue would look pre-existing.
+        const before = yield* Effect.exit(inspect({ documentId: input.documentId }));
+
         const attemptResult = yield* Effect.result(
           executeOnce(input.documentId, input.code, issueDetail),
         );
-        if (attemptResult._tag === "Success") return attemptResult.success;
+        if (attemptResult._tag === "Success") {
+          const result = attemptResult.success;
+          if (result.changed && before._tag === "Success") {
+            result.feedback = yield* editFeedback(
+              input.documentId,
+              result.issueSummary,
+              result.touchedNodeIds,
+              before.value.issues,
+            );
+          }
+          return result;
+        }
         const error = attemptResult.failure;
         if (error.code !== "document_conflict") return yield* error;
         // Someone is editing while the agent works. Re-read and reapply, up to a cap, so a user who
