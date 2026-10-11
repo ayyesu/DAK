@@ -1,8 +1,9 @@
 name: Mobile EAS Preview
 
+# Disabled on this fork: EAS builds need the upstream Expo account and
+# EXPO_TOKEN. Manual dispatch only.
 on:
-  pull_request:
-    types: [opened, reopened, synchronize, labeled]
+  workflow_dispatch:
 
 jobs:
   preview:

@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": true
   },
   "installCommand": "npm install -g vite-plus && vp install --filter '@dak/marketing...'",
   "buildCommand": "vp run --filter @dak/marketing build",

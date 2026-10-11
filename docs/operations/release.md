@@ -2,6 +2,37 @@
 
 > For maintainers. Using DAK? See [docs/user](../user/).
 
+> [!IMPORTANT]
+> **This is a fork, and the rest of this document describes upstream's pipeline.**
+> The workflow files are the source of truth. What differs here, and why:
+>
+> - **Stable only, by tag.** The nightly cron is gone, and a manual `channel=stable`
+>   dispatch cannot work because it resolves the commit of the latest published
+>   nightly, which this fork has none of. Push a `v*.*.*` tag at a commit on `main`
+>   after the workflow changes are merged: the run uses the workflow file **at the
+>   tagged commit**, so tagging first ships the old pipeline.
+> - **Artifacts go to the public mirror `ayyesu/dak-releases`**, not to this private
+>   source repository, using the `DAK_RELEASES_TOKEN` secret. The download page,
+>   `install.sh`/`install.ps1`, `dak update` and the desktop update feed all read
+>   that mirror. There is no npm publish: the CLI archives are attached to the
+>   GitHub Release and nowhere else, so `npx dak` and server self-update to a
+>   matching published version are unavailable.
+> - **Removed jobs**, each for an account or project this fork does not have:
+>   `relay_public_config`'s Alchemy read (it now emits empty DAK Connect values),
+>   `publish_cli`'s npm half, `publish_aur`, `build_web`/`deploy_web`,
+>   `build_marketing`/`deploy_marketing`, `finalize` (bump versions by hand in the
+>   tagged commit) and `announce_discord`. The hosted app and marketing site deploy
+>   through Vercel's Git integration instead.
+> - **Targets** are macOS arm64/x64, Linux x64 and Windows x64. The arm64 runners
+>   bill minutes on a private repository, so both arm64 jobs are gone.
+> - **Publishing gates on the build jobs only.** The quality and test jobs still run
+>   and still report, but they are red for `t3` -> `DAK` rename fallout inside the
+>   app. Add them back to the `release` job's `needs` once that debt is paid.
+> - **Signing stays optional and auto-detected** from secrets, as below.
+>
+> The Apple, Azure and npm setup sections below still describe what those account
+> holders must configure; skip any section whose service this fork does not use.
+
 This document covers the unified release workflow for stable and nightly desktop releases.
 
 ## What the workflow does

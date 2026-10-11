@@ -17,7 +17,9 @@
 # instead of fetching the release again.
 set -eu
 
-repo="ayyesu/DAK"
+# The public artifact mirror, not the source repository: the source is private,
+# so an anonymous `curl` of a release asset from it 404s.
+repo="ayyesu/dak-releases"
 base_url="${DAK_RELEASE_BASE_URL:-https://github.com/${repo}/releases/download}"
 dak_home="${DAK_HOME:-$HOME/.dak}"
 bin_dir="${DAK_INSTALL_BIN_DIR:-$HOME/.local/bin}"

@@ -14,9 +14,10 @@ name: Desktop macOS Preview
 # Closing the PR is handled by the publish workflow too, since deleting the
 # download needs a write token.
 
+# Disabled on this fork: a signed preview needs the upstream Apple Developer ID
+# certificate and the vouch list. Manual dispatch only.
 on:
-  pull_request:
-    types: [labeled]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -57,7 +58,7 @@ jobs:
           run-install: false
 
       - name: Install bundle dependencies
-        run: vp install --filter=t3... --filter=@dak/web... --filter=@dak/desktop... --filter=@dak/scripts...
+        run: vp install --filter=dak... --filter=@dak/web... --filter=@dak/desktop... --filter=@dak/scripts...
 
       # The publish workflow derives the same version from this run's number,
       # so the version baked into the bundle matches the packaged app.

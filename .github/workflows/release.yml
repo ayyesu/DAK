@@ -6,9 +6,9 @@ on:
       - "v*.*.*"
       - "!v*-nightly.*"
       - "!v*-preview.*"
-  schedule:
-    # Avoid minute zero, when GitHub scheduled jobs are busiest.
-    - cron: "8,38 * * * *"
+  # The nightly cron is disabled on this fork: there is no published nightly to
+  # promote and the schedule only burns minutes. Manual dispatch still builds
+  # every channel, and a v*.*.* tag push is the stable release path.
   workflow_dispatch:
     inputs:
       channel:
@@ -25,7 +25,7 @@ on:
         required: false
         type: string
       targets:
-        description: "Which desktop targets to build. 'win' first during a staged rollout, then add 'linux' and 'mac'."
+        description: "Which desktop targets to build. Order: win, then linux, then mac. 'win' also builds Linux x64, because the Windows installer embeds the same-arch Linux CLI archive as its WSL runtime."
         required: false
         default: all
         type: choice
@@ -346,132 +346,34 @@ jobs:
       - name: Test
         run: vp run --filter dak test --shard ${{ matrix.shard }}/${{ strategy.job-total }}
 
+  # This fork has no deployed relay and no Clerk application, so there is nothing
+  # to read and no service to authenticate against. The job keeps its name and its
+  # (empty) outputs so the bundle and desktop jobs downstream keep the same shape.
+  # Fill these in from your own DAK Connect relay and Clerk project to turn the
+  # hosted sign-in path back on; until then clients pair manually with a token.
   relay_public_config:
     name: Resolve DAK Connect public config
-    # Consumes only the release commit, not preflight's resolved version, so it
-    # runs alongside preflight instead of after it. The condition mirrors preflight's.
     needs: [resolve_commit]
-    if: |
-      needs.resolve_commit.result == 'success' &&
-      (github.event_name != 'schedule' || needs.resolve_commit.outputs.has_changes == 'true')
+    if: needs.resolve_commit.result == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    environment:
-      name: production
+    timeout-minutes: 2
     outputs:
-      clerk_publishable_key: ${{ steps.public_config.outputs.clerk_publishable_key }}
-      clerk_jwt_template: ${{ steps.public_config.outputs.clerk_jwt_template }}
-      clerk_cli_oauth_client_id: ${{ steps.public_config.outputs.clerk_cli_oauth_client_id }}
-      relay_url: ${{ steps.public_config.outputs.relay_url }}
-    env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      RELAY_DOMAIN: ${{ vars.RELAY_DOMAIN }}
-      RELAY_API_ZONE_NAME: ${{ vars.RELAY_API_ZONE_NAME }}
-      CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
-      CLERK_JWT_TEMPLATE: ${{ vars.CLERK_JWT_TEMPLATE }}
-      CLERK_CLI_OAUTH_CLIENT_ID: ${{ vars.CLERK_CLI_OAUTH_CLIENT_ID }}
+      clerk_publishable_key: ${{ steps.empty.outputs.clerk_publishable_key }}
+      clerk_jwt_template: ${{ steps.empty.outputs.clerk_jwt_template }}
+      clerk_cli_oauth_client_id: ${{ steps.empty.outputs.clerk_cli_oauth_client_id }}
+      relay_url: ${{ steps.empty.outputs.relay_url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.resolve_commit.outputs.ref }}
-          sparse-checkout: |
-            /*
-            !/.repos/
-          sparse-checkout-cone-mode: false
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: true
-          run-install: |
-            args:
-              - --filter=dak-relay...
-
-      # The deployed stack's outputs, read from Alchemy's state store without
-      # planning or applying. Select the backend explicitly to avoid loading
-      # the stack's unrelated provider credentials; suppress informational logs
-      # and strip the credential-refresh progress prefix before parsing JSON.
-      # Redacted values are persisted as
-      # {"__redacted__": "<value>"}; the token is masked before it is written.
-      #
-      # Skipped entirely when the Cloudflare account is not configured, so a
-      # first unsigned release does not require a deployed relay to exist. The
-      # gate is the variable, not the token: `secrets` is not an available
-      # context in a step condition. Setting the variable without its token
-      # still fails here, which is the signal we want.
-      - name: Read production relay tracing config
-        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
+      - id: empty
+        name: Emit empty DAK Connect config
         shell: bash
-        working-directory: infra/relay
         run: |
-          set -euo pipefail
-          output="$(npx alchemy state read DAKRelay/prod/output --backend cloudflare --log-level error --no-input | sed -n '/^{/,$p')"
-          field() {
-            jq -er --arg key "$1" '.[$key] | if type == "object" then .__redacted__ else . end | select(. != null and . != "")' <<<"$output" \
-              || { echo "Relay stack output is missing $1" >&2; exit 1; }
-          }
-          url="$(field clientTracingUrl)"
-          dataset="$(field clientTracingDataset)"
-          token="$(field clientTracingToken)"
-          echo "::add-mask::$token"
+          echo "::notice::DAK Connect is not configured on this fork; the bundle is built without relay configuration."
           {
-            echo "DAK_RELAY_CLIENT_OTLP_TRACES_URL=$url"
-            echo "DAK_RELAY_CLIENT_OTLP_TRACES_DATASET=$dataset"
-            echo "DAK_RELAY_CLIENT_OTLP_TRACES_TOKEN=$token"
-          } > "$RUNNER_TEMP/relay-client-tracing.env"
-
-      - name: Upload relay client tracing config
-        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: relay-client-tracing-config
-          path: ${{ runner.temp }}/relay-client-tracing.env
-          if-no-files-found: error
-          retention-days: 1
-
-      - id: public_config
-        name: Resolve production relay public config
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          relay_domain="${RELAY_DOMAIN:-}"
-          if [[ -z "$relay_domain" && -n "${RELAY_API_ZONE_NAME:-}" ]]; then
-            relay_domain="relay.$RELAY_API_ZONE_NAME"
-          fi
-          required=(
-            relay_domain
-            CLERK_PUBLISHABLE_KEY
-            CLERK_JWT_TEMPLATE
-            CLERK_CLI_OAUTH_CLIENT_ID
-          )
-          missing=()
-          for name in "${required[@]}"; do
-            if [[ -z "${!name:-}" ]]; then
-              missing+=("$name")
-            fi
-          done
-          if (( ${#missing[@]} > 0 )); then
-            # Loud, but not fatal. These values are baked into the JS bundle and
-            # decide whether a signed-in user can reach a relay, so a build
-            # without them produces an app that cannot authenticate - which is a
-            # reason to notice, not a reason to lose the installers. The
-            # artifacts are still worth publishing for a first unsigned release;
-            # set the repository variables and every later build picks them up.
-            printf '::warning::Missing relay/Clerk configuration: %s\n' "${missing[*]}"
-            printf '::warning::The bundle will be built WITHOUT relay configuration. It installs and runs, but sign-in and DAK Connect will not work. Set these repository variables to fix it: %s\n' "${missing[*]}"
-          fi
-
-          # Empty rather than unset, so a caller reading an output gets a defined
-          # empty string and the bundle builder sees "not configured" instead of
-          # a missing variable under `set -u`.
-          echo "clerk_publishable_key=${CLERK_PUBLISHABLE_KEY:-}" >> "$GITHUB_OUTPUT"
-          echo "clerk_jwt_template=${CLERK_JWT_TEMPLATE:-}" >> "$GITHUB_OUTPUT"
-          echo "clerk_cli_oauth_client_id=${CLERK_CLI_OAUTH_CLIENT_ID:-}" >> "$GITHUB_OUTPUT"
-          echo "relay_url=${relay_domain:+https://$relay_domain}" >> "$GITHUB_OUTPUT"
+            echo "clerk_publishable_key="
+            echo "clerk_jwt_template="
+            echo "clerk_cli_oauth_client_id="
+            echo "relay_url="
+          } >> "$GITHUB_OUTPUT"
 
   # The platform-independent JS (server bundle, web client, Electron main) is
   # built exactly once here and handed to every platform job as `js-bundle`.
@@ -520,24 +422,6 @@ jobs:
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
         run: vp install --filter=dak... --filter=@dak/web... --filter=@dak/desktop... --filter=@dak/scripts...
-
-      # Only exists when Cloudflare is configured; see the matching upload gate.
-      - name: Download relay client tracing config
-        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
-        uses: actions/download-artifact@v8
-        with:
-          name: relay-client-tracing-config
-          path: ${{ runner.temp }}/relay-client-tracing
-
-      # Only exists when Cloudflare is configured; see the matching upload gate.
-      - name: Load relay client tracing config
-        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
-        shell: bash
-        run: |
-          config_path="$RUNNER_TEMP/relay-client-tracing/relay-client-tracing.env"
-          tracing_token="$(sed -n 's/^DAK_RELAY_CLIENT_OTLP_TRACES_TOKEN=//p' "$config_path")"
-          echo "::add-mask::$tracing_token"
-          cat "$config_path" >> "$GITHUB_ENV"
 
       - name: Align package versions to release version
         run: node scripts/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
@@ -596,7 +480,6 @@ jobs:
       rust_target: aarch64-apple-darwin
       resource_key: darwin-arm64
       cli_archive: true
-      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
 
   desktop_mac_x64:
     name: Desktop macOS x64
@@ -623,12 +506,11 @@ jobs:
       # (the SEA docs list macOS as arm64 only) and the built binary segfaults
       # on start. The x64 desktop app is Electron and unaffected.
       cli_archive: false
-      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
 
   desktop_linux_x64:
     name: Desktop Linux x64
     needs: [preflight, relay_public_config, build_bundle]
-    if: ${{  !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.build_bundle.result == 'success'  && (github.event_name != 'workflow_dispatch' || inputs.targets == 'all' || inputs.targets == 'linux') }}
+    if: ${{  !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.build_bundle.result == 'success'  && (github.event_name != 'workflow_dispatch' || inputs.targets == 'all' || inputs.targets == 'linux' || inputs.targets == 'win') }}
     uses: ./.github/workflows/release-desktop.yml
     secrets: inherit
     with:
@@ -647,33 +529,11 @@ jobs:
       rust_target: x86_64-unknown-linux-gnu
       resource_key: linux-x64
       cli_archive: true
-      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
 
-  # node-pty has no Linux prebuild and compiles from source, so the arm64 app
-  # and archive are built on arm64 hardware rather than cross-built.
-  desktop_linux_arm64:
-    name: Desktop Linux arm64
-    needs: [preflight, relay_public_config, build_bundle]
-    if: ${{  !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.build_bundle.result == 'success'  && (github.event_name != 'workflow_dispatch' || inputs.targets == 'all' || inputs.targets == 'linux') }}
-    uses: ./.github/workflows/release-desktop.yml
-    secrets: inherit
-    with:
-      version: ${{ needs.preflight.outputs.version }}
-      ref: ${{ needs.preflight.outputs.ref }}
-      release_channel: ${{ needs.preflight.outputs.release_channel }}
-      clerk_publishable_key: ${{ needs.relay_public_config.outputs.clerk_publishable_key }}
-      clerk_jwt_template: ${{ needs.relay_public_config.outputs.clerk_jwt_template }}
-      clerk_cli_oauth_client_id: ${{ needs.relay_public_config.outputs.clerk_cli_oauth_client_id }}
-      relay_url: ${{ needs.relay_public_config.outputs.relay_url }}
-      label: Linux arm64
-      runner: ubuntu-24.04-arm
-      platform: linux
-      target: AppImage
-      arch: arm64
-      rust_target: aarch64-unknown-linux-gnu
-      resource_key: linux-arm64
-      cli_archive: true
-      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
+  # Linux arm64 and Windows arm64 are not built on this fork. Both need an arm64
+  # GitHub-hosted runner, which bills against the account's included minutes
+  # (public repositories get them free, this one is private). Add
+  # desktop_linux_arm64 and desktop_win_arm64 back if arm64 coverage is worth it.
 
   # The Windows jobs start with the other platforms. Their checkout, install,
   # and toolchain setup take longer than the same-arch Linux job needs to
@@ -700,119 +560,32 @@ jobs:
       rust_target: x86_64-pc-windows-msvc
       resource_key: win32-x64
       cli_archive: true
-      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
       # The WSL runtime comes from the same-arch Linux job. A staged `win`-only run has no such
       # job, so embed nothing and say so in the log rather than failing the build.
-      linux_cli_archive: ${{ github.event_name != 'workflow_dispatch' || inputs.targets == 'all' || inputs.targets == 'linux' }}
+      # True for every run that also builds Linux x64, which is every staged
+      # rollout except a mac-only one.
+      linux_cli_archive: ${{ github.event_name != 'workflow_dispatch' || inputs.targets != 'mac' }}
 
-  desktop_win_arm64:
-    name: Desktop Windows arm64
-    needs: [preflight, relay_public_config, build_bundle]
-    if: ${{  !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.build_bundle.result == 'success'  && (github.event_name != 'workflow_dispatch' || inputs.targets == 'all' || inputs.targets == 'win') }}
-    uses: ./.github/workflows/release-desktop.yml
-    secrets: inherit
-    with:
-      version: ${{ needs.preflight.outputs.version }}
-      ref: ${{ needs.preflight.outputs.ref }}
-      release_channel: ${{ needs.preflight.outputs.release_channel }}
-      clerk_publishable_key: ${{ needs.relay_public_config.outputs.clerk_publishable_key }}
-      clerk_jwt_template: ${{ needs.relay_public_config.outputs.clerk_jwt_template }}
-      clerk_cli_oauth_client_id: ${{ needs.relay_public_config.outputs.clerk_cli_oauth_client_id }}
-      relay_url: ${{ needs.relay_public_config.outputs.relay_url }}
-      label: Windows arm64
-      runner: windows-11-arm
-      platform: win
-      target: nsis
-      arch: arm64
-      rust_target: aarch64-pc-windows-msvc
-      resource_key: win32-arm64
-      cli_archive: true
-      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
-      # The WSL runtime comes from the same-arch Linux job. A staged `win`-only run has no such
-      # job, so embed nothing and say so in the log rather than failing the build.
-      linux_cli_archive: ${{ github.event_name != 'workflow_dispatch' || inputs.targets == 'all' || inputs.targets == 'linux' }}
+  # Removed on this fork with the other arm64 target; see the note above.
 
-  # npm gets the same bytes as the GitHub Release: the launcher plus one
-  # package per CLI archive. Preview publishes too, under the `preview`
-  # dist-tag, which nothing resolves unless asked for by name.
-  publish_cli:
-    name: Publish CLI to npm
-    needs:
-      [
-        preflight,
-        relay_public_config,
-        quality,
-        test,
-        test_server,
-        desktop_mac_arm64,
-        desktop_linux_x64,
-        desktop_linux_arm64,
-        desktop_win_x64,
-        desktop_win_arm64,
-      ]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.quality.result == 'success' && needs.test.result == 'success' && needs.test_server.result == 'success' && needs.desktop_mac_arm64.result == 'success' && needs.desktop_linux_x64.result == 'success' && needs.desktop_linux_arm64.result == 'success' && needs.desktop_win_x64.result == 'success' && needs.desktop_win_arm64.result == 'success' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-          sparse-checkout: |
-            /*
-            !/.repos/
-          sparse-checkout-cone-mode: false
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: true
-          run-install: |
-            args:
-              - --filter=dak...
-              - --filter=@dak/scripts...
-
-      - name: Download all CLI archives
-        uses: actions/download-artifact@v8
-        with:
-          pattern: cli-*
-          merge-multiple: true
-          path: release-cli
-
-      - name: Build npm packages from CLI archives
-        run: node scripts/build-npm-platform-packages.ts --archives-dir release-cli --version "${{ needs.preflight.outputs.version }}" --output-dir npm-packages
-
-      # A dry run of every package first: an auth or scope error here (the
-      # @dak org missing, a package without a trusted publisher) fails
-      # before anything is live, instead of after some platforms already are.
-      - name: Check npm publish access (dry run)
-        run: |
-          if ! node apps/server/scripts/cli.ts publish --packages-dir npm-packages --tag "${{ needs.preflight.outputs.cli_dist_tag }}" --provenance --dry-run --verbose; then
-            echo "::error::npm publish --dry-run failed. Make sure the @dak npm org exists and that dak and every @dak/dak-<platform> package has a trusted publisher registered for .github/workflows/release.yml (see docs/operations/release.md)." >&2
-            exit 1
-          fi
-
-      - name: Publish CLI packages
-        run: node apps/server/scripts/cli.ts publish --packages-dir npm-packages --tag "${{ needs.preflight.outputs.cli_dist_tag }}" --provenance --verbose
+  # The CLI archives this job used to repack for npm are still built by the
+  # desktop jobs (release-desktop.yml, cli_archive: true) and still attached to
+  # the GitHub Release, which is what the install scripts and `dak update` read.
+  # Only the npm half is gone: it publishes to the upstream-owned `dak` and
+  # `@dak/dak-*` packages through OIDC trusted publishing, which needs a
+  # trusted-publisher registration this fork cannot have. Restore the job from
+  # upstream once those package names are yours.
 
   release:
     name: Publish GitHub Release
-    needs:
-      [
-        preflight,
-        desktop_mac_arm64,
-        desktop_mac_x64,
-        desktop_linux_x64,
-        desktop_linux_arm64,
-        desktop_win_x64,
-        desktop_win_arm64,
-        publish_cli,
-      ]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.desktop_mac_arm64.result != 'failure' && needs.desktop_mac_x64.result != 'failure' && needs.desktop_linux_x64.result != 'failure' && needs.desktop_linux_arm64.result != 'failure' && needs.desktop_win_x64.result != 'failure' && needs.desktop_win_arm64.result != 'failure' && needs.publish_cli.result != 'failure' }}
+    needs: [preflight, desktop_mac_arm64, desktop_mac_x64, desktop_linux_x64, desktop_win_x64]
+    # This fork publishes on the build jobs alone. The quality and test jobs still
+    # run and still report, but they are red for rename fallout inside the app
+    # (t3 -> DAK), and holding every release on that debt would mean no release
+    # at all. Add quality, test and test_server back to `needs` once the app's
+    # suite is green again; upstream's rule is that publishing waits for every
+    # check.
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.desktop_mac_arm64.result != 'failure' && needs.desktop_mac_x64.result != 'failure' && needs.desktop_linux_x64.result != 'failure' && needs.desktop_win_x64.result != 'failure' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -991,462 +764,14 @@ jobs:
           fail_on_unmatched_files: true
           token: ${{ secrets.DAK_RELEASES_TOKEN }}
 
-  publish_aur:
-    name: Publish AUR package
-    needs: [preflight, release]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel != 'preview' }}
-    uses: ./.github/workflows/publish-aur.yml
-    with:
-      release_tag: ${{ needs.preflight.outputs.tag }}
-    secrets:
-      AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-
-  # Vercel builds the hosted web app while the desktop jobs run. `--skip-domain`
-  # keeps the custom domains (the channel and router domains) on the previous
-  # deployment until deploy_web aliases them, after the GitHub Release. It does
-  # still move the project's own *.vercel.app production hostname at build time.
-  # That hostname sits behind Vercel SSO and is not a user channel, so the
-  # npm-before-client order in docs/operations/release.md holds for users.
-  build_web:
-    name: Build hosted web app
-    needs: [preflight, relay_public_config]
-    if: ${{ !cancelled() && needs.preflight.result == 'success' && needs.relay_public_config.result == 'success' && needs.preflight.outputs.release_channel != 'preview' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    outputs:
-      deployment_url: ${{ steps.deploy.outputs.deployment_url }}
-    env:
-      DAK_CLERK_PUBLISHABLE_KEY: ${{ needs.relay_public_config.outputs.clerk_publishable_key }}
-      DAK_CLERK_JWT_TEMPLATE: ${{ needs.relay_public_config.outputs.clerk_jwt_template }}
-      DAK_CLERK_CLI_OAUTH_CLIENT_ID: ${{ needs.relay_public_config.outputs.clerk_cli_oauth_client_id }}
-      DAK_RELAY_URL: ${{ needs.relay_public_config.outputs.relay_url }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      DAK_WEB_ROUTER_URL: ${{ vars.DAK_WEB_ROUTER_URL }}
-      VERCEL_TEAM_SLUG: ${{ vars.VERCEL_TEAM_SLUG }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-          sparse-checkout: |
-            /*
-            !/.repos/
-          sparse-checkout-cone-mode: false
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: true
-          run-install: |
-            args:
-              - --filter=@dak/scripts...
-              - --filter=@dak/web...
-
-      # Only exists when Cloudflare is configured; see the matching upload gate.
-      - name: Download relay client tracing config
-        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
-        uses: actions/download-artifact@v8
-        with:
-          name: relay-client-tracing-config
-          path: ${{ runner.temp }}/relay-client-tracing
-
-      # Only exists when Cloudflare is configured; see the matching upload gate.
-      - name: Load relay client tracing config
-        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
-        shell: bash
-        run: |
-          config_path="$RUNNER_TEMP/relay-client-tracing/relay-client-tracing.env"
-          tracing_token="$(sed -n 's/^DAK_RELAY_CLIENT_OTLP_TRACES_TOKEN=//p' "$config_path")"
-          echo "::add-mask::$tracing_token"
-          cat "$config_path" >> "$GITHUB_ENV"
-
-      - name: Align package versions to release version
-        run: node scripts/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
-
-      - name: Refresh release lockfile
-        run: vp install --lockfile-only --ignore-scripts
-
-      - id: deploy
-        name: Build staged deployment
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${VERCEL_TOKEN:-}" || -z "${VERCEL_ORG_ID:-}" || -z "${VERCEL_PROJECT_ID:-}" ]]; then
-            echo "Missing one or more required Vercel secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID." >&2
-            exit 1
-          fi
-
-          router_url="${DAK_WEB_ROUTER_URL:-https://app.dak.codes}"
-          if [[ "${{ needs.preflight.outputs.release_channel }}" == "stable" ]]; then
-            channel_name="latest"
-          else
-            channel_name="nightly"
-          fi
-
-          echo "Building hosted web app for $channel_name channel."
-          deployment_url="$(
-            vp dlx vercel@53.1.1 deploy \
-              --archive=tgz \
-              --prod \
-              --skip-domain \
-              --yes \
-              --token "$VERCEL_TOKEN" \
-              --scope "${VERCEL_TEAM_SLUG:-$VERCEL_ORG_ID}" \
-              --build-env "APP_VERSION=${{ needs.preflight.outputs.version }}" \
-              --build-env "DAK_CLERK_PUBLISHABLE_KEY=${DAK_CLERK_PUBLISHABLE_KEY:-}" \
-              --build-env "DAK_CLERK_JWT_TEMPLATE=${DAK_CLERK_JWT_TEMPLATE:-}" \
-              --build-env "DAK_CLERK_CLI_OAUTH_CLIENT_ID=${DAK_CLERK_CLI_OAUTH_CLIENT_ID:-}" \
-              --build-env "DAK_RELAY_URL=${DAK_RELAY_URL:-}" \
-              --build-env "DAK_RELAY_CLIENT_OTLP_TRACES_URL=${DAK_RELAY_CLIENT_OTLP_TRACES_URL:-}" \
-              --build-env "DAK_RELAY_CLIENT_OTLP_TRACES_DATASET=${DAK_RELAY_CLIENT_OTLP_TRACES_DATASET:-}" \
-              --build-env "DAK_RELAY_CLIENT_OTLP_TRACES_TOKEN=${DAK_RELAY_CLIENT_OTLP_TRACES_TOKEN:-}" \
-              --build-env "VITE_HOSTED_APP_URL=$router_url" \
-              --build-env "VITE_HOSTED_APP_CHANNEL=$channel_name"
-          )"
-          echo "Staged $deployment_url."
-          echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
-
-  deploy_web:
-    name: Deploy hosted web app
-    needs: [preflight, build_web, release]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.build_web.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel != 'preview' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    env:
-      DEPLOYMENT_URL: ${{ needs.build_web.outputs.deployment_url }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      DAK_WEB_ROUTER_URL: ${{ vars.DAK_WEB_ROUTER_URL }}
-      DAK_WEB_LATEST_DOMAIN: ${{ vars.DAK_WEB_LATEST_DOMAIN }}
-      DAK_WEB_NIGHTLY_DOMAIN: ${{ vars.DAK_WEB_NIGHTLY_DOMAIN }}
-      VERCEL_TEAM_SLUG: ${{ vars.VERCEL_TEAM_SLUG }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-          sparse-checkout: |
-            /*
-            !/.repos/
-          sparse-checkout-cone-mode: false
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: false
-          run-install: false
-
-      - name: Alias channel
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ -z "$DEPLOYMENT_URL" ]]; then
-            echo "Build hosted web app did not report a deployment URL." >&2
-            exit 1
-          fi
-
-          router_url="${DAK_WEB_ROUTER_URL:-https://app.dak.codes}"
-          latest_domain="${DAK_WEB_LATEST_DOMAIN:-latest.app.dak.codes}"
-          nightly_domain="${DAK_WEB_NIGHTLY_DOMAIN:-nightly.app.dak.codes}"
-          router_domain="${router_url#http://}"
-          router_domain="${router_domain#https://}"
-          router_domain="${router_domain%%/*}"
-
-          if [[ "${{ needs.preflight.outputs.release_channel }}" == "stable" ]]; then
-            channel_domain="$latest_domain"
-            channel_name="latest"
-          else
-            channel_domain="$nightly_domain"
-            channel_name="nightly"
-          fi
-
-          vercel_scope_args=(--scope "${VERCEL_TEAM_SLUG:-$VERCEL_ORG_ID}")
-
-          echo "Aliasing $DEPLOYMENT_URL to $channel_domain."
-          vp dlx vercel@53.1.1 alias set "$DEPLOYMENT_URL" "$channel_domain" \
-            --token "$VERCEL_TOKEN" \
-            "${vercel_scope_args[@]}"
-
-          if [[ "$channel_name" == "latest" && -n "$router_domain" && "$router_domain" != "$channel_domain" ]]; then
-            echo "Aliasing $DEPLOYMENT_URL to router domain $router_domain."
-            vp dlx vercel@53.1.1 alias set "$DEPLOYMENT_URL" "$router_domain" \
-              --token "$VERCEL_TOKEN" \
-              "${vercel_scope_args[@]}"
-          fi
-
-  # Same split as the web app: build a production deployment early, then
-  # promote it to dak.codes once the release it links to exists. As above, the
-  # project's own *.vercel.app hostname moves at build time.
-  build_marketing:
-    name: Build marketing site
-    needs: [preflight]
-    if: ${{ !cancelled() && needs.preflight.result == 'success' && needs.preflight.outputs.release_channel == 'nightly' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    outputs:
-      deployment_url: ${{ steps.deploy.outputs.deployment_url }}
-      project_id: ${{ steps.deploy.outputs.project_id }}
-    env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_TEAM_SLUG: ${{ vars.VERCEL_TEAM_SLUG }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-          sparse-checkout: |
-            /*
-            !/.repos/
-          sparse-checkout-cone-mode: false
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: true
-          run-install: |
-            args:
-              - --filter=@dak/marketing...
-
-      - id: deploy
-        name: Build staged deployment
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${VERCEL_TOKEN:-}" || -z "${VERCEL_ORG_ID:-}" ]]; then
-            echo "Missing one or more required Vercel secrets: VERCEL_TOKEN, VERCEL_ORG_ID." >&2
-            exit 1
-          fi
-
-          VERCEL_PROJECT_ID="$(
-            curl --fail --silent --show-error \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              "https://api.vercel.com/v9/projects/dak-marketing?teamId=$VERCEL_ORG_ID" \
-              | jq --exit-status --raw-output '.id'
-          )"
-          export VERCEL_PROJECT_ID
-
-          deployment_url="$(
-            vp dlx vercel@53.1.1 deploy \
-              --archive=tgz \
-              --prod \
-              --skip-domain \
-              --yes \
-              --token "$VERCEL_TOKEN" \
-              --scope "${VERCEL_TEAM_SLUG:-$VERCEL_ORG_ID}"
-          )"
-          echo "Staged $deployment_url."
-          echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
-          echo "project_id=$VERCEL_PROJECT_ID" >> "$GITHUB_OUTPUT"
-
-  deploy_marketing:
-    name: Deploy marketing site
-    needs: [preflight, build_marketing, release]
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.build_marketing.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel == 'nightly' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    env:
-      DEPLOYMENT_URL: ${{ needs.build_marketing.outputs.deployment_url }}
-      VERCEL_PROJECT_ID: ${{ needs.build_marketing.outputs.project_id }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_TEAM_SLUG: ${{ vars.VERCEL_TEAM_SLUG }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-          sparse-checkout: |
-            /*
-            !/.repos/
-          sparse-checkout-cone-mode: false
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: false
-          run-install: false
-
-      - name: Promote marketing site
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ -z "$DEPLOYMENT_URL" ]]; then
-            echo "Build marketing site did not report a deployment URL." >&2
-            exit 1
-          fi
-
-          echo "Promoting $DEPLOYMENT_URL."
-          vp dlx vercel@53.1.1 promote "$DEPLOYMENT_URL" \
-            --yes \
-            --token "$VERCEL_TOKEN" \
-            --scope "${VERCEL_TEAM_SLUG:-$VERCEL_ORG_ID}"
-
-  finalize:
-    name: Finalize release
-    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel == 'stable' }}
-    needs: [preflight, release]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - id: app_token
-        name: Mint release app token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: main
-          fetch-depth: 0
-          token: ${{ steps.app_token.outputs.token }}
-          persist-credentials: true
-          sparse-checkout: |
-            /*
-            !/.repos/
-          sparse-checkout-cone-mode: false
-
-      - id: app_bot
-        name: Resolve GitHub App bot identity
-        env:
-          GH_TOKEN: ${{ steps.app_token.outputs.token }}
-          APP_SLUG: ${{ steps.app_token.outputs.app-slug }}
-        run: |
-          user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
-          echo "name=${APP_SLUG}[bot]" >> "$GITHUB_OUTPUT"
-          echo "email=${user_id}+${APP_SLUG}[bot]@users.noreply.github.com" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: true
-          run-install: |
-            args:
-              - --filter=@dak/scripts...
-              - --filter=@dak/oxlint-plugin-dak...
-
-      - id: update_versions
-        name: Update version strings
-        env:
-          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
-        run: node scripts/update-release-package-versions.ts "$RELEASE_VERSION" --github-output
-
-      - name: Format package.json files
-        if: steps.update_versions.outputs.changed == 'true'
-        run: vp fmt apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json
-
-      - name: Refresh lockfile
-        if: steps.update_versions.outputs.changed == 'true'
-        run: vp install --lockfile-only --ignore-scripts
-
-      - name: Commit and push version bump
-        if: steps.update_versions.outputs.changed == 'true'
-        shell: bash
-        env:
-          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
-        run: |
-          if git diff --quiet -- apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json pnpm-lock.yaml; then
-            echo "No version changes to commit."
-            exit 0
-          fi
-
-          git config user.name "${{ steps.app_bot.outputs.name }}"
-          git config user.email "${{ steps.app_bot.outputs.email }}"
-
-          git add apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json pnpm-lock.yaml
-          git commit -m "chore(release): prepare $RELEASE_TAG"
-          git push origin HEAD:main
-
-  announce_discord:
-    name: Announce release on Discord
-    if: |
-      always() && !cancelled() &&
-      needs.preflight.result == 'success' &&
-      needs.preflight.outputs.release_channel != 'preview' &&
-      needs.relay_public_config.result == 'success' &&
-      needs.release.result == 'success' &&
-      needs.deploy_web.result == 'success' &&
-      (needs.finalize.result == 'success' || needs.finalize.result == 'skipped')
-    needs: [preflight, relay_public_config, release, deploy_web, finalize]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.preflight.outputs.ref }}
-          sparse-checkout: |
-            /*
-            !/.repos/
-          sparse-checkout-cone-mode: false
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1
-        with:
-          node-version-file: package.json
-          cache: true
-          run-install: |
-            args:
-              - --filter=@dak/scripts...
-
-      - name: Read published release notes
-        if: needs.preflight.outputs.is_prerelease == 'true'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
-          RELEASE_CHANNEL: ${{ needs.preflight.outputs.release_channel }}
-        run: |
-          if [ "$RELEASE_CHANNEL" = 'nightly' ]; then
-            if ! gh release view "$RELEASE_TAG" --json body --jq '.body // ""' > "$RUNNER_TEMP/discord-release-notes.md"; then
-              : > "$RUNNER_TEMP/discord-release-notes.md"
-              echo '::warning::Could not read published release notes; announcing without a changelog.'
-            fi
-          else
-            : > "$RUNNER_TEMP/discord-release-notes.md"
-          fi
-
-      - name: Announce prerelease on Discord
-        if: needs.preflight.outputs.is_prerelease == 'true'
-        continue-on-error: true
-        env:
-          DISCORD_MENTION_ROLE_ID: ${{ secrets.DISCORD_RELEASE_NIGHTLY_ROLE_ID }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
-        run: |
-          node scripts/notify-discord-release.ts prerelease \
-            --role-id "$DISCORD_MENTION_ROLE_ID" \
-            --release-name "${{ needs.preflight.outputs.release_name }}" \
-            --release-version "${{ needs.preflight.outputs.version }}" \
-            --tag "${{ needs.preflight.outputs.tag }}" \
-            --release-url "https://github.com/${{ github.repository }}/releases/tag/${{ needs.preflight.outputs.tag }}" \
-            --release-notes-file "$RUNNER_TEMP/discord-release-notes.md"
-
-      - name: Announce latest release on Discord
-        if: needs.preflight.outputs.make_latest == 'true'
-        continue-on-error: true
-        env:
-          DISCORD_MENTION_ROLE_ID: ${{ secrets.DISCORD_RELEASE_LATEST_ROLE_ID }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
-        run: |
-          node scripts/notify-discord-release.ts latest \
-            --role-id "$DISCORD_MENTION_ROLE_ID" \
-            --release-name "${{ needs.preflight.outputs.release_name }}" \
-            --release-version "${{ needs.preflight.outputs.version }}" \
-            --tag "${{ needs.preflight.outputs.tag }}" \
-            --release-url "https://github.com/${{ github.repository }}/releases/tag/${{ needs.preflight.outputs.tag }}"
+  # Removed on this fork, each because it needs an account or a project that does
+  # not exist here:
+  #   publish_aur        an AUR account and AUR_SSH_PRIVATE_KEY
+  #   build_web/deploy_web, build_marketing/deploy_marketing
+  #                      VERCEL_TOKEN/VERCEL_ORG_ID/VERCEL_PROJECT_ID and the
+  #                      app.dak.codes / dak.codes projects
+  #   finalize           RELEASE_APP_ID/RELEASE_APP_PRIVATE_KEY, to commit the
+  #                      version bump; bump by hand in the commit that gets tagged
+  #   announce_discord   DISCORD_RELEASE_* secrets
+  # The hosted web app and the marketing site deploy from this repo through
+  # Vercel's own Git integration instead (see vercel.json).

@@ -14,15 +14,10 @@ name: Desktop macOS Preview Publish
 # one commit a maintainer applied it to. A later push builds nothing until the
 # label is applied again.
 
+# Disabled on this fork alongside Desktop macOS Preview: signing needs the
+# upstream Apple Developer ID certificate.
 on:
-  workflow_run:
-    workflows: [Desktop macOS Preview]
-    types: [completed]
-  # The way out: closing the PR deletes its download, and removing the label
-  # before it is consumed cancels the preview. pull_request_target gives this a
-  # write token for fork PRs; it never checks out PR code.
-  pull_request_target:
-    types: [closed, unlabeled]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -300,7 +295,6 @@ jobs:
       version: ${{ needs.resolve.outputs.version }}
       ref: ${{ github.sha }}
       release_channel: preview
-      relay_client_tracing: false
       clerk_publishable_key: ${{ needs.resolve.outputs.clerk_publishable_key }}
       clerk_jwt_template: ${{ needs.resolve.outputs.clerk_jwt_template }}
       clerk_cli_oauth_client_id: ${{ needs.resolve.outputs.clerk_cli_oauth_client_id }}

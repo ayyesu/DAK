@@ -16,7 +16,9 @@
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$repo = "ayyesu/DAK"
+# The public artifact mirror, not the source repository: the source is private,
+# so an anonymous download of a release asset from it 404s.
+$repo = "ayyesu/dak-releases"
 $baseUrl = if ($env:DAK_RELEASE_BASE_URL) { $env:DAK_RELEASE_BASE_URL.TrimEnd("/") } else { "https://github.com/$repo/releases/download" }
 $dakHome = if ($env:DAK_HOME) { $env:DAK_HOME } else { Join-Path $HOME ".dak" }
 $binDir = if ($env:DAK_INSTALL_BIN_DIR) { $env:DAK_INSTALL_BIN_DIR } else { Join-Path $HOME ".local\bin" }

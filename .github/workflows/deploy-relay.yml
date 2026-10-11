@@ -1,9 +1,9 @@
 name: Deploy DAK Connect relay
 
+# Disabled on this fork: the production relay belongs to an upstream Cloudflare
+# account that does not exist here. Manual dispatch only, so the file stays for a
+# fork that has one.
 on:
-  push:
-    branches:
-      - main
   # Redeploys main after a variable or secret change. Alchemy redeploys the
   # Worker when a value it reads changes, so force is rarely needed, and it
   # replaces the Postgres runtime role (alchemy-run/alchemy#1832).

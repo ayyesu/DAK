@@ -1,9 +1,9 @@
 name: Thread Transfer Report
 
+# Disabled on this fork: it posts the transfer-budget report as a PR comment,
+# which is upstream review process.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  workflow_dispatch:
 
 permissions:
   actions: read

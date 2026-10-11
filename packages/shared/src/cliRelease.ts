@@ -5,7 +5,11 @@
  * platform key, so a rename here is a release-breaking change.
  */
 
-const CLI_RELEASE_REPOSITORY = "ayyesu/DAK";
+// The public artifact mirror, not the source repository: the source is private, so
+// every anonymous read of its releases - the archive download, the checksums, and
+// the list-releases index `dak update` walks - answers 404. Mirrors and air-gapped
+// installs override the download origin with DAK_RELEASE_BASE_URL.
+const CLI_RELEASE_REPOSITORY = "ayyesu/dak-releases";
 export const CLI_RELEASE_CHECKSUMS_FILE = "SHA256SUMS";
 /** Overrides the download origin for mirrors and air-gapped installs. */
 export const CLI_RELEASE_BASE_URL_ENV = "DAK_RELEASE_BASE_URL";

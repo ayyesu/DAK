@@ -1,14 +1,9 @@
 name: Forward to Cursor hygiene
 
+# Disabled on this fork: the Cursor hygiene service is upstream-operated and has
+# no account here. Manual dispatch only, so the file stays for a fork that has one.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    types: [opened, reopened, ready_for_review]
-  issues:
-    types: [opened, closed, reopened]
-  discussion:
-    types: [created, closed, reopened]
+  workflow_dispatch:
 
 permissions:
   contents: read
