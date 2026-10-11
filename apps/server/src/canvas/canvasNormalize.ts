@@ -6,7 +6,15 @@ import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 
-import { measureTextNodes, textNodeIds, withMeasuredWrap } from "./canvasText.ts";
+import {
+  DEFAULT_MISSING_FONT_POLICY,
+  loadedFamilies,
+  measureTextNodes,
+  textNodeIds,
+  unavailableFontsByFamily,
+  withMeasuredWrap,
+  type MissingFontPolicy,
+} from "./canvasText.ts";
 import { withImplicitAbsoluteLayout } from "./canvasInvariants.ts";
 
 /**
@@ -49,8 +57,75 @@ export const NORMALIZE_VERSION = 3;
  * reused. Part of the cache key rather than a stored field, because nothing should be able to
  * invalidate another environment's cache.
  */
-export const normalizeForRender = async (document: unknown): Promise<unknown> =>
-  withMeasuredWrap(withImplicitAbsoluteLayout(document));
+/**
+ * Makes a document renderable.
+ *
+ * `policy` decides what happens to a family DAK does not ship. The edit path passes `throw` and the
+ * viewer passes `substitute`; both are right for their caller, and they differ because only the
+ * editor can act on the answer. A viewer that refused to draw would lose the whole design over one
+ * headline the user cannot fix.
+ */
+export const normalizeForRender = async (
+  document: unknown,
+  policy: MissingFontPolicy = DEFAULT_MISSING_FONT_POLICY,
+): Promise<unknown> => withMeasuredWrap(withImplicitAbsoluteLayout(document), policy);
+
+/**
+ * Where a shipped face is read from, in the order it is searched.
+ *
+ * There are two layouts and they do not share a directory. A dev run has this module at
+ * `apps/server/src/canvas`, with the vendored snapshot and the DAK-owned faces four levels up. A
+ * bundled run has it as a chunk in the server's `dist`, where nothing under `packages/` ships at
+ * all: `scripts/place-canvas-assets.ts` stages every face flat beside the chunk instead. The
+ * module's own directory is searched first for that reason, and the repo-relative directories are
+ * the fallbacks a dev run needs — the same search `CanvasEngineLive` registers with the engine, so
+ * the faces measured here are the faces drawn there.
+ *
+ * Reading only one layout is the failure this list exists to prevent: a path four levels up from
+ * the source tree is outside the repository in the bundle, and a render that read it threw `ENOENT`
+ * on every packaged and desktop build while `vp run dev` rendered the same design happily.
+ */
+export const canvasFontDirectories = (
+  moduleUrl: string | URL = import.meta.url,
+): ReadonlyArray<string> => {
+  const moduleDir = NodePath.dirname(NodeURL.fileURLToPath(moduleUrl));
+  return [
+    moduleDir,
+    NodePath.resolve(
+      moduleDir,
+      "../../../../packages/canvas-engine/upstream/vendor/open-pencil/fonts",
+    ),
+    NodePath.resolve(moduleDir, "../../../../packages/canvas-engine/fonts"),
+  ];
+};
+
+/**
+ * The hash those directories produce.
+ *
+ * Takes the directories rather than reading `import.meta.url` itself so the packaged layout can be
+ * exercised directly: a test that can only ever run in the source tree is the test that would have
+ * passed while every bundled server failed.
+ */
+export const fontSetVersionFrom = (directories: ReadonlyArray<string>): string => {
+  const hash = NodeCrypto.createHash("sha256");
+  for (const directory of directories) {
+    let files: ReadonlyArray<string>;
+    try {
+      files = NodeFS.readdirSync(directory).sort();
+    } catch {
+      // A directory that is not there is a layout this process is not running in — a bundle has no
+      // `packages/` tree, and the source tree has no faces beside the module. Skipping is what lets
+      // one rule cover both instead of a path that is only ever right in one of them.
+      continue;
+    }
+    for (const file of files) {
+      if (!/\.(ttf|otf|woff2)$/iu.test(file)) continue;
+      hash.update(file);
+      hash.update(NodeFS.readFileSync(NodePath.join(directory, file)));
+    }
+  }
+  return hash.digest("hex").slice(0, 16);
+};
 
 /**
  * A hash of every shipped font file, so a font change invalidates every cached measurement.
@@ -61,30 +136,22 @@ export const normalizeForRender = async (document: unknown): Promise<unknown> =>
  */
 let cachedFontSetVersion: string | undefined;
 export const fontSetVersion = (): string => {
-  if (cachedFontSetVersion !== undefined) return cachedFontSetVersion;
-  const upstream = NodePath.resolve(
-    NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)),
-    "../../../../packages/canvas-engine/upstream/vendor/open-pencil/fonts",
-  );
-  const owned = NodePath.resolve(
-    NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)),
-    "../../../../packages/canvas-engine/fonts",
-  );
-  const hash = NodeCrypto.createHash("sha256");
-  for (const directory of [upstream, owned]) {
-    for (const file of NodeFS.readdirSync(directory).sort()) {
-      if (!/\.(ttf|otf|woff2)$/iu.test(file)) continue;
-      hash.update(file);
-      hash.update(NodeFS.readFileSync(NodePath.join(directory, file)));
-    }
-  }
-  cachedFontSetVersion = hash.digest("hex").slice(0, 16);
+  cachedFontSetVersion ??= fontSetVersionFrom(canvasFontDirectories());
   return cachedFontSetVersion;
 };
 
 interface CacheEntry {
   readonly document: unknown;
   readonly measured: ReadonlyMap<string, unknown>;
+  /**
+   * Families the document asked for that DAK does not ship, with the node that asked.
+   *
+   * Carried on the cache entry because the substitution has already happened by the time anything
+   * can ask: the normalized document no longer names the missing family, so this is the only place
+   * the fact survives. Inspect reads it to report `font_unavailable` instead of the viewer quietly
+   * showing a substituted face as though it were what the author chose.
+   */
+  readonly missingFontFamilies: ReadonlyArray<{ family: string; nodeIds: ReadonlyArray<string> }>;
 }
 
 const cache = new Map<string, CacheEntry>();
@@ -135,9 +202,19 @@ export const normalizedDocument = async (input: {
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
 
-  const document = await normalizeForRender(input.document);
+  // `substitute`, not the default: everything that reaches this cache is being drawn for a person to
+  // look at. A frame set in a family DAK does not ship renders in the nearest shipped face instead of
+  // failing the whole view.
+  //
+  // What was missing is read from the input *before* normalization, because afterwards the document no
+  // longer names the bad family and the fact is gone. That is the only moment it can be observed.
+  const shipped = loadedFamilies(
+    await measureTextNodes(input.document, textNodeIds(input.document)),
+  );
+  const missingFontFamilies = unavailableFontsByFamily(input.document, shipped);
+  const document = await normalizeForRender(input.document, "substitute");
   const measured = await measureTextNodes(document, textNodeIds(document));
-  const entry: CacheEntry = { document, measured };
+  const entry: CacheEntry = { document, measured, missingFontFamilies };
   if (cache.size >= NORMALIZE_CACHE_LIMIT) {
     const oldest = cache.keys().next();
     if (oldest.done !== true) cache.delete(oldest.value);

@@ -214,19 +214,71 @@ describe("canvas view frame selection", () => {
     const selection = selectViewFrames(
       {
         children: [
-          { id: "a", role: "slide" },
-          { id: "b", role: "route" },
-          { id: "c", role: "not-a-role" },
+          { id: "a", role: "slide", width: 390, height: 844 },
+          { id: "b", role: "route", width: 1440, height: 900 },
+          { id: "c", role: "not-a-role", width: 800, height: 600 },
         ],
       },
       CANVAS_RENDER_FRAME_LIMIT,
     );
     expect(selection.frames).toEqual([
-      { nodeId: "a", role: "slide" },
-      { nodeId: "b", role: "route" },
-      { nodeId: "c", role: undefined },
+      { nodeId: "a", role: "slide", designWidth: 390, designHeight: 844 },
+      { nodeId: "b", role: "route", designWidth: 1440, designHeight: 900 },
+      { nodeId: "c", role: undefined, designWidth: 800, designHeight: 600 },
     ]);
     expect(selection.omitted).toBe(0);
+  });
+
+  /**
+   * The size a viewer lays a frame out at, as opposed to the size it was rasterized at.
+   *
+   * A frame taller than the render edge is delivered scaled down, so the bitmap's dimensions cannot
+   * be the frame's size. Carrying the real one is what stops a design resizing itself when the panel
+   * is dragged wider.
+   */
+  it("reports a frame's own size, not the size of the bitmap it was rasterized at", () => {
+    const selection = selectViewFrames(
+      { children: [{ id: "tall", width: 390, height: 1550 }] },
+      24,
+    );
+    // Rendered at a 1024 edge this arrives as 258x1024; the frame is still 390x1550.
+    expect(selection.frames[0]?.designWidth).toBe(390);
+    expect(selection.frames[0]?.designHeight).toBe(1550);
+  });
+
+  it("gives a frame that declares no size a usable one rather than zero", () => {
+    const selection = selectViewFrames({ children: [{ id: "bare" }] }, 24);
+    expect(selection.frames[0]?.designWidth).toBeGreaterThan(0);
+    expect(selection.frames[0]?.designHeight).toBeGreaterThan(0);
+  });
+
+  /**
+   * The name is what identifies a frame to a person.
+   *
+   * `role` says only what shape a frame is, and every screen in a design has the same one. Without
+   * the name two designs in one project are both "Portfolio Landing Page" and their frames are
+   * indistinguishable, which is what the viewer falls back to "Frame 3" for.
+   */
+  it("carries each frame's name, which is the only thing that identifies it", () => {
+    const selection = selectViewFrames(
+      {
+        children: [
+          { id: "a", name: "Home", width: 390, height: 844 },
+          { id: "b", name: "Projects", width: 390, height: 1550 },
+        ],
+      },
+      24,
+    );
+    expect(selection.frames.map((frame) => frame.name)).toEqual(["Home", "Projects"]);
+  });
+
+  it("sends no name for an unnamed frame, so the viewer falls back rather than showing a blank", () => {
+    const selection = selectViewFrames(
+      { children: [{ id: "blank", name: "   ", width: 390, height: 844 }] },
+      24,
+    );
+    // A whitespace-only name is not a name; rendering one would put an empty caption on the frame.
+    expect(selection.frames[0]?.name).toBeUndefined();
   });
 
   it("bounds a document with more frames than the limit and counts the rest", () => {

@@ -34,8 +34,10 @@ import { normalizeForRender } from "./canvasNormalize.ts";
 import {
   absoluteBoxes,
   findEmptyButtonShapes,
+  loadedFamilies,
   measureTextNodes,
   textNodeIds,
+  unavailableFontsByFamily,
 } from "./canvasText.ts";
 import {
   findBoundsOverflow,
@@ -46,6 +48,7 @@ import {
   findSiblingOverlap,
   findTextOverflow,
   findUnnamedFrames,
+  findUnavailableFonts,
   narrowToSelector,
   summarizeInspect,
 } from "./canvasInspect.ts";
@@ -718,10 +721,16 @@ export const make = (deps: CanvasServiceDeps): CanvasService["Service"] => {
         try: () => engine.materialize(payload),
         catch: () => failure("storage_failed", "This design could not be read right now."),
       });
-      const normalized = yield* Effect.promise(() => normalizeForRender(materialized));
+      // `substitute`: inspect is a read, and a read that throws on a font the agent already committed
+      // teaches it nothing it can act on here. It measures against a shipped face and reports the
+      // family below, which is the actionable version of the same fact. The edit path still throws.
+      const normalized = yield* Effect.promise(() =>
+        normalizeForRender(materialized, "substitute"),
+      );
       const measured = yield* Effect.promise(() =>
         measureTextNodes(normalized, textNodeIds(normalized)),
       );
+      const missingFonts = unavailableFontsByFamily(materialized, loadedFamilies(measured));
       const boxes = absoluteBoxes(normalized, measured);
 
       const scoped =
@@ -736,6 +745,9 @@ export const make = (deps: CanvasServiceDeps): CanvasService["Service"] => {
         ...findSiblingOverlap(scoped, boxes),
         ...findFramesOverlap(scoped, boxes),
         ...findUnnamedFrames(scoped),
+        // The family is read from the unnormalized document, because after substitution the document
+        // no longer names it — the fix line has to name the family the author actually wrote.
+        ...findUnavailableFonts(missingFonts, loadedFamilies(measured)),
         // The grouped viewport mismatch, re-expressed with a fix line: the invariant's own message
         // explains the problem, but an inspect answer owes the caller a way forward.
         ...detectModuleViewportMismatch(scoped).map((issue) => ({
@@ -776,7 +788,12 @@ export const make = (deps: CanvasServiceDeps): CanvasService["Service"] => {
         try: () => engine.materialize(payload),
         catch: () => failure("storage_failed", "This design could not be read right now."),
       });
-      const normalized = yield* Effect.promise(() => normalizeForRender(materialized));
+      // Same as inspect: a read must not fail on a font already committed to the design. `measure`
+      // answers "how big is this box", and refusing to answer because of a typeface the agent already
+      // used makes it useless for the placement question it exists to answer.
+      const normalized = yield* Effect.promise(() =>
+        normalizeForRender(materialized, "substitute"),
+      );
       const measured = yield* Effect.promise(() =>
         measureTextNodes(normalized, textNodeIds(normalized)),
       );

@@ -1,6 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off - This measures text with the vendored engine and reads
 // the vendored font manifest, both of which only exist as real paths.
-import { absoluteBoxes, type MeasuredText } from "./canvasText.ts";
+import { absoluteBoxes, nearestFamily, type MeasuredText } from "./canvasText.ts";
 
 /**
  * Everything wrong with a design that can be established without looking at it.
@@ -25,6 +25,7 @@ export type CanvasIssueCode =
   | "sibling_overlap"
   | "frames_overlap"
   | "frame_unnamed"
+  | "font_unavailable"
   | "viewport_mismatch";
 
 export interface CanvasInspectIssue {
@@ -296,6 +297,33 @@ export const findEmptyFrames = (
   return issues;
 };
 
+/**
+ * A family DAK does not ship, which the renderer has drawn in the nearest shipped face.
+ *
+ * Reported rather than thrown, because on the view path the renderer substitutes rather than failing
+ * and a silent substitution is the one outcome nobody can act on: the design looks drawn, the panel
+ * shows it, and nothing anywhere says a headline is in the wrong face. This is where that fact gets
+ * an owner. The edit path still refuses, so an agent setting the family is told immediately.
+ */
+export const findUnavailableFonts = (
+  missing: ReadonlyArray<{ family: string; nodeIds: ReadonlyArray<string> }>,
+  available: ReadonlyArray<string>,
+): ReadonlyArray<CanvasInspectIssue> =>
+  missing.map(({ family, nodeIds }) => {
+    const nearest = nearestFamily(family, available);
+    return {
+      code: "font_unavailable",
+      severity: "major",
+      nodeIds,
+      numbers: { nodes: nodeIds.length, family },
+      fix:
+        `DAK does not ship ${JSON.stringify(family)}, so this text is drawn in ` +
+        `${nearest === undefined ? "Inter" : JSON.stringify(nearest)}. Set fontFamily to a shipped ` +
+        `family${nearest === undefined ? "" : ` (${nearest} is the closest match)`} and the real ` +
+        `face will be drawn.`,
+    };
+  });
+
 /** A frame that carries no name, which is what the viewer shows as "Frame N". */
 export const findUnnamedFrames = (document: unknown): ReadonlyArray<CanvasInspectIssue> => {
   const issues: CanvasInspectIssue[] = [];
@@ -305,7 +333,11 @@ export const findUnnamedFrames = (document: unknown): ReadonlyArray<CanvasInspec
       if (name.length === 0 && depth <= 1) {
         issues.push({
           code: "frame_unnamed",
-          severity: "minor",
+          // Major, not minor: an unnamed frame is the one problem the user cannot work around. It
+          // shows as "Frame 3" on the frame, on its tab, and in the design list, so two designs
+          // become indistinguishable. A minor issue sits in a report the agent reads once and moves
+          // past; this one keeps mattering until it is fixed.
+          severity: "major",
           nodeIds: [idOf(node)],
           numbers: { width: num(node.width), height: num(node.height) },
           fix:

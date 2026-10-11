@@ -213,6 +213,7 @@ export const CanvasIssueCode = Schema.Literals([
   "sibling_overlap",
   "frames_overlap",
   "frame_unnamed",
+  "font_unavailable",
   "viewport_mismatch",
 ]);
 export type CanvasIssueCode = typeof CanvasIssueCode.Type;
@@ -474,12 +475,31 @@ export type CanvasRestoreSummary = typeof CanvasRestoreSummary.Type;
  * on demand and are not a durable artifact anyone else can fetch, so there is nothing to link to.
  * `sequence` is the document sequence this frame was rendered at, which is what a client compares
  * against to know whether what it is showing is still current.
+ *
+ * `width`/`height` are the raster's own pixels, which is *not* the frame's size: a frame taller than
+ * `maxEdge` comes back scaled down, so a 390x1550 frame is delivered as 258x1024 at a 1024 edge and
+ * 390x1550 at 2048. `designWidth`/`designHeight` are the frame's real size in design units, carried
+ * alongside so a viewer can lay out at true scale and treat the bitmap as resolution only. Without
+ * them the only size a client knows is one that moves when the render edge moves, which is what made
+ * a design resize itself as the panel was dragged wider.
  */
 export const CanvasFrame = Schema.Struct({
   nodeId: TrimmedNonEmptyString,
   role: Schema.optional(CanvasRole),
+  /**
+   * What the frame is called.
+   *
+   * The one thing that identifies a frame to a person. `Home` and `Projects` say what they are;
+   * `route` says only what shape they are, and two designs in one project both titled
+   * "Portfolio Landing Page" become indistinguishable without it. Carried here rather than left to
+   * the client to derive, because the name lives on the document node and nothing else sends it.
+   */
+  name: Schema.optional(TrimmedNonEmptyString),
   width: Schema.Int,
   height: Schema.Int,
+  /** The frame's own size in design units, independent of the edge it was rasterized at. */
+  designWidth: Schema.Int,
+  designHeight: Schema.Int,
   /** Base64 PNG. */
   data: Schema.String,
   /** The document sequence this frame was rendered at. */

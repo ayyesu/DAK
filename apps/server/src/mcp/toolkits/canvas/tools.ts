@@ -162,6 +162,12 @@ const AUTHORING_NOTES =
   "into it: replace it with a frame of the same geometry and put the label inside. Use Button to " +
   "get this right the first time. " +
   "(4) A design's module is fixed when it is created and cannot be changed afterwards. " +
+  "(5) Every frame you create or change MUST have a `name`, and the name must say what the frame " +
+  'IS, not what shape it is. `name: "Projects"` identifies a frame; `role: "route"` does not, ' +
+  "because every screen in a design has the same role. The name is the only thing shown on the " +
+  "frame itself and the only thing that tells two designs apart in the list, so an unnamed frame " +
+  'reads as "Frame 3" and is useless for identification. A frame with no name is reported as ' +
+  "`frame_unnamed` - if you see one, name it in the same edit rather than leaving it. " +
   "(5) Every edit returns the structural problems found in the result: content that leaves its frame " +
   "(`bounds_overflow`), text that will be cut off (`text_overflow`), a shape that looks like a button " +
   "with no label (`empty_control`), two text runs drawn over each other (`sibling_overlap`), " +

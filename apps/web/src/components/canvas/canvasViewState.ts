@@ -45,10 +45,21 @@ export interface CanvasViewState {
 export interface CanvasRenderedFrame {
   readonly nodeId: string;
   readonly role?: string;
+  /**
+   * The frame's own size in design units, which is what the panel lays it out at.
+   *
+   * `width`/`height` below are the raster's pixels and move with the render edge; these do not. A
+   * view that laid out from the raster would resize every frame whenever the edge changed, which is
+   * what a resized panel used to do.
+   */
+  readonly designWidth: number;
+  readonly designHeight: number;
   readonly width: number;
   readonly height: number;
   readonly data: string;
   readonly sequence: number;
+  /** The frame's own name, shown as an overlay. Absent on older renders, so it falls back. */
+  readonly name?: string | undefined;
 }
 
 export const initialCanvasViewState: CanvasViewState = {

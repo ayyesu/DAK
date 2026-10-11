@@ -235,6 +235,101 @@ export const shouldWrap = (node: NodeLike): boolean =>
   Number.isFinite(node.width);
 
 /**
+ * What to do about a family the engine never loaded.
+ *
+ * The two callers want opposite answers, and that is the whole point of the option.
+ *
+ * `throw` is for the edit path. An agent that sets `fontFamily: "Playfair"` deserves to be told,
+ * immediately, that DAK does not ship it — silently measuring with Inter teaches it that a typo is
+ * a valid design.
+ *
+ * `substitute` is for the render path. The user opening a design cannot fix it, and a panel that
+ * refuses to draw because of one headline loses the entire design over a single text node. So the
+ * family is replaced with the nearest shipped one, the frame draws in a font the user can see, and
+ * inspect reports `font_unavailable` so the problem is still visible and still has an owner.
+ */
+export type MissingFontPolicy = "throw" | "substitute";
+
+export const DEFAULT_MISSING_FONT_POLICY: MissingFontPolicy = "throw";
+
+/**
+ * The family to draw an unavailable one in.
+ *
+ * The nearest shipped match when there is one, else Inter. Not "no font at all": an unavailable
+ * family should look like the nearest thing DAK has, so the user recognises the intent even while
+ * the wrong face is on screen.
+ */
+export const fallbackFamilyFor = (family: string, available: ReadonlyArray<string>): string =>
+  nearestFamily(family, available) ?? "Inter";
+
+/**
+ * Rewrites every node asking for an unavailable family onto a shipped one.
+ *
+ * Returns the families it had to replace, so inspect can report which ones were wrong rather than
+ * the viewer silently drawing something else. The nodes are matched by family, not by index, so a
+ * document with one bad headline and forty good ones has only that headline replaced.
+ */
+export const substituteMissingFonts = (
+  document: unknown,
+  missing: ReadonlySet<string>,
+  available: ReadonlyArray<string>,
+): ReadonlyArray<string> => {
+  if (missing.size === 0) return [];
+  const copy = document as NodeLike;
+  const replaced = new Set<string>();
+  const visit = (node: NodeLike): void => {
+    if (
+      node.type === "text" &&
+      typeof node.fontFamily === "string" &&
+      missing.has(node.fontFamily)
+    ) {
+      replaced.add(node.fontFamily);
+      node.fontFamily = fallbackFamilyFor(node.fontFamily, available);
+    }
+    for (const child of childrenOf(node)) visit(child);
+  };
+  for (const child of childrenOf(copy)) visit(child);
+  return [...replaced];
+};
+
+/** The families a document names that the engine never loaded. */
+export const unavailableFamilies = (
+  document: unknown,
+  loaded: ReadonlyArray<string>,
+): ReadonlyArray<string> =>
+  requestedFamilies(document).filter((family) => !loaded.includes(family));
+
+/**
+ * The same, with the nodes that asked for each one.
+ *
+ * Grouped by family because that is how the problem is fixed — one edit renames every node in a
+ * family — and reported per node because the author needs to know which text they are looking at.
+ */
+export const unavailableFontsByFamily = (
+  document: unknown,
+  loaded: ReadonlyArray<string>,
+): ReadonlyArray<{ family: string; nodeIds: ReadonlyArray<string> }> => {
+  const shipped = new Set(loaded);
+  const grouped = new Map<string, Array<string>>();
+  const visit = (node: NodeLike): void => {
+    if (
+      node.type === "text" &&
+      typeof node.fontFamily === "string" &&
+      !shipped.has(node.fontFamily)
+    ) {
+      const family = node.fontFamily;
+      const ids = grouped.get(family) ?? [];
+      const id = idOf(node);
+      if (id !== undefined) ids.push(id);
+      grouped.set(family, ids);
+    }
+    for (const child of childrenOf(node)) visit(child);
+  };
+  for (const child of childrenOf(document as NodeLike)) visit(child);
+  return [...grouped].map(([family, nodeIds]) => ({ family, nodeIds }));
+};
+
+/**
  * A document whose silent text wraps, with the height each wrapped node actually needs.
  *
  * The height is measured, never guessed: the shaper lays the node out at its declared width and
@@ -242,7 +337,10 @@ export const shouldWrap = (node: NodeLike): boolean =>
  * growth fixed and no height there is nowhere to put the wrapped lines, and the text stays on one
  * line and overflows exactly as before.
  */
-export const withMeasuredWrap = async (document: unknown): Promise<unknown> => {
+export const withMeasuredWrap = async (
+  document: unknown,
+  policy: MissingFontPolicy = DEFAULT_MISSING_FONT_POLICY,
+): Promise<unknown> => {
   const copy = JSON.parse(JSON.stringify(document)) as NodeLike;
   const ids = textNodeIds(copy).filter((id) => {
     const node = findNode(copy, id);
@@ -255,7 +353,19 @@ export const withMeasuredWrap = async (document: unknown): Promise<unknown> => {
     const node = findNode(copy, id);
     if (node !== undefined) node.textGrowth = "fixed-width-height";
   }
-  const measured = await measureTextNodes(copy, ids);
+  let measured = await measureTextNodes(copy, ids);
+  const loaded = loadedFamilies(measured);
+
+  if (policy === "substitute") {
+    const missing = new Set(unavailableFamilies(copy, loaded));
+    if (missing.size > 0) {
+      substituteMissingFonts(copy, missing, loaded);
+      // Re-measured, because the substituted family has its own metrics. A height carried over from
+      // the fallback would clip exactly the text the substitution was meant to rescue.
+      measured = await measureTextNodes(copy, ids);
+    }
+  }
+
   // Before any measured height is written anywhere: a fallback face produces a plausible number that
   // nothing would ever contradict.
   assertFontsAvailable(requestedFamilies(copy), loadedFamilies(measured));

@@ -14,6 +14,10 @@ import {
 
 const frame = (nodeId: string, sequence: number) => ({
   nodeId,
+  // Deliberately different from the raster below: a frame taller than the render edge comes back
+  // scaled down, and the layout uses the design size, not the bitmap's.
+  designWidth: 390,
+  designHeight: 844,
   width: 1200,
   height: 900,
   data: "png",

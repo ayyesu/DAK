@@ -24,16 +24,40 @@ import type { CanvasDocument, CanvasEngine, CanvasStore } from "./CanvasPorts.ts
  * mid-authoring — and reports the sequence so a live view can tell whether what it shows is stale.
  */
 
+/** A frame that declares no size is laid out at this, rather than at nothing. */
+const CANVAS_FALLBACK_DESIGN_SIZE = 1;
+
 /** The top-level frames of a design, in document order, with the role each one carries. */
 interface ViewFrame {
   readonly nodeId: string;
   readonly role: CanvasRole | undefined;
+  /**
+   * The frame's own name, which is what identifies it to a person.
+   *
+   * Optional because a frame can be authored without one; the viewer falls back to "Frame N". It is
+   * read off the document rather than left to the client, because this is the only thing that says
+   * what a frame *is* — `role` says only what shape it is, and every route in a design has the same.
+   */
+  readonly name: string | undefined;
+  /**
+   * The frame's own size, read off the document rather than off the raster.
+   *
+   * A frame taller than the render edge is delivered scaled down, so the bitmap's dimensions say
+   * nothing about how big the frame is. A viewer that lays out from them resizes the design every
+   * time the edge moves.
+   */
+  readonly designWidth: number;
+  readonly designHeight: number;
 }
 
 const roleOf = (value: unknown): CanvasRole | undefined =>
-  value === "slide" || value === "route" || value === "ios" || value === "android"
+  value === "route" || value === "slide" || value === "ios" || value === "android"
     ? value
     : undefined;
+
+/** A dimension that is a real, positive number, or null when the node does not declare one. */
+const sizeOf = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 
 /**
  * Which frames to rasterize, and what that leaves out. The cap is on rendered frames rather than
@@ -49,7 +73,22 @@ export const selectViewFrames = (
     [];
   const frames = children
     .filter((node) => typeof node.id === "string" && node.id.length > 0)
-    .map((node) => ({ nodeId: String(node.id), role: roleOf(node.role) }));
+    .map((node) => {
+      const designWidth = sizeOf(node.width);
+      const designHeight = sizeOf(node.height);
+      const name = typeof node.name === "string" ? node.name.trim() : "";
+      return {
+        nodeId: String(node.id),
+        role: roleOf(node.role),
+        // An unnamed frame carries `undefined` rather than an empty string, so the viewer falls back
+        // to "Frame N". Rendering a blank caption would be worse than showing the ordinal.
+        name: name.length === 0 ? undefined : name,
+        // A frame without a declared size falls back to the raster, which is what the client would
+        // have used anyway. Better a slightly wrong scale than a frame laid out at zero.
+        designWidth: designWidth ?? CANVAS_FALLBACK_DESIGN_SIZE,
+        designHeight: designHeight ?? CANVAS_FALLBACK_DESIGN_SIZE,
+      };
+    });
   return {
     frames: frames.slice(0, limit),
     omitted: Math.max(0, frames.length - limit),
@@ -214,8 +253,13 @@ export const make = (deps: CanvasViewServiceDeps): CanvasViewService["Service"] 
           ...(selection.frames[index]?.role === undefined
             ? {}
             : { role: selection.frames[index]?.role as CanvasRole }),
+          ...(selection.frames[index]?.name === undefined
+            ? {}
+            : { name: selection.frames[index]?.name }),
           width: image.width,
           height: image.height,
+          designWidth: selection.frames[index]?.designWidth ?? image.width,
+          designHeight: selection.frames[index]?.designHeight ?? image.height,
           data: image.data,
           sequence: summary.sequence,
         })),
