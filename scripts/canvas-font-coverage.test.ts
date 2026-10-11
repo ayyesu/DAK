@@ -8,7 +8,9 @@ import {
   CANVAS_FONT_FILENAME_ALIASES,
   CANVAS_MAX_FONT_FAMILY_BYTES,
   checkFontCoverage,
+  checkOwnedManifest,
   measureFamilyBytes,
+  readOwnedManifest,
   readPromisedFontFiles,
 } from "./canvas-font-coverage.ts";
 
@@ -146,5 +148,40 @@ describe("canvas font coverage", () => {
     // look fine; measured as a family it is the number the budget is actually about.
     expect(totals.get("Wide")).toBe(600 * 1024);
     expect(totals.get("Wide")).toBeGreaterThan(300 * 1024);
+  });
+});
+
+describe("owned font manifest", () => {
+  it("matches every manifest face against the bytes on disk in the real repository", () => {
+    const faces = readOwnedManifest();
+    // Five families: Inter (5 weights, pinned snapshot bytes), JetBrains Mono (2), Playfair
+    // Display (2), Space Grotesk (3), Anton (1).
+    expect(faces.length).toBe(13);
+    const verdicts = checkOwnedManifest(faces);
+    expect(verdicts.filter((entry) => entry.status !== "ok")).toEqual([]);
+  });
+
+  it("fails a face that is missing, resized, or re-hashed", async () => {
+    const root = await makeTree({ "real.ttf": "sixteen bytes!!" });
+    const face = {
+      file: "real.ttf",
+      family: "Real",
+      style: "Regular",
+      sha256: "deadbeef",
+      bytes: 999,
+      location: "owned" as const,
+    };
+    // Wrong size and wrong hash: reported as modified with the numbers, not merely "bad".
+    const [modified] = checkOwnedManifest([face], [root]);
+    expect(modified?.status).toBe("modified");
+    const [missing] = checkOwnedManifest(
+      [{ ...face, file: "absent.ttf", bytes: 16, sha256: "x" }],
+      [root],
+    );
+    expect(missing?.status).toBe("missing");
+  });
+
+  it("refuses a manifest it cannot decode rather than assuming no fonts", () => {
+    expect(() => readOwnedManifest("/nonexistent/manifest.json")).toThrow();
   });
 });

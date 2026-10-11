@@ -21,6 +21,7 @@ import {
   CanvasScreenshotAnswer,
   CanvasScreenshotRegion,
 } from "../../../canvas/canvasScreenshotSchema.ts";
+import { shippedFontDescription } from "../../../canvas/CanvasHostFonts.ts";
 import * as Schema from "effect/Schema";
 import * as Crypto from "effect/Crypto";
 import { Tool, Toolkit } from "effect/ai";
@@ -174,6 +175,7 @@ const CanvasEditTool = Tool.make("dak_canvas_edit", {
   ...shared,
   description:
     "Apply one design intent by running bounded JavaScript against the design. The script runs on a private copy and commits as a single all-or-nothing change, so a script that throws partway leaves the design exactly as it was. Address nodes by the ids from dak_canvas_read. `result` is whatever the script returns, which is how you read values back; `print` adds lines to `prints`; a screenshot request returns a PNG you can see. The response carries the structural issues the engine found, ranked and counted: issueSummary is always complete even when `issues` is a bounded sample, so check `inspected` and `omitted` rather than assuming `issues` is everything. A refused script changes nothing, so read the failure and retry differently rather than repeating it. Returns operationId when it committed, which is the only handle dak_canvas_undo accepts." +
+    ` Shipped text families: ${shippedFontDescription()}. Set fontFamily to one of these with a listed style's weight (400 Regular, 500 Medium, 600 SemiBold, 700 Bold, 800 ExtraBold); any other family fails with unknown_font, which suggests the nearest shipped match.` +
     AUTHORING_NOTES,
   parameters: Schema.Struct({
     documentId: CanvasDocumentId.annotate({ description: "Design to edit." }),

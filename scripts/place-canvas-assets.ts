@@ -204,3 +204,37 @@ for (const { family, file } of promisedFontFiles) {
     )} KB).`,
   );
 }
+
+/**
+ * Stage the DAK-owned faces under their real filenames.
+ *
+ * The loop above stages only what the vendored font map names, so the display faces the
+ * manifest adds would be promised by the tool description yet absent from the bundle — dev
+ * renders them from the source tree while every packaged build fails. They are staged under
+ * their real names because no engine map asks for them; the startup preload finds them beside
+ * the chunk exactly as it finds them in the source tree.
+ */
+const ownedManifest = JSON.parse(
+  NodeFS.readFileSync(
+    NodePath.join(repoRoot, "packages", "canvas-engine", "fonts", "manifest.json"),
+    "utf8",
+  ),
+) as { fonts?: ReadonlyArray<{ file?: unknown; family?: unknown; location?: unknown }> };
+for (const face of ownedManifest.fonts ?? []) {
+  if (typeof face.file !== "string" || face.location === "upstream-vendor") continue;
+  const destination = NodePath.join(serverDist, face.file);
+  if (NodeFS.existsSync(destination)) continue;
+  const source = NodePath.join(dakFontsDirectory, face.file);
+  if (!NodeFS.existsSync(source)) {
+    console.error(
+      `canvas-assets: the manifest promises ${String(face.family)} (${face.file}) but it is ` +
+        `not in packages/canvas-engine/fonts. Vendor the file rather than shipping the promise.`,
+    );
+    process.exit(1);
+  }
+  NodeFS.copyFileSync(source, destination);
+  console.log(
+    `canvas-assets: placed owned font ${String(face.family)} at apps/server/dist/${face.file} ` +
+      `(${Math.round(NodeFS.statSync(destination).size / 1024)} KB).`,
+  );
+}

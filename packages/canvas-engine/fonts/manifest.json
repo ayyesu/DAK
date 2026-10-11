@@ -1,6 +1,81 @@
 {
-  "$comment": "Fonts DAK owns, as opposed to fonts vendored from upstream. These are not in vendor-manifest.json because they are not drift from penkrahq/penkra-apps: upstream resolves them from its own npm dependencies and ships no font files for them. Keeping them here keeps canvas-vendor.ts check clean while still recording where every byte came from.",
+  "$comment": "Every text face DAK ships, in one list. The dak_canvas_edit description, the engine preload, and the manifest/loader parity test all read this file, so adding a family here is what makes it usable; nothing else may list shipped families by hand. Inter lives in the vendored snapshot (its bytes belong to vendor-manifest.json), everything else lives beside this file. On a re-vendor that changes Inter bytes, the five Inter sha256 strings below must be updated alongside vendor-manifest.json; the parity test fails until they are.",
   "fonts": [
+    {
+      "file": "Inter-Regular.ttf",
+      "location": "upstream-vendor",
+      "family": "Inter",
+      "style": "Regular",
+      "sha256": "a414b48aa577ef2c62ebb135341ddeef33ee26a4f5dc9f787f93c1aab08ebb50",
+      "bytes": 342408,
+      "license": "OFL-1.1",
+      "licenseFile": "Inter-OFL.txt",
+      "source": {
+        "kind": "vendored-snapshot",
+        "path": "vendor/open-pencil/fonts/Inter-Regular.ttf",
+        "$comment": "Pinned upstream bytes; integrity is owned by packages/canvas-engine/upstream/vendor-manifest.json. The license travels in the snapshot at vendor/open-pencil/fonts/Inter-OFL.txt and licenses/Inter-OFL.txt."
+      }
+    },
+    {
+      "file": "Inter-Medium.ttf",
+      "location": "upstream-vendor",
+      "family": "Inter",
+      "style": "Medium",
+      "sha256": "8c883f63b2c4157d997319f2c8bc6995ed4357ef371940d31ca159004a4aae63",
+      "bytes": 325304,
+      "license": "OFL-1.1",
+      "licenseFile": "Inter-OFL.txt",
+      "source": {
+        "kind": "vendored-snapshot",
+        "path": "vendor/open-pencil/fonts/Inter-Medium.ttf",
+        "$comment": "As above."
+      }
+    },
+    {
+      "file": "Inter-SemiBold.ttf",
+      "location": "upstream-vendor",
+      "family": "Inter",
+      "style": "SemiBold",
+      "sha256": "e7a1aaf7eda9f2fad4131725fa556265ec75ca7b2d756260173a040363e8d4f7",
+      "bytes": 326048,
+      "license": "OFL-1.1",
+      "licenseFile": "Inter-OFL.txt",
+      "source": {
+        "kind": "vendored-snapshot",
+        "path": "vendor/open-pencil/fonts/Inter-SemiBold.ttf",
+        "$comment": "As above."
+      }
+    },
+    {
+      "file": "Inter-Bold.ttf",
+      "location": "upstream-vendor",
+      "family": "Inter",
+      "style": "Bold",
+      "sha256": "fbe825cbfc749317f57a1433d3905aa9d3f388732fd29b8e8a36f34845e3bc3e",
+      "bytes": 344072,
+      "license": "OFL-1.1",
+      "licenseFile": "Inter-OFL.txt",
+      "source": {
+        "kind": "vendored-snapshot",
+        "path": "vendor/open-pencil/fonts/Inter-Bold.ttf",
+        "$comment": "As above."
+      }
+    },
+    {
+      "file": "Inter-ExtraBold.ttf",
+      "location": "upstream-vendor",
+      "family": "Inter",
+      "style": "ExtraBold",
+      "sha256": "eec66af7f2337bd34fe6e801cf92ededcb57a20c0d7bc40a61d4eefcbe3dd40c",
+      "bytes": 327324,
+      "license": "OFL-1.1",
+      "licenseFile": "Inter-OFL.txt",
+      "source": {
+        "kind": "vendored-snapshot",
+        "path": "vendor/open-pencil/fonts/Inter-ExtraBold.ttf",
+        "$comment": "As above."
+      }
+    },
     {
       "file": "jetbrains-mono-400.ttf",
       "family": "JetBrains Mono",
@@ -35,6 +110,114 @@
         "pathInArchive": "fonts/ttf/JetBrainsMono-Medium.ttf",
         "conversion": null,
         "$comment": "As above, from the official TTF rather than the woff2 @fontsource would give."
+      }
+    },
+    {
+      "file": "playfair-display-400.ttf",
+      "family": "Playfair Display",
+      "style": "Regular",
+      "sha256": "ce1eefa1185f87ef72af22878989ffaf8cf468d294a081df3717ddccd0277ed0",
+      "bytes": 55772,
+      "license": "OFL-1.1",
+      "licenseFile": "PlayfairDisplay-OFL.txt",
+      "source": {
+        "kind": "google-fonts-repo",
+        "project": "google/fonts",
+        "version": "1e1aa08e994f",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf",
+        "pathInArchive": "ofl/playfairdisplay/PlayfairDisplay[wght].ttf",
+        "conversion": "fonttools 4.66.1 varLib.instancer wght=400 (single-axis variable, fvar dropped), then pyftsubset to Latin + design punctuation (Basic Latin, Latin-1, Latin Extended-A, quotes, dashes, arrows incl. U+2192, U+25CF, euro). 190 KB static -> 54 KB. Copyright 2017 The Playfair Display Project Authors, Reserved Font Name kept.",
+        "$comment": "Display serif. The variable font was not shipped: CanvasKit and the host loader take static TTF/OTF only."
+      }
+    },
+    {
+      "file": "playfair-display-700.ttf",
+      "family": "Playfair Display",
+      "style": "Bold",
+      "sha256": "3a16356406d05ec23b5eb4018e6b4f9f8fccfd7e8df27c0b978b6e0995553639",
+      "bytes": 55920,
+      "license": "OFL-1.1",
+      "licenseFile": "PlayfairDisplay-OFL.txt",
+      "source": {
+        "kind": "google-fonts-repo",
+        "project": "google/fonts",
+        "version": "1e1aa08e994f",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf",
+        "pathInArchive": "ofl/playfairdisplay/PlayfairDisplay[wght].ttf",
+        "conversion": "fonttools 4.66.1 varLib.instancer wght=700, then the same Latin subset. 190 KB static -> 55 KB.",
+        "$comment": "As above, the bold the brief requires."
+      }
+    },
+    {
+      "file": "space-grotesk-400.ttf",
+      "family": "Space Grotesk",
+      "style": "Regular",
+      "sha256": "ba781feaf08f7b2c96ade8d6bf3b85113820a0148e2edda81724b4f1838ff826",
+      "bytes": 33288,
+      "license": "OFL-1.1",
+      "licenseFile": "SpaceGrotesk-OFL.txt",
+      "source": {
+        "kind": "google-fonts-repo",
+        "project": "google/fonts",
+        "version": "2861cb7b12f9",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf",
+        "pathInArchive": "ofl/spacegrotesk/SpaceGrotesk[wght].ttf",
+        "conversion": "fonttools 4.66.1 varLib.instancer wght=400 (wght 300-700 variable, fvar dropped), then the same Latin subset. 86 KB static -> 33 KB. Copyright 2020 The Space Grotesk Project Authors.",
+        "$comment": "Second grotesk. Not shipped as a variable font, for the same reason as Playfair."
+      }
+    },
+    {
+      "file": "space-grotesk-500.ttf",
+      "family": "Space Grotesk",
+      "style": "Medium",
+      "sha256": "12ef7d2d124870625b811c94492c31e32452a13878079e085f3cebcdb289fcd4",
+      "bytes": 33296,
+      "license": "OFL-1.1",
+      "licenseFile": "SpaceGrotesk-OFL.txt",
+      "source": {
+        "kind": "google-fonts-repo",
+        "project": "google/fonts",
+        "version": "2861cb7b12f9",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf",
+        "pathInArchive": "ofl/spacegrotesk/SpaceGrotesk[wght].ttf",
+        "conversion": "fonttools 4.66.1 varLib.instancer wght=500, then the same Latin subset. 86 KB static -> 33 KB.",
+        "$comment": "As above."
+      }
+    },
+    {
+      "file": "space-grotesk-700.ttf",
+      "family": "Space Grotesk",
+      "style": "Bold",
+      "sha256": "24db1dae8ea78bf520c83084cde0876835e3cd60d714befc07baa29cfdbdf52e",
+      "bytes": 33256,
+      "license": "OFL-1.1",
+      "licenseFile": "SpaceGrotesk-OFL.txt",
+      "source": {
+        "kind": "google-fonts-repo",
+        "project": "google/fonts",
+        "version": "2861cb7b12f9",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/spacegrotesk/SpaceGrotesk%5Bwght%5D.ttf",
+        "pathInArchive": "ofl/spacegrotesk/SpaceGrotesk[wght].ttf",
+        "conversion": "fonttools 4.66.1 varLib.instancer wght=700, then the same Latin subset. 86 KB static -> 33 KB.",
+        "$comment": "As above."
+      }
+    },
+    {
+      "file": "anton-400.ttf",
+      "family": "Anton",
+      "style": "Regular",
+      "sha256": "3553772bdc58c0038c72ace041d6851b6cf02848ab9291b30dc076a01d65740d",
+      "bytes": 41336,
+      "license": "OFL-1.1",
+      "licenseFile": "Anton-OFL.txt",
+      "source": {
+        "kind": "google-fonts-repo",
+        "project": "google/fonts",
+        "version": "e0a8124cf36b",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/anton/Anton-Regular.ttf",
+        "pathInArchive": "ofl/anton/Anton-Regular.ttf",
+        "conversion": "Upstream file is already a static single-weight TTF; only the same Latin subset was applied (167 KB -> 40 KB). Copyright 2020 The Anton Project Authors. Renamed to anton-400.ttf so the weight is visible in the shipped set.",
+        "$comment": "Heavy condensed display. Single weight by design; its heaviness is the family, not a weight axis."
       }
     }
   ]

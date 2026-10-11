@@ -26,6 +26,9 @@ import * as Schema from "effect/Schema";
 /** Where the snapshot lives. Everything under it is generated except this file's siblings. */
 export const CANVAS_VENDOR_DIR = "packages/canvas-engine/upstream";
 
+/** Faces DAK owns rather than vendored, recorded in `fonts/manifest.json` next to them. */
+export const CANVAS_OWNED_FONTS_DIR = "packages/canvas-engine/fonts";
+
 /** Upstream revision this snapshot was taken from. Bump deliberately, never by a range. */
 export const CANVAS_UPSTREAM_REPOSITORY = "https://github.com/penkrahq/penkra-apps";
 export const CANVAS_UPSTREAM_PATH = "canvas";
@@ -120,8 +123,16 @@ export const CANVAS_BUDGETS = {
   engineGzipBytes: 900 * 1024,
   /** The whole committed snapshot, emoji font excluded. */
   snapshotBytes: 6 * 1024 * 1024,
-  /** A font document must fail loudly rather than fall back when its face was not shipped. */
-  fontBytes: 2 * 1024 * 1024,
+  /**
+   * Every TTF DAK ships: the pinned Inter weights in the snapshot plus the DAK-owned faces in
+   * `packages/canvas-engine/fonts`. Measured 2.4 MB (Inter 1.6 MB pinned, owned 0.8 MB for
+   * JetBrains Mono and the three M4b display families as Latin subsets). The ceiling is 6 MB,
+   * which is room for two or three more families at current subset sizes — or one deliberate
+   * CJK decision — while the per-family cap in `canvas-font-coverage.ts` stays at 2 MB so a
+   * single family cannot eat it. Neither the engine gzip nor the snapshot ceiling moves with
+   * fonts: no font bytes enter the engine bundle, and owned faces live outside the snapshot.
+   */
+  fontBytes: 6 * 1024 * 1024,
 } as const;
 
 /** A static `import`/`export ... from "..."` of a relative specifier, which is all this resolves. */
@@ -285,7 +296,10 @@ async function gzipSize(absolute: string): Promise<number> {
 }
 
 /** What a snapshot actually weighs, which is what the budgets are argued against. */
-export async function measureSnapshot(snapshotDir: string): Promise<CanvasSnapshotSizes> {
+export async function measureSnapshot(
+  snapshotDir: string,
+  ownedFontsDir: string = NodePath.join(snapshotDir, "..", "fonts"),
+): Promise<CanvasSnapshotSizes> {
   const files = (await listFilesRecursively(snapshotDir)).filter(
     (file) => !isGeneratedSnapshotFile(file),
   );
@@ -297,6 +311,16 @@ export async function measureSnapshot(snapshotDir: string): Promise<CanvasSnapsh
     snapshotBytes += (await NodeFSP.stat(absolute)).size;
     if (file.endsWith(".ttf")) fontBytes += (await NodeFSP.stat(absolute)).size;
     if (file === "vendor/open-pencil/engine.source.mjs") engineGzipBytes = await gzipSize(absolute);
+  }
+  // DAK-owned faces live outside the snapshot but count against the font ceiling all the same:
+  // a budget that ignores them is what let the total grow past 2 MB unnoticed. A missing
+  // directory counts as zero here; presence is the manifest parity test's job, not the budget's.
+  if (NodeFS.existsSync(ownedFontsDir)) {
+    for (const file of await listFilesRecursively(ownedFontsDir)) {
+      if (file.endsWith(".ttf")) {
+        fontBytes += (await NodeFSP.stat(NodePath.join(ownedFontsDir, file))).size;
+      }
+    }
   }
   return { snapshotBytes, fontBytes, engineGzipBytes };
 }

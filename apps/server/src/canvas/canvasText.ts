@@ -1,6 +1,11 @@
 // @effect-diagnostics nodeBuiltinImport:off - This module reads the vendored engine off disk by path,
 // because measured text has to come from the same measurer the renderer draws with.
+import * as NodeCrypto from "node:crypto";
+
+import { fontManager } from "@dak/canvas-engine/upstream/vendor/open-pencil/engine.source.mjs";
 import { measureDocumentText } from "@dak/canvas-engine/upstream/src/document-screenshot.mjs";
+
+import { canvasFontsReady, shippedFontFaces } from "./CanvasHostFonts.ts";
 
 /**
  * Measured text, from the same measurer the renderer draws with.
@@ -28,11 +33,41 @@ export interface MeasuredText {
 const numberOf = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;
 
+/**
+ * The shipped faces the engine has actually loaded, as `Family|Style -> sha256`.
+ *
+ * The vendored measurer reports hashes only for faces in its own pinned map, so a DAK-owned
+ * family would measure correctly yet be invisible to the `unknown_font` guard — measured with
+ * the right glyphs, then refused as unshipped. These are the same bytes the renderer draws
+ * with (the startup preload put them in the font cache), so their hashes belong alongside the
+ * vendored ones rather than in a second list a caller must remember to check.
+ */
+const shippedFontHashes = (): Readonly<Record<string, string>> => {
+  const manager = fontManager as unknown as {
+    loadedData: (family: string, style: string) => ArrayBuffer | null;
+  };
+  const hashes: Record<string, string> = {};
+  for (const face of shippedFontFaces()) {
+    const bytes = manager.loadedData(face.family, face.style);
+    if (bytes !== null) {
+      hashes[`${face.family}|${face.style}`] = NodeCrypto.createHash("sha256")
+        .update(new Uint8Array(bytes))
+        .digest("hex");
+    }
+  }
+  return hashes;
+};
+
 export const measureTextNodes = async (
   document: unknown,
   nodeIds: ReadonlyArray<string>,
 ): Promise<ReadonlyMap<string, MeasuredText>> => {
   if (nodeIds.length === 0) return new Map();
+  // Every render path funnels through here, so this is the one place that can promise the
+  // shipped faces are in the font cache before the shaper runs. Against a warm engine it is a
+  // resolved promise; against a fresh one it is what keeps the first measure from falling
+  // through to a network fetch.
+  await canvasFontsReady();
   const result = await measureDocumentText(document, nodeIds as string[], new Map());
   const layouts = result.textLayouts as unknown as Map<
     string,
@@ -44,6 +79,7 @@ export const measureTextNodes = async (
     }
   >;
   const measured = new Map<string, MeasuredText>();
+  const shipped = shippedFontHashes();
   for (const [id, entry] of layouts) {
     const lines = entry.lines ?? [];
     const first = lines[0];
@@ -55,7 +91,7 @@ export const measureTextNodes = async (
       // The shaper reports each line's ink box; the distance from the first top to the last bottom
       // is the height a wrapped node needs.
       derivedHeight: Math.max(1, Math.ceil(numberOf(last?.bottom) - numberOf(first?.top))),
-      fontHashes: entry.fontHashes ?? {},
+      fontHashes: { ...shipped, ...entry.fontHashes },
     });
   }
   return measured;
@@ -149,14 +185,21 @@ export class CanvasUnknownFontError extends Error {
 }
 
 /** The closest shipped family by shared prefix, longest first, so "Inter Display" finds "Inter". */
-const nearestFamily = (family: string, available: ReadonlyArray<string>): string | undefined => {
+export const nearestFamily = (
+  family: string,
+  available: ReadonlyArray<string>,
+): string | undefined => {
   const wanted = family.toLowerCase();
   let best: string | undefined;
   for (const candidate of available) {
     const lower = candidate.toLowerCase();
     if (lower === wanted) return candidate;
-    if (!best !== false && wanted.startsWith(lower) && lower.length > (best?.length ?? 0)) {
-      best = candidate;
+    // Either direction: the author may have written a longer name ("Inter Display", where the
+    // shipped family is a prefix) or a shorter one ("Playfair", where the shipped family
+    // completes it). The longest shipped candidate wins, so "Space" finds "Space Grotesk"
+    // rather than stopping at a shorter family that also happens to prefix-match.
+    if (wanted.startsWith(lower) || lower.startsWith(wanted)) {
+      if (best === undefined || candidate.length > best.length) best = candidate;
     }
   }
   return best;

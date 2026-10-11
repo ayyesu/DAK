@@ -21,6 +21,7 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 
 import { fontManager } from "@dak/canvas-engine/upstream/vendor/open-pencil/engine.source.mjs";
+import ownedManifestJson from "../../../../packages/canvas-engine/fonts/manifest.json" with { type: "json" };
 
 /**
  * Every face either map names, keyed `"Family|Style"`.
@@ -40,6 +41,15 @@ export const CANVAS_HOST_FONT_FILES: Readonly<Record<string, string>> = {
   // map names, because bytes reach CanvasKit uncompressed and it accepts TTF and OTF only.
   "JetBrains Mono|Regular": "jetbrains-mono-400.woff2",
   "JetBrains Mono|Medium": "jetbrains-mono-500.woff2",
+  // DAK-owned display faces. None of the engine maps names these; they resolve through the host
+  // loader below (editor path) and the startup preload (screenshot/measure path), never through a
+  // vendored map edit. The pinned tree is not touched.
+  "Playfair Display|Regular": "playfair-display-400.ttf",
+  "Playfair Display|Bold": "playfair-display-700.ttf",
+  "Space Grotesk|Regular": "space-grotesk-400.ttf",
+  "Space Grotesk|Medium": "space-grotesk-500.ttf",
+  "Space Grotesk|Bold": "space-grotesk-700.ttf",
+  "Anton|Regular": "anton-400.ttf",
   // Icon families. They reach a document only as `type: "icon"` nodes resolved from `icon-chunks`, so
   // these are listed for completeness and answered with null unless a document ever asks for one as
   // text. Shipping the variable fonts for that would add megabytes for an unreachable path.
@@ -129,4 +139,144 @@ export const registerCanvasHostFonts = (options: CanvasHostFontsOptions): void =
 /** Test-only: forget a provider was installed so the next call installs a fresh one. */
 export const resetCanvasHostFontsForTest = (): void => {
   registered = false;
+};
+
+/**
+ * One shipped text face, as recorded in `packages/canvas-engine/fonts/manifest.json`.
+ *
+ * That file is the only hand-maintained list of shipped families: the `dak_canvas_edit`
+ * description is generated from it, the startup preload reads it, and the parity test fails when
+ * it and `CANVAS_HOST_FONT_FILES` disagree. `location` says where the bytes live — Inter is
+ * pinned snapshot bytes owned by `vendor-manifest.json`, everything else sits beside the manifest.
+ */
+export interface ShippedFontFace {
+  readonly file: string;
+  readonly family: string;
+  readonly style: string;
+  readonly sha256: string;
+  readonly bytes: number;
+  readonly location: "owned" | "upstream-vendor";
+}
+
+const isShippedFontFace = (value: unknown): value is ShippedFontFace => {
+  if (typeof value !== "object" || value === null) return false;
+  const face = value as Record<string, unknown>;
+  return (
+    typeof face["file"] === "string" &&
+    typeof face["family"] === "string" &&
+    typeof face["style"] === "string" &&
+    typeof face["sha256"] === "string" &&
+    typeof face["bytes"] === "number" &&
+    (face["location"] === undefined ||
+      face["location"] === "owned" ||
+      face["location"] === "upstream-vendor")
+  );
+};
+
+/** Every face DAK ships, throwing rather than returning a half-decoded list. */
+export const shippedFontFaces = (): ReadonlyArray<ShippedFontFace> => {
+  const fonts = (ownedManifestJson as { fonts?: unknown }).fonts;
+  if (!Array.isArray(fonts) || !fonts.every(isShippedFontFace)) {
+    throw new Error(
+      "packages/canvas-engine/fonts/manifest.json is malformed. It is the shipped-font record " +
+        "the tool description and the font preload read; fix it rather than working around it.",
+    );
+  }
+  return fonts.map((face) => ({
+    ...face,
+    location: (face.location ?? "owned") as "owned" | "upstream-vendor",
+  }));
+};
+
+/**
+ * The shipped families for the `dak_canvas_edit` description, generated from the manifest.
+ *
+ * Generated rather than written out so the description cannot drift from what is actually
+ * shipped: adding a family to the manifest changes the tool text with no second edit.
+ */
+export const shippedFontDescription = (): string => {
+  const groups: Array<string> = [];
+  for (const face of [...shippedFontFaces()].sort((left, right) =>
+    left.family.localeCompare(right.family),
+  )) {
+    if (!groups.includes(face.family)) groups.push(face.family);
+  }
+  return groups
+    .map(
+      (family) =>
+        `${family} (${shippedFontFaces()
+          .filter((face) => face.family === family)
+          .map((face) => face.style)
+          .join(", ")})`,
+    )
+    .join(", ");
+};
+
+interface FontManagerPreload {
+  isStyleLoaded: (family: string, style: string) => boolean;
+  markLoaded: (family: string, style: string, data: ArrayBuffer) => void;
+}
+
+let preloadPromise: Promise<void> | undefined;
+
+/**
+ * Loads every shipped face into the engine's font cache before anything measures.
+ *
+ * The editor path resolves new families through `registerCanvasHostFonts` alone — the host
+ * loader is consulted before the engine's private map, so a family outside that map needs no
+ * vendored edit. The screenshot/measure path cannot use that answer: `document-screenshot.mjs`
+ * installs its own loader over ours, keyed by its own pinned map, which names neither the new
+ * families nor the DAK-owned directory. Rather than editing the pinned tree, the shipped bytes
+ * are registered here with `markLoaded`, which `loadFont` consults before any loader, remote
+ * provider, or bundled fallback runs. Without this, a new family would be fetched from Google
+ * Fonts at measure time when online and fail offline — the same font by name, but neither
+ * DAK's bytes nor DAK's budget.
+ *
+ * Idempotent per process and skips faces already loaded, so repeated engine construction in
+ * tests does not churn the font generation. A missing or unreadable shipped face rejects, which
+ * surfaces through `canvasFontsReady` on the next measure rather than limping on fallbacks.
+ */
+export const preloadCanvasHostFonts = (directories: ReadonlyArray<string>): Promise<void> => {
+  preloadPromise ??= (async () => {
+    const manager = fontManager as unknown as FontManagerPreload;
+    for (const face of shippedFontFaces()) {
+      if (manager.isStyleLoaded(face.family, face.style)) continue;
+      let found: string | undefined;
+      for (const directory of directories) {
+        const candidate = NodePath.join(directory, face.file);
+        try {
+          await NodeFSP.access(candidate);
+          found = candidate;
+          break;
+        } catch {
+          continue;
+        }
+      }
+      if (found === undefined) {
+        throw new Error(
+          `Shipped font ${face.family} (${face.style}) has no ${face.file} in any font ` +
+            `directory. It is listed in the manifest and the tool description promises it; ` +
+            `vendor the file rather than shipping the promise.`,
+        );
+      }
+      const bytes = await NodeFSP.readFile(found);
+      manager.markLoaded(
+        face.family,
+        face.style,
+        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+      );
+    }
+  })();
+  // Marks the rejection handled so an engine that never measures does not trip the
+  // unhandled-rejection detector; awaiting `canvasFontsReady` still throws it.
+  preloadPromise.catch(() => undefined);
+  return preloadPromise;
+};
+
+/** Resolves once every shipped face is in the engine's font cache. */
+export const canvasFontsReady = (): Promise<void> => preloadPromise ?? Promise.resolve();
+
+/** Test-only: forget preloaded faces so the next call loads fresh bytes. */
+export const resetCanvasHostFontsPreloadForTest = (): void => {
+  preloadPromise = undefined;
 };

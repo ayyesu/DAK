@@ -15,27 +15,32 @@
  * shipped, deliberately excluded with a reason, or an error. Adding a face upstream without shipping
  * it now fails `canvas-vendor.ts check` instead of failing a user's render.
  */
+import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 
 const repoRoot = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)), "..");
 const snapshotDir = NodePath.join(repoRoot, "packages", "canvas-engine", "upstream");
+const ownedFontsDir = NodePath.join(repoRoot, "packages", "canvas-engine", "fonts");
 const screenshotModule = NodePath.join(snapshotDir, "src", "document-screenshot.mjs");
 
 /**
- * Where a face may live, in the order the loader tries them.
+ * Where a face may live, in the order the editor-path loader tries them.
  *
- * Mirrors `configureScreenshotFonts`' host loader, which tries the source directory then the vendored
- * font directory. Keeping the order here means a face counts as shipped wherever the renderer would
- * actually find it, rather than wherever it happens to sit.
+ * The screenshot/measure path is stricter than this: `document-screenshot.mjs` installs its own
+ * loader that tries only the snapshot's `src` and `vendor/open-pencil/fonts` directories, keyed
+ * by its own pinned map. A DAK-owned face is therefore found here but not there, which is why
+ * the engine preloads the shipped bytes into the font cache at startup instead of relying on
+ * either loader alone. Keeping the owned directory in this search means a face counts as shipped
+ * wherever the editor path would actually find it.
  */
 const FONT_SEARCH_DIRECTORIES = [
   NodePath.join(snapshotDir, "src"),
   NodePath.join(snapshotDir, "vendor", "open-pencil", "fonts"),
-  // Faces DAK owns rather than vendored. `document-screenshot.mjs` tries this directory last, after
-  // the two above, so a face here is reached by exactly the code path a vendored one would be.
-  NodePath.join(repoRoot, "packages", "canvas-engine", "fonts"),
+  // Faces DAK owns rather than vendored, resolved by the editor-path host loader and staged
+  // beside the bundle for packaged builds.
+  ownedFontsDir,
 ] as const;
 
 /**
@@ -172,8 +177,104 @@ export function checkFontCoverage(
   });
 }
 
+export interface OwnedManifestFace {
+  readonly file: string;
+  readonly family: string;
+  readonly style: string;
+  readonly sha256: string;
+  readonly bytes: number;
+  readonly location: "owned" | "upstream-vendor";
+}
+
+/** Every face `packages/canvas-engine/fonts/manifest.json` promises, decoded strictly. */
+export function readOwnedManifest(
+  manifestPath: string = NodePath.join(ownedFontsDir, "manifest.json"),
+): ReadonlyArray<OwnedManifestFace> {
+  const parsed = JSON.parse(NodeFS.readFileSync(manifestPath, "utf8")) as {
+    fonts?: ReadonlyArray<Record<string, unknown>>;
+  };
+  if (!Array.isArray(parsed.fonts)) {
+    throw new Error(
+      `Could not read a fonts list out of ${manifestPath}. The manifest is the shipped-font ` +
+        `record; fix it rather than assuming the font list is empty.`,
+    );
+  }
+  return parsed.fonts.map((face) => {
+    if (
+      typeof face["file"] !== "string" ||
+      typeof face["family"] !== "string" ||
+      typeof face["style"] !== "string" ||
+      typeof face["sha256"] !== "string" ||
+      typeof face["bytes"] !== "number"
+    ) {
+      throw new Error(
+        `Malformed font entry in ${manifestPath}: ${JSON.stringify(face)}. Every entry needs ` +
+          `file, family, style, sha256 and bytes.`,
+      );
+    }
+    const location = face["location"] ?? "owned";
+    if (location !== "owned" && location !== "upstream-vendor") {
+      throw new Error(`Unknown font location ${JSON.stringify(location)} in ${manifestPath}.`);
+    }
+    return {
+      file: face["file"],
+      family: face["family"],
+      style: face["style"],
+      sha256: face["sha256"],
+      bytes: face["bytes"],
+      location,
+    };
+  });
+}
+
+export type OwnedManifestVerdict =
+  | { readonly face: OwnedManifestFace; readonly status: "ok" }
+  | {
+      readonly face: OwnedManifestFace;
+      readonly status: "missing" | "modified";
+      readonly detail: string;
+    };
+
+/**
+ * Checks every manifest face against the bytes on disk: present, same size, same hash.
+ *
+ * The manifest is what the tool description promises and the preload loads, so a file that
+ * changed without a manifest update is a build failure, not a quiet substitution.
+ */
+export function checkOwnedManifest(
+  faces: ReadonlyArray<OwnedManifestFace>,
+  directories: ReadonlyArray<string> = FONT_SEARCH_DIRECTORIES,
+): ReadonlyArray<OwnedManifestVerdict> {
+  return faces.map((face) => {
+    const found = directories
+      .map((directory) => NodePath.join(directory, face.file))
+      .find((candidate) => NodeFS.existsSync(candidate));
+    if (found === undefined) {
+      return { face, status: "missing", detail: `no ${face.file} in any font directory` };
+    }
+    const bytes = NodeFS.readFileSync(found);
+    if (bytes.length !== face.bytes) {
+      return {
+        face,
+        status: "modified",
+        detail: `${face.file} is ${bytes.length} bytes on disk, manifest says ${face.bytes}`,
+      };
+    }
+    const digest = NodeCrypto.createHash("sha256").update(bytes).digest("hex");
+    if (digest !== face.sha256) {
+      return {
+        face,
+        status: "modified",
+        detail: `${face.file} hashes ${digest.slice(0, 12)}…, manifest says ${face.sha256.slice(0, 12)}…`,
+      };
+    }
+    return { face, status: "ok" };
+  });
+}
+
 const promised = readPromisedFontFiles();
 const coverage = checkFontCoverage(promised);
+const owned = checkOwnedManifest(readOwnedManifest());
 
 for (const entry of coverage) {
   if (entry.status === "shipped") {
@@ -222,3 +323,17 @@ if (missing.length > 0) {
   );
   process.exit(1);
 }
+
+const badOwned = owned.filter((entry) => entry.status !== "ok");
+if (badOwned.length > 0) {
+  console.error(
+    `\ncanvas-font-coverage: ${badOwned.length} manifest face(s) do not match the bytes on disk.\n` +
+      badOwned
+        .map((entry) => `  ${entry.face.family} (${entry.face.style}): ${entry.detail}`)
+        .join("\n") +
+      `\nThe manifest is what the tool description promises and the preload loads. Update it ` +
+      `deliberately rather than letting the bytes drift.`,
+  );
+  process.exit(1);
+}
+console.log(`manifest: ${owned.length} faces match the bytes on disk.`);

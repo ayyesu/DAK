@@ -28,6 +28,7 @@ import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 
 import { registerCanvasHostFonts } from "./CanvasHostFonts.ts";
+import { preloadCanvasHostFonts } from "./CanvasHostFonts.ts";
 import { CANVAS_RASTER_CAP } from "./CanvasPorts.ts";
 import {
   detectFrameOverflow,
@@ -357,16 +358,21 @@ export const make = (options: CanvasEngineOptions = {}): CanvasEngine => {
   // reaches the vendored `fetchBundledFont`, which imports a package nothing depends on; the
   // screenshot path happens to install its own loader internally, so this is what keeps the two
   // paths resolving the same faces.
-  registerCanvasHostFonts({
-    directories: [
-      // Faces are staged flat beside the bundle under the name the engine asks for, so that directory
-      // is searched directly; the snapshot's own directories cover a dev run.
-      canvasAssetPaths.moduleDir(),
-      NodePath.join(canvasAssetPaths.upstreamDir(), "src"),
-      NodePath.join(canvasAssetPaths.upstreamDir(), "vendor", "open-pencil", "fonts"),
-      canvasAssetPaths.dakFontsDir(),
-    ],
-  });
+  const fontDirectories = [
+    // Faces are staged flat beside the bundle under the name the engine asks for, so that directory
+    // is searched directly; the snapshot's own directories cover a dev run.
+    canvasAssetPaths.moduleDir(),
+    NodePath.join(canvasAssetPaths.upstreamDir(), "src"),
+    NodePath.join(canvasAssetPaths.upstreamDir(), "vendor", "open-pencil", "fonts"),
+    canvasAssetPaths.dakFontsDir(),
+  ];
+  registerCanvasHostFonts({ directories: fontDirectories });
+  // Every shipped face into the engine's font cache, so the screenshot/measure path — which
+  // installs its own loader over the one above and names none of the DAK-owned families — still
+  // draws DAK's bytes rather than fetching the family from the network. Awaited inside
+  // `measureTextNodes`, which every render path funnels through; a missing shipped face rejects
+  // there instead of limping on a fallback.
+  preloadCanvasHostFonts(fontDirectories);
   const createBlankDocument = async (input: {
     module: CanvasModule;
     preset?: "a4" | "letter" | undefined;

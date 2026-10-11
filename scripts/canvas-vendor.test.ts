@@ -156,6 +156,18 @@ describe("canvas budgets", () => {
     expect(await checkBudgets(dir)).toEqual([]);
   });
 
+  it("counts DAK-owned faces against the font ceiling too", async () => {
+    // The ceiling once measured only snapshot TTFs, which is how the total grew past it
+    // unnoticed when owned faces arrived. A budget that ignores them is not a budget.
+    const dir = await makeTree({ "src/a.mjs": "export const a = 1;\n" });
+    const owned = await makeTree({
+      "space-grotesk-400.ttf": Buffer.from(NodeCrypto.randomBytes(1024)),
+    });
+    const sizes = await measureSnapshot(dir, owned);
+    expect(sizes.fontBytes).toBe(1024);
+    expect(sizes.snapshotBytes).toBeGreaterThan(0);
+  });
+
   it("fails when the engine grows past its gzip ceiling", async () => {
     // Random bytes, so gzip cannot hide the growth the way repetitive data would.
     const dir = await makeTree({
