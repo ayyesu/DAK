@@ -124,9 +124,8 @@ jobs:
       # build time and cannot be changed for an app already on someone's disk.
       DAK_DESKTOP_UPDATE_REPOSITORY: ayyesu/dak-releases
     steps:
-      # This repository is public, so Git needs no credentials. checkout's
-      # credential cleanup runs submodule foreach even with submodules disabled,
-      # which fails on the orphaned gitlinks in our vendored .repos tree.
+      # checkout's credential cleanup runs submodule foreach even with submodules
+      # disabled, which fails on the orphaned gitlinks in our vendored .repos tree.
       # checkout.workers=0 writes the files on every core. Alternating both ways
       # in one job on the Windows runners, it wrote the files about 10s faster
       # (about 40% on arm64).
@@ -134,12 +133,18 @@ jobs:
         shell: bash
         env:
           CHECKOUT_REF: ${{ inputs.ref }}
+          GH_TOKEN: ${{ github.token }}
           GIT_TERMINAL_PROMPT: "0"
         run: |
           set -euo pipefail
+          # The source repository is private, so the fetch has to authenticate.
+          # The token rides as an Authorization header rather than in the remote
+          # URL, which keeps it out of .git/config and out of anything that
+          # echoes the remote. Only the fetch needs it; the rest is local.
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git init .
           git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-          git fetch --no-tags --depth=1 origin "$CHECKOUT_REF"
+          git -c "http.extraheader=$auth_header" fetch --no-tags --depth=1 origin "$CHECKOUT_REF"
           git sparse-checkout set --no-cone '/*' '!/.repos/'
           git -c checkout.workers=0 checkout --detach FETCH_HEAD
 
