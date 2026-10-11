@@ -21,6 +21,7 @@ import {
   ChevronRight,
   FileDiff,
   Files,
+  Frame,
   Globe2,
   Plus,
   TerminalSquare,
@@ -128,6 +129,7 @@ interface RightPanelTabsProps {
   onAddPullRequest: () => void;
   onAddPullRequests: () => void;
   onAddDevice: () => void;
+  onAddDesign: () => void;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
@@ -135,6 +137,7 @@ interface RightPanelTabsProps {
   pullRequestAvailable: boolean;
   pullRequestsAvailable: boolean;
   deviceAvailable: boolean;
+  designAvailable: boolean;
   pullRequestStatusSeeds?: Readonly<Record<string, PullRequestTabStatusSeed>>;
   children: ReactNode;
 }
@@ -163,6 +166,7 @@ const SURFACE_DISABLED_REASONS = {
   pullRequest: "This thread's branch has no pull request yet.",
   pullRequests: "No linked pull requests are available for this thread.",
   device: "Devices are only available from a thread.",
+  design: "Designs are only available from a project thread.",
 } as const;
 
 /** Overlays that must win over the launcher's letter shortcuts. */
@@ -186,6 +190,7 @@ const SURFACE_UNAVAILABLE_HINTS = {
   pullRequest: "No pull request on this branch yet.",
   pullRequests: "No linked pull requests available.",
   device: "Available from a thread.",
+  design: "Available when a project is open.",
 } as const;
 
 type TabContextMenuAction =
@@ -325,6 +330,7 @@ function RightPanelEmptyState(props: {
   onAddPullRequest: () => void;
   onAddPullRequests: () => void;
   onAddDevice: () => void;
+  onAddDesign: () => void;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
@@ -332,6 +338,7 @@ function RightPanelEmptyState(props: {
   pullRequestAvailable: boolean;
   pullRequestsAvailable: boolean;
   deviceAvailable: boolean;
+  designAvailable: boolean;
 }) {
   // -1 means no highlight: it only appears on hover or arrow use.
   const [highlight, setHighlight] = useState(-1);
@@ -368,6 +375,15 @@ function RightPanelEmptyState(props: {
       available: props.diffAvailable,
       disabledReason: SURFACE_UNAVAILABLE_HINTS.diff,
       onClick: props.onAddDiff,
+    },
+    {
+      label: "Design",
+      description: "Open a design from this project.",
+      icon: Frame,
+      shortcut: "C",
+      available: props.designAvailable,
+      disabledReason: SURFACE_UNAVAILABLE_HINTS.design,
+      onClick: props.onAddDesign,
     },
     {
       label: "Pull request",
@@ -602,6 +618,10 @@ function surfaceTitle(
       return `#${surface.number}`;
     case "pull-requests":
       return "Pull requests";
+    case "canvas":
+      // The tab takes the design's real name from its first render, so this is only what a tab
+      // shows before that lands or if the design turns out to be gone.
+      return surface.title ?? "Design";
     case "device":
       return surface.title ?? surface.target?.name ?? "Device";
     case "preview": {
@@ -685,6 +705,8 @@ function SurfaceIcon({
       );
     case "pull-requests":
       return <PullRequestGlyph.link className="size-3 shrink-0" />;
+    case "canvas":
+      return <Frame className="size-3 shrink-0" />;
     case "device":
       return surface.target?.platform === "ios" ? (
         <AppleIcon className="size-3 shrink-0" />
@@ -895,6 +917,14 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       available: props.diffAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.diff,
       onClick: props.onAddDiff,
+    },
+    {
+      label: "Design",
+      icon: Frame,
+      shortcut: "C",
+      available: props.designAvailable,
+      disabledReason: SURFACE_DISABLED_REASONS.design,
+      onClick: props.onAddDesign,
     },
     {
       label: "Pull request",
@@ -1403,6 +1433,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
             onAddPullRequest={props.onAddPullRequest}
             onAddPullRequests={props.onAddPullRequests}
             onAddDevice={props.onAddDevice}
+            onAddDesign={props.onAddDesign}
             browserAvailable={props.browserAvailable}
             terminalAvailable={props.terminalAvailable}
             diffAvailable={props.diffAvailable}
@@ -1410,6 +1441,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
             pullRequestAvailable={props.pullRequestAvailable}
             pullRequestsAvailable={props.pullRequestsAvailable}
             deviceAvailable={props.deviceAvailable}
+            designAvailable={props.designAvailable}
           />
         ) : (
           props.children

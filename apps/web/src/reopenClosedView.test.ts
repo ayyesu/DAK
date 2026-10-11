@@ -1,6 +1,8 @@
 import {
+  type CanvasDocumentId,
   DEFAULT_CLIENT_SETTINGS,
   type PreviewSessionSnapshot,
+  type ProjectId,
   type ScopedThreadRef,
 } from "@dak/contracts";
 import * as Cause from "effect/Cause";
@@ -66,6 +68,29 @@ describe("reopenClosedView", () => {
     expect(state.isOpen).toBe(true);
     expect(state.surfaces).toMatchObject([{ id: "file:src/app.ts", revealLine: 18 }]);
     expect(openPreview).not.toHaveBeenCalled();
+  });
+
+  it("restores a design tab by reopening that design rather than a placeholder tab", async () => {
+    const reopened = await reopenClosedView(
+      {
+        kind: "panel-tab",
+        threadRef,
+        surface: {
+          kind: "canvas",
+          id: "canvas:local:doc-a",
+          documentId: "doc-a" as CanvasDocumentId,
+          projectId: "project-a" as ProjectId,
+          title: "Landing page",
+        },
+      },
+      { openPreview: vi.fn(), workspaceAvailable: true },
+    );
+    expect(reopened).toBe(true);
+    const state = selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, threadRef);
+    expect(state.isOpen).toBe(true);
+    expect(state.surfaces).toMatchObject([
+      { kind: "canvas", documentId: "doc-a", projectId: "project-a", title: "Landing page" },
+    ]);
   });
 
   it("does not reopen workspace tabs without an available project", async () => {

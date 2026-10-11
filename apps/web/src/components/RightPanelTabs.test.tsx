@@ -133,6 +133,7 @@ function renderTabs(
       onAddDiff={() => undefined}
       onAddFiles={() => undefined}
       onAddDevice={() => undefined}
+      onAddDesign={() => undefined}
       browserAvailable
       terminalAvailable={false}
       diffAvailable={false}
@@ -140,6 +141,7 @@ function renderTabs(
       pullRequestAvailable={false}
       pullRequestsAvailable={false}
       deviceAvailable={false}
+      designAvailable={false}
     >
       <div>content</div>
     </RightPanelTabs>,

@@ -145,6 +145,12 @@ const RPC_AGGREGATES = {
   [WS_METHODS.mcpAppsCallTool]: "provider",
   [WS_METHODS.mcpAppsToolInfo]: "provider",
   [WS_METHODS.mcpAppsUpdateModelContext]: "provider",
+  // A render rasterizes on the server, so it is measured like any other expensive work.
+  [WS_METHODS.canvasList]: "preview",
+  [WS_METHODS.canvasRender]: "preview",
+  [WS_METHODS.canvasRestore]: "preview",
+  [WS_METHODS.canvasSubscribe]: "preview",
+  [WS_METHODS.canvasActivity]: "preview",
   [WS_METHODS.mcpAppsReadResource]: "provider",
   [WS_METHODS.subscribeVcsStatus]: "vcs",
   [WS_METHODS.subscribeWorktreeSetup]: "vcs",

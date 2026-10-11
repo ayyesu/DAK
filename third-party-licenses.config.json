@@ -1,6 +1,21 @@
 {
   "customNotices": [
     {
+      "bundles": ["desktop", "mobile", "web"],
+      "license": "MIT",
+      "name": "Canvas design engine",
+      "sourceUrl": "https://github.com/penkrahq/penkra-apps/tree/main/canvas",
+      "generatedNotices": [
+        {
+          "licenseId": "MIT",
+          "copyrights": ["Copyright (c) 2026 Emmanuel Gyekye Atta-Penkra"],
+          "preamble": [
+            "The bundled Canvas design engine is vendored from penkrahq/penkra-apps under canvas/:\nhttps://github.com/penkrahq/penkra-apps\n\nOnly the subset DAK executes is included: the document schema, the Yjs document model, the script sandbox, inspection, and the exporters. Upstream's Penkra App runtime, operation layer, Vue editor, and tests are not included."
+          ]
+        }
+      ]
+    },
+    {
       "bundles": ["assets", "desktop", "web"],
       "license": "CC0-1.0",
       "name": "Notification Sound 1 by deadrobotmusic",

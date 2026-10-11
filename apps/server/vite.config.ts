@@ -111,6 +111,13 @@ export default mergeConfig(
         js: "#!/usr/bin/env node\n",
       },
       define: {
+        // Emscripten's CanvasKit glue is CommonJS and resolves its WASM through `__dirname`, which
+        // does not exist in an ESM chunk. The bundler inlines that glue, so every packaged build
+        // threw `__dirname is not defined` the first time anything rendered a design — screenshots,
+        // viewport frames, and PNG/PDF exports alike. `import.meta.dirname` is the chunk's own
+        // directory, which is also where `place-canvas-assets` stages `canvaskit.wasm`, so the
+        // substituted value is correct rather than merely defined.
+        __dirname: "import.meta.dirname",
         __DAK_BUILD_CHANNEL__: JSON.stringify(cliBuildChannel),
         __DAK_BUILD_RELAY_URL__: JSON.stringify(repoEnv.DAK_RELAY_URL?.trim() ?? ""),
         __DAK_BUILD_CLERK_PUBLISHABLE_KEY__: JSON.stringify(

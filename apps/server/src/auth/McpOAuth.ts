@@ -578,6 +578,8 @@ export const layerMcpClientAuthenticator = Layer.effect(
                   label: client.label,
                   access: client.access,
                 },
+                // No `canvas`: a design lives in a project workspace and is reviewed
+                // in DAK, so an agent outside a thread has nowhere to show one.
                 capabilities: new Set<McpInvocationContext.McpCapability>([
                   "orchestration",
                   "worktree",

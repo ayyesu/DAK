@@ -19,6 +19,7 @@ import {
   AuthPreviewOperateScope,
   AuthRelayReadScope,
   AuthRelayWriteScope,
+  AuthSourceControlWriteScope,
   AuthTerminalOperateScope,
   ORCHESTRATION_V2_WS_METHODS,
   AuthTerminalReadScope,
@@ -160,6 +161,16 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.mcpAppsToolInfo]: AuthOrchestrationReadScope,
   [WS_METHODS.mcpAppsReadResource]: AuthOrchestrationReadScope,
   [WS_METHODS.mcpAppsUpdateModelContext]: AuthOrchestrationOperateScope,
+  // A design belongs to the project the user is already working in, so reading one is a read of
+  // their own environment. It takes no separate grant.
+  [WS_METHODS.canvasList]: AuthOrchestrationReadScope,
+  [WS_METHODS.canvasRender]: AuthOrchestrationReadScope,
+  // Restore moves a design back out of the trash, which writes to the project workspace. It reads
+  // like the render beside it but is not read-only, so it takes the write scope an agent's edits do.
+  [WS_METHODS.canvasRestore]: AuthSourceControlWriteScope,
+  [WS_METHODS.canvasSubscribe]: AuthOrchestrationReadScope,
+  // Watching a project's designs is a read of the user's own environment, like listing them.
+  [WS_METHODS.canvasActivity]: AuthOrchestrationReadScope,
   [WS_METHODS.subscribeVcsStatus]: AuthOrchestrationReadScope,
   [WS_METHODS.subscribeWorktreeSetup]: AuthOrchestrationReadScope,
   [WS_METHODS.worktreeSetupCancel]: AuthOrchestrationOperateScope,

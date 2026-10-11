@@ -12,7 +12,13 @@ import {
   scopedThreadKey,
   scopeThreadRef,
 } from "@dak/client-runtime/environment";
-import { EnvironmentId, ThreadId, type ScopedThreadRef } from "@dak/contracts";
+import {
+  EnvironmentId,
+  ThreadId,
+  type CanvasDocumentId,
+  type ProjectId,
+  type ScopedThreadRef,
+} from "@dak/contracts";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
@@ -30,6 +36,7 @@ const RIGHT_PANEL_KINDS = [
   "terminal",
   "pull-request",
   "pull-requests",
+  "canvas",
 ] as const;
 export type RightPanelKind = (typeof RIGHT_PANEL_KINDS)[number];
 
@@ -85,7 +92,23 @@ export type RightPanelSurface =
       url?: string;
     }
   /** The thread's linked pull requests, one singleton tab beside any number of `pull-request` tabs. */
-  | { id: "pull-requests"; kind: "pull-requests" };
+  | { id: "pull-requests"; kind: "pull-requests" }
+  /**
+   * A Canvas design, shown as the frames the server rasterized. The engine never reaches a client,
+   * so this surface displays images rather than an editable document.
+   *
+   * Keyed by document and environment rather than a bare id: a design lives in a project on one
+   * server, and the same document id read from two environments is two views, not one that changes
+   * its mind about where it is.
+   */
+  | {
+      id: `canvas:${string}`;
+      kind: "canvas";
+      documentId: CanvasDocumentId;
+      projectId: ProjectId;
+      /** Set once the title is known, so a restored tab is not labelled "Design" forever. */
+      title?: string;
+    };
 
 const RIGHT_PANEL_STORAGE_KEY = "dak:right-panel-state:v2";
 // v9 removed the "plan" surface kind (plans render inline in the transcript).
@@ -93,7 +116,10 @@ const RIGHT_PANEL_STORAGE_KEY = "dak:right-panel-state:v2";
 // v11 stops persisting the pull-request list's shared panel, so a restart opens the page fresh.
 // v12 adds the device surface.
 // v14 removes the agents surface; lineage lives in the thread title bar.
-const RIGHT_PANEL_STORAGE_VERSION = 14;
+// v15 adds the canvas surface. A persisted design tab is kept rather than dropped: whether its
+// project or document still exists is not knowable from storage, so the surface survives and the
+// view resolves it to a quiet empty state if it is gone.
+const RIGHT_PANEL_STORAGE_VERSION = 15;
 
 /** A fixed workspace-level ref: each PR surface carries its own real environment. */
 export const PULL_REQUESTS_PANEL_REF = scopeThreadRef(
@@ -132,12 +158,16 @@ interface RightPanelStoreState {
    */
   openProactive: (
     ref: ScopedThreadRef,
-    surface: Extract<RightPanelSurface, { kind: "diff" | "pull-request" | "pull-requests" }>,
+    surface: Extract<
+      RightPanelSurface,
+      { kind: "diff" | "pull-request" | "pull-requests" } | CanvasSurface
+    >,
     expectedUserActionRevision: number,
   ) => boolean;
   open: (
     ref: ScopedThreadRef,
-    kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request">,
+    /** A canvas surface is keyed by the design it shows, so it is opened by `openCanvas` instead. */
+    kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request" | "canvas">,
   ) => void;
   openDevice: (ref: ScopedThreadRef, target: DeviceTabTarget, automatic?: boolean) => void;
   renameDevice: (ref: ScopedThreadRef, surfaceId: string, title: string) => void;
@@ -155,6 +185,25 @@ interface RightPanelStoreState {
       url?: string;
     },
   ) => void;
+  /**
+   * Opens a design. `title` is only a tab label: the surface reads the real one from the render, so a
+   * caller that only has an id still opens a correctly labelled tab a moment later.
+   */
+  openCanvas: (
+    ref: ScopedThreadRef,
+    target: { documentId: CanvasDocumentId; projectId: ProjectId; title?: string },
+  ) => void;
+  /**
+   * Open a design on the agent's behalf, refused if the user chose a panel since
+   * `expectedUserActionRevision`. See the implementation for why this is not just `openCanvas`.
+   */
+  openCanvasProactive: (
+    ref: ScopedThreadRef,
+    target: { documentId: CanvasDocumentId; projectId: ProjectId; title?: string },
+    expectedUserActionRevision: number,
+  ) => boolean;
+  /** Names an already-open design tab, once its render has told us what it is called. */
+  nameCanvas: (ref: ScopedThreadRef, surfaceId: string, title: string) => void;
   openTerminal: (ref: ScopedThreadRef, terminalId: string) => void;
   splitTerminal: (
     ref: ScopedThreadRef,
@@ -180,7 +229,7 @@ interface RightPanelStoreState {
   toggleVisibility: (ref: ScopedThreadRef) => void;
   toggle: (
     ref: ScopedThreadRef,
-    kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request">,
+    kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request" | "canvas">,
   ) => void;
   setThreadPanelOpen: (
     ref: ScopedThreadRef,
@@ -203,7 +252,7 @@ const DEFAULT_THREAD_PANEL_VISIBILITY: ThreadPanelVisibility = {
 };
 
 const singletonSurface = (
-  kind: Exclude<RightPanelKind, "file" | "preview" | "terminal" | "pull-request">,
+  kind: Exclude<RightPanelKind, "file" | "preview" | "terminal" | "pull-request" | "canvas">,
 ): RightPanelSurface => {
   switch (kind) {
     case "diff":
@@ -252,6 +301,63 @@ const terminalSurface = (terminalId: string): RightPanelSurface => ({
 });
 
 export type PullRequestSurface = Extract<RightPanelSurface, { kind: "pull-request" }>;
+export type CanvasSurface = Extract<RightPanelSurface, { kind: "canvas" }>;
+
+/**
+ * A design's tab id. The environment leads it so the same document read from two servers is two tabs
+ * rather than one that silently switches servers.
+ */
+/**
+ * Upserts a design into a thread's surfaces.
+ *
+ * Shared by the manual and proactive paths so the two cannot drift: whether the user clicked a tab
+ * or the agent opened one on their behalf, the tab is built and de-duplicated the same way, and only
+ * the bookkeeping around it differs.
+ */
+function upsertCanvasSurface(
+  current: ThreadRightPanelState,
+  ref: ScopedThreadRef,
+  target: { documentId: CanvasDocumentId; projectId: ProjectId; title?: string },
+): ThreadRightPanelState {
+  const id = canvasSurfaceId({
+    environmentId: ref.environmentId,
+    documentId: target.documentId,
+  });
+  const existing = current.surfaces.find((entry) => entry.id === id);
+  const surface: CanvasSurface = {
+    id,
+    kind: "canvas",
+    documentId: target.documentId,
+    projectId: target.projectId,
+    ...(target.title === undefined ? {} : { title: target.title }),
+  };
+  // Re-opening a design that is already a tab keeps its position and its known title rather than
+  // appending a duplicate the user then has to close.
+  return upsertSurface(
+    existing
+      ? {
+          ...current,
+          // A design already on screen keeps the name it has been showing; opening it by id alone
+          // would otherwise relabel it every time.
+          surfaces: current.surfaces.map((entry) =>
+            entry.kind !== "canvas" || entry.id !== id
+              ? entry
+              : entry.title === undefined
+                ? surface
+                : { ...surface, title: entry.title },
+          ),
+        }
+      : current,
+    surface,
+  );
+}
+
+export function canvasSurfaceId(target: {
+  environmentId: EnvironmentId;
+  documentId: CanvasDocumentId;
+}): CanvasSurface["id"] {
+  return `canvas:${encodeURIComponent(target.environmentId)}:${encodeURIComponent(target.documentId)}`;
+}
 
 export function pullRequestSurfaceId(target: {
   environmentId?: string;
@@ -493,6 +599,28 @@ export function migratePersistedRightPanelState(persistedState: unknown): {
                         }),
                       ];
                     }
+                    if (surface.kind === "canvas") {
+                      // The view cannot resolve a design it has no id for, and a tab that renders
+                      // nothing forever is worse than one that was never restored.
+                      if (
+                        typeof surface.documentId !== "string" ||
+                        typeof surface.projectId !== "string" ||
+                        surface.documentId === "" ||
+                        surface.projectId === ""
+                      ) {
+                        return [];
+                      }
+                      // The stored ids are plain strings; they were just checked non-empty, which
+                      // is the whole of what the brand promises.
+                      return [
+                        {
+                          ...surface,
+                          documentId: surface.documentId as CanvasDocumentId,
+                          projectId: surface.projectId as ProjectId,
+                          ...(typeof surface.title === "string" ? { title: surface.title } : {}),
+                        },
+                      ];
+                    }
                     if (surface.kind !== "terminal") return [surface];
                     if (
                       !("resourceId" in surface) ||
@@ -685,6 +813,58 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
                   ),
                 }
               : next;
+          }),
+        ),
+      openCanvas: (ref, target) =>
+        set((state) =>
+          userAction(state, scopedThreadKey(ref), (current) =>
+            upsertCanvasSurface(current, ref, target),
+          ),
+        ),
+      /**
+       * Shows a design because the agent is working on it, rather than because the user clicked.
+       *
+       * The revision guard is what makes this safe to do unprompted. An agent that edits a design
+       * for two minutes would otherwise yank the panel away from whatever the user opened in that
+       * time, so a request is dropped the moment it sees the user has chosen a panel themselves
+       * since the caller last looked. That is the same contract `openProactive` already has for
+       * diffs and pull requests, and the reason this is a separate entry point rather than a flag on
+       * `openCanvas`: opening on the user's behalf must not read as the user having opened it.
+       */
+      openCanvasProactive: (ref, target, expectedUserActionRevision) => {
+        let opened = false;
+        set((state) => {
+          const threadKey = scopedThreadKey(ref);
+          if (
+            (state.userActionRevisionByThreadKey[threadKey] ?? 0) !== expectedUserActionRevision
+          ) {
+            return state;
+          }
+          opened = true;
+          return automaticUpdate(state, threadKey, (current) =>
+            upsertCanvasSurface(current, ref, target),
+          );
+        });
+        return opened;
+      },
+      nameCanvas: (ref, surfaceId, title) =>
+        set((state) =>
+          automaticUpdate(state, scopedThreadKey(ref), (current) => {
+            const label = title.trim();
+            if (label === "") return current;
+            const target = current.surfaces.find(
+              (surface): surface is CanvasSurface =>
+                surface.id === surfaceId && surface.kind === "canvas",
+            );
+            if (target === undefined || target.title === label) return current;
+            return {
+              ...current,
+              surfaces: current.surfaces.map((surface) =>
+                surface.id === surfaceId && surface.kind === "canvas"
+                  ? { ...surface, title: label }
+                  : surface,
+              ),
+            };
           }),
         ),
       openFile: (ref, requestedPath, line) =>

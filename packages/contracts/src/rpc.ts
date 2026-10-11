@@ -10,6 +10,18 @@ import {
   McpAppUpdateModelContextInput,
 } from "./mcpApps.ts";
 import {
+  CanvasActivityInput,
+  CanvasActivityItem,
+  CanvasListClientInput,
+  CanvasListResult,
+  CanvasRenderInput,
+  CanvasRestoreSummary,
+  CanvasRenderResult,
+  CanvasStreamItem,
+  CanvasSubscribeInput,
+  CanvasViewError,
+} from "./canvas.ts";
+import {
   ChatGptReconnectProfileInput,
   ChatGptReconnectProfile,
   ChatGptImportProfileInput,
@@ -382,6 +394,13 @@ export const WS_METHODS = {
   mcpAppsToolInfo: "mcpApps.toolInfo",
   mcpAppsReadResource: "mcpApps.readResource",
   mcpAppsUpdateModelContext: "mcpApps.updateModelContext",
+
+  // Canvas design methods
+  canvasList: "canvas.list",
+  canvasRender: "canvas.render",
+  canvasRestore: "canvas.restore",
+  canvasSubscribe: "canvas.subscribe",
+  canvasActivity: "canvas.activity",
 
   // Provider methods
   providerUploadFeedback: "provider.uploadFeedback",
@@ -1271,6 +1290,48 @@ const WsMcpAppsReadResourceRpc = Rpc.make(WS_METHODS.mcpAppsReadResource, {
   error: Schema.Union([McpAppRequestError, EnvironmentAuthorizationError]),
 });
 
+// The designs in a project. `projectId` is required here even though a render takes it optionally:
+// listing spans projects, so there is no single project to infer, and resolving one from a calling
+// socket would attribute a design to whichever thread happened to be most recent.
+const WsCanvasListRpc = Rpc.make(WS_METHODS.canvasList, {
+  payload: CanvasListClientInput,
+  success: CanvasListResult,
+  error: CanvasViewError,
+});
+
+// The engine renders on the server, so these carry frames rather than a document.
+const WsCanvasRenderRpc = Rpc.make(WS_METHODS.canvasRender, {
+  payload: CanvasRenderInput,
+  success: CanvasRenderResult,
+  error: Schema.Union([CanvasViewError, EnvironmentAuthorizationError]),
+});
+
+// Undo for a trashed design. The user restoring their own work is not the destructive act an agent's
+// trash call is, so it carries no title confirmation; that guard exists to stop an agent moving a
+// design the user is looking at, not to make trash a one-way door.
+const WsCanvasRestoreRpc = Rpc.make(WS_METHODS.canvasRestore, {
+  payload: CanvasSubscribeInput,
+  success: CanvasRestoreSummary,
+  error: CanvasViewError,
+});
+
+// Emits only the sequence, so a live view re-renders when it chooses to rather than per edit.
+const WsCanvasSubscribeRpc = Rpc.make(WS_METHODS.canvasSubscribe, {
+  payload: CanvasSubscribeInput,
+  success: CanvasStreamItem,
+  error: Schema.Union([CanvasViewError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
+// Every design a project touches, so a client can open the one the agent just started working on
+// without having to name it first. Emits nothing until a design actually changes.
+const WsCanvasActivityRpc = Rpc.make(WS_METHODS.canvasActivity, {
+  payload: CanvasActivityInput,
+  success: CanvasActivityItem,
+  error: Schema.Union([CanvasViewError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
 const WsProviderUploadFeedbackRpc = Rpc.make(WS_METHODS.providerUploadFeedback, {
   payload: ProviderUploadFeedbackInput,
   success: ProviderUploadFeedbackResult,
@@ -1899,6 +1960,11 @@ export const WsRpcGroup = RpcGroup.make(
   WsMcpAppsToolInfoRpc,
   WsMcpAppsReadResourceRpc,
   WsMcpAppsUpdateModelContextRpc,
+  WsCanvasListRpc,
+  WsCanvasRenderRpc,
+  WsCanvasRestoreRpc,
+  WsCanvasSubscribeRpc,
+  WsCanvasActivityRpc,
   WsProviderUploadFeedbackRpc,
   WsSubscribeVcsStatusRpc,
   WsSubscribeWorktreeSetupRpc,

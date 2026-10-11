@@ -143,6 +143,15 @@ export async function reopenClosedView(
     case "pull-request":
       panels.openPullRequest(ref, surface);
       break;
+    case "canvas":
+      // A canvas surface is keyed by the design it shows rather than by its kind, so restoring it
+      // means reopening that design instead of re-adding a singleton tab.
+      panels.openCanvas(ref, {
+        documentId: surface.documentId,
+        projectId: surface.projectId,
+        ...(surface.title === undefined ? {} : { title: surface.title }),
+      });
+      break;
     default:
       panels.open(ref, surface.kind);
   }

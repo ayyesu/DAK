@@ -1,9 +1,15 @@
 import { scopeThreadRef } from "@dak/client-runtime/environment";
-import { type EnvironmentId, ThreadId } from "@dak/contracts";
+import {
+  type CanvasDocumentId,
+  type EnvironmentId,
+  type ProjectId,
+  ThreadId,
+} from "@dak/contracts";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { useClosedViewStore } from "./closedViewStore";
 import {
+  canvasSurfaceId,
   migratePersistedRightPanelState,
   pullRequestSurface,
   pullRequestSurfaceId,
@@ -207,6 +213,105 @@ describe("rightPanelStore", () => {
       ).toBe(true);
     },
   );
+
+  describe("canvas designs", () => {
+    const design = {
+      documentId: "doc-a" as CanvasDocumentId,
+      projectId: "project-a" as ProjectId,
+    };
+    const surfacesOf = () =>
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA).surfaces;
+
+    it("keys a design tab by its environment and document", () => {
+      useRightPanelStore.getState().openCanvas(refA, { ...design, title: "Landing page" });
+      expect(
+        canvasSurfaceId({ environmentId: refA.environmentId, documentId: design.documentId }),
+      ).toBe("canvas:env-1:doc-a");
+      expect(surfacesOf()).toMatchObject([
+        { id: "canvas:env-1:doc-a", kind: "canvas", title: "Landing page" },
+      ]);
+    });
+
+    it("reuses the tab and the name it already learned when a design is opened again", () => {
+      const store = useRightPanelStore.getState();
+      store.openCanvas(refA, { ...design, title: "Landing page" });
+      store.openCanvas(refA, { ...design, title: "Renamed elsewhere" });
+      // A second tab would have to be closed by hand, and relabelling a tab the user is
+      // looking at would change its name under them before its own render has landed.
+      expect(surfacesOf()).toHaveLength(1);
+      expect(surfacesOf()[0]).toMatchObject({ title: "Landing page" });
+    });
+
+    it("opens a design on the agent's behalf, and stops once the user picks a panel", () => {
+      const store = useRightPanelStore.getState();
+      const revision = store.getUserActionRevision(refA);
+      expect(store.openCanvasProactive(refA, { ...design, title: "Landing page" }, revision)).toBe(
+        true,
+      );
+      expect(surfacesOf()).toMatchObject([{ kind: "canvas", title: "Landing page" }]);
+
+      // A panel the user opened themselves is them saying what they want to look at, so the agent's
+      // next design must not pull the panel away from it.
+      store.open(refA, "diff");
+      expect(
+        store.openCanvasProactive(
+          refA,
+          { documentId: "doc-b" as CanvasDocumentId, projectId: "project-a" as ProjectId },
+          revision,
+        ),
+      ).toBe(false);
+      expect(
+        selectActiveRightPanelSurface(useRightPanelStore.getState().byThreadKey, refA),
+      ).toMatchObject({ kind: "diff" });
+      expect(surfacesOf()).toHaveLength(2);
+    });
+
+    it("opens again for a later turn once the user has moved on", () => {
+      const store = useRightPanelStore.getState();
+      store.open(refA, "diff");
+      // The revision is captured at the start of a turn, so a choice made before this one does not
+      // veto the design the agent starts now.
+      const revision = store.getUserActionRevision(refA);
+      expect(store.openCanvasProactive(refA, { ...design, title: "Landing page" }, revision)).toBe(
+        true,
+      );
+      expect(
+        selectActiveRightPanelSurface(useRightPanelStore.getState().byThreadKey, refA),
+      ).toMatchObject({ kind: "canvas" });
+    });
+
+    it("takes its name from the render once the design is on screen", () => {
+      const store = useRightPanelStore.getState();
+      store.openCanvas(refA, design);
+      store.nameCanvas(refA, "canvas:env-1:doc-a", "  Checkout redesign  ");
+      expect(surfacesOf()[0]).toMatchObject({ title: "Checkout redesign" });
+      // A blank name is not a rename: an unmounted or empty render must not erase what the tab says.
+      store.nameCanvas(refA, "canvas:env-1:doc-a", "   ");
+      expect(surfacesOf()[0]).toMatchObject({ title: "Checkout redesign" });
+    });
+
+    it("restores a design tab across reload and drops one that could not be rendered", () => {
+      useRightPanelStore.getState().openCanvas(refA, { ...design, title: "Landing page" });
+      const persisted = JSON.parse(
+        JSON.stringify({ byThreadKey: useRightPanelStore.getState().byThreadKey }),
+      );
+      useRightPanelStore.setState(migratePersistedRightPanelState(persisted));
+      expect(surfacesOf()).toMatchObject([{ kind: "canvas", title: "Landing page" }]);
+
+      const broken = JSON.parse(
+        JSON.stringify({ byThreadKey: useRightPanelStore.getState().byThreadKey }),
+      );
+      const threadKey = Object.keys(broken.byThreadKey)[0];
+      expect(threadKey).toBeDefined();
+      if (threadKey === undefined) return;
+      broken.byThreadKey[threadKey].surfaces = [
+        { id: "canvas:env-1:", kind: "canvas", documentId: "", projectId: "project-a" },
+      ];
+      useRightPanelStore.setState(migratePersistedRightPanelState(broken));
+      // A tab the view could never render is worse than one that was never restored.
+      expect(surfacesOf()).toEqual([]);
+    });
+  });
 
   const completedDiff = { id: "diff", kind: "diff" } as const;
   const linkedPullRequest = pullRequestSurface({

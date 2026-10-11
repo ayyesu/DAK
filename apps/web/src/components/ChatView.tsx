@@ -286,7 +286,9 @@ import { PullRequestsUnavailableState } from "./pullRequest/PullRequestsUnavaila
 import { RightPanelTabs } from "./RightPanelTabs";
 import { LinkPullRequestDialogHost } from "./pullRequest/LinkPullRequestDialog";
 import { ThreadPullRequestsPanel } from "./pullRequest/ThreadPullRequestsPanel";
+import { canvasEnvironment } from "~/state/canvas";
 import { useDeviceState } from "~/state/device";
+import { CanvasDesignPicker } from "./canvas/CanvasDesignPicker";
 import { DeviceSetup } from "./device/DeviceSetup";
 import { Dialog } from "./ui/dialog";
 import { WizardPopup } from "./ui/wizard";
@@ -702,6 +704,11 @@ const selectAutoShowFloatingPreview = (settings: { browserAutoShowFloatingPrevie
   settings.browserAutoShowFloatingPreview;
 const DevicePanel = lazy(() =>
   import("./device/DevicePanel").then((module) => ({ default: module.DevicePanel })),
+);
+// A design view holds rasterized frames and their own decode work, so it is only loaded once a
+// design is actually opened rather than with the chat shell.
+const CanvasPanel = lazy(() =>
+  import("./canvas/CanvasPanel").then((module) => ({ default: module.CanvasPanel })),
 );
 const FilePreviewPanel = lazy(() => import("./files/FilePreviewPanel"));
 const EMPTY_PENDING_FILE_SURFACE_IDS: ReadonlySet<string> = new Set();
@@ -1941,6 +1948,7 @@ export default function ChatView(props: ChatViewProps) {
   const [terminalFocusRequestId, setTerminalFocusRequestId] = useState(0);
   const [pullRequestDialogState, setPullRequestDialogState] =
     useState<PullRequestDialogState | null>(null);
+  const [designPickerOpen, setDesignPickerOpen] = useState(false);
   const [terminalUiLaunchContext, setTerminalUiLaunchContext] =
     useState<TerminalLaunchContext | null>(null);
   const [attachmentPreviewHandoffByMessageId, setAttachmentPreviewHandoffByMessageId] = useState<
@@ -5442,6 +5450,14 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadRef?.environmentId ?? null,
   );
   const [deviceSetupThread, setDeviceSetupThread] = useState<ScopedThreadRef | null>(null);
+  /**
+   * Opens the design picker rather than a design directly: a design has no path to click, so the
+   * user has to choose one by name, and the picker is the only place that lists them.
+   */
+  const addDesignSurface = useCallback(() => {
+    if (activeProject === null) return;
+    setDesignPickerOpen(true);
+  }, [activeProject]);
   const addDeviceSurface = useCallback(() => {
     if (!activeThreadRef) return;
     if (!deviceState.onboardingCompleted || deviceState.hostStatus === "disabled") {
@@ -5836,6 +5852,89 @@ export default function ChatView(props: ChatViewProps) {
     shouldUsePlanSidebarSheet,
     threadDetailLoading,
   ]);
+
+  /**
+   * The designs this project is being worked on, as they change.
+   *
+   * A design view has to be told which document to show, and asking the user to find it in the picker
+   * while the agent is drawing it is the wrong default. The activity stream names the design the
+   * moment it changes, and it is project-scoped, so work in another project cannot open a tab here.
+   */
+  const canvasActivityQuery = useEnvironmentQuery(
+    useMemo(() => {
+      if (activeProject === null || activeThreadRef === null) return null;
+      return canvasEnvironment.activity({
+        environmentId: activeThreadRef.environmentId,
+        input: { projectId: activeProject.id },
+      });
+    }, [activeProject?.id, activeThreadRef?.environmentId]),
+  );
+  /** The design this turn has already been offered, so one design is opened once. */
+  const proactiveCanvasRef = useRef<{
+    readonly threadKey: string;
+    readonly turnId: RunId | null;
+    readonly documentId: string;
+  } | null>(null);
+
+  /**
+   * Opens the design the agent just touched, on the agent's behalf.
+   *
+   * Three gates, each load-bearing. It only fires inside a running turn, so a scheduled task or
+   * another thread's work cannot pull the panel away from a reader. It respects the proactive-panels
+   * setting, the same control that governs a completed-turn diff. And it uses the revision captured
+   * when the turn started rather than reading it fresh: a user who closed the tab or switched to
+   * another surface keeps that choice for the rest of the turn instead of having the design reopen
+   * under them on the next edit.
+   */
+  useEffect(() => {
+    const activity = canvasActivityQuery.data;
+    const observation = proactivePanelObservationRef.current;
+    if (
+      activity === null ||
+      activity.trashed ||
+      activeThreadRef === null ||
+      activeProject === null ||
+      activeRunningTurnId === null ||
+      observation === null ||
+      observation.threadKey !== activeThreadKey ||
+      !clientSettingsHydrated ||
+      !settings.proactivePanelsEnabled ||
+      shouldUsePlanSidebarSheet
+    ) {
+      return;
+    }
+    const previous = proactiveCanvasRef.current;
+    if (
+      previous !== null &&
+      previous.threadKey === activeThreadKey &&
+      previous.turnId === activeRunningTurnId &&
+      previous.documentId === activity.documentId
+    ) {
+      return;
+    }
+    proactiveCanvasRef.current = {
+      threadKey: activeThreadKey,
+      turnId: activeRunningTurnId,
+      documentId: activity.documentId,
+    };
+    useRightPanelStore
+      .getState()
+      .openCanvasProactive(
+        activeThreadRef,
+        { documentId: activity.documentId, projectId: activeProject.id, title: activity.title },
+        observation.userActionRevision,
+      );
+  }, [
+    canvasActivityQuery.data,
+    activeThreadKey,
+    activeThreadRef,
+    activeProject,
+    activeRunningTurnId,
+    clientSettingsHydrated,
+    settings.proactivePanelsEnabled,
+    shouldUsePlanSidebarSheet,
+  ]);
+
   const closePreviewPanel = useCallback(() => {
     if (activeThreadRef) {
       // Closing the panel on a live browser or device floats it instead of dropping it.
@@ -10990,6 +11089,17 @@ export default function ChatView(props: ChatViewProps) {
           }}
         />
       </Suspense>
+    ) : renderedRightPanelSurface?.kind === "canvas" ? (
+      // Docked and full-width from one component, the way Preview does it: the two differ only in
+      // who owns the size, so there is nothing for a second implementation to get wrong.
+      <Suspense fallback={null}>
+        <CanvasPanel
+          mode="embedded"
+          threadRef={activeThreadRef}
+          surface={renderedRightPanelSurface}
+          visible={rightPanelOpen}
+        />
+      </Suspense>
     ) : (renderedRightPanelSurface?.kind === "files" ||
         renderedRightPanelSurface?.kind === "file") &&
       ((activeProject && activeWorkspaceRoot) ||
@@ -11868,6 +11978,7 @@ export default function ChatView(props: ChatViewProps) {
           onAddPullRequest={addPullRequestSurface}
           onAddPullRequests={addPullRequestsSurface}
           onAddDevice={addDeviceSurface}
+          onAddDesign={addDesignSurface}
           browserAvailable={canOperatePreview && browserAvailable}
           terminalAvailable={activeProject !== null && canOperateTerminal}
           diffAvailable={isServerThread && isGitRepo}
@@ -11875,6 +11986,7 @@ export default function ChatView(props: ChatViewProps) {
           pullRequestAvailable={pullRequestSurfaceAvailable}
           pullRequestsAvailable={pullRequestsSurfaceAvailable}
           deviceAvailable={activeThreadRef !== null}
+          designAvailable={activeProject !== null}
         >
           {rightPanelContent}
         </RightPanelTabs>
@@ -11926,6 +12038,7 @@ export default function ChatView(props: ChatViewProps) {
             onAddPullRequest={addPullRequestSurface}
             onAddPullRequests={addPullRequestsSurface}
             onAddDevice={addDeviceSurface}
+            onAddDesign={addDesignSurface}
             browserAvailable={canOperatePreview && browserAvailable}
             terminalAvailable={activeProject !== null && canOperateTerminal}
             diffAvailable={isServerThread && isGitRepo}
@@ -11933,6 +12046,7 @@ export default function ChatView(props: ChatViewProps) {
             pullRequestAvailable={pullRequestSurfaceAvailable}
             pullRequestsAvailable={pullRequestsSurfaceAvailable}
             deviceAvailable={activeThreadRef !== null}
+            designAvailable={activeProject !== null}
           >
             {rightPanelContent}
           </RightPanelTabs>
@@ -11978,6 +12092,15 @@ export default function ChatView(props: ChatViewProps) {
         </AlertDialogPopup>
       </AlertDialog>
       <LinkPullRequestDialogHost />
+      {activeThreadRef !== null && activeProject !== null ? (
+        <CanvasDesignPicker
+          open={designPickerOpen}
+          onOpenChange={setDesignPickerOpen}
+          threadRef={activeThreadRef}
+          projectId={activeProject.id}
+          projectName={activeProject.title}
+        />
+      ) : null}
       {expandedImage && (
         <ExpandedImageDialog
           key={expandedImageKey(expandedImage)}
