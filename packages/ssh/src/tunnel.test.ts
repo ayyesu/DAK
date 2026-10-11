@@ -105,7 +105,7 @@ describe("ssh tunnel scripts", () => {
     assert.include(script, "DAK_NODE_SCRIPT_PATH=''");
     assert.include(
       script,
-      "DAK_RELEASE_BASE_URL='https://github.com/ayyesu/DAK/releases/download'",
+      "DAK_RELEASE_BASE_URL='https://github.com/ayyesu/dak-releases/releases/download'",
     );
     assert.include(script, 'DAK_RUNTIME_DIR="$HOME/.dak/runtime/versions/$DAK_ARCHIVE_VERSION"');
     assert.include(script, 'DAK_ARCHIVE="dak-$DAK_ARCHIVE_VERSION-$DAK_PLATFORM-$DAK_ARCH.tar.gz"');
