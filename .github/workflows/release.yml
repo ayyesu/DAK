@@ -398,9 +398,12 @@ jobs:
       # {"__redacted__": "<value>"}; the token is masked before it is written.
       #
       # Skipped entirely when the Cloudflare account is not configured, so a
-      # first unsigned release does not require a deployed relay to exist.
+      # first unsigned release does not require a deployed relay to exist. The
+      # gate is the variable, not the token: `secrets` is not an available
+      # context in a step condition. Setting the variable without its token
+      # still fails here, which is the signal we want.
       - name: Read production relay tracing config
-        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' && secrets.CLOUDFLARE_API_TOKEN != '' }}
+        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
         shell: bash
         working-directory: infra/relay
         run: |
@@ -421,7 +424,7 @@ jobs:
           } > "$RUNNER_TEMP/relay-client-tracing.env"
 
       - name: Upload relay client tracing config
-        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' && secrets.CLOUDFLARE_API_TOKEN != '' }}
+        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: relay-client-tracing-config
