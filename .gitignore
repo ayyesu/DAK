@@ -52,3 +52,7 @@ node_modules/
 # CanvasKit's WASM, placed beside the vendored engine by
 # packages/canvas-engine/scripts/place-canvaskit.mjs. Generated, never vendored.
 packages/canvas-engine/upstream/src/canvaskit.wasm
+
+# Bytecode cache from design/logo/build-icons.py. Regenerated on every icon build, and useless
+# everywhere else; committing it makes a generated artefact show up in every diff that touches it.
+__pycache__/
