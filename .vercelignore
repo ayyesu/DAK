@@ -1,0 +1,35 @@
+# What Vercel uploads for the marketing deploy.
+#
+# The project's root is the repository, because `apps/marketing` depends on `@dak/shared` through a
+# `workspace:*` protocol and pnpm cannot resolve that from the subdirectory alone. That means the
+# whole monorepo is in scope, and the whole monorepo is ~37,000 files - more than the 15,000-item
+# upload limit - so the exclusions below are what makes the deploy possible at all.
+#
+# Each entry is something the marketing build provably does not read. Nothing here is excluded
+# because it is large; it is excluded because building one Astro site cannot need it.
+
+# Vendored upstream references, read-only and never imported. By far the largest thing here at
+# ~22,000 files, and nothing in the build path resolves into it.
+.repos
+
+# Runtime state and build output. Regenerated in the build; uploading it only ships stale bytes.
+node_modules
+**/node_modules
+apps/*/dist
+apps/server/dist
+apps/desktop/dist
+dist
+.vite-plus
+**/.vite-plus
+
+# Vercel's own build scratch, and the local auth link.
+.vercel
+.env.local
+
+# DAK's own database, logs and user data. Never part of a static site.
+.dak
+*.sqlite
+
+# The vendored CanvasKit snapshot. It is byte-pinned and re-fetched by scripts/canvas-vendor.ts,
+# and it is a large binary that has no business in a website deploy.
+packages/canvas-engine/upstream/src/canvaskit.wasm

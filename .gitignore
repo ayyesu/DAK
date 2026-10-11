@@ -56,3 +56,6 @@ packages/canvas-engine/upstream/src/canvaskit.wasm
 # Bytecode cache from design/logo/build-icons.py. Regenerated on every icon build, and useless
 # everywhere else; committing it makes a generated artefact show up in every diff that touches it.
 __pycache__/
+
+.vercel
+.env*
