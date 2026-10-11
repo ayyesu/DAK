@@ -1,4 +1,16 @@
-const REPO = "ayyesu/DAK";
+/**
+ * Where release artifacts live.
+ *
+ * NOT `ayyesu/DAK`: that repository is private, so this API answers 404 for every
+ * anonymous visitor and the download page silently fell back to its own GitHub
+ * link - which 404s too. The installers and the update-feed manifests are published
+ * to a public mirror that holds artifacts and no source, so the buttons resolve
+ * real asset URLs and a download starts on this site rather than on github.com.
+ *
+ * The source repository keeps its own releases for people with access; only the
+ * public read path used by the site lives here.
+ */
+const REPO = "ayyesu/dak-releases";
 
 export const RELEASES_URL = `https://github.com/${REPO}/releases`;
 export const NIGHTLY_RELEASES_URL = `${RELEASES_URL}?q=nightly&expanded=true`;

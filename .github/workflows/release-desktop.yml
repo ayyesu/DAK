@@ -91,6 +91,14 @@ on:
       relay_url:
         required: true
         type: string
+      # Whether a Linux CLI archive is being built in the same run for Windows to embed as its WSL
+      # runtime. False during a staged rollout that is building Windows alone: the wait below
+      # otherwise exits 1 after five minutes waiting for a job that was deliberately not scheduled.
+      # A Windows build made this way has no WSL backend, which is the one feature it loses.
+      linux_cli_archive:
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   # Windows builds read this run's artifact list to wait for the Linux CLI archive.
@@ -109,6 +117,12 @@ jobs:
       DAK_CLERK_JWT_TEMPLATE: ${{ inputs.clerk_jwt_template }}
       DAK_CLERK_CLI_OAUTH_CLIENT_ID: ${{ inputs.clerk_cli_oauth_client_id }}
       DAK_RELAY_URL: ${{ inputs.relay_url }}
+      # The source repository is private, so an installed app cannot read its
+      # releases and every update check 404s into "no update available". This
+      # bakes the public artifact mirror into app-update.yml instead, which is
+      # the only place electron-updater's feed URL is decided - it is fixed at
+      # build time and cannot be changed for an app already on someone's disk.
+      DAK_DESKTOP_UPDATE_REPOSITORY: ayyesu/dak-releases
     steps:
       # This repository is public, so Git needs no credentials. checkout's
       # credential cleanup runs submodule foreach even with submodules disabled,
@@ -316,7 +330,7 @@ jobs:
       # after all other setup. It stops early if the Linux job ended without
       # uploading the archive.
       - name: Wait for Linux CLI archive
-        if: inputs.platform == 'win'
+        if: inputs.platform == 'win' && inputs.linux_cli_archive
         shell: pwsh
         timeout-minutes: 40
         env:
@@ -364,7 +378,7 @@ jobs:
           }
 
       - name: Download Linux CLI archive for WSL
-        if: inputs.platform == 'win'
+        if: inputs.platform == 'win' && inputs.linux_cli_archive
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: cli-linux-${{ inputs.arch }}
@@ -374,6 +388,9 @@ jobs:
         shell: bash
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
+          # The `inputs` context is not available inside a run block, so the
+          # staged-rollout switch travels as an environment variable.
+          LINUX_CLI_ARCHIVE: ${{ inputs.linux_cli_archive }}
           DAK_DESKTOP_REUSE_RESOURCE_MONITOR: ${{ steps.resource_monitor_cache.outputs.cache-hit == 'true' }}
           DAK_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS: ${{ steps.capture_helper_cache.outputs.cache-hit == 'true' }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -434,8 +451,13 @@ jobs:
             fi
           elif [[ "${{ inputs.platform }}" == "win" ]]; then
             # Embed the Linux CLI archive built by the same-arch Linux job as
-            # the WSL runtime. Required for a working WSL backend on Windows.
-            args+=(--wsl-runtime "$GITHUB_WORKSPACE"/wsl-runtime/dak-*-linux-${{ inputs.arch }}.tar.gz)
+            # the WSL runtime. Required for a working WSL backend on Windows, and
+            # skipped during a staged rollout that is building Windows alone.
+            if [[ "$LINUX_CLI_ARCHIVE" == "true" ]]; then
+              args+=(--wsl-runtime "$GITHUB_WORKSPACE"/wsl-runtime/dak-*-linux-${{ inputs.arch }}.tar.gz)
+            else
+              echo "::warning::No Linux CLI archive in this run, so the WSL runtime is not embedded. The Windows build installs and runs; its WSL backend will not."
+            fi
             if has_all \
               "$AZURE_TENANT_ID" \
               "$AZURE_CLIENT_ID" \
