@@ -521,13 +521,17 @@ jobs:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
         run: vp install --filter=dak... --filter=@dak/web... --filter=@dak/desktop... --filter=@dak/scripts...
 
+      # Only exists when Cloudflare is configured; see the matching upload gate.
       - name: Download relay client tracing config
+        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
         uses: actions/download-artifact@v8
         with:
           name: relay-client-tracing-config
           path: ${{ runner.temp }}/relay-client-tracing
 
+      # Only exists when Cloudflare is configured; see the matching upload gate.
       - name: Load relay client tracing config
+        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
         shell: bash
         run: |
           config_path="$RUNNER_TEMP/relay-client-tracing/relay-client-tracing.env"
@@ -592,6 +596,7 @@ jobs:
       rust_target: aarch64-apple-darwin
       resource_key: darwin-arm64
       cli_archive: true
+      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
 
   desktop_mac_x64:
     name: Desktop macOS x64
@@ -618,6 +623,7 @@ jobs:
       # (the SEA docs list macOS as arm64 only) and the built binary segfaults
       # on start. The x64 desktop app is Electron and unaffected.
       cli_archive: false
+      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
 
   desktop_linux_x64:
     name: Desktop Linux x64
@@ -641,6 +647,7 @@ jobs:
       rust_target: x86_64-unknown-linux-gnu
       resource_key: linux-x64
       cli_archive: true
+      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
 
   # node-pty has no Linux prebuild and compiles from source, so the arm64 app
   # and archive are built on arm64 hardware rather than cross-built.
@@ -666,6 +673,7 @@ jobs:
       rust_target: aarch64-unknown-linux-gnu
       resource_key: linux-arm64
       cli_archive: true
+      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
 
   # The Windows jobs start with the other platforms. Their checkout, install,
   # and toolchain setup take longer than the same-arch Linux job needs to
@@ -692,6 +700,7 @@ jobs:
       rust_target: x86_64-pc-windows-msvc
       resource_key: win32-x64
       cli_archive: true
+      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
       # The WSL runtime comes from the same-arch Linux job. A staged `win`-only run has no such
       # job, so embed nothing and say so in the log rather than failing the build.
       linux_cli_archive: ${{ github.event_name != 'workflow_dispatch' || inputs.targets == 'all' || inputs.targets == 'linux' }}
@@ -718,6 +727,7 @@ jobs:
       rust_target: aarch64-pc-windows-msvc
       resource_key: win32-arm64
       cli_archive: true
+      relay_client_tracing: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
       # The WSL runtime comes from the same-arch Linux job. A staged `win`-only run has no such
       # job, so embed nothing and say so in the log rather than failing the build.
       linux_cli_archive: ${{ github.event_name != 'workflow_dispatch' || inputs.targets == 'all' || inputs.targets == 'linux' }}
@@ -1035,13 +1045,17 @@ jobs:
               - --filter=@dak/scripts...
               - --filter=@dak/web...
 
+      # Only exists when Cloudflare is configured; see the matching upload gate.
       - name: Download relay client tracing config
+        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
         uses: actions/download-artifact@v8
         with:
           name: relay-client-tracing-config
           path: ${{ runner.temp }}/relay-client-tracing
 
+      # Only exists when Cloudflare is configured; see the matching upload gate.
       - name: Load relay client tracing config
+        if: ${{ vars.CLOUDFLARE_ACCOUNT_ID != '' }}
         shell: bash
         run: |
           config_path="$RUNNER_TEMP/relay-client-tracing/relay-client-tracing.env"
