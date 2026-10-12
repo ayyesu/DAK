@@ -2582,10 +2582,13 @@ export const resolveGitHubPublishConfig = Effect.fn("resolveGitHubPublishConfig"
   const [owner, repo, ...rest] = rawRepo.split("/");
   if (!owner || !repo || rest.length > 0) return undefined;
 
+  // GitHub owner/repo names are case-insensitive, and every other identity in
+  // this codebase canonicalises to lowercase. The feed and release URLs built
+  // from this config must compare equal to those keys.
   return {
     provider: "github",
-    owner,
-    repo,
+    owner: owner.toLowerCase(),
+    repo: repo.toLowerCase(),
     releaseType: updateChannel === "nightly" ? "prerelease" : "release",
     ...(updateChannel === "nightly" ? { channel: "nightly" as const } : {}),
   };

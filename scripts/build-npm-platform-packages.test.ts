@@ -197,7 +197,7 @@ it.layer(NodeServices.layer)("build-npm-platform-packages", (it) => {
       assert.isTrue(lines.some((line) => line.endsWith(" package/node_modules/node-pty/")));
       assert.isTrue(lines.some((line) => line.endsWith(" package/package.json")));
       assert.isTrue(
-        lines.some((line) => /^-rwxr-xr-x .* package\/t3$/.test(line)),
+        lines.some((line) => /^-rwxr-xr-x .* package\/dak$/.test(line)),
         listing.stdout,
       );
 
