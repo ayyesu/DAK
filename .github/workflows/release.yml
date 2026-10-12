@@ -739,7 +739,9 @@ jobs:
           # holds binaries and feed manifests only.
           repository: ayyesu/dak-releases
           tag_name: ${{ needs.preflight.outputs.tag }}
-          target_commitish: ${{ needs.preflight.outputs.ref }}
+          # No target_commitish: the mirror holds artifacts only and has no
+          # source history, so a source SHA would fail tag creation. GitHub
+          # creates the tag at the mirror's default branch.
           name: ${{ needs.preflight.outputs.release_name }}
           generate_release_notes: ${{ needs.preflight.outputs.release_channel != 'preview' }}
           body_path: ${{ needs.preflight.outputs.release_channel == 'preview' && 'release-notes.md' || '' }}
@@ -756,7 +758,6 @@ jobs:
         with:
           repository: ayyesu/dak-releases
           tag_name: ${{ needs.preflight.outputs.tag }}
-          target_commitish: ${{ needs.preflight.outputs.ref }}
           name: ${{ needs.preflight.outputs.release_name }}
           generate_release_notes: ${{ needs.preflight.outputs.release_channel != 'preview' }}
           body_path: ${{ needs.preflight.outputs.release_channel == 'preview' && 'release-notes.md' || '' }}
