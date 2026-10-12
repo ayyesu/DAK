@@ -393,7 +393,8 @@ function resolveDakMcpToolName(value: string): string | null {
     return tool;
   }
 
-  const prefixed = /^(?:mcp[-_]{1,2})?(?:t3|dak)[-_ ]?code(?:__|[-_.:/ ])(?<tool>.+)$/i.exec(label);
+  const prefixed =
+    /^(?:mcp[-_]{1,2})?(?:t3|dak)[-_ ]?code(?:__|\s*·\s*|[-_.:/ ])(?<tool>.+)$/i.exec(label);
   const candidate = prefixed?.groups?.tool ?? label;
   if (Object.hasOwn(DAK_MCP_TOOLS, candidate)) return candidate;
   const compatCandidate = candidate.replace(/^dak_/, "dak_");

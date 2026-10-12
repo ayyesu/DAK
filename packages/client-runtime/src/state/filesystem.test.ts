@@ -130,7 +130,7 @@ describe("filesystem read access", () => {
 
 describe("filesystem browse model", () => {
   it("derives the browse target and navigation state", () => {
-    expect(getFilesystemBrowsePath("~/projects/t3")).toEqual({
+    expect(getFilesystemBrowsePath("~/projects/dak")).toEqual({
       isBrowsing: true,
       directoryPath: "~/projects/",
       filterQuery: "dak",
