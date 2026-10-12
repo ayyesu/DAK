@@ -1,7 +1,4 @@
-import type {
-  DesktopSshEnvironmentBootstrap,
-  DesktopSshEnvironmentTarget,
-} from "@dak/contracts";
+import type { DesktopSshEnvironmentBootstrap, DesktopSshEnvironmentTarget } from "@dak/contracts";
 import {
   describeReadinessCause,
   waitForHttpReady as waitForHttpReadyShared,
@@ -448,7 +445,7 @@ fi
 DAK_RELEASE_BASE_URL=@@DAK_RELEASE_BASE_URL@@
 DAK_RUNTIME_DIR="$HOME/.dak/runtime/versions/$DAK_ARCHIVE_VERSION"
 dak_runtime_ready() {
-  [ -x "$DAK_RUNTIME_DIR/t3" ] && [ "$(cat "$DAK_RUNTIME_DIR/.install-complete" 2>/dev/null)" = "$DAK_ARCHIVE_VERSION" ]
+  [ -x "$DAK_RUNTIME_DIR/dak" ] && [ "$(cat "$DAK_RUNTIME_DIR/.install-complete" 2>/dev/null)" = "$DAK_ARCHIVE_VERSION" ]
 }
 if ! dak_runtime_ready; then
   mkdir -p "$HOME/.dak/runtime/versions"
@@ -525,7 +522,7 @@ if ! dak_runtime_ready; then
   rm -f "$DAK_STAGING/$DAK_ARCHIVE" "$DAK_STAGING/SHA256SUMS"
   # Prove the binary runs here (libc, arch) before marking it ready, or every
   # later launch would exec a broken install instead of retrying.
-  if ! "$DAK_STAGING/t3" --version >/dev/null 2>&1; then
+  if ! "$DAK_STAGING/dak" --version >/dev/null 2>&1; then
     printf 'The dak %s executable does not run on this host.\\n' "$DAK_ARCHIVE_VERSION" >&2; exit 1
   fi
   printf '%s\\n' "$DAK_ARCHIVE_VERSION" > "$DAK_STAGING/.install-complete"
@@ -536,7 +533,7 @@ if [ -n "\${DAK_LOCK:-}" ]; then
   rm -rf "$DAK_LOCK"
   trap - EXIT
 fi
-exec "$DAK_RUNTIME_DIR/t3" "$@"
+exec "$DAK_RUNTIME_DIR/dak" "$@"
 `;
 
 const REMOTE_LAUNCH_SCRIPT = `set -eu

@@ -106,7 +106,7 @@ export function launcherOwnsVersionsDir(
 }
 
 /**
- * The launcher the install scripts leave behind: a symlink at `<bin>/t3` on
+ * The launcher the install scripts leave behind: a symlink at `<bin>/dak` on
  * POSIX, a `dak.cmd` shim on Windows. `dak update` repoints it so the next `dak`
  * invocation is the new version. Only a launcher that already points into
  * this home's `runtime/versions` tree is touched; a plain copy of the
@@ -140,7 +140,8 @@ export const repointLauncher = Effect.fn("cli.update.repoint_launcher")(function
       .writeFileString(shimPath, `@echo off\r\n"${input.targetEntryPath}" %*`)
       .pipe(
         Effect.mapError(
-          () => new CliUpdateError({ reason: `Could not rewrite the dak launcher at ${shimPath}.` }),
+          () =>
+            new CliUpdateError({ reason: `Could not rewrite the dak launcher at ${shimPath}.` }),
         ),
       );
     return Option.some(shimPath);
@@ -155,7 +156,9 @@ export const repointLauncher = Effect.fn("cli.update.repoint_launcher")(function
     Effect.andThen(fs.rename(tempLink, input.launchedAs)),
     Effect.mapError(
       () =>
-        new CliUpdateError({ reason: `Could not repoint the dak launcher at ${input.launchedAs}.` }),
+        new CliUpdateError({
+          reason: `Could not repoint the dak launcher at ${input.launchedAs}.`,
+        }),
     ),
   );
   return Option.some(input.launchedAs);
@@ -163,7 +166,7 @@ export const repointLauncher = Effect.fn("cli.update.repoint_launcher")(function
 
 /**
  * The path the executable was started through. Node keeps the shell's
- * spelling in argv0: a launcher symlink or `./t3` resolves against the
+ * spelling in argv0: a launcher symlink or `./dak` resolves against the
  * working directory, while a bare `dak` was found on PATH and has to be
  * looked up there again, or the launcher symlink is never seen.
  */

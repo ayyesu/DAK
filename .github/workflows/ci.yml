@@ -202,7 +202,9 @@ jobs:
   test_web:
     name: Test Web
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # The suite runs close to ten minutes on GitHub-hosted hardware, which is
+    # where the default cap sat; a slow runner must not read as a failure.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -233,7 +235,9 @@ jobs:
   test_server:
     name: Test Server ${{ matrix.shard }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # Two shards carry roughly three times the work six did, and `dak` runs its
+    # test files one at a time, so a shard needs about eighteen minutes.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

@@ -125,7 +125,7 @@ export const renderCliShim = (input: {
   ].join("\n");
 };
 
-/** Where the packaged app keeps its launcher: `<DAK home>/bin/t3`, `dak.cmd` on Windows. */
+/** Where the packaged app keeps its launcher: `<DAK home>/bin/dak`, `dak.cmd` on Windows. */
 export const launcherPath = (environment: DesktopEnvironment.DesktopEnvironment["Service"]) =>
   environment.path.join(
     environment.baseDir,

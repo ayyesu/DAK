@@ -110,7 +110,7 @@ describe("ssh tunnel scripts", () => {
     assert.include(script, 'DAK_RUNTIME_DIR="$HOME/.dak/runtime/versions/$DAK_ARCHIVE_VERSION"');
     assert.include(script, 'DAK_ARCHIVE="dak-$DAK_ARCHIVE_VERSION-$DAK_PLATFORM-$DAK_ARCH.tar.gz"');
     assert.include(script, "SHA256SUMS");
-    assert.include(script, 'exec "$DAK_RUNTIME_DIR/t3" "$@"');
+    assert.include(script, 'exec "$DAK_RUNTIME_DIR/dak" "$@"');
     assert.notInclude(script, "npx");
     assert.notInclude(script, "npm exec");
     assert.notInclude(script, "dak@latest");

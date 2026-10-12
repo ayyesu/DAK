@@ -235,13 +235,14 @@ const installFromArchive = Effect.fn("cloud.pinned_runtime.install_archive")(fun
     .writeFile(archivePath, archive)
     .pipe(
       Effect.mapError(
-        (cause) => new PinnedRuntimeInstallError({ step: "writing the dak release archive", cause }),
+        (cause) =>
+          new PinnedRuntimeInstallError({ step: "writing the dak release archive", cause }),
       ),
     );
   input.onProgress?.({ stage: "extract" });
   const extractStep = "extracting the dak release archive";
   // The archive wraps everything in one directory named after its stem;
-  // strip it so the executable lands at <versionDir>/t3.
+  // strip it so the executable lands at <versionDir>/dak.
   yield* input.runner
     .run({
       command: cliArchiveTarCommand(input.platform, process.env),

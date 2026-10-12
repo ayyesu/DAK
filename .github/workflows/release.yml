@@ -315,7 +315,9 @@ jobs:
     needs: [preflight]
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # `dak` runs its test files one at a time; three shards need more than the
+    # ten minutes upstream's eight-core runners got away with.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
