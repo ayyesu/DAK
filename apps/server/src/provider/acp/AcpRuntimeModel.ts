@@ -1081,8 +1081,15 @@ function acpMcpFallbackInput(value: string | undefined): Record<string, unknown>
  * its server as "dak", and matches are additionally gated on the known
  * DAK tool inventory, so the separator match can stay loose.
  */
+/**
+ * DAK's own MCP server identity, however an agent spells it. The legacy
+ * `t3code` forms stay because older agents and recorded transcripts still use
+ * them; anything else is a foreign origin or unclassified.
+ */
+const DAK_SERVER_ID_PATTERN = /^(?:t3[-_ ]?code|dak)$/i;
+
 const DAK_MCP_TITLE_CALL =
-  /^(?:mcp[-_]{1,2})?t3[-_ ]?code[-_.:/ ]{1,3}(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*)(?::.*)?$/i;
+  /^(?:mcp[-_]{1,2})?(?:t3[-_ ]?code|dak)[-_.:/ ]{1,3}(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*)(?::.*)?$/i;
 
 /**
  * Gemini CLI titles injected MCP calls "<tool> (<server> MCP Server)" and
@@ -1090,7 +1097,7 @@ const DAK_MCP_TITLE_CALL =
  * tool-first as "<tool>_dak".
  */
 const DAK_MCP_TITLE_SUFFIX_CALL =
-  /^(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*?)(?: \(t3[-_ ]?code MCP Server\)(?::|$)|[-_.]t3[-_ ]?code$)/i;
+  /^(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*?)(?: \((?:t3[-_ ]?code|dak) MCP Server\)(?::|$)|[-_.](?:t3[-_ ]?code|dak)$)/i;
 
 /**
  * glm-acp-agent and Kimi CLI register injected MCP tools under their bare
@@ -1138,7 +1145,7 @@ export function extractMcpToolCallIdentity(
   // its toolName identifies the call even under future prefix formats.
   const metaServerId = typeof meta?.serverId === "string" ? meta.serverId.trim() : "";
   const metaToolName = typeof meta?.toolName === "string" ? meta.toolName.trim() : "";
-  if (/^t3[-_ ]?code$/i.test(metaServerId) && metaToolName.length > 0) {
+  if (DAK_SERVER_ID_PATTERN.test(metaServerId) && metaToolName.length > 0) {
     for (const knownTool of DAK_MCP_TOOL_NAMES) {
       const boundary = metaToolName.length - knownTool.length - 1;
       if (
@@ -1154,8 +1161,8 @@ export function extractMcpToolCallIdentity(
   const gooseExtension =
     typeof gooseToolCall?.extensionName === "string" ? gooseToolCall.extensionName.trim() : "";
   const assertsForeignOrigin =
-    (metaServerId.length > 0 && !/^t3[-_ ]?code$/i.test(metaServerId)) ||
-    (gooseExtension.length > 0 && !/^t3[-_ ]?code$/i.test(gooseExtension));
+    (metaServerId.length > 0 && !DAK_SERVER_ID_PATTERN.test(metaServerId)) ||
+    (gooseExtension.length > 0 && !DAK_SERVER_ID_PATTERN.test(gooseExtension));
   // A foreign origin never brands as DAK. qwen's serverId marks a real MCP
   // server, but goose reports its built-in extensions (developer__shell,
   // edits) the same way as user MCP servers, so goose stays unclassified and
@@ -1177,7 +1184,7 @@ export function extractMcpToolCallIdentity(
   for (const candidate of candidates) {
     const trimmed = candidate.trim();
     const qualified = /^mcp__(.+?)__(.+)$/i.exec(trimmed);
-    if (qualified?.[1] && qualified[2] && !/^t3[-_ ]?code$/i.test(qualified[1]))
+    if (qualified?.[1] && qualified[2] && !DAK_SERVER_ID_PATTERN.test(qualified[1]))
       return { server: qualified[1], tool: qualified[2] };
     const match =
       DAK_MCP_TITLE_CALL.exec(trimmed) ??

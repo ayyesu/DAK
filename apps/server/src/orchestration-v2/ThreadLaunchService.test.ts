@@ -1121,7 +1121,7 @@ it.effect("names the worktree itself when the client provides no branch", () =>
       yield* waitUntil(() => Effect.sync(() => harness.createWorktree.mock.calls.length === 1));
       assert.match(
         harness.createWorktree.mock.calls[0]?.[0]?.newRefName ?? "",
-        /^t3\/[0-9a-f]{8}$/u,
+        /^dak\/[0-9a-f]{8}$/u,
       );
       yield* waitUntil(() =>
         threads
@@ -1187,7 +1187,7 @@ it.effect("renames a temporary dak/<hash> branch off the provisioning critical p
 it.effect("provisions under dak-<hash> when a plain dak branch blocks dak/*", () =>
   Effect.gen(function* () {
     const harness = makeHarness({
-      hasCommit: (input) => Effect.succeed(input.refName === "refs/heads/t3"),
+      hasCommit: (input) => Effect.succeed(input.refName === "refs/heads/dak"),
       createWorktree: (input) =>
         Effect.succeed({
           worktree: { path: "/repo-worktrees/temp", refName: input.newRefName, headSha: "abc" },

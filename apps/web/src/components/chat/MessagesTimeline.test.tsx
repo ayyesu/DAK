@@ -2360,7 +2360,7 @@ describe("MessagesTimeline", () => {
     );
 
     // The DAK wordmark replaces the generic tool icon for DAK MCP calls.
-    expect(markup).toContain('viewBox="15.5309 37 94.3941 56.96"');
+    expect(markup).toContain('viewBox="206 342 632 289"');
     expect(markup).toContain("Read a DAK thread");
     expect(markup).not.toContain("mcp__dak__dak_thread_read");
   });

@@ -943,7 +943,7 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
           { path: plain, git: null },
           {
             path: repo,
-            git: { remoteKey: "github.com/ayyesu/DAK", repository: "ayyesu/DAK" },
+            git: { remoteKey: "github.com/ayyesu/dak", repository: "ayyesu/DAK" },
           },
         ]);
       }),

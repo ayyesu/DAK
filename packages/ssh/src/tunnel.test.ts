@@ -741,8 +741,8 @@ describe("archive runner script", () => {
     const script = [
       "set -eu",
       `mkdir -p '${stage}' '${release}'`,
-      `printf '#!/bin/sh\\necho dak v${archiveVersion}\\n' > '${stage}/t3'`,
-      `chmod +x '${stage}/t3'`,
+      `printf '#!/bin/sh\\necho dak v${archiveVersion}\\n' > '${stage}/dak'`,
+      `chmod +x '${stage}/dak'`,
       `tar -czf '${release}/${stem}.tar.gz' -C '${root}/stage' '${stem}'`,
       `cd '${release}' && (sha256sum '${stem}.tar.gz' 2>/dev/null || shasum -a 256 '${stem}.tar.gz') > SHA256SUMS`,
     ].join("\n");
@@ -758,7 +758,7 @@ describe("archive runner script", () => {
         const fs = yield* FileSystem.FileSystem;
         const root = yield* fs.makeTempDirectoryScoped({ prefix: "dak-archive-runner-" });
         const releaseBaseUrl = yield* makeMirror(root);
-        const runner = `${root}/run-t3.sh`;
+        const runner = `${root}/run-dak.sh`;
         yield* fs.writeFileString(
           runner,
           SshTunnel.buildRemoteDakRunnerScript({ archiveVersion, releaseBaseUrl }),
