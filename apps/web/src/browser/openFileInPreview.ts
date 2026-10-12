@@ -7,10 +7,7 @@ import type {
   ScopedThreadRef,
 } from "@dak/contracts";
 import { mediaFileReference } from "@dak/client-runtime/media-reference";
-import {
-  type AtomCommandResult,
-  mapAtomCommandResult,
-} from "@dak/client-runtime/state/runtime";
+import { type AtomCommandResult, mapAtomCommandResult } from "@dak/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
 import * as Data from "effect/Data";
 import { AsyncResult } from "effect/reactivity";

@@ -1,8 +1,4 @@
-import {
-  AuthOrchestrationOperateScope,
-  type EnvironmentId,
-  type ThreadId,
-} from "@dak/contracts";
+import { AuthOrchestrationOperateScope, type EnvironmentId, type ThreadId } from "@dak/contracts";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,

@@ -1,8 +1,4 @@
-import {
-  AuthOrchestrationOperateScope,
-  type EnvironmentId,
-  type ThreadId,
-} from "@dak/contracts";
+import { AuthOrchestrationOperateScope, type EnvironmentId, type ThreadId } from "@dak/contracts";
 import { scopeThreadRef } from "@dak/client-runtime/environment";
 import type { EnvironmentProject } from "@dak/client-runtime/state/shell";
 import {

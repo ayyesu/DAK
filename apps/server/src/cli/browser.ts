@@ -138,7 +138,9 @@ const browserSetupCommand = Command.make("setup", { baseDir: baseDirFlag }).pipe
           );
         }
         if (missing.length > 0) {
-          yield* Console.log(`DAK's browser is missing ${missing.join(", ")}; setup installs them.`);
+          yield* Console.log(
+            `DAK's browser is missing ${missing.join(", ")}; setup installs them.`,
+          );
         }
         return yield* Console.log(`\nThis needs root. Run:\n\n  ${setupCommand}\n`);
       }

@@ -16,11 +16,7 @@ import {
   type PreviewStreamViewport,
   previewStreamHostSetupMessage,
 } from "@dak/client-runtime/preview/server-browser-stream";
-import type {
-  EnvironmentId,
-  PreviewStreamHostSetup,
-  PreviewViewportSetting,
-} from "@dak/contracts";
+import type { EnvironmentId, PreviewStreamHostSetup, PreviewViewportSetting } from "@dak/contracts";
 import {
   type FormEvent,
   type KeyboardEvent,

@@ -1,9 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import {
-  scopeProjectRef,
-  scopedThreadKey,
-  scopeThreadRef,
-} from "@dak/client-runtime/environment";
+import { scopeProjectRef, scopedThreadKey, scopeThreadRef } from "@dak/client-runtime/environment";
 import type { ScopedThreadRef } from "@dak/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef } from "react";

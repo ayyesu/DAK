@@ -1,7 +1,4 @@
-import {
-  createDeviceStreamClient,
-  type DeviceScreenSize,
-} from "@dak/client-runtime/device/stream";
+import { createDeviceStreamClient, type DeviceScreenSize } from "@dak/client-runtime/device/stream";
 
 import type { DeviceStreamConfiguration } from "./device-stream-document";
 

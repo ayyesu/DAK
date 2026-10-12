@@ -820,6 +820,10 @@ const registerCanvasScreenshot = Effect.fn("McpHttpServer.registerCanvasScreensh
   const threads = yield* ThreadManagementService.ThreadManagementService;
   const projects = yield* ProjectService.ProjectService;
   const bus = yield* CanvasChangeBus.CanvasChangeBus;
+  // The toolkit hashes image bytes when it stamps them, so Crypto has to be in the context the
+  // handler is invoked in. Provided here rather than at the call site so the tool carries its own
+  // requirement instead of every caller having to remember it.
+  const crypto = yield* Crypto.Crypto;
   const built = yield* CanvasScreenshotToolkit;
   yield* registerImageTool(
     CanvasScreenshotTool,
@@ -832,6 +836,7 @@ const registerCanvasScreenshot = Effect.fn("McpHttpServer.registerCanvasScreensh
         Effect.provideService(ThreadManagementService.ThreadManagementService, threads),
         Effect.provideService(ProjectService.ProjectService, projects),
         Effect.provideService(CanvasChangeBus.CanvasChangeBus, bus),
+        Effect.provideService(Crypto.Crypto, crypto),
       ),
     "screenshot",
     "Canvas screenshot failed.",

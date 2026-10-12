@@ -7,11 +7,7 @@ import {
   squashAtomCommandFailure,
 } from "@dak/client-runtime/state/runtime";
 import { canSnooze, effectiveSnoozed } from "@dak/client-runtime/state/thread-settled";
-import {
-  AuthOrchestrationOperateScope,
-  type ScopedThreadRef,
-  type ThreadId,
-} from "@dak/contracts";
+import { AuthOrchestrationOperateScope, type ScopedThreadRef, type ThreadId } from "@dak/contracts";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 

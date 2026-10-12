@@ -2,16 +2,10 @@ import { worktreeSetupAgentStarted } from "@dak/client-runtime/worktree-setup";
 export { worktreeSetupAgentStarted } from "@dak/client-runtime/worktree-setup";
 import { isLiveSubagentTurnItem } from "@dak/client-runtime/state/subagentRuntime";
 import * as Equal from "effect/Equal";
-import {
-  assistantCitationLabel,
-  collectAssistantCitations,
-} from "@dak/shared/assistantCitations";
+import { assistantCitationLabel, collectAssistantCitations } from "@dak/shared/assistantCitations";
 import { shallow } from "zustand/vanilla/shallow";
 import { renderCodexDirectivesForCopy } from "@dak/client-runtime/codex-markdown-directives";
-import {
-  commandDisplayText,
-  commandProgramName,
-} from "@dak/client-runtime/work-log/command-label";
+import { commandDisplayText, commandProgramName } from "@dak/client-runtime/work-log/command-label";
 import {
   liveActivityToolStatus,
   normalizeCompactToolLabel,

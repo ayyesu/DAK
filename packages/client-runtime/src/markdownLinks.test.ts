@@ -63,11 +63,7 @@ describe("inlineCodeFilePathCandidate", () => {
 describe("parseFileUrlHref", () => {
   it.each([
     ["file:///Users/julius/project/src/main.ts#L42", "/Users/julius/project/src/main.ts", "#L42"],
-    [
-      "file:///D:/Programme/dak/OpenInPicker.tsx#L69",
-      "D:/Programme/dak/OpenInPicker.tsx",
-      "#L69",
-    ],
+    ["file:///D:/Programme/dak/OpenInPicker.tsx#L69", "D:/Programme/dak/OpenInPicker.tsx", "#L69"],
     ["file://server/share/workspace-image.svg", "\\\\server\\share\\workspace-image.svg", ""],
     ["file://localhost/home/me/notes.md", "/home/me/notes.md", ""],
   ])("parses %s", (href, path, hash) => {

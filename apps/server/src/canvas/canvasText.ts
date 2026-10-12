@@ -130,7 +130,7 @@ export const textNodeIds = (document: unknown): ReadonlyArray<string> => {
 };
 
 /** The families a document asks for, which is not the same as the families that loaded. */
-export const requestedFamilies = (document: unknown): ReadonlyArray<string> => {
+const requestedFamilies = (document: unknown): ReadonlyArray<string> => {
   const families = new Set<string>();
   const visit = (node: NodeLike): void => {
     if (node.type === "text" && typeof node.fontFamily === "string" && node.fontFamily.length > 0) {
@@ -210,7 +210,7 @@ export const nearestFamily = (
  *
  * Throws on the first one that was not, so a caller never receives a measurement it should not trust.
  */
-export const assertFontsAvailable = (
+const assertFontsAvailable = (
   requested: ReadonlyArray<string>,
   loaded: ReadonlyArray<string>,
 ): void => {
@@ -259,7 +259,7 @@ export const DEFAULT_MISSING_FONT_POLICY: MissingFontPolicy = "throw";
  * family should look like the nearest thing DAK has, so the user recognises the intent even while
  * the wrong face is on screen.
  */
-export const fallbackFamilyFor = (family: string, available: ReadonlyArray<string>): string =>
+const fallbackFamilyFor = (family: string, available: ReadonlyArray<string>): string =>
   nearestFamily(family, available) ?? "Inter";
 
 /**
@@ -293,7 +293,7 @@ export const substituteMissingFonts = (
 };
 
 /** The families a document names that the engine never loaded. */
-export const unavailableFamilies = (
+const unavailableFamilies = (
   document: unknown,
   loaded: ReadonlyArray<string>,
 ): ReadonlyArray<string> =>
@@ -387,7 +387,7 @@ const findNode = (root: NodeLike, id: string): NodeLike | undefined => {
 };
 
 /** A node's box in its own coordinate space, when it has one. */
-export const nodeBox = (
+const nodeBox = (
   node: NodeLike,
   measured?: MeasuredText,
 ): { x: number; y: number; width: number; height: number } | undefined => {

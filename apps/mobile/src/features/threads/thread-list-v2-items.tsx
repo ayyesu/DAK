@@ -12,10 +12,7 @@ import { CustomSnoozeSheet } from "./CustomSnoozeSheet";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { threadArrangementOpenAtom } from "../../state/thread-order";
 import type { ThreadMoveDestination } from "./threadOrder";
-import type {
-  EnvironmentProject,
-  EnvironmentThreadShell,
-} from "@dak/client-runtime/state/shell";
+import type { EnvironmentProject, EnvironmentThreadShell } from "@dak/client-runtime/state/shell";
 import type { EnvironmentThreadSearchMatch } from "@dak/client-runtime/state/thread-search";
 import { AuthOrchestrationOperateScope, type EnvironmentMachineKind } from "@dak/contracts";
 import { canSnooze, resolveSnoozePresets } from "@dak/client-runtime/state/thread-settled";

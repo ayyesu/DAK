@@ -25,8 +25,8 @@ afterwards, that directory is not on your `PATH` yet; the installer prints the
 line to add. Set `DAK_CHANNEL=nightly` to install the nightly train, or
 `DAK_VERSION` to pin an exact version.
 
-| Task                                             | Command                                                   |
-| ------------------------------------------------ | --------------------------------------------------------- |
+| Task                                             | Command                                                    |
+| ------------------------------------------------ | ---------------------------------------------------------- |
 | Start the server and open the web app            | `dak`                                                      |
 | Start the server without a browser               | `dak serve`                                                |
 | Keep it running in the background (macOS, Linux) | `dak service install` ([details](./background-service.md)) |
@@ -64,13 +64,13 @@ update it with `git pull` and a rebuild.
 Download a release from [GitHub Releases](https://github.com/ayyesu/DAK/releases),
 or use a package manager:
 
-| Platform           | Install                            |
-| ------------------ | ---------------------------------- |
-| Windows            | `winget install DAK.DAK`    |
+| Platform           | Install                        |
+| ------------------ | ------------------------------ |
+| Windows            | `winget install DAK.DAK`       |
 | macOS              | `brew install --cask dak`      |
 | Debian, Ubuntu     | `sudo apt install ./DAK-*.deb` |
-| Arch Linux         | `yay -S dak-bin`                |
-| Arch Linux nightly | `yay -S dak-nightly-bin`        |
+| Arch Linux         | `yay -S dak-bin`               |
+| Arch Linux nightly | `yay -S dak-nightly-bin`       |
 
 The `.deb` updates itself like the other desktop builds. It asks for your
 password to install each update. If your desktop has no password prompt, the
@@ -141,7 +141,7 @@ computer.
 | Cursor      | Install [Cursor CLI](https://cursor.com/cli), then run `agent login`.                                                                                     |
 | Grok Build  | Install [Grok Build CLI](https://x.ai/cli), then run `grok login`.                                                                                        |
 | OpenCode    | Install [OpenCode](https://opencode.ai), then run `opencode auth login`.                                                                                  |
-| Antigravity | Install and sign in with Google from DAK's provider settings.                                                                                         |
+| Antigravity | Install and sign in with Google from DAK's provider settings.                                                                                             |
 | Pi          | Install [Pi](https://pi.dev), then run `pi` once to finish its login or API-key setup.                                                                    |
 | Muse Code   | Install [Muse Code](https://dev.meta.ai/docs/muse-code) on the server, run `muse login`, then enable it in Settings → Providers.                          |
 

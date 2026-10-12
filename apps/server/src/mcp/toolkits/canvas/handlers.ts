@@ -92,7 +92,7 @@ const countNodes = (nodes: ReadonlyArray<Record<string, unknown>>): number =>
  * everything the bound left out, so the agent can tell a shallow design from one this cut short
  * rather than assuming it saw the whole thing.
  */
-export const outlineOf = (
+const outlineOf = (
   summary: CanvasDocumentSummary,
   document: unknown,
 ): {

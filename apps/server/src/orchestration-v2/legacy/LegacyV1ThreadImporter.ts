@@ -1,7 +1,4 @@
-import {
-  threadPullRequestKeysEqual,
-  threadPullRequestsOf,
-} from "@dak/shared/threadPullRequests";
+import { threadPullRequestKeysEqual, threadPullRequestsOf } from "@dak/shared/threadPullRequests";
 import {
   ChatAttachment,
   OrchestrationMessageContext,

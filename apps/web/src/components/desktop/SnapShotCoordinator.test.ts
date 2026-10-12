@@ -1,10 +1,5 @@
 import { scopeProjectRef, scopeThreadRef } from "@dak/client-runtime/environment";
-import {
-  type DesktopPendingSnapShot,
-  EnvironmentId,
-  ProjectId,
-  ThreadId,
-} from "@dak/contracts";
+import { type DesktopPendingSnapShot, EnvironmentId, ProjectId, ThreadId } from "@dak/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { DraftId, useComposerDraftStore } from "../../composerDraftStore";

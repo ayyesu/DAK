@@ -5,7 +5,8 @@ import {
   CANVAS_RENDER_PAYLOAD_BUDGET_CHARS,
 } from "@dak/contracts";
 import * as Effect from "effect/Effect";
-import { describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { describe, expect } from "vite-plus/test";
 
 import { make as makeCanvasView, selectViewFrames } from "./CanvasViewService.ts";
 import type {
@@ -121,92 +122,113 @@ const payloadChars = (frames: ReadonlyArray<{ readonly data: string }>) =>
   frames.reduce((total, frame) => total + frame.data.length, 0);
 
 describe("canvas render budget", () => {
-  it("renders once at the requested edge when the payload fits", async () => {
-    const { view, edges } = harness({ charsPerFrameAtMaxEdge: 10_000 });
-    const rendered = await Effect.runPromise(view.render({ documentId: "doc-1", maxEdge: 1024 }));
+  it.effect("renders once at the requested edge when the payload fits", () =>
+    Effect.gen(function* () {
+      const { view, edges } = harness({ charsPerFrameAtMaxEdge: 10_000 });
+      const rendered = yield* view.render({ documentId: "doc-1", maxEdge: 1024 });
 
-    expect(edges).toEqual([1024]);
-    expect(rendered.frames.map((frame) => frame.nodeId)).toEqual(frameIds);
-    expect(rendered.maxEdge).toBe(1024);
-    expect(rendered.omittedFrames).toBe(0);
-  });
+      expect(edges).toEqual([1024]);
+      expect(rendered.frames.map((frame) => frame.nodeId)).toEqual(frameIds);
+      expect(rendered.maxEdge).toBe(1024);
+      expect(rendered.omittedFrames).toBe(0);
+    }),
+  );
 
-  it("re-renders once at a smaller edge when the payload does not fit", async () => {
-    const { view, edges } = harness({ charsPerFrameAtMaxEdge: 400_000 });
-    const rendered = await Effect.runPromise(view.render({ documentId: "doc-1" }));
+  it.effect("re-renders once at a smaller edge when the payload does not fit", () =>
+    Effect.gen(function* () {
+      const { view, edges } = harness({ charsPerFrameAtMaxEdge: 400_000 });
+      const rendered = yield* view.render({ documentId: "doc-1" });
 
-    expect(edges).toHaveLength(2);
-    expect(edges[1]!).toBeLessThan(edges[0]!);
-    expect(rendered.maxEdge).toBe(edges[1]!);
-    // The retry aims at the budget; assert real progress rather than exact rounding.
-    expect(payloadChars(rendered.frames)).toBeLessThanOrEqual(CANVAS_RENDER_PAYLOAD_BUDGET_CHARS);
-    expect(rendered.omittedFrames).toBe(0);
-  });
+      expect(edges).toHaveLength(2);
+      expect(edges[1]!).toBeLessThan(edges[0]!);
+      expect(rendered.maxEdge).toBe(edges[1]!);
+      // The retry aims at the budget; assert real progress rather than exact rounding.
+      expect(payloadChars(rendered.frames)).toBeLessThanOrEqual(CANVAS_RENDER_PAYLOAD_BUDGET_CHARS);
+      expect(rendered.omittedFrames).toBe(0);
+    }),
+  );
 
-  it("drops trailing frames rather than shrinking below readability when reducing cannot help", async () => {
-    const { view } = harness({ charsPerFrameAtMaxEdge: 2_000_000, scalesWithEdge: false });
-    const rendered = await Effect.runPromise(view.render({ documentId: "doc-1" }));
+  it.effect(
+    "drops trailing frames rather than shrinking below readability when reducing cannot help",
+    () =>
+      Effect.gen(function* () {
+        const { view } = harness({ charsPerFrameAtMaxEdge: 2_000_000, scalesWithEdge: false });
+        const rendered = yield* view.render({ documentId: "doc-1" });
 
-    // A design that cannot be made smaller is bounded by showing less of it, never silently.
-    expect(rendered.frames.map((frame) => frame.nodeId)).toEqual([frameIds[0]]);
-    expect(rendered.omittedFrames).toBe(frameIds.length - 1);
-    expect(rendered.maxEdge).toBeGreaterThanOrEqual(CANVAS_RENDER_MIN_EDGE);
-  });
+        // A design that cannot be made smaller is bounded by showing less of it, never silently.
+        expect(rendered.frames.map((frame) => frame.nodeId)).toEqual([frameIds[0]]);
+        expect(rendered.omittedFrames).toBe(frameIds.length - 1);
+        expect(rendered.maxEdge).toBeGreaterThanOrEqual(CANVAS_RENDER_MIN_EDGE);
+      }),
+  );
 
-  it("never asks for an edge a design could not be read at", async () => {
-    const { view, edges } = harness({ charsPerFrameAtMaxEdge: 400_000 });
-    await Effect.runPromise(view.render({ documentId: "doc-1" }));
-    expect(edges.every((edge) => edge >= CANVAS_RENDER_MIN_EDGE)).toBe(true);
-  });
+  it.effect("never asks for an edge a design could not be read at", () =>
+    Effect.gen(function* () {
+      const { view, edges } = harness({ charsPerFrameAtMaxEdge: 400_000 });
+      yield* view.render({ documentId: "doc-1" });
+      expect(edges.every((edge) => edge >= CANVAS_RENDER_MIN_EDGE)).toBe(true);
+    }),
+  );
 
-  it("counts the frames the frame limit left out alongside the ones the budget dropped", async () => {
-    const many = Array.from({ length: CANVAS_RENDER_FRAME_LIMIT + 6 }, (_entry, index) => ({
-      id: `slide-${index}`,
-      role: "slide",
-    }));
-    const { view } = harness({
-      charsPerFrameAtMaxEdge: 2_000_000,
-      scalesWithEdge: false,
-      frames: many,
-    });
-    const rendered = await Effect.runPromise(view.render({ documentId: "doc-1" }));
-    // 30 slides in the document, 24 renderable, and only the first survives a payload that cannot
-    // shrink at all. Everything left out is reported, from both bounds.
-    expect(rendered.omittedFrames).toBe(29);
-  });
+  it.effect(
+    "counts the frames the frame limit left out alongside the ones the budget dropped",
+    () =>
+      Effect.gen(function* () {
+        const many = Array.from({ length: CANVAS_RENDER_FRAME_LIMIT + 6 }, (_entry, index) => ({
+          id: `slide-${index}`,
+          role: "slide",
+        }));
+        const { view } = harness({
+          charsPerFrameAtMaxEdge: 2_000_000,
+          scalesWithEdge: false,
+          frames: many,
+        });
+        const rendered = yield* view.render({ documentId: "doc-1" });
+        // 30 slides in the document, 24 renderable, and only the first survives a payload that cannot
+        // shrink at all. Everything left out is reported, from both bounds.
+        expect(rendered.omittedFrames).toBe(29);
+      }),
+  );
 
-  it("does not rasterize a design that has no frames", async () => {
-    let renders = 0;
-    const { view } = harness({
-      charsPerFrameAtMaxEdge: 10_000,
-      frames: [],
-      onRender: () => {
-        renders += 1;
-      },
-    });
-    const rendered = await Effect.runPromise(view.render({ documentId: "doc-1", maxEdge: 512 }));
+  it.effect("does not rasterize a design that has no frames", () =>
+    Effect.gen(function* () {
+      let renders = 0;
+      const { view } = harness({
+        charsPerFrameAtMaxEdge: 10_000,
+        frames: [],
+        onRender: () => {
+          renders += 1;
+        },
+      });
+      const rendered = yield* view.render({ documentId: "doc-1", maxEdge: 512 });
 
-    expect(renders).toBe(0);
-    expect(rendered.frames).toEqual([]);
-    expect(rendered.omittedFrames).toBe(0);
-    expect(rendered.maxEdge).toBe(512);
-  });
+      expect(renders).toBe(0);
+      expect(rendered.frames).toEqual([]);
+      expect(rendered.omittedFrames).toBe(0);
+      expect(rendered.maxEdge).toBe(512);
+    }),
+  );
 
-  it("refuses to render a design that is in the trash", async () => {
-    const { view } = harness({ charsPerFrameAtMaxEdge: 10_000, file: { trashed: true } });
-    await expect(Effect.runPromise(view.render({ documentId: "doc-1" }))).rejects.toThrow(/trash/u);
-  });
+  it.effect("refuses to render a design that is in the trash", () =>
+    Effect.gen(function* () {
+      const { view } = harness({ charsPerFrameAtMaxEdge: 10_000, file: { trashed: true } });
+      const failure = yield* Effect.flip(view.render({ documentId: "doc-1" }));
+      expect(String(failure)).toMatch(/trash/u);
+    }),
+  );
 
-  it("reports the sequence and whether the projection can be trusted", async () => {
-    const { view } = harness({
-      charsPerFrameAtMaxEdge: 10_000,
-      file: { sequence: 9, projectionCurrent: false },
-    });
-    const rendered = await Effect.runPromise(view.render({ documentId: "doc-1" }));
-    expect(rendered.sequence).toBe(9);
-    expect(rendered.projectionCurrent).toBe(false);
-    expect(rendered.frames.every((frame) => frame.sequence === 9)).toBe(true);
-  });
+  it.effect("reports the sequence and whether the projection can be trusted", () =>
+    Effect.gen(function* () {
+      const { view } = harness({
+        charsPerFrameAtMaxEdge: 10_000,
+        file: { sequence: 9, projectionCurrent: false },
+      });
+      const rendered = yield* view.render({ documentId: "doc-1" });
+      expect(rendered.sequence).toBe(9);
+      expect(rendered.projectionCurrent).toBe(false);
+      expect(rendered.frames.every((frame) => frame.sequence === 9)).toBe(true);
+    }),
+  );
 });
 
 describe("canvas view frame selection", () => {

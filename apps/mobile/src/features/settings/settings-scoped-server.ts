@@ -7,10 +7,7 @@ import {
   type ServerSettings,
   type ServerSettingsPatch,
 } from "@dak/contracts";
-import {
-  clearProjectSettingsOverrides,
-  resolveProjectSettings,
-} from "@dak/shared/projectSettings";
+import { clearProjectSettingsOverrides, resolveProjectSettings } from "@dak/shared/projectSettings";
 
 import type { SettingsTarget } from "./settings-environment-filter";
 

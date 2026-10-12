@@ -1,8 +1,4 @@
-import {
-  WORKTREE_SETUP_ACTIVITY_KIND,
-  WorktreeSetupSnapshot,
-  type ThreadId,
-} from "@dak/contracts";
+import { WORKTREE_SETUP_ACTIVITY_KIND, WorktreeSetupSnapshot, type ThreadId } from "@dak/contracts";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 

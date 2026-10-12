@@ -56,12 +56,7 @@ releaseDate: '2026-03-07T10:36:07.540Z'
     assert.equal(merged.releaseDate, "2026-03-07T10:36:07.540Z");
     assert.deepStrictEqual(
       merged.files.map((file) => file.url),
-      [
-        "DAK-0.0.4-arm64.zip",
-        "DAK-0.0.4-arm64.dmg",
-        "DAK-0.0.4-x64.zip",
-        "DAK-0.0.4-x64.dmg",
-      ],
+      ["DAK-0.0.4-arm64.zip", "DAK-0.0.4-arm64.dmg", "DAK-0.0.4-x64.zip", "DAK-0.0.4-x64.dmg"],
     );
 
     const serialized = serializePlatformUpdateManifest("mac", merged);

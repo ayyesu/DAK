@@ -68,9 +68,7 @@ function readJsonRpcRequests(
 
 it.layer(layerGrokTextGenerationTest)("GrokTextGeneration", (it) => {
   it.effect("uses ACP with disabled tool capabilities and forwards the requested model id", () => {
-    const requestLogDir = NodeFS.mkdtempSync(
-      NodePath.join(NodeOS.tmpdir(), "dak-grok-text-log-"),
-    );
+    const requestLogDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "dak-grok-text-log-"));
     const requestLogPath = NodePath.join(requestLogDir, "requests.ndjson");
 
     return withFakeAcpGrok(

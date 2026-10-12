@@ -8,8 +8,8 @@ to keep a terminal open.
 Install the `dak` CLI first ([Install DAK](./install.md#command-line)), then
 run these commands on the machine that will host DAK:
 
-| Task                            | Command                |
-| ------------------------------- | ---------------------- |
+| Task                            | Command                 |
+| ------------------------------- | ----------------------- |
 | Install and start               | `dak service install`   |
 | Inspect status and log location | `dak service status`    |
 | Move to a newer release         | `dak update`            |
@@ -84,8 +84,8 @@ that session open.
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `linger-unavailable`                    | Run `loginctl show-user "$(id -un)" --property=Linger` and check that systemd-logind is available.                             |
 | `user-manager-unavailable`              | Run `systemctl --user status` in a login session for the service user; check your distribution's systemd user-session support. |
-| `service-disabled` or `service-stopped` | Read the log and `systemctl --user status dak.service`, then use the repair command printed by DAK.                     |
-| `restart-pending`                       | A newer version is installed but the service still runs the previous one. Run `dak service restart`.                            |
+| `service-disabled` or `service-stopped` | Read the log and `systemctl --user status dak.service`, then use the repair command printed by DAK.                            |
+| `restart-pending`                       | A newer version is installed but the service still runs the previous one. Run `dak service restart`.                           |
 
 On macOS, check **System Settings → General → Login Items** if the service no
 longer starts at login. If agent work cannot access Desktop, Documents, or

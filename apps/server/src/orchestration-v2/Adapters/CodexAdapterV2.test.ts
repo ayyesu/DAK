@@ -675,7 +675,7 @@ describe("CodexAdapterV2 process spawning", () => {
           config: {
             "tools.update_plan.enabled": true,
             mcp_servers: {
-              "dak": {
+              dak: {
                 url: "http://127.0.0.1:43123/mcp",
                 http_headers: {
                   Authorization: "Bearer secret-codex-token",
@@ -2689,10 +2689,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           modelSelection: CODEX_TEST_MODEL_SELECTION,
           hasDakMcp: true,
         });
-        assert.include(
-          params.additionalContext?.dak_orchestration?.value ?? "",
-          "delegate_task",
-        );
+        assert.include(params.additionalContext?.dak_orchestration?.value ?? "", "delegate_task");
         const entries = codexReplayPreamble({ nativeThreadId, nativeTurnId, prompt: "work" });
         const transcript = makeCodexReplayTranscript({
           scenario: "restore-context",

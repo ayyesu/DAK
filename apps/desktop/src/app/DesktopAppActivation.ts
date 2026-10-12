@@ -170,9 +170,7 @@ export async function startDesktopAppControlServer(input: {
       }
       activeRequestId = parsed.requestId;
       void input.handle(parsed).then(finish, () => {
-        finish(
-          invalidResponse(parsed.requestId, "DAK could not process the desktop app request."),
-        );
+        finish(invalidResponse(parsed.requestId, "DAK could not process the desktop app request."));
       });
     });
     socket.on("error", () => socket.destroy());

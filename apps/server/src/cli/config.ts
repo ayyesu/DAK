@@ -1,9 +1,5 @@
 import * as NetService from "@dak/shared/Net";
-import {
-  OtlpHeadersFromString,
-  OtlpProtocol,
-  type SignalExport,
-} from "@dak/shared/observability";
+import { OtlpHeadersFromString, OtlpProtocol, type SignalExport } from "@dak/shared/observability";
 import * as OtelEnvironment from "@dak/shared/otelEnvironment";
 import { parsePersistedServerObservabilitySettings } from "@dak/shared/serverSettings";
 import { DesktopBackendBootstrap, PortSchema } from "@dak/contracts";
@@ -89,9 +85,7 @@ export const traceFileConfig = Config.String("DAK_TRACE_FILE").pipe(
   Config.option,
   Config.map(Option.getOrUndefined),
 );
-export const traceMaxFilesConfig = Config.Int("DAK_TRACE_MAX_FILES").pipe(
-  Config.withDefault(10),
-);
+export const traceMaxFilesConfig = Config.Int("DAK_TRACE_MAX_FILES").pipe(Config.withDefault(10));
 
 const EnvServerConfig = Config.all({
   logLevel: Config.LogLevel("DAK_LOG_LEVEL").pipe(Config.withDefault("Info")),
@@ -113,9 +107,7 @@ const EnvServerConfig = Config.all({
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  otlpExportIntervalMs: Config.Int("DAK_OTLP_EXPORT_INTERVAL_MS").pipe(
-    Config.withDefault(10_000),
-  ),
+  otlpExportIntervalMs: Config.Int("DAK_OTLP_EXPORT_INTERVAL_MS").pipe(Config.withDefault(10_000)),
   otlpHeaders: Config.schema(OtlpHeadersFromString, "DAK_OTLP_HEADERS").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),

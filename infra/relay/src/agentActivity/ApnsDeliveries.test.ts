@@ -517,9 +517,7 @@ describe("ApnsDeliveries", () => {
       expect(result.ok).toBe(true);
       expect(requests).toHaveLength(1);
       expect(requests[0]?.url).toBe("https://api.sandbox.push.apple.com/3/device/activity-token");
-      expect(requests[0]?.headers["apns-topic"]).toBe(
-        "com.dak.dak.preview.push-type.liveactivity",
-      );
+      expect(requests[0]?.headers["apns-topic"]).toBe("com.dak.dak.preview.push-type.liveactivity");
     }).pipe(
       Effect.provide(
         layerFor({
@@ -2072,8 +2070,7 @@ describe("signed APNs registration metadata", () => {
               ...target,
               push_token: "unchanged-token",
               activity_push_token: "unchanged-token",
-              bundle_id:
-                changed === "bundle" ? "com.dak.dak.preview" : "com.dak.dak.dev",
+              bundle_id: changed === "bundle" ? "com.dak.dak.preview" : "com.dak.dak.dev",
               aps_environment: changed === "environment" ? "production" : "sandbox",
             },
           ],

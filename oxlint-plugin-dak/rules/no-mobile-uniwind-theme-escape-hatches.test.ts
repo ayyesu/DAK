@@ -5,13 +5,10 @@ import { createOxlintRuleHarness } from "../test/utils.ts";
 const guardedMobileFile = createOxlintRuleHarness("dak/no-mobile-uniwind-theme-escape-hatches", {
   filename: "apps/mobile/src/features/settings/NewThemeSurface.tsx",
 });
-const reviewedInteropFile = createOxlintRuleHarness(
-  "dak/no-mobile-uniwind-theme-escape-hatches",
-  {
-    filename: "apps/mobile/src/features/home/HomeHeader.tsx",
-    ruleOptions: [{ allowUniwindTheme: true }],
-  },
-);
+const reviewedInteropFile = createOxlintRuleHarness("dak/no-mobile-uniwind-theme-escape-hatches", {
+  filename: "apps/mobile/src/features/home/HomeHeader.tsx",
+  ruleOptions: [{ allowUniwindTheme: true }],
+});
 
 describe("dak/no-mobile-uniwind-theme-escape-hatches", () => {
   guardedMobileFile.valid(

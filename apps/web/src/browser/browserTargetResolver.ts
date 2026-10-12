@@ -1,8 +1,4 @@
-import type {
-  BrowserNavigationTarget,
-  EnvironmentId,
-  PreviewUrlResolution,
-} from "@dak/contracts";
+import type { BrowserNavigationTarget, EnvironmentId, PreviewUrlResolution } from "@dak/contracts";
 import { isLoopbackHost, normalizePreviewUrl } from "@dak/shared/preview";
 import { isLocalLoopbackHost, isPrivateNetworkHost } from "@dak/shared/hostClassification";
 

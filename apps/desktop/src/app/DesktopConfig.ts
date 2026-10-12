@@ -48,9 +48,7 @@ export const DesktopConfig = Config.all({
   otlpTracesUrl: trimmedString("DAK_OTLP_TRACES_URL"),
   otlpMetricsUrl: trimmedString("DAK_OTLP_METRICS_URL"),
   otlpLogsUrl: trimmedString("DAK_OTLP_LOGS_URL"),
-  otlpExportIntervalMs: Config.Int("DAK_OTLP_EXPORT_INTERVAL_MS").pipe(
-    Config.withDefault(10_000),
-  ),
+  otlpExportIntervalMs: Config.Int("DAK_OTLP_EXPORT_INTERVAL_MS").pipe(Config.withDefault(10_000)),
   otlpHeaders: Config.schema(OtlpHeadersFromString, "DAK_OTLP_HEADERS").pipe(Config.option),
   otlpProtocol: Config.schema(OtlpProtocol, "DAK_OTLP_PROTOCOL").pipe(
     Config.withDefault("http/json"),

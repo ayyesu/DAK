@@ -2,8 +2,6 @@
 export const base64ToBytes = (value: string): Uint8Array =>
   new Uint8Array(Buffer.from(value, "base64"));
 
-export const bytesToBase64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString("base64");
-
 /**
  * The first bytes of a PNG, so a caller can tell a real image from a text payload that claimed to
  * be one without decoding the whole thing.

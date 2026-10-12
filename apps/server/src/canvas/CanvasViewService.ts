@@ -276,5 +276,3 @@ export const make = (deps: CanvasViewServiceDeps): CanvasViewService["Service"] 
 
   return { render, currentSequence };
 };
-
-export const layer = (deps: CanvasViewServiceDeps) => Layer.succeed(CanvasViewService, make(deps));

@@ -7,10 +7,7 @@ import {
 } from "@dak/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import {
-  ConnectionBlockedError,
-  ConnectionTransientError,
-} from "@dak/client-runtime/connection";
+import { ConnectionBlockedError, ConnectionTransientError } from "@dak/client-runtime/connection";
 
 import {
   canRetainCachedPlatformRegistrationAfterRefreshFailure,

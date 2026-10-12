@@ -88,7 +88,9 @@ function layer(input: {
     Layer.provide(
       ServerConfig.layerTest(
         process.cwd(),
-        input.fileSystem ? "/tmp/dak-source-control-repos" : { prefix: "dak-source-control-repos-" },
+        input.fileSystem
+          ? "/tmp/dak-source-control-repos"
+          : { prefix: "dak-source-control-repos-" },
       ),
     ),
   );

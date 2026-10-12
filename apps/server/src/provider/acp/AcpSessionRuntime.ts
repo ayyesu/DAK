@@ -2005,7 +2005,8 @@ export const make = (
           meta !== null &&
           typeof meta === "object" &&
           !Array.isArray(meta) &&
-          (meta as { readonly dakSessionLoadReady?: unknown }).dakSessionLoadReady === "replay_idle";
+          (meta as { readonly dakSessionLoadReady?: unknown }).dakSessionLoadReady ===
+            "replay_idle";
         const extractedModelConfigId = extractModelConfigId(sessionSetupResult);
         const nextModelConfigId =
           extractedModelConfigId ?? (syntheticReplayIdle ? current.modelConfigId : undefined);

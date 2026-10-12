@@ -72,14 +72,7 @@ export const DEFAULT_DAK_HOME = Effect.map(Effect.service(Path.Path), (path) =>
 );
 
 const MODE_ARGS = {
-  dev: [
-    "run",
-    "--filter=@dak/contracts",
-    "--filter=@dak/web",
-    "--filter=dak",
-    "--parallel",
-    "dev",
-  ],
+  dev: ["run", "--filter=@dak/contracts", "--filter=@dak/web", "--filter=dak", "--parallel", "dev"],
   "dev:server": ["run", "--filter=dak", "dev"],
   "dev:web": ["run", "--filter=@dak/web", "dev"],
   "dev:desktop": ["run", "--filter=@dak/desktop", "--filter=@dak/web", "dev"],
@@ -766,10 +759,7 @@ export function runDevRunnerWithInput(input: DevRunnerCliInput) {
           // The app is reached from the tailnet origin. Vite already allows
           // *.ts.net hosts; the backend needs the origin for credentialed
           // requests that bypass the proxy (desktop renderer, direct calls).
-          env.DAK_DEV_ALLOWED_ORIGINS = [
-            env.DAK_DEV_ALLOWED_ORIGINS,
-            new URL(shared.url).origin,
-          ]
+          env.DAK_DEV_ALLOWED_ORIGINS = [env.DAK_DEV_ALLOWED_ORIGINS, new URL(shared.url).origin]
             .filter((entry) => entry && entry.length > 0)
             .join(",");
           // The server builds its pairing URL from this, so the URL printed at

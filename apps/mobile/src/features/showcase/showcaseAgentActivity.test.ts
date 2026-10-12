@@ -1,7 +1,4 @@
-import type {
-  EnvironmentProject,
-  EnvironmentThreadShell,
-} from "@dak/client-runtime/state/shell";
+import type { EnvironmentProject, EnvironmentThreadShell } from "@dak/client-runtime/state/shell";
 import { EnvironmentId, ProjectId, ThreadId } from "@dak/contracts";
 import { assert, it } from "@effect/vitest";
 
@@ -82,10 +79,7 @@ it("encodes the Android Live Update and its alert like a relay push", () => {
   assert.strictEqual(data.active, "true");
   assert.strictEqual(data.activity_chip, "Review");
   assert.strictEqual(data.activity_title, "3 active agents · 2 need attention");
-  assert.strictEqual(
-    data.activity_line_0,
-    "Approval\tPut the command center in your pocket\tDAK",
-  );
+  assert.strictEqual(data.activity_line_0, "Approval\tPut the command center in your pocket\tDAK");
   assert.strictEqual(data.activity_line_3, "Done\tMake remote coding feel local\tDAK");
   assert.strictEqual(data.alert_title, "Put the command center in your pocket");
   assert.strictEqual(data.alert_body, "Approval: DAK");

@@ -348,7 +348,12 @@ function parseRemoteFetchUrls(stdout: string): Map<string, string> {
   for (const line of stdout.split("\n")) {
     const trimmed = line.trim();
     if (trimmed.length === 0) continue;
-    const match = /^(\S+)\s+(\S+)\s+\((fetch|push)\)$/.exec(trimmed);
+    // git prints "<name> <url> (fetch)". The URL is the last whitespace-delimited
+    // run before the direction marker, so it may itself contain spaces: a Windows
+    // repository under "C:\Users\First Last\..." is emitted unquoted, and matching
+    // the URL with \S+ silently dropped that remote, which made ensureRemote add a
+    // duplicate under its preferred name instead of reusing the existing one.
+    const match = /^(\S+)\s+(.+?)\s+\((fetch|push)\)$/.exec(trimmed);
     if (!match) continue;
     const [, remoteName = "", remoteUrl = "", direction = ""] = match;
     if (direction !== "fetch" || remoteName.length === 0 || remoteUrl.length === 0) {
@@ -484,7 +489,7 @@ function classifyGitFailure(stderr: string): GitCommandFailureReason | null {
       (line) =>
         GIT_DIAGNOSTIC_LINE_PATTERN.test(line) ||
         // A remote hook can echo ssh's wording; only the local ssh's line counts.
-        (!/^remote:/.test(line) && SSH_TRANSPORT_REFUSAL_PATTERN.test(line)),
+        (!line.startsWith("remote:") && SSH_TRANSPORT_REFUSAL_PATTERN.test(line)),
     )
     .join("\n");
   if (diagnostics.length === 0) return null;
@@ -3469,9 +3474,12 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
                 Effect.flatMap((contents) => {
                   const file = parseDakProjectFile(contents);
                   return file === null
-                    ? Effect.logWarning("dak.json is invalid; initializing submodules recursively", {
-                        worktreePath,
-                      }).pipe(Effect.as(null))
+                    ? Effect.logWarning(
+                        "dak.json is invalid; initializing submodules recursively",
+                        {
+                          worktreePath,
+                        },
+                      ).pipe(Effect.as(null))
                     : Effect.succeed(file);
                 }),
                 Effect.orElseSucceed(() => null),

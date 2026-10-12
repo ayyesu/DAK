@@ -1,7 +1,4 @@
-import {
-  BearerConnectionTarget,
-  PrimaryConnectionTarget,
-} from "@dak/client-runtime/connection";
+import { BearerConnectionTarget, PrimaryConnectionTarget } from "@dak/client-runtime/connection";
 import type { EnvironmentCatalogState } from "@dak/client-runtime/state/connections";
 import type { EnvironmentShellState } from "@dak/client-runtime/state/shell";
 import { EnvironmentId } from "@dak/contracts";

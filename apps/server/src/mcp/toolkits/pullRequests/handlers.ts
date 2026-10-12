@@ -1,7 +1,4 @@
-import {
-  threadPullRequestsOf,
-  threadPullRequestKeysEqual,
-} from "@dak/shared/threadPullRequests";
+import { threadPullRequestsOf, threadPullRequestKeysEqual } from "@dak/shared/threadPullRequests";
 import {
   CommandId,
   pullRequestHostOf,

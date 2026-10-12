@@ -11,8 +11,7 @@ const load = (env: Record<string, string>) =>
 
 const SPEC_OFF =
   "OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it; set DAK_OTEL_SDK_DISABLED=false to export anyway";
-const DAK_OFF =
-  "DAK_OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it";
+const DAK_OFF = "DAK_OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it";
 const specIgnored = (value: string) =>
   `OTEL_SDK_DISABLED=${value} was read as false; the OpenTelemetry specification recognizes only the string true, so use OTEL_SDK_DISABLED=true or DAK_OTEL_SDK_DISABLED to say it any other way`;
 

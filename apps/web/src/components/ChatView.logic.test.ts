@@ -4,11 +4,7 @@ import {
   rememberCheckoutIsRepo,
   threadShellHasStarted,
 } from "./ChatView.logic";
-import {
-  ANTIGRAVITY_DEFAULT_MODEL,
-  ProviderDriverKind,
-  type ServerProvider,
-} from "@dak/contracts";
+import { ANTIGRAVITY_DEFAULT_MODEL, ProviderDriverKind, type ServerProvider } from "@dak/contracts";
 import { deriveProviderInstanceEntries, NO_PROVIDER_MODEL_SELECTION } from "../providerInstances";
 import type { RightPanelSurface } from "../rightPanelStore";
 import {
@@ -1928,7 +1924,7 @@ it("follows a changed server PR link without replacing an unrelated open panel",
     id: "pull-request:previous",
     kind: "pull-request",
     projectId: previous.projectId,
-    repository: "PingDotGG/DAK",
+    repository: "ayyesu/DAK",
     number: previous.number,
   } satisfies RightPanelSurface;
 

@@ -292,5 +292,7 @@ it("tells the agent how far the install has come", () => {
       totalBytes: 120_477_194,
       unpacking: false,
     }).message,
-  ).toBe("DAK is installing its headless browser (37 of 120 MB downloaded). Try again in a minute.");
+  ).toBe(
+    "DAK is installing its headless browser (37 of 120 MB downloaded). Try again in a minute.",
+  );
 });

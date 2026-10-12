@@ -8,10 +8,7 @@
  * @module provider/claudeResetCredits
  */
 import * as NodeOS from "node:os";
-import type {
-  ProviderConsumeResetCreditOutcome,
-  ServerProviderResetCredits,
-} from "@dak/contracts";
+import type { ProviderConsumeResetCreditOutcome, ServerProviderResetCredits } from "@dak/contracts";
 import { HostProcessPlatform } from "@dak/shared/hostProcess";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";

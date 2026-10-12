@@ -1,8 +1,4 @@
-import {
-  scopeProjectRef,
-  scopedThreadKey,
-  scopeThreadRef,
-} from "@dak/client-runtime/environment";
+import { scopeProjectRef, scopedThreadKey, scopeThreadRef } from "@dak/client-runtime/environment";
 import { useSupportsMultiplePullRequests } from "~/hooks/useSupportsMultiplePullRequests";
 
 import { pullRequestDetailToVcsStatus } from "@dak/client-runtime/state/pull-requests";

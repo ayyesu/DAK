@@ -14,8 +14,9 @@ interface DakMarkdownTextSelectionNativeModule {
   } | null;
 }
 
-const nativeModule =
-  requireOptionalNativeModule<DakMarkdownTextSelectionNativeModule>("DakMarkdownTextSelection");
+const nativeModule = requireOptionalNativeModule<DakMarkdownTextSelectionNativeModule>(
+  "DakMarkdownTextSelection",
+);
 
 export function installMarkdownCopySanitizer(reactTag: number, contextClipboardConfig = ""): void {
   nativeModule?.installCopySanitizer(reactTag, contextClipboardConfig);

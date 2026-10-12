@@ -10,10 +10,7 @@ import {
   createAtomCommandScheduler,
   createRuntimeCommand,
 } from "@dak/client-runtime/state/runtime";
-import type {
-  RelayClientDeviceRecord,
-  RelayClientEnvironmentRecord,
-} from "@dak/contracts/relay";
+import type { RelayClientDeviceRecord, RelayClientEnvironmentRecord } from "@dak/contracts/relay";
 import type { EnvironmentId } from "@dak/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";

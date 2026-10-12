@@ -9,10 +9,7 @@ import { matchComposerThreadItems } from "@dak/client-runtime/composerThreadItem
 import type { EnvironmentThreadShell } from "@dak/client-runtime/state/models";
 
 const EMPTY_THREAD_SHELLS: ReadonlyArray<EnvironmentThreadShell> = [];
-import {
-  COMPOSER_CONTEXT_MAX_RECORDS,
-  PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS,
-} from "@dak/contracts";
+import { COMPOSER_CONTEXT_MAX_RECORDS, PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS } from "@dak/contracts";
 import { Alert } from "react-native";
 import { formatComposerContextReference } from "@dak/shared/composerContextReferences";
 import { pullRequestComposerContext, threadComposerContext } from "../../lib/composerContext";

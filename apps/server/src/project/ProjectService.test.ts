@@ -575,10 +575,7 @@ it.effect(
           (project) => project.repositoryIdentity !== null && project.faviconPath !== null,
         );
         assert.isDefined(firstProject);
-        assert.equal(
-          firstProject.repositoryIdentity?.canonicalKey,
-          "github.com/dak/slow-project",
-        );
+        assert.equal(firstProject.repositoryIdentity?.canonicalKey, "github.com/dak/slow-project");
         assert.equal(firstProject.faviconPath, "/work/slow-enrichment/favicon.svg");
 
         const byId = Option.getOrThrow(yield* service.getById(projectId));

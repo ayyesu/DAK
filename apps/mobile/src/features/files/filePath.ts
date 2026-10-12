@@ -1,7 +1,4 @@
-import {
-  isWorkspaceAudioPreviewPath,
-  isWorkspaceVideoPreviewPath,
-} from "@dak/shared/filePreview";
+import { isWorkspaceAudioPreviewPath, isWorkspaceVideoPreviewPath } from "@dak/shared/filePreview";
 
 export interface FileBreadcrumb {
   readonly label: string;

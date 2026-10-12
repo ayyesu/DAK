@@ -1017,12 +1017,12 @@ it.effect.each(["win32", "darwin", "linux"] as const)(
         const saved = yield* decodePendingMetadata(metadata);
         assert.equal(saved.source.windowTitle, dak.title);
         assert.equal(saved.source.appName, dak.owner.name);
-        assert.equal(saved.source.accessibleText, `Window from process ${t3.owner.processId}`);
-        assert.deepEqual(images, [t3.png]);
+        assert.equal(saved.source.accessibleText, `Window from process ${dak.owner.processId}`);
+        assert.deepEqual(images, [dak.png]);
         assert.equal(prepareCaptureRevealMock.mock.calls.length, platform === "win32" ? 1 : 0);
         if (platform === "linux") {
           assert.equal(saved.source.appIdentifier, dak.appIdentifier);
-          assert.deepEqual(activate.mock.calls, [[t3.title]]);
+          assert.deepEqual(activate.mock.calls, [[dak.title]]);
         }
       }),
     ).pipe(
@@ -3159,10 +3159,7 @@ it.effect("flags revoked macOS permissions on read and re-registers once they re
 
       mediaAccessStatusMock.mockReturnValue("denied");
       const revoked = yield* service.state;
-      assert.equal(
-        revoked.message,
-        "Allow Screen Recording in System Settings, then restart DAK.",
-      );
+      assert.equal(revoked.message, "Allow Screen Recording in System Settings, then restart DAK.");
       assert.deepEqual(revoked.macPermissions, { screenRecording: false, accessibility: true });
 
       accessibilityTrustedMock.mockReturnValue(false);
@@ -3172,10 +3169,7 @@ it.effect("flags revoked macOS permissions on read and re-registers once they re
         snapShotIncludeAccessibility: false,
       });
       const blocked = yield* service.state;
-      assert.equal(
-        blocked.message,
-        "Allow Screen Recording in System Settings, then restart DAK.",
-      );
+      assert.equal(blocked.message, "Allow Screen Recording in System Settings, then restart DAK.");
       assert.isFalse(blocked.shortcutRegistered);
 
       mediaAccessStatusMock.mockReturnValue("granted");

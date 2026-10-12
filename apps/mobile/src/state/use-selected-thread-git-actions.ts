@@ -13,10 +13,7 @@ import {
   EnvironmentAuthorizationError,
   type GitRunStackedActionResult,
 } from "@dak/contracts";
-import {
-  dedupeRemoteBranchesWithLocalMatches,
-  sanitizeFeatureBranchName,
-} from "@dak/shared/git";
+import { dedupeRemoteBranchesWithLocalMatches, sanitizeFeatureBranchName } from "@dak/shared/git";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
 

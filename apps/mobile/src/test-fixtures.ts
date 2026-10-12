@@ -1,7 +1,4 @@
-import {
-  presentThreadShell,
-  type EnvironmentThreadShell,
-} from "@dak/client-runtime/state/shell";
+import { presentThreadShell, type EnvironmentThreadShell } from "@dak/client-runtime/state/shell";
 import {
   EnvironmentId,
   ProjectId,

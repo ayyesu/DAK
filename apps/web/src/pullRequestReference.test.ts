@@ -44,9 +44,9 @@ describe("parsePullRequestReference", () => {
   });
 
   it("accepts gh pr checkout commands with GitHub pull request URLs", () => {
-    expect(
-      parsePullRequestReference("gh pr checkout https://github.com/ayyesu/DAK/pull/42"),
-    ).toBe("https://github.com/ayyesu/DAK/pull/42");
+    expect(parsePullRequestReference("gh pr checkout https://github.com/ayyesu/DAK/pull/42")).toBe(
+      "https://github.com/ayyesu/DAK/pull/42",
+    );
   });
 
   it("accepts glab mr checkout commands with raw numbers", () => {

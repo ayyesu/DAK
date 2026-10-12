@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off -- Asserts against a real vendored tree on disk, using the same direct fs the sync tool does.
 import * as NodeCrypto from "node:crypto";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";

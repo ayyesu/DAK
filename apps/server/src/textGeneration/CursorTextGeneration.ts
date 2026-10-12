@@ -7,11 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-import {
-  type CursorSettings,
-  type ProviderSetupError,
-  TextGenerationError,
-} from "@dak/contracts";
+import { type CursorSettings, type ProviderSetupError, TextGenerationError } from "@dak/contracts";
 
 import * as TextGenerationOperations from "./TextGenerationOperations.ts";
 import { cursorSdkModelSelection } from "../provider/cursorSdkModel.ts";

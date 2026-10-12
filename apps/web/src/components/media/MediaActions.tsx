@@ -1,8 +1,5 @@
 import type { MediaActionId } from "@dak/client-runtime/media-actions";
-import {
-  mediaReferenceFileName,
-  type MediaReference,
-} from "@dak/client-runtime/media-reference";
+import { mediaReferenceFileName, type MediaReference } from "@dak/client-runtime/media-reference";
 import { resolveAssetUrl } from "@dak/client-runtime/state/assets";
 import { squashAtomCommandFailure } from "@dak/client-runtime/state/runtime";
 import {

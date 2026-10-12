@@ -1,10 +1,5 @@
 import type { DeviceHubAccess } from "@dak/client-runtime/state/deviceHubAccess";
-import type {
-  DeviceActionInput,
-  DeviceDetail,
-  DeviceSummary,
-  EnvironmentId,
-} from "@dak/contracts";
+import type { DeviceActionInput, DeviceDetail, DeviceSummary, EnvironmentId } from "@dak/contracts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { deviceEnvironment } from "~/state/device";
 import { formatEnvironmentQueryError } from "~/state/query";

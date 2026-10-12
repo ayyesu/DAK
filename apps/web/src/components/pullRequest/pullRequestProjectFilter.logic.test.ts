@@ -61,7 +61,7 @@ describe("pull request project filter choices", () => {
 
   it("matches canonical repositories regardless of casing", () => {
     const main = project("main");
-    const worktree = project("worktree", nucbox, "GitHub.com/PingDotGG/DAK");
+    const worktree = project("worktree", nucbox, "github.com/ayyesu/dak");
 
     expect(pullRequestFilterProjects([main, worktree], labels)).toEqual([main]);
   });
@@ -130,10 +130,7 @@ describe("pull request project filter choices", () => {
       new Map(),
     );
 
-    expect(choices.map((choice) => choice.title)).toEqual([
-      "dak · env-cups",
-      "dak · env-nucbox",
-    ]);
+    expect(choices.map((choice) => choice.title)).toEqual(["dak · env-cups", "dak · env-nucbox"]);
   });
 
   it("can distinguish unresolved project records that also share a checkout path", () => {

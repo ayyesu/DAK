@@ -1,10 +1,4 @@
-import {
-  EnvironmentId,
-  MessageId,
-  ProjectId,
-  ProviderInstanceId,
-  ThreadId,
-} from "@dak/contracts";
+import { EnvironmentId, MessageId, ProjectId, ProviderInstanceId, ThreadId } from "@dak/contracts";
 import { serializeAssistantCitation } from "@dak/shared/assistantCitations";
 import { describe, expect, it } from "vite-plus/test";
 

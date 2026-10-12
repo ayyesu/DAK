@@ -1,7 +1,4 @@
-import {
-  canonicalRepositoryKey,
-  sourceControlRepositorySelector,
-} from "@dak/shared/sourceControl";
+import { canonicalRepositoryKey, sourceControlRepositorySelector } from "@dak/shared/sourceControl";
 import {
   CommandId,
   type OrchestrationProjectShell,

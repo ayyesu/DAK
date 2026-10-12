@@ -1,6 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off - This measures text with the vendored engine and reads
 // the vendored font manifest, both of which only exist as real paths.
-import { absoluteBoxes, nearestFamily, type MeasuredText } from "./canvasText.ts";
+import { nearestFamily, type MeasuredText } from "./canvasText.ts";
 
 /**
  * Everything wrong with a design that can be established without looking at it.
@@ -49,7 +49,7 @@ export interface CanvasInspectResult {
 }
 
 /** The most an inspect answer may carry, so one bad design cannot flood a model's context. */
-export const CANVAS_INSPECT_ISSUE_LIMIT = 25;
+const CANVAS_INSPECT_ISSUE_LIMIT = 25;
 
 const SEVERITY_ORDER: Readonly<Record<CanvasIssueSeverity, number>> = {
   critical: 0,
@@ -540,4 +540,3 @@ export const findTextOverflow = (
 };
 
 export type { MeasuredText };
-export { absoluteBoxes };

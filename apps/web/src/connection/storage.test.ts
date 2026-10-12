@@ -1,7 +1,4 @@
-import {
-  ConnectionTransientError,
-  PrimaryConnectionTarget,
-} from "@dak/client-runtime/connection";
+import { ConnectionTransientError, PrimaryConnectionTarget } from "@dak/client-runtime/connection";
 import { EnvironmentId, ThreadId } from "@dak/contracts";
 import { ConnectionCatalogDocument, Persistence } from "@dak/client-runtime/platform";
 import { describe, expect, it } from "@effect/vitest";

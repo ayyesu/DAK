@@ -224,5 +224,3 @@ export const answerCanvasScreenshot = async (
     })),
   };
 };
-
-export { base64ToBytes, planSections, planScreenshot };

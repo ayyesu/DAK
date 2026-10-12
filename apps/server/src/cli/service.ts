@@ -126,9 +126,7 @@ const serviceInstallCommand = Command.make("install", serviceReconcileFlags).pip
       Effect.gen(function* () {
         const result = yield* reconcileService({ allowDowngrade: flags.allowDowngrade });
         if (!result.changed) {
-          yield* Console.log(
-            `DAK service is already installed with dak@${packageJson.version}.`,
-          );
+          yield* Console.log(`DAK service is already installed with dak@${packageJson.version}.`);
           return;
         }
         yield* Console.log(
@@ -193,9 +191,7 @@ const serviceUninstallCommand = Command.make("uninstall", projectLocationFlags).
       Effect.gen(function* () {
         const service = yield* BootService.BootService;
         const removed = yield* service.uninstall;
-        yield* Console.log(
-          removed ? "Removed the DAK service." : "DAK service is not installed.",
-        );
+        yield* Console.log(removed ? "Removed the DAK service." : "DAK service is not installed.");
       }),
     ),
   ),

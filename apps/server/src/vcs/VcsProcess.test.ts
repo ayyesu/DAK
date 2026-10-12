@@ -14,11 +14,7 @@ import * as Schema from "effect/Schema";
 import { TestClock } from "effect/testing";
 import { ChildProcessSpawner } from "effect/process";
 
-import {
-  VcsProcessExitError,
-  VcsProcessSpawnError,
-  VcsProcessTimeoutError,
-} from "@dak/contracts";
+import { VcsProcessExitError, VcsProcessSpawnError, VcsProcessTimeoutError } from "@dak/contracts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as VcsProcess from "./VcsProcess.ts";
 

@@ -15,15 +15,9 @@ import {
 
 describe("normalizeGitRemoteUrl", () => {
   it("canonicalizes equivalent GitHub remotes across protocol variants", () => {
-    expect(normalizeGitRemoteUrl("git@github.com:DAK/DAK.git")).toBe(
-      "github.com/dak/dak",
-    );
-    expect(normalizeGitRemoteUrl("https://github.com/DAK/DAK.git")).toBe(
-      "github.com/dak/dak",
-    );
-    expect(normalizeGitRemoteUrl("ssh://git@github.com/DAK/DAK")).toBe(
-      "github.com/dak/dak",
-    );
+    expect(normalizeGitRemoteUrl("git@github.com:DAK/DAK.git")).toBe("github.com/dak/dak");
+    expect(normalizeGitRemoteUrl("https://github.com/DAK/DAK.git")).toBe("github.com/dak/dak");
+    expect(normalizeGitRemoteUrl("ssh://git@github.com/DAK/DAK")).toBe("github.com/dak/dak");
   });
 
   it("preserves nested group paths for providers like GitLab", () => {
@@ -60,15 +54,15 @@ describe("normalizeGitRemoteUrl", () => {
     expect(normalizeGitRemoteUrl("ssh://git@ssh.dev.azure.com:22/v3/DAK/Platform/DAK")).toBe(
       "dev.azure.com/dak/platform/_git/dak",
     );
-    expect(
-      normalizeGitRemoteUrl("https://DAK@dev.azure.com/DAK/Platform/_git/DAK"),
-    ).toBe("dev.azure.com/dak/platform/_git/dak");
+    expect(normalizeGitRemoteUrl("https://DAK@dev.azure.com/DAK/Platform/_git/DAK")).toBe(
+      "dev.azure.com/dak/platform/_git/dak",
+    );
   });
 
   it("puts the organization back in the host on the name dev.azure.com replaced", () => {
-    expect(
-      normalizeGitRemoteUrl("DAK@vs-ssh.visualstudio.com:v3/DAK/Platform/DAK"),
-    ).toBe("dak.visualstudio.com/platform/_git/dak");
+    expect(normalizeGitRemoteUrl("DAK@vs-ssh.visualstudio.com:v3/DAK/Platform/DAK")).toBe(
+      "dak.visualstudio.com/platform/_git/dak",
+    );
     expect(normalizeGitRemoteUrl("https://DAK.visualstudio.com/Platform/_git/DAK")).toBe(
       "dak.visualstudio.com/platform/_git/dak",
     );
@@ -154,15 +148,15 @@ describe("parseOriginUrlFromGitConfig", () => {
 
 describe("parseGitHubRepositoryNameWithOwnerFromRemoteUrl", () => {
   it("extracts the owner and repository from common GitHub remote shapes", () => {
-    expect(
-      parseGitHubRepositoryNameWithOwnerFromRemoteUrl("git@github.com:DAK/DAK.git"),
-    ).toBe("DAK/DAK");
-    expect(
-      parseGitHubRepositoryNameWithOwnerFromRemoteUrl("https://github.com/DAK/DAK.git"),
-    ).toBe("DAK/DAK");
-    expect(
-      parseGitHubRepositoryNameWithOwnerFromRemoteUrl("ssh://github.com/DAK/DAK.git"),
-    ).toBe("DAK/DAK");
+    expect(parseGitHubRepositoryNameWithOwnerFromRemoteUrl("git@github.com:DAK/DAK.git")).toBe(
+      "DAK/DAK",
+    );
+    expect(parseGitHubRepositoryNameWithOwnerFromRemoteUrl("https://github.com/DAK/DAK.git")).toBe(
+      "DAK/DAK",
+    );
+    expect(parseGitHubRepositoryNameWithOwnerFromRemoteUrl("ssh://github.com/DAK/DAK.git")).toBe(
+      "DAK/DAK",
+    );
   });
 });
 

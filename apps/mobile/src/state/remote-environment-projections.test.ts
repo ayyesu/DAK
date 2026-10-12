@@ -1,7 +1,4 @@
-import type {
-  EnvironmentPresentation,
-  PreparedConnection,
-} from "@dak/client-runtime/connection";
+import type { EnvironmentPresentation, PreparedConnection } from "@dak/client-runtime/connection";
 import { PrimaryConnectionTarget } from "@dak/client-runtime/connection";
 import type { ServerConfig } from "@dak/contracts";
 import { EnvironmentId } from "@dak/contracts";

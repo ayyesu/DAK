@@ -77,9 +77,7 @@ describe("PublishClientConfig", () => {
       const target = path.join(dir, "client.env");
       yield* fs.writeFileString(target, "KEEP=yes\n");
       const configured = Effect.provide(
-        ConfigProvider.layer(
-          ConfigProvider.fromUnknown({ DAK_RELAY_CLIENT_CONFIG_ENV: target }),
-        ),
+        ConfigProvider.layer(ConfigProvider.fromUnknown({ DAK_RELAY_CLIENT_CONFIG_ENV: target })),
       );
 
       yield* stack.deploy(PublishClientConfig(clientConfig("v1"))).pipe(configured);

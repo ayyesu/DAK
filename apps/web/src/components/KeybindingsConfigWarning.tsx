@@ -1,8 +1,4 @@
-import {
-  AuthOrchestrationOperateScope,
-  type EditorId,
-  type EnvironmentId,
-} from "@dak/contracts";
+import { AuthOrchestrationOperateScope, type EditorId, type EnvironmentId } from "@dak/contracts";
 import { squashAtomCommandFailure } from "@dak/client-runtime/state/runtime";
 
 import { useOpenInPreferredEditor } from "../editorPreferences";

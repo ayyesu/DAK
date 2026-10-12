@@ -1,7 +1,7 @@
 // @effect-diagnostics globalDate:off - Wall-clock rasterization time is the thing being measured.
 // @effect-diagnostics globalConsole:off - The measured numbers are this test's output.
 // @effect-diagnostics globalRandom:off - Its dummy ids are not the behaviour under test.
-import { gzipSync } from "node:zlib";
+import * as NodeZlib from "node:zlib";
 
 import { describe, expect, it } from "vite-plus/test";
 
@@ -221,7 +221,7 @@ const measure = async (
     totalBase64Chars: base64.reduce((sum, data) => sum + data.length, 0),
     largestFrameChars: Math.max(...base64.map((data) => data.length)),
     jsonChars: json.length,
-    deflatedBytes: gzipSync(json).byteLength,
+    deflatedBytes: NodeZlib.gzipSync(json).byteLength,
     rasterMs,
   };
 };

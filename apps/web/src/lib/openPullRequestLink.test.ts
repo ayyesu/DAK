@@ -142,9 +142,7 @@ describe("pullRequestCandidateUrlFromReferenceAutolink", () => {
 
   it("does not reinterpret other issue hosts or malformed references", () => {
     expect(
-      pullRequestCandidateUrlFromReferenceAutolink(
-        "https://gitlab.com/ayyesu/DAK/-/issues/8600",
-      ),
+      pullRequestCandidateUrlFromReferenceAutolink("https://gitlab.com/ayyesu/DAK/-/issues/8600"),
     ).toBeNull();
     expect(
       pullRequestCandidateUrlFromReferenceAutolink(
@@ -164,10 +162,7 @@ describe("matchesLinkedPullRequestUrl", () => {
 
   it("matches the same pull request without looking up its project", () => {
     expect(
-      matchesLinkedPullRequestUrl(
-        linkedPullRequest,
-        "https://github.com/PingDotGG/DAK/pull/42/files",
-      ),
+      matchesLinkedPullRequestUrl(linkedPullRequest, "https://github.com/ayyesu/DAK/pull/42/files"),
     ).toBe(true);
   });
 
@@ -186,10 +181,7 @@ describe("matchesLinkedPullRequestUrl", () => {
 
   it("keeps other providers' existing port normalization", () => {
     expect(
-      matchesLinkedPullRequestUrl(
-        linkedPullRequest,
-        "https://github.com:8443/ayyesu/DAK/pull/42",
-      ),
+      matchesLinkedPullRequestUrl(linkedPullRequest, "https://github.com:8443/ayyesu/DAK/pull/42"),
     ).toBe(true);
   });
 

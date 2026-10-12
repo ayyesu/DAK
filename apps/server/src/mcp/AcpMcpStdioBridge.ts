@@ -184,9 +184,7 @@ export function callAcpMcpTool(
     });
     const initializeResponse = initialized.find((entry) => asEnvelope(entry)?.id === initializeId);
     if (initializeResponse === undefined || asEnvelope(initializeResponse)?.error !== undefined) {
-      return yield* Effect.fail(
-        new AcpMcpBridgeError("DAK MCP endpoint rejected initialization."),
-      );
+      return yield* Effect.fail(new AcpMcpBridgeError("DAK MCP endpoint rejected initialization."));
     }
     yield* send({ jsonrpc: "2.0", method: "notifications/initialized" });
 
@@ -370,7 +368,9 @@ export async function runAcpMcpCliFastPath(
   const endpoint = process.env.DAK_ACP_MCP_ENDPOINT;
   const authorization = process.env.DAK_ACP_MCP_AUTHORIZATION;
   if (endpoint === undefined || authorization === undefined) {
-    process.stderr.write(`${command} requires DAK_ACP_MCP_ENDPOINT and DAK_ACP_MCP_AUTHORIZATION.\n`);
+    process.stderr.write(
+      `${command} requires DAK_ACP_MCP_ENDPOINT and DAK_ACP_MCP_AUTHORIZATION.\n`,
+    );
     process.exitCode = 2;
     return;
   }

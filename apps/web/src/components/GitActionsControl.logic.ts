@@ -1,8 +1,4 @@
-import type {
-  GitRunStackedActionResult,
-  GitStackedAction,
-  VcsStatusResult,
-} from "@dak/contracts";
+import type { GitRunStackedActionResult, GitStackedAction, VcsStatusResult } from "@dak/contracts";
 import { isTemporaryWorktreeBranch } from "@dak/shared/git";
 import {
   DEFAULT_CHANGE_REQUEST_TERMINOLOGY,

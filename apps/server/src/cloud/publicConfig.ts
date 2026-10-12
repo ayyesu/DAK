@@ -86,8 +86,7 @@ export function resolveRelayClientTracingConfig(
   fallback = buildTimeRelayClientTracing,
 ) {
   const tracesUrl = env.DAK_RELAY_CLIENT_OTLP_TRACES_URL?.trim() || fallback.tracesUrl;
-  const tracesDataset =
-    env.DAK_RELAY_CLIENT_OTLP_TRACES_DATASET?.trim() || fallback.tracesDataset;
+  const tracesDataset = env.DAK_RELAY_CLIENT_OTLP_TRACES_DATASET?.trim() || fallback.tracesDataset;
   const tracesToken = env.DAK_RELAY_CLIENT_OTLP_TRACES_TOKEN?.trim() || fallback.tracesToken;
   const normalizedTracesUrl = normalizeSecureUrl(tracesUrl);
   return normalizedTracesUrl && tracesDataset && tracesToken
@@ -177,10 +176,7 @@ export function makeCloudCliOAuthConfig({
       "DAK_CLERK_PUBLISHABLE_KEY",
       clerkPublishableKeyFallback,
     ),
-    clientId: makePublicValueConfig(
-      "DAK_CLERK_CLI_OAUTH_CLIENT_ID",
-      clerkCliOAuthClientIdFallback,
-    ),
+    clientId: makePublicValueConfig("DAK_CLERK_CLI_OAUTH_CLIENT_ID", clerkCliOAuthClientIdFallback),
   }).pipe(
     Config.mapEffect(({ clerkPublishableKey, clientId }) =>
       Effect.try({

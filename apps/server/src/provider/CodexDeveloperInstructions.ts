@@ -16,9 +16,7 @@ export interface DAKToolAvailability {
   readonly device: boolean;
 }
 
-const normalizeAvailability = (
-  availability: boolean | DAKToolAvailability,
-): DAKToolAvailability =>
+const normalizeAvailability = (availability: boolean | DAKToolAvailability): DAKToolAvailability =>
   typeof availability === "boolean" ? { browser: availability, device: false } : availability;
 
 /**

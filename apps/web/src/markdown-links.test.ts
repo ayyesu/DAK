@@ -241,8 +241,7 @@ describe("resolveMarkdownFileLinkTarget", () => {
         "C:/Users/mike/dev-stuff/dak",
       ),
     ).toMatchObject({
-      displayPath:
-        "dak/apps/web/src/components/chat/MessagesTimeline.virtualization.browser.tsx",
+      displayPath: "dak/apps/web/src/components/chat/MessagesTimeline.virtualization.browser.tsx",
       workspaceRelativePath:
         "apps/web/src/components/chat/MessagesTimeline.virtualization.browser.tsx",
     });

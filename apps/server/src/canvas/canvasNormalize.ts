@@ -157,7 +157,7 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 
 /** Bounded so a long-lived server cannot accumulate documents forever. */
-export const NORMALIZE_CACHE_LIMIT = 32;
+const NORMALIZE_CACHE_LIMIT = 32;
 
 /**
  * The cache key, derived from the content rather than passed in.
@@ -171,7 +171,7 @@ export const NORMALIZE_CACHE_LIMIT = 32;
  * A hash rather than the payload itself: the state is a base64 blob of tens of kilobytes and this is
  * on the render path.
  */
-export const normalizeCacheKey = (payload: {
+const normalizeCacheKey = (payload: {
   readonly snapshot: { readonly throughSequence: number; readonly state: string };
   readonly updates: ReadonlyArray<{ readonly sequence: number }>;
 }): string => {
@@ -222,6 +222,3 @@ export const normalizedDocument = async (input: {
   cache.set(key, entry);
   return entry;
 };
-
-export const normalizeCacheSize = (): number => cache.size;
-export const clearNormalizeCache = (): void => cache.clear();

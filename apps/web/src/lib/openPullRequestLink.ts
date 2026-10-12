@@ -5,10 +5,7 @@ import { type MouseEvent, useCallback, useMemo } from "react";
 
 import { pullRequestHostOf, type SourceControlProviderKind } from "@dak/contracts";
 import { parseChangeRequestUrl, type ChangeRequestLink } from "@dak/shared/changeRequestUrl";
-import {
-  canonicalRepositoryKey,
-  sourceControlRepositorySelector,
-} from "@dak/shared/sourceControl";
+import { canonicalRepositoryKey, sourceControlRepositorySelector } from "@dak/shared/sourceControl";
 
 import { useOpenLink } from "../browser/useOpenLink";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";

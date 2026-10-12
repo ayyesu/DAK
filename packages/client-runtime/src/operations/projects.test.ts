@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import {
-  EnvironmentId,
-  ProjectId,
-  CommandId,
-  SourceControlDiscoveryResult,
-} from "@dak/contracts";
+import { EnvironmentId, ProjectId, CommandId, SourceControlDiscoveryResult } from "@dak/contracts";
 import * as Option from "effect/Option";
 
 import {
@@ -52,9 +47,7 @@ describe("add project shared logic", () => {
     expect(normalizePastedCloneUrl("imputnet/helium")).toBe(
       "https://github.com/imputnet/helium.git",
     );
-    expect(normalizePastedCloneUrl("  ayyesu/DAK  ")).toBe(
-      "https://github.com/ayyesu/DAK.git",
-    );
+    expect(normalizePastedCloneUrl("  ayyesu/DAK  ")).toBe("https://github.com/ayyesu/DAK.git");
   });
 
   it("keeps explicit clone URLs and local paths unchanged", () => {

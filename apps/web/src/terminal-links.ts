@@ -1,7 +1,4 @@
-import {
-  formatFilePathPosition,
-  splitFilePathPosition,
-} from "@dak/client-runtime/markdown-links";
+import { formatFilePathPosition, splitFilePathPosition } from "@dak/client-runtime/markdown-links";
 
 import { isMacPlatform } from "./lib/utils";
 

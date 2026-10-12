@@ -1437,7 +1437,7 @@ export function makeMuseAdapterV2(options: MuseAdapterV2Options): ProviderAdapte
                 mcpServers: {
                   // Muse defaults to "required", which fails the whole run when DAK's
                   // tools cannot be reached. The agent should still work without them.
-                  "dak": {
+                  dak: {
                     transport: "streamableHttp",
                     mode: "optional",
                     url: mcpSession.endpoint,

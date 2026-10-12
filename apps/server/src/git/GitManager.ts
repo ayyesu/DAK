@@ -42,10 +42,7 @@ import {
   type VcsCreateWorktreeInput,
   type VcsCreateWorktreeResult,
 } from "@dak/contracts";
-import {
-  hasProjectSettingsOverrides,
-  resolveProjectSettings,
-} from "@dak/shared/projectSettings";
+import { hasProjectSettingsOverrides, resolveProjectSettings } from "@dak/shared/projectSettings";
 import {
   detectSourceControlProviderFromGitRemoteUrl,
   mergeGitStatusParts,

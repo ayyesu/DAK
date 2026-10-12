@@ -13,6 +13,8 @@ import { formatEnvironmentQueryError } from "~/state/query";
 import { useEnvironmentScope } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
+
 import {
   applyShortcut,
   applyWheel,
@@ -513,12 +515,12 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
           {/* Said rather than hidden: a design shown smaller than asked is still readable, and a
               view that quietly showed less detail than it had would be lying about the design. */}
           {reducedDetail && !state.rendering ? (
-            <span
-              className="shrink-0 text-xs text-muted-foreground"
-              title="Shown at reduced detail to keep this view light."
-            >
-              Reduced detail
-            </span>
+            <Tooltip>
+              <TooltipTrigger>
+                <span className="shrink-0 text-xs text-muted-foreground">Reduced detail</span>
+              </TooltipTrigger>
+              <TooltipPopup>Shown at reduced detail to keep this view light.</TooltipPopup>
+            </Tooltip>
           ) : null}
           <CanvasZoomControl
             zoom={camera.zoom}
@@ -790,7 +792,7 @@ export function CanvasWorld({
                   zoom — a caption that scaled with the design would be unreadable at 800% and a smear
                   at 2%. */}
               <figcaption
-                className="pointer-events-none absolute left-0 top-0 max-w-full truncate rounded-tl-md bg-black/55 px-1.5 py-0.5 text-[11px] leading-tight text-white"
+                className="pointer-events-none absolute left-0 top-0 max-w-full truncate rounded-tl-md bg-black/55 px-1.5 py-0.5 text-2xs leading-tight text-white"
                 style={{
                   fontSize: `${11 / camera.zoom}px`,
                   transform: `scale(${1 / camera.zoom})`,

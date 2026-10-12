@@ -11,7 +11,8 @@ interface NativeKeyboardCommandsProps extends ViewProps {
   ) => void;
 }
 
-const NativeKeyboardCommands = requireNativeView<NativeKeyboardCommandsProps>("DakKeyboardCommands");
+const NativeKeyboardCommands =
+  requireNativeView<NativeKeyboardCommandsProps>("DakKeyboardCommands");
 
 export function DakKeyboardCommands(
   props: PropsWithChildren<{

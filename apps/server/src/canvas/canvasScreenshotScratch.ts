@@ -15,7 +15,7 @@ import type { CanvasScreenshotPart } from "./canvasScreenshot.ts";
  *
  * Gitignored, because a screenshot is a byproduct of a conversation and not source.
  */
-export const CANVAS_SCREENSHOT_SCRATCH = ".dak/canvas-screenshots";
+const CANVAS_SCREENSHOT_SCRATCH = ".dak/canvas-screenshots";
 
 const SCRIPTS_IGNORED = ".dak/";
 
@@ -49,6 +49,3 @@ export const writeScratchScreenshots = async (
     };
   }
 };
-
-export const scratchRelativePath = (documentId: string, fileName: string): string =>
-  `${SCRIPTS_IGNORED}${CANVAS_SCREENSHOT_SCRATCH.replace(/^\.dak\//u, "")}/${documentId}/${fileName}`;

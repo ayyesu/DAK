@@ -34,7 +34,9 @@ describe("connectAuth", () => {
       readConnectAuthorizeRequest(new URL("https://app.dak.codes/connect#state=abc&port=34338")),
     ).toBeNull();
     expect(
-      readConnectAuthorizeRequest(new URL("https://app.dak.codes/connect#challenge=abc&port=34338")),
+      readConnectAuthorizeRequest(
+        new URL("https://app.dak.codes/connect#challenge=abc&port=34338"),
+      ),
     ).toBeNull();
     expect(
       readConnectAuthorizeRequest(new URL("https://app.dak.codes/connect#state=abc&challenge=abc")),

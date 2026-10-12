@@ -345,9 +345,7 @@ describe("uiStateStore persistence", () => {
       localStorageStub.getItem(PERSISTED_STATE_KEY) ?? "{}",
     ) as PersistedUiState;
 
-    expect(parsePersistedState(persisted).sidebarProjectScopeKey).toBe(
-      "github.com/ayyesu/DAK",
-    );
+    expect(parsePersistedState(persisted).sidebarProjectScopeKey).toBe("github.com/ayyesu/DAK");
   });
 
   it("drops the temporary expanded-only migration fallback when rewriting state", () => {

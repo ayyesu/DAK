@@ -52,9 +52,7 @@ describe("loadRepoEnv", () => {
       "DAK_CLERK_PUBLISHABLE_KEY=pk_local\nDAK_CLERK_JWT_TEMPLATE=template_local\nDAK_CLERK_CLI_OAUTH_CLIENT_ID=oauth_local\nDAK_RELAY_URL=https://local.example.test\n",
     );
 
-    expect(loadRepoEnv({ baseEnv: {}, repoRoot }).DAK_RELAY_URL).toBe(
-      "https://local.example.test",
-    );
+    expect(loadRepoEnv({ baseEnv: {}, repoRoot }).DAK_RELAY_URL).toBe("https://local.example.test");
     expect(
       loadRepoEnv({
         baseEnv: {

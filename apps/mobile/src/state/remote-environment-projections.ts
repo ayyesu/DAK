@@ -1,7 +1,4 @@
-import type {
-  EnvironmentPresentation,
-  PreparedConnection,
-} from "@dak/client-runtime/connection";
+import type { EnvironmentPresentation, PreparedConnection } from "@dak/client-runtime/connection";
 import { connectionCatalogDisplayUrl } from "@dak/client-runtime/connection";
 import type { EnvironmentId, ServerConfig } from "@dak/contracts";
 import * as Option from "effect/Option";

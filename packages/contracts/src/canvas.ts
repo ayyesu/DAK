@@ -45,10 +45,6 @@ export type CanvasExtractFormat = typeof CanvasExtractFormat.Type;
 export const CANVAS_EXECUTION_NODE_LIMIT = 10_000;
 export const CANVAS_ISSUE_LIMIT = 10_000;
 export const CANVAS_ISSUE_SAMPLE_SIZE = 20;
-/** Sandboxed script budgets. These are the ceiling the agent is told about, not a target. */
-export const CANVAS_SCRIPT_TIMEOUT_MS = 5_000;
-export const CANVAS_SCRIPT_MEMORY_BYTES = 64 * 1024 * 1024;
-
 /**
  * A failure the agent can act on. `code` is stable so instructions and tests can
  * branch on it, and `message` is written for the model reading it, not for a log.
@@ -237,9 +233,6 @@ export const CanvasInspectResult = Schema.Struct({
   measuredTextNodes: Schema.Number,
 });
 export type CanvasInspectResult = typeof CanvasInspectResult.Type;
-
-/** How many issues one inspect answer may carry, so a bad design cannot flood a context. */
-export const CANVAS_INSPECT_ISSUE_LIMIT = 25;
 
 export const CanvasInspectInput = Schema.Struct({
   documentId: CanvasDocumentId,

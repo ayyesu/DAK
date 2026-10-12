@@ -47,9 +47,9 @@ describe("file preview types", () => {
 
 describe("fileHeaderSubtitle", () => {
   it("places a workspace file under its project", () => {
-    expect(
-      fileHeaderSubtitle("dak", "apps/mobile/src/features/threads/fileChipMenu.test.ts"),
-    ).toBe("dak · apps/mobile/src/features/threads");
+    expect(fileHeaderSubtitle("dak", "apps/mobile/src/features/threads/fileChipMenu.test.ts")).toBe(
+      "dak · apps/mobile/src/features/threads",
+    );
   });
 
   it("shows only the directory for a host file outside the workspace", () => {

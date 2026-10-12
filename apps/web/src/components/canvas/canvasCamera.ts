@@ -16,7 +16,7 @@ export const MIN_ZOOM = 0.02;
 export const MAX_ZOOM = 8;
 
 /** What one Ctrl+wheel notch multiplies the zoom by. Matches a trackpad's pinch granularity. */
-export const ZOOM_STEP = 1.1;
+const ZOOM_STEP = 1.1;
 
 /** The gap left around the design when it is fitted, as a fraction of the fitted size. */
 const FIT_PADDING = 0.08;
@@ -37,7 +37,7 @@ export interface CanvasFrameBox {
   readonly height: number;
 }
 
-export const clampZoom = (zoom: number): number =>
+const clampZoom = (zoom: number): number =>
   Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number.isFinite(zoom) ? zoom : 1));
 
 /**

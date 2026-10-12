@@ -6,11 +6,7 @@ import {
 } from "@dak/contracts";
 import type { AsyncResult } from "effect/reactivity";
 import { environmentSession } from "~/state/session";
-import type {
-  EnvironmentId,
-  ServerInstallation,
-  ServerSelfUpdateCapability,
-} from "@dak/contracts";
+import type { EnvironmentId, ServerInstallation, ServerSelfUpdateCapability } from "@dak/contracts";
 import type { ServerUpdateStage, ServerUpdateState } from "@dak/client-runtime/state/server";
 import {
   isAtomCommandInterrupted,

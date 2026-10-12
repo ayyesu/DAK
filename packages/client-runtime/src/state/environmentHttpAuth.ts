@@ -1,9 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import {
-  ORCHESTRATION_PROTOCOL_HEADER,
-  ORCHESTRATION_PROTOCOL_VERSION_TEXT,
-} from "@dak/contracts";
+import { ORCHESTRATION_PROTOCOL_HEADER, ORCHESTRATION_PROTOCOL_VERSION_TEXT } from "@dak/contracts";
 import * as Result from "effect/Result";
 import { withRelayClientTracing } from "@dak/shared/relayTracing";
 import { FetchHttpClient, type HttpMethod } from "effect/http";

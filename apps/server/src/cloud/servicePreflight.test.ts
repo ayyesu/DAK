@@ -13,8 +13,7 @@ it.each([1, 2])("blocks legacy launcher protocol %i", (launcherProtocol) => {
   ).toEqual({
     status: "blocked",
     version: "1.2.3",
-    reason:
-      "This release requires a newer DAK service launcher. Update it on the server machine.",
+    reason: "This release requires a newer DAK service launcher. Update it on the server machine.",
   });
 });
 

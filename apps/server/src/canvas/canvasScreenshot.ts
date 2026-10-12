@@ -1,5 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - This writes screenshot scratch files to disk.
-import { base64ToBytes, bytesToBase64 } from "./bytes.ts";
+import { base64ToBytes } from "./bytes.ts";
 
 /**
  * Choosing what to hand back for one design.
@@ -63,7 +63,7 @@ export const CANVAS_SCREENSHOT_MAX_WHOLE_FRAME_UPSCALE = 2;
 export const CANVAS_SCREENSHOT_MAX_SECTIONS = 7;
 
 /** The cheap whole-target image a view shows before the sharp crops land. */
-export const CANVAS_SCREENSHOT_OVERVIEW_MAX_EDGE = 384;
+const CANVAS_SCREENSHOT_OVERVIEW_MAX_EDGE = 384;
 
 /** How much consecutive slices repeat, so no boundary is only ever cut in one place. */
 export const CANVAS_SCREENSHOT_SLICE_OVERLAP = 64;
@@ -247,8 +247,3 @@ export const renderScreenshot = async (
     totalSections: all.length,
   };
 };
-
-/** The PNG bytes of every part, decoded once for an MCP image content block. */
-export const partBytes = (part: CanvasScreenshotPart): Uint8Array => base64ToBytes(part.image.data);
-
-export const toBase64 = (bytes: Uint8Array): string => bytesToBase64(bytes);

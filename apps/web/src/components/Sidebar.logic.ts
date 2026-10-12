@@ -12,10 +12,7 @@ import type { ContextMenuItem, EnvironmentId, ThreadId } from "@dak/contracts";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@dak/contracts/settings";
 import type { AsyncResult } from "effect/reactivity";
 import { planPinnedReorder } from "@dak/client-runtime/state/thread-sort";
-import {
-  effectiveSnoozed,
-  type ThreadSnoozeShell,
-} from "@dak/client-runtime/state/thread-settled";
+import { effectiveSnoozed, type ThreadSnoozeShell } from "@dak/client-runtime/state/thread-settled";
 import {
   getThreadSortTimestamp,
   sortThreads,

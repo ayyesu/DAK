@@ -1,8 +1,4 @@
-import {
-  AcpRegistryOperationError,
-  AcpRegistrySettings,
-  ProviderInstanceId,
-} from "@dak/contracts";
+import { AcpRegistryOperationError, AcpRegistrySettings, ProviderInstanceId } from "@dak/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";

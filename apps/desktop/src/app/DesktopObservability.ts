@@ -1,9 +1,5 @@
 import { PRIMARY_LOCAL_ENVIRONMENT_ID } from "@dak/contracts";
-import {
-  makeLocalFileTracer,
-  makeTraceSink,
-  type SignalExport,
-} from "@dak/shared/observability";
+import { makeLocalFileTracer, makeTraceSink, type SignalExport } from "@dak/shared/observability";
 import * as SharedObservability from "@dak/shared/observability";
 import * as OtelEnvironment from "@dak/shared/otelEnvironment";
 import {

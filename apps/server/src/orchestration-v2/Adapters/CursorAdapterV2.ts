@@ -208,7 +208,7 @@ export function cursorMcpServers(threadId: ThreadId): Record<string, McpServerCo
     return undefined;
   }
   return {
-    "dak": {
+    dak: {
       type: "http",
       url: session.endpoint,
       headers: {

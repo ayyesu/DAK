@@ -1,8 +1,5 @@
 import type { AssistantCitation } from "@dak/contracts";
-import {
-  assistantCitationLabel,
-  serializeAssistantCitation,
-} from "@dak/shared/assistantCitations";
+import { assistantCitationLabel, serializeAssistantCitation } from "@dak/shared/assistantCitations";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowUpRightIcon, PencilIcon, QuoteIcon } from "lucide-react";
 import {

@@ -12,10 +12,7 @@ import {
   turnItemHasDetail,
   turnItemNeedsDetailFetch,
 } from "@dak/client-runtime/work-log/item-detail";
-import {
-  commandDisplayText,
-  commandProgramName,
-} from "@dak/client-runtime/work-log/command-label";
+import { commandDisplayText, commandProgramName } from "@dak/client-runtime/work-log/command-label";
 import {
   contextCompactionLabel,
   liveThoughtLine,

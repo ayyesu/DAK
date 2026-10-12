@@ -129,16 +129,16 @@ export function withImplicitAbsoluteLayout<T>(document: T): T {
  * page is tall, and area alone would have called that fine. A shadow or a deliberately bleeding
  * image is a fraction of a frame on both axes.
  */
-export const CANVAS_OVERFLOW_AXIS_LIMIT = 2;
+const CANVAS_OVERFLOW_AXIS_LIMIT = 2;
 
 /**
  * The absolute excess that counts as overflow at all, so a frame cannot be reported for a bleed of
  * a pixel or a rounding half-point.
  */
-export const CANVAS_OVERFLOW_MIN_EXCESS_PX = 8;
+const CANVAS_OVERFLOW_MIN_EXCESS_PX = 8;
 
 /** The width below which a frame counts as a phone viewport. */
-export const CANVAS_PHONE_WIDTH = 480;
+const CANVAS_PHONE_WIDTH = 480;
 
 const numberOf = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value) ? value : undefined;

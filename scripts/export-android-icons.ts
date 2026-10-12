@@ -115,7 +115,7 @@ const renderForeground = Effect.fn("androidIcons.renderForeground")(function* (
   // is measured in transformed space, stays accurate.
   const group = text.match(/<g transform="([^"]+)">([\s\S]*?)<\/g>/);
   const sourceTransform = group?.[1] ?? "";
-  const paths = group?.[2].match(/<path[^>]*\/>/g) ?? [];
+  const paths = group?.[2]?.match(/<path[^>]*\/>/g) ?? [];
   return yield* rasterize(
     "foreground",
     canvasSvg(

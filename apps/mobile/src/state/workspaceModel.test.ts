@@ -1,8 +1,5 @@
 import type { EnvironmentShellSummary } from "@dak/client-runtime/state/shell";
-import {
-  BearerConnectionProfile,
-  BearerConnectionTarget,
-} from "@dak/client-runtime/connection";
+import { BearerConnectionProfile, BearerConnectionTarget } from "@dak/client-runtime/connection";
 import { EnvironmentId } from "@dak/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Option from "effect/Option";

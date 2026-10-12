@@ -1,12 +1,6 @@
 import { buildProjectGroups } from "@dak/client-runtime/state/project-grouping";
-import type {
-  EnvironmentProject,
-  EnvironmentThreadShell,
-} from "@dak/client-runtime/state/shell";
-import {
-  getThreadSortTimestamp,
-  toSortableTimestamp,
-} from "@dak/client-runtime/state/thread-sort";
+import type { EnvironmentProject, EnvironmentThreadShell } from "@dak/client-runtime/state/shell";
+import { getThreadSortTimestamp, toSortableTimestamp } from "@dak/client-runtime/state/thread-sort";
 import type {
   EnvironmentId,
   ScopedProjectRef,

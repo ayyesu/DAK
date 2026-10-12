@@ -1,10 +1,6 @@
 import { CheckIcon } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
-import {
-  AuthProvidersManageScope,
-  type EnvironmentId,
-  type ServerProvider,
-} from "@dak/contracts";
+import { AuthProvidersManageScope, type EnvironmentId, type ServerProvider } from "@dak/contracts";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,

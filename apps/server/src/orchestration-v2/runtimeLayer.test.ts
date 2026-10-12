@@ -2076,8 +2076,8 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           type: "thread.pull-request.link",
           commandId: CommandId.make(`branch-pr-link-${index}`),
           threadId,
-          host: "GitHub.com",
-          repository: "Pingdotgg/Dak",
+          host: "github.com",
+          repository: "ayyesu/DAK",
           number,
           url: `https://github.com/ayyesu/DAK/pull/${number}`,
           source: "manual",
@@ -2132,7 +2132,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         branch: null,
         worktreePath: null,
       });
-      const key = { host: "GitHub.com", repository: "Pingdotgg/Dak" };
+      const key = { host: "github.com", repository: "ayyesu/DAK" };
       for (const number of [1, 2]) {
         yield* orchestrator.dispatch({
           type: "thread.pull-request.link",
@@ -2147,7 +2147,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       const linked = yield* orchestrator.getThreadShell(threadId);
       assert.deepEqual(
         linked?.pullRequests?.map(({ host, repository, number }) => ({ host, repository, number })),
-        [1, 2].map((number) => ({ host: "github.com", repository: "ayyesu/DAK", number })),
+        [1, 2].map((number) => ({ host: "github.com", repository: "ayyesu/dak", number })),
       );
       yield* orchestrator.dispatch({
         type: "thread.pull-request.unlink",
@@ -2749,7 +2749,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       assert.deepEqual(ended, [
         {
           threadId,
-          pullRequest: "github.com/ayyesu/DAK#11",
+          pullRequest: "github.com/ayyesu/dak#11",
           reason: "stopped",
           minutes: 480,
           quietMinutes: 120,

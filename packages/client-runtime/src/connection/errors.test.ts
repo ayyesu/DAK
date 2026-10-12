@@ -1,8 +1,5 @@
 import { EnvironmentAuthInvalidError } from "@dak/contracts";
-import {
-  RelayAuthInvalidError,
-  RelayEnvironmentEndpointTimedOutError,
-} from "@dak/contracts/relay";
+import { RelayAuthInvalidError, RelayEnvironmentEndpointTimedOutError } from "@dak/contracts/relay";
 import { describe, expect, it } from "@effect/vitest";
 
 import {

@@ -1,10 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
-import {
-  ProviderDriverKind,
-  ProviderInstanceId,
-  type ProviderInstallState,
-} from "@dak/contracts";
+import { ProviderDriverKind, ProviderInstanceId, type ProviderInstallState } from "@dak/contracts";
 import { HostProcessPlatform } from "@dak/shared/hostProcess";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -195,7 +191,9 @@ describe("provider installation routing", () => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const platform = yield* HostProcessPlatform;
-      const directory = yield* fs.makeTempDirectoryScoped({ prefix: "dak-provider-install-route-" });
+      const directory = yield* fs.makeTempDirectoryScoped({
+        prefix: "dak-provider-install-route-",
+      });
       const binary = platform === "win32" ? "agy-test.exe" : "agy-test";
       const executable = path.join(directory, binary);
       yield* fs.writeFileString(executable, "test");

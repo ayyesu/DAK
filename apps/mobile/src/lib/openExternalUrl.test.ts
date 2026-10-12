@@ -21,9 +21,9 @@ describe("tryOpenExternalUrl", () => {
   it("opens supported URLs", async () => {
     openURL.mockResolvedValue(undefined);
 
-    await expect(
-      tryOpenExternalUrl("https://github.com/ayyesu/DAK", "pull-request"),
-    ).resolves.toBe(true);
+    await expect(tryOpenExternalUrl("https://github.com/ayyesu/DAK", "pull-request")).resolves.toBe(
+      true,
+    );
   });
 
   it("logs stable URL context without exposing the opening failure", async () => {

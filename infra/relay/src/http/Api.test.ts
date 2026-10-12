@@ -37,11 +37,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApi from "effect/http-api/HttpApi";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { EnvironmentId } from "@dak/contracts";
-import {
-  RelayEnvironmentAuth,
-  RelayEnvironmentPrincipal,
-  RelayApi,
-} from "@dak/contracts/relay";
+import { RelayEnvironmentAuth, RelayEnvironmentPrincipal, RelayApi } from "@dak/contracts/relay";
 import { RELAY_MANAGED_TUNNEL_RECOVERY_TYP, signRelayJwt } from "@dak/shared/relayJwt";
 
 import {

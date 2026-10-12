@@ -1,7 +1,4 @@
-import type {
-  OrchestrationV2ContextHandoff,
-  OrchestrationV2ProviderThread,
-} from "@dak/contracts";
+import type { OrchestrationV2ContextHandoff, OrchestrationV2ProviderThread } from "@dak/contracts";
 import type { ProviderAdapterV2HistoricalContext } from "./ProviderAdapter.ts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";

@@ -6,11 +6,7 @@ import { useAtomCommand } from "~/state/use-atom-command";
  * a list of everyone with access, which is worth a request when somebody wants it and worth
  * nothing on every pull request they merely open.
  */
-import type {
-  EnvironmentId,
-  PullRequestRef,
-  PullRequestReviewerCandidate,
-} from "@dak/contracts";
+import type { EnvironmentId, PullRequestRef, PullRequestReviewerCandidate } from "@dak/contracts";
 import { CheckIcon, UserPlusIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 

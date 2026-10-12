@@ -431,6 +431,19 @@ export function summarizeDakToolCalls(
     case "canvas-export":
       label = phrase("Exported", "export", quantity(selected.length, "design"));
       break;
+    case "canvas-inspect":
+      label = phrase("Inspected", "inspect", `design ${times}`);
+      break;
+    case "canvas-measure":
+      label = phrase("Measured", "measure", `design ${times}`);
+      break;
+    case "canvas-screenshot":
+      label = phrase("Captured", "capture", quantity(selected.length, "screenshot"));
+      break;
+    default:
+      // Exhaustiveness: a new action without a phrase is a compile error rather than
+      // a summary that renders as "undefined".
+      label = action satisfies never;
   }
   return { label, failedCount };
 }

@@ -1,8 +1,5 @@
 import { RegistryContext } from "@effect/atom-react";
-import {
-  BearerConnectionTarget,
-  PrimaryConnectionTarget,
-} from "@dak/client-runtime/connection";
+import { BearerConnectionTarget, PrimaryConnectionTarget } from "@dak/client-runtime/connection";
 import {
   AuthTerminalOperateScope,
   DEFAULT_SERVER_SETTINGS,

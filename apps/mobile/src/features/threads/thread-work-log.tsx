@@ -121,7 +121,10 @@ function WorkLogIcon(props: {
   const colorClassName = props.highlighted ? "accent-foreground" : props.colorClassName;
   if (props.icon === "dak") {
     return (
-      <DakWordmark height={10} {...(colorClassName ? { colorClassName } : { color: props.color })} />
+      <DakWordmark
+        height={10}
+        {...(colorClassName ? { colorClassName } : { color: props.color })}
+      />
     );
   }
   return (

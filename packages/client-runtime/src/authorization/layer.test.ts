@@ -1,8 +1,4 @@
-import {
-  AuthAdministrativeScopes,
-  AuthStandardClientScopes,
-  EnvironmentId,
-} from "@dak/contracts";
+import { AuthAdministrativeScopes, AuthStandardClientScopes, EnvironmentId } from "@dak/contracts";
 import {
   RelayEnvironmentConnectScope,
   type RelayEnvironmentConnectResponse,

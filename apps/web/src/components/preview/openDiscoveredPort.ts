@@ -1,8 +1,5 @@
 import type { DiscoveredLocalServer, ScopedThreadRef } from "@dak/contracts";
-import {
-  mapAtomCommandResult,
-  type AtomCommandResult,
-} from "@dak/client-runtime/state/runtime";
+import { mapAtomCommandResult, type AtomCommandResult } from "@dak/client-runtime/state/runtime";
 
 import { resolveDiscoveredServerUrl } from "~/browser/browserTargetResolver";
 import type { BrowserSettingsReadError, OpenPreviewMutation } from "~/browser/openFileInPreview";

@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off -- A vendoring CLI that copies a tree between two checkouts on disk; the Effect Node FileSystem is an async service this tool does not run.
 /**
  * Vendored Canvas engine snapshot.
  *

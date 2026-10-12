@@ -136,11 +136,6 @@ export const registerCanvasHostFonts = (options: CanvasHostFontsOptions): void =
   registered = true;
 };
 
-/** Test-only: forget a provider was installed so the next call installs a fresh one. */
-export const resetCanvasHostFontsForTest = (): void => {
-  registered = false;
-};
-
 /**
  * One shipped text face, as recorded in `packages/canvas-engine/fonts/manifest.json`.
  *
@@ -277,6 +272,3 @@ export const preloadCanvasHostFonts = (directories: ReadonlyArray<string>): Prom
 export const canvasFontsReady = (): Promise<void> => preloadPromise ?? Promise.resolve();
 
 /** Test-only: forget preloaded faces so the next call loads fresh bytes. */
-export const resetCanvasHostFontsPreloadForTest = (): void => {
-  preloadPromise = undefined;
-};

@@ -1,7 +1,4 @@
-import {
-  BearerConnectionTarget,
-  PrimaryConnectionTarget,
-} from "@dak/client-runtime/connection";
+import { BearerConnectionTarget, PrimaryConnectionTarget } from "@dak/client-runtime/connection";
 import {
   type DesktopEnvironmentBootstrap,
   EnvironmentId,

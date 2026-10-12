@@ -1,10 +1,5 @@
 import { scopeProjectRef } from "@dak/client-runtime/environment";
-import type {
-  EnvironmentId,
-  ModelSelection,
-  ProjectId,
-  ScopedProjectRef,
-} from "@dak/contracts";
+import type { EnvironmentId, ModelSelection, ProjectId, ScopedProjectRef } from "@dak/contracts";
 import type { ComposerThreadDraftState, DraftThreadEnvMode } from "../composerDraftStore";
 
 type ComposerModelSelectionState = Pick<

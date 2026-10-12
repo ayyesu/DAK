@@ -1,8 +1,4 @@
-import type {
-  GitRunStackedActionInput,
-  GitStackedAction,
-  VcsStatusResult,
-} from "@dak/contracts";
+import type { GitRunStackedActionInput, GitStackedAction, VcsStatusResult } from "@dak/contracts";
 
 export type GitActionIconName = "commit" | "push" | "pr";
 

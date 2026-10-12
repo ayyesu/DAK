@@ -1,8 +1,4 @@
-import type {
-  PullRequestActor,
-  PullRequestMergeability,
-  PullRequestState,
-} from "@dak/contracts";
+import type { PullRequestActor, PullRequestMergeability, PullRequestState } from "@dak/contracts";
 import type { ReactNode } from "react";
 
 import { cn } from "~/lib/utils";

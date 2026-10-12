@@ -1,8 +1,4 @@
-import type {
-  EnvironmentId,
-  ServerSettingsPatch,
-  UsageModelPriceOverride,
-} from "@dak/contracts";
+import type { EnvironmentId, ServerSettingsPatch, UsageModelPriceOverride } from "@dak/contracts";
 
 export interface UsagePriceTarget {
   readonly environmentId: EnvironmentId;

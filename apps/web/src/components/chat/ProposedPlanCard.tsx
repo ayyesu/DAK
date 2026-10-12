@@ -3,11 +3,7 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@dak/client-runtime/state/runtime";
-import {
-  AuthFilesystemWriteScope,
-  type EnvironmentId,
-  type ScopedThreadRef,
-} from "@dak/contracts";
+import { AuthFilesystemWriteScope, type EnvironmentId, type ScopedThreadRef } from "@dak/contracts";
 import {
   buildCollapsedProposedPlanPreviewMarkdown,
   buildProposedPlanMarkdownFilename,

@@ -60,9 +60,7 @@ describe("relayOwnsManagedEndpointZone", () => {
 
 describe("relayResourceNameForStage", () => {
   it("isolates production and personal stages", () => {
-    expect(relayResourceNameForStage("dak-relay-traces", "prod")).toBe(
-      "dak-relay-traces-prod",
-    );
+    expect(relayResourceNameForStage("dak-relay-traces", "prod")).toBe("dak-relay-traces-prod");
     expect(relayResourceNameForStage("dak-relay-traces", "dev_julius")).toBe(
       "dak-relay-traces-dev-julius",
     );

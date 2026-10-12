@@ -166,7 +166,9 @@ describe("desktop app control server", () => {
       const userId = yield* HostProcessUserId;
       if (platform === "win32") return;
       yield* Effect.promise(async () => {
-        const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "dak-app-takeover-test-"));
+        const root = await NodeFSP.mkdtemp(
+          NodePath.join(NodeOS.tmpdir(), "dak-app-takeover-test-"),
+        );
         const target = makeTarget(NodePath.join(root, "userdata"), platform, userId);
         const older = await startOkServer(target, userId);
         await startOkServer(target, userId);

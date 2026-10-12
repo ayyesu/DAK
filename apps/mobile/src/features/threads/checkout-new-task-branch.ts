@@ -1,9 +1,6 @@
 import type { EnvironmentProject } from "@dak/client-runtime/state/shell";
 import type { VcsRef } from "@dak/client-runtime/state/vcs";
-import {
-  type AtomCommandResult,
-  mapAtomCommandResult,
-} from "@dak/client-runtime/state/runtime";
+import { type AtomCommandResult, mapAtomCommandResult } from "@dak/client-runtime/state/runtime";
 import type { VcsSwitchRefInput, VcsSwitchRefResult } from "@dak/contracts";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";

@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off -- Builds a real temp workspace on disk and reads back what the tool wrote there.
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as NodeFSP from "node:fs/promises";
@@ -77,8 +78,10 @@ const layerTest = Layer.unwrap(
       workspaceRoot,
       repositoryIdentity: null,
       defaultModelSelection: null,
-      createdAt: 1,
-      updatedAt: 1,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      scripts: [],
+      deletedAt: null,
     };
     // The registration resolves threads, projects and the bus from the fiber it is built in, and
     // needs the MCP server itself, so it is provided those rather than the other way round.
@@ -109,13 +112,31 @@ const callTool = (name: string, args: Record<string, unknown>) =>
       );
   });
 
-const contentOfType = (result: { readonly content: ReadonlyArray<unknown> }, type: string) =>
+// Narrows by the block's own `type` tag. One predicate cannot describe both an image block and a
+// text block, and a guard that only described images made every text assertion need a cast that
+// TypeScript correctly rejected.
+interface ToolTextBlock {
+  readonly type: "text";
+  readonly text: string;
+}
+interface ToolImageBlock {
+  readonly type: "image";
+  readonly data: Uint8Array;
+  readonly mimeType: string;
+}
+
+const contentOfType = <T extends ToolTextBlock | ToolImageBlock>(
+  result: { readonly content: ReadonlyArray<unknown> },
+  type: T["type"],
+): ReadonlyArray<T> =>
   result.content.filter(
-    (
-      entry,
-    ): entry is { readonly type: "image"; readonly data: Uint8Array; readonly mimeType: string } =>
+    (entry): entry is T =>
       typeof entry === "object" && entry !== null && (entry as { type?: string }).type === type,
   );
+
+const textBlocks = (result: {
+  readonly content: ReadonlyArray<unknown>;
+}): ReadonlyArray<ToolTextBlock> => contentOfType<ToolTextBlock>(result, "text");
 
 /**
  * The image blocks are the whole point of registering this tool by hand, and they are assembled
@@ -158,7 +179,7 @@ it.effect(
         const sections = metadata.parts.filter((part) => part.role === "section");
         expect(sections.length).toBeGreaterThan(1);
 
-        const images = contentOfType(result, "image");
+        const images = contentOfType<ToolImageBlock>(result, "image");
         // One block per part, in order: the overview first, then every section on this page.
         expect(images.length).toBeGreaterThan(1);
         expect(images.length).toBeLessThanOrEqual(8);
@@ -172,7 +193,7 @@ it.effect(
         // Nothing is trimmed: the planner now keeps a page inside the cap on purpose, so the
         // transport cap is a backstop rather than the thing doing the work. This is the assertion
         // that would fail if the planner regressed back to slicing the whole page at once.
-        const text = contentOfType(result, "text") as ReadonlyArray<{ readonly text: string }>;
+        const text = textBlocks(result);
         expect(text.length).toBeGreaterThan(0);
         const joined = text.map((entry) => entry.text).join("\n");
         expect(joined).not.toContain("image limit");
@@ -228,12 +249,12 @@ it.effect(
         expect(metadata.parts.length).toBeLessThanOrEqual(8);
         expect(metadata.parts[0]?.role).toBe("overview");
 
-        const images = contentOfType(result, "image");
+        const images = contentOfType<ToolImageBlock>(result, "image");
         // Under the cap, so every part arrives and nothing is trimmed.
         expect(images).toHaveLength(metadata.parts.length);
         expect(Buffer.from(images[0]!.data).subarray(0, 8)).toEqual(PNG_MAGIC);
 
-        const [text] = contentOfType(result, "text") as ReadonlyArray<{ readonly text: string }>;
+        const [text] = textBlocks(result);
         expect(text!.text).not.toMatch(/iVBORw0KGgo/);
         expect(text!.text).not.toContain("limit");
         expect(text!.text).toContain(".png");
@@ -270,8 +291,8 @@ it.effect(
           includeImage: false,
         });
         expect(result.isError, JSON.stringify(result.content)).toBeFalsy();
-        expect(contentOfType(result, "image")).toHaveLength(0);
-        const joined = (contentOfType(result, "text") as ReadonlyArray<{ readonly text: string }>)
+        expect(contentOfType<ToolImageBlock>(result, "image")).toHaveLength(0);
+        const joined = textBlocks(result)
           .map((entry) => entry.text)
           .join("\n");
         expect(joined).not.toContain("image limit");
@@ -389,7 +410,7 @@ it.effect(
           const metadata = page.structuredContent as Page;
           first ??= metadata;
           pages += 1;
-          expect(contentOfType(page, "image").length).toBeLessThanOrEqual(8);
+          expect(contentOfType<ToolImageBlock>(page, "image").length).toBeLessThanOrEqual(8);
           for (const part of metadata.parts) {
             if (part.role === "section") seen.push({ y: part.y, height: part.height });
           }
@@ -504,10 +525,10 @@ it.effect(
         for (;;) {
           const metadata = page.structuredContent as Page;
           pages += 1;
-          const text = (contentOfType(page, "text") as ReadonlyArray<{ readonly text: string }>)
+          const text = textBlocks(page)
             .map((entry) => entry.text)
             .join("\n");
-          expect(contentOfType(page, "image").length).toBeLessThanOrEqual(8);
+          expect(contentOfType<ToolImageBlock>(page, "image").length).toBeLessThanOrEqual(8);
           const sections = metadata.parts.filter((part) => part.role === "section");
           if (sections.length + 1 > 8) {
             // The backstop fired, so the agent has to be told what was left behind and where it is.

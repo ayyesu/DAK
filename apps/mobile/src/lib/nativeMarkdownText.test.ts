@@ -427,9 +427,7 @@ describe("nativeMarkdownDocumentRuns", () => {
       children: [
         {
           type: "paragraph",
-          children: [
-            { type: "text", content: "Inspect @src/Checkout.tsx. Use @dak/contracts." },
-          ],
+          children: [{ type: "text", content: "Inspect @src/Checkout.tsx. Use @dak/contracts." }],
         },
       ],
     });

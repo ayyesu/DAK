@@ -9,10 +9,7 @@ import {
   type ScopedProjectRef,
   type ScopedThreadRef,
 } from "@dak/contracts";
-import {
-  presentThreadShell,
-  type EnvironmentThreadShell,
-} from "@dak/client-runtime/state/shell";
+import { presentThreadShell, type EnvironmentThreadShell } from "@dak/client-runtime/state/shell";
 import {
   deriveLatestThreadRun,
   deriveThreadRuntime,

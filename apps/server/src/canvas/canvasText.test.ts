@@ -24,7 +24,7 @@ import {
  *
  * This is the design whose headline used to arrive sliced through the middle of a word and whose
  * navigation button was a dark blob with no label. It is committed as a fixture so the suite never
- * depends on a developer's disk, and rebuilt by `scripts/canvas-portfolio-fixture.ts`.
+ * depends on a developer's disk.
  */
 
 interface Fixture {

@@ -1,10 +1,5 @@
 import { scopeProjectRef } from "@dak/client-runtime/environment";
-import {
-  EnvironmentId,
-  ProjectId,
-  ProviderInstanceId,
-  type ModelSelection,
-} from "@dak/contracts";
+import { EnvironmentId, ProjectId, ProviderInstanceId, type ModelSelection } from "@dak/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
   resolveThreadActionProjectRef,

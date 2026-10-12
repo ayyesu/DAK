@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off -- Reads the real font files off disk to measure coverage.
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -26,7 +27,9 @@ import {
  * The real coverage run is what matters; these tests cover the classifier itself, which is the part
  * that could quietly stop recognising a case.
  */
-const makeTree = async (files: Readonly<Record<string, string>>) => {
+// Bytes are accepted as well as text: the family-size budget is measured in bytes, so a test
+// that needs a 300 KB face writes one directly rather than a 300 KB string literal.
+const makeTree = async (files: Readonly<Record<string, string | Uint8Array>>) => {
   const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "dak-font-coverage-"));
   for (const [relative, contents] of Object.entries(files)) {
     const target = NodePath.join(root, relative);
