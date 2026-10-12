@@ -507,7 +507,14 @@ function createGitHubProviderWithFakeGh(scenario: FakeGhScenario = {}): {
     if (args[0] === "repo" && args[1] === "view") {
       const repository = args[2];
       if (typeof repository === "string" && args.includes("nameWithOwner,url,sshUrl")) {
-        const cloneUrls = scenario.repositoryCloneUrls?.[repository];
+        // `gh repo view` resolves owner/repo case-insensitively, and the code under test derives
+        // mixed case ("binbandit/DAK") while fixtures register canonical lowercase. Match the real
+        // tool rather than failing lookups the production tool would answer.
+        const cloneUrlsKey = Object.keys(scenario.repositoryCloneUrls ?? {}).find(
+          (key) => key.toLowerCase() === repository.toLowerCase(),
+        );
+        const cloneUrls =
+          cloneUrlsKey === undefined ? undefined : scenario.repositoryCloneUrls?.[cloneUrlsKey];
         if (!cloneUrls) {
           return Effect.fail(fail(input.cwd, `Unexpected repository lookup: ${repository}`));
         }
