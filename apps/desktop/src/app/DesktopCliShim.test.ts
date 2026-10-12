@@ -26,7 +26,7 @@ const writeExecutable = (path: string, content: string) => {
   NodeFS.writeFileSync(path, content, { mode: 0o755 });
 };
 
-/** Writes the launcher for `target` at `<root>/bin/t3`, with `<root>/home` as its DAK home. */
+/** Writes the launcher for `target` at `<root>/bin/dak`, with `<root>/home` as its DAK home. */
 const writeShim = (root: string, target: CliShimTarget) => {
   const shim = NodePath.join(root, "bin", "dak");
   writeExecutable(shim, renderCliShim({ target, shimPath: shim, dakHome: `${root}/home` }));
@@ -114,7 +114,7 @@ describe("renderCliShim", () => {
     expect(run(shim, []).stdout).toContain(`home=${root}/home`);
     expect(run(shim, [], { DAK_HOME: "/elsewhere" }).stdout).toContain("home=/elsewhere");
     // Run by a relative path, it still names itself absolutely.
-    const relative = NodeChildProcess.spawnSync("./bin/t3", [], { cwd: root, encoding: "utf8" });
+    const relative = NodeChildProcess.spawnSync("./bin/dak", [], { cwd: root, encoding: "utf8" });
     expect(relative.stdout).toContain(`cli=${shim}`);
   });
 
@@ -157,9 +157,7 @@ describe("renderCliShim", () => {
     const lines = script.split("\r\n");
     expect(lines).toContain("setlocal EnableExtensions DisableDelayedExpansion");
     expect(lines).toContain("chcp 65001 >nul");
-    expect(lines).toContain(
-      'if exist "C:\\Apps\\R&whoami&X 100%%\\!CHANNEL!\\DAK.exe" goto run',
-    );
+    expect(lines).toContain('if exist "C:\\Apps\\R&whoami&X 100%%\\!CHANNEL!\\DAK.exe" goto run');
     // Paths only ever appear quoted or inside `set "..."`, never bare where `&` would split them.
     const bare = lines.filter(
       (line) => line.includes("whoami") && !/"[^"]*whoami[^"]*"/.test(line),

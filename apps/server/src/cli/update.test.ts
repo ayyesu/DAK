@@ -19,9 +19,9 @@ it.layer(NodeServices.layer)("dak update launcher", (it) => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const root = yield* fs.makeTempDirectoryScoped({ prefix: "dak-update-" });
-      const oldExe = path.join(root, "runtime/versions/1.0.0/t3");
-      const newExe = path.join(root, "runtime/versions/2.0.0/t3");
-      const launcher = path.join(root, "bin/t3");
+      const oldExe = path.join(root, "runtime/versions/1.0.0/dak");
+      const newExe = path.join(root, "runtime/versions/2.0.0/dak");
+      const launcher = path.join(root, "bin/dak");
       for (const file of [oldExe, newExe]) {
         yield* fs.makeDirectory(path.dirname(file), { recursive: true });
         yield* fs.writeFileString(file, "");
@@ -45,13 +45,13 @@ it.layer(NodeServices.layer)("dak update launcher", (it) => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const root = yield* fs.makeTempDirectoryScoped({ prefix: "dak-update-" });
-      const newExe = path.join(root, "runtime/versions/2.0.0/t3");
-      const copy = path.join(root, "copy/t3");
-      const foreign = path.join(root, "foreign/t3");
-      const elsewhere = path.join(root, "elsewhere/t3");
+      const newExe = path.join(root, "runtime/versions/2.0.0/dak");
+      const copy = path.join(root, "copy/dak");
+      const foreign = path.join(root, "foreign/dak");
+      const elsewhere = path.join(root, "elsewhere/dak");
       // Another install's versions tree: same shape, different home.
-      const otherHome = path.join(root, "other/runtime/versions/1.0.0/t3");
-      const otherLauncher = path.join(root, "other/bin/t3");
+      const otherHome = path.join(root, "other/runtime/versions/1.0.0/dak");
+      const otherLauncher = path.join(root, "other/bin/dak");
       for (const file of [newExe, copy, elsewhere, otherHome]) {
         yield* fs.makeDirectory(path.dirname(file), { recursive: true });
         yield* fs.writeFileString(file, "");
@@ -79,7 +79,7 @@ it.layer(NodeServices.layer)("dak update launcher", (it) => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const root = yield* fs.makeTempDirectoryScoped({ prefix: "dak-update-" });
-      const launcher = path.join(root, "bin/t3");
+      const launcher = path.join(root, "bin/dak");
       yield* fs.makeDirectory(path.dirname(launcher), { recursive: true });
       yield* fs.writeFileString(launcher, "");
 
@@ -91,7 +91,7 @@ it.layer(NodeServices.layer)("dak update launcher", (it) => {
         Effect.provideService(HostProcessWorkingDirectory, root),
       );
       const relative = yield* resolveLauncherPath.pipe(
-        Effect.provideService(HostProcessInvokedAs, "./bin/t3"),
+        Effect.provideService(HostProcessInvokedAs, "./bin/dak"),
         Effect.provideService(HostProcessEnvironment, { PATH: "" }),
         Effect.provideService(HostProcessWorkingDirectory, root),
       );

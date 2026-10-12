@@ -202,7 +202,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       registry.failReads = false;
       const launcherDir = DesktopCliShim.launcherPath(
         environmentFor(yield* Path.Path, { home, baseDir: `${home}/.dak`, platform: "win32" }),
-      ).replace(/[\\/]t3\.cmd$/, "");
+      ).replace(/[\\/]dak\.cmd$/, "");
       yield* command.install;
       expect(registry.path).toBe(`${userPath};${launcherDir}`);
       yield* command.uninstall;
