@@ -367,7 +367,12 @@ function normalizeDakMcpToolLabel(value: string): string {
  */
 function resolveDakMcpToolName(value: string): string | null {
   const label = normalizeDakMcpToolLabel(value);
-  const mcpMatch = /^mcp__(?<server>.+?)__(?<tool>.+)$/i.exec(label);
+  const mcpMatch =
+    /^mcp__(?<server>.+?)__(?<tool>.+)$/i.exec(label) ??
+    // Single-underscore `mcp_dak_<tool>` seen from registry agents. The server
+    // is the first segment; anything after it is the tool, which may itself
+    // hold underscores.
+    /^mcp_(?<server>[^_]+?)_(?<tool>.+)$/i.exec(label);
   if (mcpMatch?.groups) {
     const { server, tool } = mcpMatch.groups;
     if (server === undefined || tool === undefined) return null;
@@ -378,7 +383,7 @@ function resolveDakMcpToolName(value: string): string | null {
     return Object.hasOwn(DAK_MCP_TOOLS, compat) ? compat : tool;
   }
 
-  const namespaceMatch = /^(?<server>dak|dak_code)(?:[.:/]|\s*·\s*)(?<tool>.+)$/i.exec(label);
+  const namespaceMatch = /^(?<server>dak|dak_code)(?:__|\s*·\s*|[.:/\s])(?<tool>.+)$/i.exec(label);
   if (namespaceMatch?.groups) {
     const tool = namespaceMatch.groups.tool ?? null;
     if (tool !== null && Object.hasOwn(DAK_MCP_TOOLS, tool)) return tool;

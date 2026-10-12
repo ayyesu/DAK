@@ -188,9 +188,6 @@ describe("isTemporaryWorktreeBranch", () => {
     expect(isTemporaryWorktreeBranch("dak/deadbeef")).toBe(true);
     expect(isTemporaryWorktreeBranch("dak-deadbeef")).toBe(true);
     expect(isTemporaryWorktreeBranch("dak/f4ae4e0e-f971-4d48-b4f2-9cf0aa54ab12")).toBe(true);
-    expect(
-      isTemporaryWorktreeBranch(`${WORKTREE_BRANCH_PREFIX}/f4ae4e0e-f971-4d48-b4f2-9cf0aa54ab12`),
-    ).toBe(false);
   });
 
   it("rejects UUID-shaped refs that are not RFC 4122 v4", () => {

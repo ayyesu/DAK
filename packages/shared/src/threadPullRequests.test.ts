@@ -87,7 +87,7 @@ describe("threadPullRequestKeysEqual", () => {
   it("ignores host and repository case", () => {
     expect(
       threadPullRequestKeysEqual(
-        { host: "GitHub.com", repository: "PingDotGG/dak", number: 1 },
+        { host: "GitHub.com", repository: "ayyesu/dak", number: 1 },
         { host: "github.com", repository: "ayyesu/DAK", number: 1 },
       ),
     ).toBe(true);
@@ -400,7 +400,7 @@ describe("chain selection and badge state", () => {
 
   it("keeps branch matching case-sensitive while ignoring repository case", () => {
     const bottom = link(1, {
-      repository: "PingDotGG/Dak",
+      repository: "ayyesu/dak",
       snapshot: snapshot({ headBranch: "Base" }),
     });
     const top = link(2, { snapshot: snapshot({ headBranch: "top", baseBranch: "base" }) });
