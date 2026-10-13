@@ -20,18 +20,12 @@ const imageProps = {
   <div class="download-page" id="download-page" data-channel="stable">
     <!-- The sky lives behind the header and fades to the page. It only shows on the nightly channel. -->
     <header class="download-head">
-      <div class="sky" aria-hidden="true"></div>
       <div class="head-inner" data-rise>
         <span class="head-icon">
           <Image class="head-icon--stable" src="/apple-touch-icon.png" width={64} height={64} loading="eager" {...imageProps} />
           <Image class="head-icon--nightly" src="/apple-touch-icon.png" width={64} height={64} loading="eager" {...imageProps} />
         </span>
         <h1 class="heading">Download DAK</h1>
-      </div>
-      <div class="channel-toggle" role="tablist" aria-label="Release channel" data-rise style="--d:90ms">
-        <span class="channel-thumb" aria-hidden="true"></span>
-        <button type="button" role="tab" data-channel="stable" aria-selected="true">Stable</button>
-        <button type="button" role="tab" data-channel="nightly" aria-selected="false">Nightly</button>
       </div>
       <p class="head-meta" data-rise style="--d:180ms">
         <a id="changelog-link" class="changelog-link" href={RELEASES_URL} target="_blank" rel="noopener noreferrer">
@@ -165,71 +159,33 @@ const imageProps = {
 </Layout>
 
 <script>
-  import { fetchLatestRelease, RELEASES_URL, NIGHTLY_RELEASES_URL, type ReleaseChannel } from "../lib/releases";
+  import { fetchLatestRelease, RELEASES_URL } from "../lib/releases";
 
   const page = document.getElementById("download-page")!;
   const versionLabel = document.getElementById("version-label")!;
   const changelogLink = document.getElementById("changelog-link") as HTMLAnchorElement;
-  const releasesPageLink = document.getElementById("releases-page-link") as HTMLAnchorElement;
-  const tabs = page.querySelectorAll<HTMLButtonElement>(".channel-toggle button");
-  // Only release-asset links; mobile store cards have no data-asset and keep their href.
   const cards = page.querySelectorAll<HTMLAnchorElement>("a[data-asset]");
 
-  function readChannel(): ReleaseChannel {
-    return new URLSearchParams(location.search).get("channel") === "nightly" ? "nightly" : "stable";
-  }
-
-  function relativeAge(iso: string): string {
-    const minutes = Math.max(1, Math.round((Date.now() - Date.parse(iso)) / 60_000));
-    if (minutes < 60) return `${minutes} minutes ago`;
-    const hours = Math.round(minutes / 60);
-    if (hours < 48) return `${hours} hours ago`;
-    return `${Math.round(hours / 24)} days ago`;
-  }
-
-  async function load(channel: ReleaseChannel) {
-    const fallback = channel === "nightly" ? NIGHTLY_RELEASES_URL : RELEASES_URL;
-    page.dataset.channel = channel;
-    tabs.forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.channel === channel)));
-    releasesPageLink.href = fallback;
-    changelogLink.href = fallback;
+  async function load() {
+    page.dataset.channel = "stable";
+    changelogLink.href = RELEASES_URL;
     versionLabel.textContent = "\u00a0";
-    cards.forEach((card) => {
-      card.href = fallback;
-    });
+    cards.forEach((card) => { card.href = RELEASES_URL; });
 
     try {
-      const release = await fetchLatestRelease(channel);
-      // A toggle click while the fetch was in flight wins; drop the stale result.
-      if (page.dataset.channel !== channel) return;
-
-      // Stable shows its version. Nightly shows how fresh the build is; the tag is noise.
-      versionLabel.textContent =
-        channel === "nightly"
-          ? `Built ${relativeAge(release.published_at)}`
-          : release.tag_name;
+      const release = await fetchLatestRelease("stable");
+      versionLabel.textContent = release.tag_name ?? "Production";
       if (release.html_url) changelogLink.href = release.html_url;
       cards.forEach((card) => {
         const match = (release.assets ?? []).find((a) => a.name.endsWith(`-${card.dataset.asset}`));
-        card.href = match?.browser_download_url ?? fallback;
+        card.href = match?.browser_download_url ?? RELEASES_URL;
       });
     } catch {
-      if (page.dataset.channel === channel) versionLabel.textContent = "Releases";
+      versionLabel.textContent = "Production";
     }
   }
 
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const channel = tab.dataset.channel as ReleaseChannel;
-      const url = new URL(location.href);
-      if (channel === "nightly") url.searchParams.set("channel", "nightly");
-      else url.searchParams.delete("channel");
-      history.replaceState(null, "", url);
-      load(channel);
-    });
-  });
-
-  load(readChannel());
+  load();
 </script>
 
 <style>
@@ -603,4 +559,7 @@ const imageProps = {
     }
   }
 </style>
+
+
+
 
