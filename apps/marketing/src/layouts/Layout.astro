@@ -8,7 +8,6 @@ import {
   ANDROID_PLAY_STORE_URL,
   GITHUB_REPOSITORY_URL,
   IOS_APP_STORE_URL,
-  MARKETING_STATS,
 } from "../lib/site";
 
 interface Props {
@@ -19,7 +18,7 @@ interface Props {
 
 const {
   title = "DAK",
-  description = "DAK. The open-source control plane for coding agents.",
+  description = "DAK. The control plane for coding agents, with a visual canvas.",
   pageClass,
 } = Astro.props;
 
@@ -35,7 +34,7 @@ const socialImage = await getImage({
 });
 const socialImageUrl = new URL(socialImage.src, Astro.site);
 const socialImageAlt =
-  "DAK: the open-source control plane for coding agents, with Claude Code, Codex, Cursor, OpenCode, Grok and Antigravity.";
+  "DAK: the control plane for coding agents, with a visual canvas.";
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 ---
 
@@ -78,22 +77,11 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
       <nav class="nav">
         <div class="nav-inner">
           <a href="/" class="nav-brand" aria-label="DAK home">
+            <img src="/apple-touch-icon.png" alt="" width="22" height="22" class="nav-brand-mark" />
             <span class="nav-brand-name">DAK</span>
           </a>
           <div class="nav-right">
             <a class="nav-link" href="/download">Download</a>
-            <a
-              class="nav-stars"
-              href={GITHUB_REPOSITORY_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`Star DAK on GitHub — ${MARKETING_STATS.githubStars} stars`}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M12 2.3l2.9 5.88 6.49.94-4.7 4.58 1.11 6.47L12 17.12l-5.8 3.05 1.11-6.47-4.7-4.58 6.49-.94L12 2.3z"/>
-              </svg>
-              <span><strong>{MARKETING_STATS.githubStars}</strong> GitHub stars</span>
-            </a>
           </div>
         </div>
       </nav>
@@ -116,19 +104,9 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
               loading="lazy"
               decoding="async"
             />
-            <span>&copy; {new Date().getFullYear()} DAK Inc · MIT licensed</span>
-          </div>
-          <div class="footer-links">
-            <a href={GITHUB_REPOSITORY_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
-            <a href="https://discord.gg/jn4EGJjrvv" target="_blank" rel="noopener noreferrer">Discord</a>
-            <a href="/download">Download</a>
-            <a href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">iOS app</a>
-            <a href={ANDROID_PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">Android app</a>
-            <a href="/terms-of-service">Terms</a>
-            <a href="/privacy-policy">Privacy</a>
-            <a href="/security-policy">Security</a>
-          </div>
+            <span>&copy; {new Date().getFullYear()} DAK Inc. All rights reserved.</span>
         </div>
+      </div>
       </footer>
     </div>
 
@@ -147,17 +125,17 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 
 <style is:global>
   :root {
-    --bg: #09090b;
-    --bg-elev: #0c0c0e;
-    --bg-card: #111113;
-    --fg: #fafafa;
-    --fg-muted: #a1a1aa;
-    --fg-dim: #71717a;
-    --fg-faint: #52525b;
-    --border: rgba(255, 255, 255, 0.08);
-    --border-strong: rgba(255, 255, 255, 0.14);
-    --accent-h: 250;
-    --accent: oklch(0.68 0.17 var(--accent-h));
+    --bg: #050816;
+    --bg-elev: #0a0f22;
+    --bg-card: #0f1530;
+    --fg: #f8fafc;
+    --fg-muted: #9fb0d0;
+    --fg-dim: #6f7fa5;
+    --fg-faint: #4b5880;
+    --border: rgba(120, 160, 255, 0.14);
+    --border-strong: rgba(120, 160, 255, 0.26);
+    --accent-h: 255;
+    --accent: oklch(0.74 0.18 var(--accent-h));
     --accent-dim: oklch(0.68 0.17 var(--accent-h) / 0.15);
     --ok: oklch(0.72 0.16 150);
     --warn: oklch(0.76 0.15 75);
@@ -374,7 +352,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     color: #fff;
   }
 
-  .nav-brand-name {
+  .nav-brand-mark { border-radius: 6px; }`n`n  .nav-brand-name {
     font-size: 16px;
     font-weight: 650;
     letter-spacing: -0.025em;
@@ -529,3 +507,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     }
   }
 </style>
+
+
+
+
