@@ -273,12 +273,13 @@ import { RELEASES_URL } from "../lib/releases";
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-    background-size: 48px 48px;
-    mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 40%, transparent 100%);
-    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 40%, transparent 100%);
+    background:
+      radial-gradient(1200px 600px at 15% 10%, rgba(120, 160, 255, 0.28), transparent 60%),
+      radial-gradient(900px 500px at 85% 20%, rgba(236, 72, 153, 0.18), transparent 60%),
+      radial-gradient(1000px 700px at 50% 80%, rgba(56, 189, 248, 0.14), transparent 65%);
+    filter: blur(24px);
+    opacity: 0.45;
+  }
   }
 
   .hero-inner {
@@ -1055,6 +1056,7 @@ import { RELEASES_URL } from "../lib/releases";
     width: 100%;
     height: auto;
     display: block;
+    filter: brightness(1.1) contrast(1.05) saturate(1.04);
   }
 
   .canvas-copy { display: flex; flex-direction: column; gap: 28px; }
@@ -1105,14 +1107,17 @@ import { RELEASES_URL } from "../lib/releases";
   .hero-media-frame {
     border-radius: 20px;
     overflow: hidden;
-    border: 1px solid var(--border);
-    box-shadow: 0 32px 70px -28px rgba(0, 0, 0, 0.7);
-    background: #0a0f22;
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 40px 80px -24px rgba(0, 0, 0, 0.8);
+    background: transparent;
+  }
   }
   .hero-media-frame img {
     display: block;
     width: 100%;
     height: auto;
+    filter: brightness(1.12) contrast(1.08) saturate(1.05);
+  }
   }
 
   @media (max-width: 960px) {
