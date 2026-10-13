@@ -2,13 +2,7 @@
 import { getImage } from "astro:assets";
 import desktopScreenshot from "../assets/app-desktop.webp";
 import Layout from "../layouts/Layout.astro";
-import {
-  ANDROID_PLAY_STORE_URL,
-  IOS_APP_STORE_URL,
-  MARKETING_STATS,
-} from "../lib/site";
 import { RELEASES_URL } from "../lib/releases";
-import { tweets } from "../lib/tweets";
 
 const screenshot = await getImage({
   src: desktopScreenshot,
@@ -17,16 +11,6 @@ const screenshot = await getImage({
   quality: 90,
 });
 
-const desktopEndorsementRows = [
-  tweets.filter((_, index) => index % 2 === 0),
-  tweets.filter((_, index) => index % 2 === 1),
-];
-
-const mobileEndorsementRows = [
-  tweets.filter((_, index) => index % 3 === 0),
-  tweets.filter((_, index) => index % 3 === 1),
-  tweets.filter((_, index) => index % 3 === 2),
-];
 ---
 
 <Layout>
@@ -104,217 +88,33 @@ const mobileEndorsementRows = [
     </div>
   </section>
 
-  <!-- ── Endorsements ─────────────────────────────────────────── -->
-  <section id="endorsements" class="sec-endorsements" aria-labelledby="endorsements-title">
-    <div class="container">
-      <div class="endorsements-head">
-        <h2 id="endorsements-title">Tolerated by over <span class="endorsements-count">{MARKETING_STATS.users}</span> devs</h2>
-        <p>Some of them even tweeted about it.</p>
-      </div>
-    </div>
-
-    <div class="endorsement-carousel endorsement-carousel--desktop" aria-label="Developer endorsements">
-        {
-          desktopEndorsementRows.map((row, rowIndex) => (
-            <div class:list={["endorsement-row", rowIndex === 1 && "is-reverse"]}>
-              <div class="endorsement-track">
-                {[0, 1].map((groupIndex) => (
-                  <div class="endorsement-track-group" aria-hidden={groupIndex === 1 ? "true" : undefined}>
-                    {row.map((tweet) => (
-                      <a
-                        class="endorsement-card"
-                        href={tweet.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Read ${tweet.handle}'s post on X`}
-                        tabindex={groupIndex === 1 ? "-1" : undefined}
-                      >
-                        <div class="endorsement-author">
-                          <img
-                            src={`/pfps/${tweet.handle}.webp`}
-                            alt=""
-                            width="28"
-                            height="28"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                          <div class="endorsement-handle">@{tweet.handle}</div>
-                        </div>
-                        <p>{tweet.excerpt ?? tweet.content}</p>
-                      </a>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))
-        }
-    </div>
-
-    <div class="endorsement-carousel endorsement-carousel--mobile" aria-label="Developer endorsements">
-        {
-          mobileEndorsementRows.map((row, rowIndex) => (
-            <div class:list={["endorsement-row", rowIndex === 1 && "is-reverse"]}>
-              <div class="endorsement-track">
-                {[0, 1].map((groupIndex) => (
-                  <div class="endorsement-track-group" aria-hidden={groupIndex === 1 ? "true" : undefined}>
-                    {row.map((tweet) => (
-                      <a
-                        class="endorsement-card"
-                        href={tweet.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Read ${tweet.handle}'s post on X`}
-                        tabindex={groupIndex === 1 ? "-1" : undefined}
-                      >
-                        <div class="endorsement-author">
-                          <img
-                            src={`/pfps/${tweet.handle}.webp`}
-                            alt=""
-                            width="28"
-                            height="28"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                          <div class="endorsement-handle">@{tweet.handle}</div>
-                        </div>
-                        <p>{tweet.excerpt ?? tweet.content}</p>
-                      </a>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))
-        }
-    </div>
-  </section>
-
-  <!-- ── Harnesses ─────────────────────────────────────────────── -->
-  <section id="harnesses" class="sec-harness">
+  <!-- Features -->
+  <section id="features" class="sec-features">
     <div class="container">
       <div class="section-head">
-        <h2>Bring your own sub</h2>
+        <div class="eyebrow">What DAK does</div>
+        <h2>One surface for every agent.</h2>
         <p>
-          DAK doesn't resell tokens. Plug in Claude Code, Codex, Antigravity,
-          OpenCode, Cursor, or Grok with the credentials you already have. We
-          orchestrate them, you keep your plan.
+          Start threads, review diffs, run remote sessions, and inspect designs on
+          the same canvas. DAK keeps the context your agents need in one place.
         </p>
       </div>
-
-      <div class="harness-grid">
-        <div class="harness">
-          <div class="harness-mark"><img src="/harnesses/claude-ai-icon.svg" alt="" /></div>
-          <div class="harness-meta">
-            <div class="harness-name">Claude Code</div>
-            <div class="harness-tag">claude auth login</div>
-          </div>
+      <div class="feature-grid">
+        <div class="tile feature-card">
+          <h3>Unified threads</h3>
+          <p>Claude, Codex, Cursor, Grok, OpenCode, and Antigravity in one timeline.</p>
         </div>
-        <div class="harness">
-          <div class="harness-mark"><img src="/harnesses/openai_dark.svg" alt="" /></div>
-          <div class="harness-meta">
-            <div class="harness-name">Codex CLI</div>
-            <div class="harness-tag">codex login</div>
-          </div>
+        <div class="tile feature-card">
+          <h3>Visual canvas</h3>
+          <p>Designs render inline so feedback stays in the same conversation.</p>
         </div>
-        <div class="harness">
-          <div class="harness-mark"><img src="/harnesses/opencode-dark.svg" alt="" /></div>
-          <div class="harness-meta">
-            <div class="harness-name">OpenCode</div>
-            <div class="harness-tag">opencode auth</div>
-          </div>
+        <div class="tile feature-card">
+          <h3>Review and ship</h3>
+          <p>Diff, commit, push, and open PRs without leaving the app.</p>
         </div>
-        <div class="harness">
-          <div class="harness-mark"><img src="/harnesses/cursor_light.svg" alt="" /></div>
-          <div class="harness-meta">
-            <div class="harness-name">Cursor</div>
-            <div class="harness-tag">@cursor/sdk</div>
-          </div>
-        </div>
-        <div class="harness">
-          <div class="harness-mark"><img src="/harnesses/grok-dark.svg" alt="" /></div>
-          <div class="harness-meta">
-            <div class="harness-name">Grok CLI</div>
-            <div class="harness-tag">grok login</div>
-          </div>
-        </div>
-        <div class="harness">
-          <div class="harness-mark"><img src="/harnesses/antigravity.svg" alt="" /></div>
-          <div class="harness-meta">
-            <div class="harness-name">Antigravity</div>
-            <div class="harness-tag">Google sign-in</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="harness-footer">
-        <div class="harness-footer-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg> No keys resold. No quota caps.</div>
-        <div class="harness-footer-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg> Switch models mid-thread.</div>
-        <div class="harness-footer-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg> More harnesses shipping weekly.</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Git ──────────────────────────────────────────────────── -->
-  <section id="git" class="sec-git">
-    <div class="container git-inner">
-      <div
-        class="git-visual"
-        role="img"
-        aria-label="Illustration of the DAK Git workflow: review a diff, commit and push changes, and open a pull request."
-      >
-        <div class="pr-card tile">
-          <div class="pr-head">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M6 8v8M18 8v5a3 3 0 01-3 3h-3M13 13l-2 3 2 3"/></svg>
-            <span class="pr-title">Add marketing hero animation</span>
-            <span class="pr-status">Ready</span>
-          </div>
-          <div class="pr-meta">
-            <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M6 8v8M6 12a6 6 0 006-6h6"/></svg> feat/marketing-hero → main</span>
-            <span>+142 −38</span>
-            <span>3 commits</span>
-          </div>
-          <div class="pr-files">
-            <div><code>apps/marketing/src/pages/index.astro</code> <span>+14 −2</span></div>
-            <div><code>apps/marketing/src/layouts/Layout.astro</code> <span>+8 −0</span></div>
-            <div><code>apps/marketing/public/hero.css</code> <span>+120 −36</span></div>
-          </div>
-          <div class="pr-foot">
-            <span class="btn btn-ghost" style="font-size:12px;padding:6px 10px">View diff</span>
-            <span class="btn btn-primary" style="font-size:12px;padding:6px 12px">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12a11.5 11.5 0 007.86 10.93c.58.1.79-.25.79-.56v-2c-3.2.69-3.88-1.37-3.88-1.37-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.68 1.25 3.33.96.1-.75.4-1.25.72-1.54-2.55-.29-5.24-1.27-5.24-5.67 0-1.25.45-2.28 1.18-3.08-.12-.29-.51-1.45.11-3.02 0 0 .96-.31 3.15 1.18a10.96 10.96 0 015.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.57.23 2.73.11 3.02.74.8 1.18 1.83 1.18 3.08 0 4.41-2.7 5.38-5.27 5.66.41.36.78 1.06.78 2.13v3.16c0 .31.21.67.8.56A11.5 11.5 0 0023.5 12C23.5 5.65 18.35.5 12 .5z"/></svg>
-              Open pull request
-            </span>
-          </div>
-        </div>
-        <div class="pr-trail">
-          <div class="pr-trail-dot"></div>
-          <div class="pr-trail-line"></div>
-          <div class="pr-trail-dot"></div>
-        </div>
-        <div class="pr-button-shell">
-          <span class="pr-button">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M6 8v8M18 8v5a3 3 0 01-3 3h-3M13 13l-2 3 2 3"/></svg>
-            Commit &amp; push
-            <span id="pr-button-kbd" class="pr-button-kbd">⌘⏎</span>
-          </span>
-        </div>
-      </div>
-
-      <div class="git-copy">
-        <div class="section-head" style="margin-bottom:0">
-          <h2>One button to commit, push, and make a PR.</h2>
-          <p>
-            Every agent thread writes to its own branch. When it's good, one
-            button opens the PR on GitHub with a generated title, body and
-            changelog. No terminal dance required.
-          </p>
-          <ul class="checklist" style="margin-top:24px">
-            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg> Auto-generated PR titles &amp; bodies</li>
-            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg> Inline diff review before you push</li>
-            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg> Draft PRs, stack PRs, amend PRs</li>
-            <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg> Works with your existing GitHub auth</li>
-          </ul>
+        <div class="tile feature-card">
+          <h3>Remote ready</h3>
+          <p>Control your agents from web, desktop, or mobile over a secure link.</p>
         </div>
       </div>
     </div>
@@ -1311,7 +1111,43 @@ const mobileEndorsementRows = [
   @media (max-width: 960px) {
     .canvas-grid { grid-template-columns: 1fr; gap: 32px; }
   }
+
+  /* Features section */
+  .sec-features { background: #070b18; }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+  }
+
+  .feature-card {
+    padding: 26px 22px;
+    min-height: 150px;
+    background: linear-gradient(180deg, rgba(120,160,255,0.06), rgba(255,255,255,0));
+  }
+
+  .feature-card h3 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-bottom: 10px;
+  }
+
+  .feature-card p {
+    color: var(--fg-muted);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 960px) {
+    .feature-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 640px) {
+    .feature-grid { grid-template-columns: 1fr; }
+  }
 </style>
+
 
 
 

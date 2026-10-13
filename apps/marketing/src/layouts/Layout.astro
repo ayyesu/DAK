@@ -4,11 +4,6 @@ import appIcon from "../assets/icon.webp";
 import socialCard from "../assets/social-card.webp";
 import dmSansLatinUrl from "../assets/fonts/dm-sans-latin.woff2?url";
 import "../styles/fonts.css";
-import {
-  ANDROID_PLAY_STORE_URL,
-  GITHUB_REPOSITORY_URL,
-  IOS_APP_STORE_URL,
-} from "../lib/site";
 
 interface Props {
   title?: string;
@@ -507,6 +502,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     }
   }
 </style>
+
 
 
 
