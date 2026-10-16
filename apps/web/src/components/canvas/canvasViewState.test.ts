@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   applyCanvasSequence,
   canvasCatchUpDue,
+  canvasIsUnderResolved,
   canvasRenderSettled,
   canvasRenderStarted,
   initialCanvasViewState,
@@ -12,22 +13,21 @@ import {
   type CanvasViewState,
 } from "./canvasViewState";
 
-const frame = (nodeId: string, sequence: number) => ({
+const frame = (nodeId: string, sequence: number, scale = 1) => ({
   nodeId,
-  // Deliberately different from the raster below: a frame taller than the render edge comes back
-  // scaled down, and the layout uses the design size, not the bitmap's.
+  // Deliberately different from the raster: a frame taller than the render ceiling comes back below
+  // the scale it was asked for, and the layout uses the design size, not the bitmap's.
   designWidth: 390,
   designHeight: 844,
-  width: 1200,
-  height: 900,
+  width: Math.ceil(390 * scale),
+  height: Math.ceil(844 * scale),
   data: "png",
   sequence,
 });
 
-const rendered = (sequence: number, nodeId = "frame-1", maxEdge = 2048) => ({
-  frames: [frame(nodeId, sequence)],
+const rendered = (sequence: number, nodeId = "frame-1", scale = 1) => ({
+  frames: [frame(nodeId, sequence, scale)],
   sequence,
-  maxEdge,
   title: "Landing page",
   omittedFrames: 0,
   projectionCurrent: true,
@@ -94,6 +94,42 @@ describe("deciding to render", () => {
   });
 });
 
+describe("detail the frames on screen do not have", () => {
+  it("is not reported before the first render, when there is nothing to compare", () => {
+    expect(canvasIsUnderResolved(state(), 1)).toBe(false);
+  });
+
+  it("is reported when the frames came back below the scale the view is showing them at", () => {
+    // The engine's ceiling and the payload budget both answer below the scale that was asked for, so
+    // the frames themselves are the only evidence of what arrived.
+    const soft = state({ frames: [frame("frame-1", 4)] });
+    expect(canvasIsUnderResolved(soft, 2)).toBe(true);
+    expect(canvasIsUnderResolved(soft, 1)).toBe(false);
+  });
+
+  it("reports a frame the ceiling left short even when its neighbours are sharp", () => {
+    const mixed = state({
+      frames: [
+        frame("frame-1", 4, 2),
+        { ...frame("frame-2", 4, 2), designWidth: 1200, width: 1200 },
+      ],
+    });
+    // frame-1 is at the scale the view is showing; frame-2 came back at half of it, which is what a
+    // 1200-wide design hits when its long edge is capped.
+    expect(canvasIsUnderResolved(mixed, 2)).toBe(true);
+    expect(canvasIsUnderResolved(mixed, 1)).toBe(false);
+  });
+
+  it("calls a raster rounded up from the needed size resolved", () => {
+    // Half a pixel of slack: the multiply that decides what a zoom needs is floating point, and a
+    // frame rounded up by a fraction must not be reported as soft.
+    const rounded = state({
+      frames: [{ ...frame("frame-1", 4), designWidth: 300, width: 330 }],
+    });
+    expect(canvasIsUnderResolved(rounded, 1.1)).toBe(false);
+  });
+});
+
 describe("a render in flight", () => {
   it("keeps the previous frames rather than blanking the panel", () => {
     const current = state({ frames: [frame("frame-1", 3)], renderedSequence: 3 });
@@ -155,20 +191,20 @@ describe("a settled render", () => {
     expect(next.observedSequence).toBe(9);
   });
 
-  it("records the edge the frames were really rendered at, so a reduced view can say so", () => {
-    const next = canvasRenderSettled(
+  it("keeps the frames a reduced render landed, so the marker still has something to go on", () => {
+    const reduced = canvasRenderSettled(
       state({ rendering: true }),
-      { requestId: 1, ok: true, rendered: rendered(4, "frame-1", 512) },
+      { requestId: 1, ok: true, rendered: rendered(4, "frame-1", 0.5) },
       1,
     );
-    expect(next.renderedEdge).toBe(512);
+    expect(reduced.frames[0]?.width).toBe(195);
     const failed = canvasRenderSettled(
-      next,
+      reduced,
       { requestId: 2, ok: false, message: "This design could not be updated." },
       2,
     );
     // The frames on screen are still the reduced ones, so the marker must not change its story.
-    expect(failed.renderedEdge).toBe(512);
+    expect(failed.frames[0]?.width).toBe(195);
   });
 
   it("still knows the design is in the trash after a render settles", () => {

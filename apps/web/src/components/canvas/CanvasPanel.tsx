@@ -30,6 +30,7 @@ import { readStoredZoom, writeStoredZoom } from "./canvasZoomStorage";
 import {
   applyCanvasSequence,
   canvasCatchUpDue,
+  canvasIsUnderResolved,
   CANVAS_RENDER_COALESCE_MS,
   canvasRenderSettled,
   canvasRenderStarted,
@@ -53,29 +54,40 @@ import {
  * only in who owns the size.
  */
 
-/** Enough to fill a large panel on a retina display without rasterizing a poster at full size. */
-const MAX_EDGE_CEILING = 2048;
+/**
+ * The top of the ladder, and what a zoom past it asks for. The server's own ceiling is below what a
+ * 400% zoom on a 2x display wants anyway, and the marker says so when the frames come back short.
+ */
+const RENDER_SCALE_CEILING = 8;
 
 /**
- * The edges a design is rasterized at, coarse on purpose.
+ * The scales a design is rasterized at, coarse on purpose.
  *
- * Measured against the real engine: a text-bearing deck costs about six times the bytes and seven
- * times the CPU at the ceiling than at a panel's own 512px, so asking for what is actually on screen
- * is most of the saving. A coarse ladder keeps that from becoming a request per pixel of zoom.
+ * A frame is rasterized at its own size times this, so the scale is the view's whole resolution
+ * story: 1 is one raster pixel per design unit, and the rungs above it are the ones a zoom or a
+ * scaled display needs. Measured against the real engine, a text-bearing deck costs about six times
+ * the bytes and seven times the CPU at twice the scale, so asking for what is actually on screen is
+ * most of the saving. A ladder rather than the exact product keeps a zoom sweep from becoming a
+ * request per wheel notch, and the next rung up costs at most half again the pixels it replaces.
  */
-const RENDER_EDGE_LADDER = [512, 768, 1024, 1536, MAX_EDGE_CEILING] as const;
+const RENDER_SCALE_LADDER = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, RENDER_SCALE_CEILING] as const;
 
 /**
- * The edge a design needs at `zoom`, from how large it actually is.
+ * The scale a design is rasterized at, from how large it is actually drawn.
  *
- * Driven by the zoom and the design's own size rather than by the panel's width. That is the whole
- * change behind "frames keep their size when the panel is resized": the panel's width is no longer an
- * input to anything, so dragging it wider reveals more of the world instead of re-scaling what is in
- * it. Asking for the panel's width is what made every frame a different size on every resize.
+ * Driven by the zoom and the display's pixel ratio rather than by the panel's width. That is the
+ * whole change behind "frames keep their size when the panel is resized": the panel's width is no
+ * longer an input to anything, so dragging it wider reveals more of the world instead of re-scaling
+ * what is in it.
+ *
+ * The product is the honest number here. A frame drawn at `zoom` on a 125% display needs 125% more
+ * pixels than it has design units, and asking in those terms is what the engine can act on: it
+ * renders text and shapes at the scale it is given, so a design on a scaled display or at 200% zoom
+ * comes back with real detail instead of a magnified bitmap.
  */
-const edgeForZoom = (designEdge: number, zoom: number, devicePixelRatio: number): number => {
-  const needed = Math.ceil(designEdge * zoom * Math.max(1, devicePixelRatio));
-  return RENDER_EDGE_LADDER.find((edge) => edge >= needed) ?? MAX_EDGE_CEILING;
+const renderScaleForZoom = (zoom: number, devicePixelRatio: number): number => {
+  const needed = zoom * Math.max(1, devicePixelRatio);
+  return RENDER_SCALE_LADDER.find((scale) => scale >= needed) ?? RENDER_SCALE_CEILING;
 };
 
 interface Props {
@@ -138,50 +150,15 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
    * current, and this one is about where they are. Keeping them apart is what stops a re-render from
    * being able to move the user's view.
    */
-  /**
-   * The largest edge the design has, in design units.
-   *
-   * The raster edge follows this times the zoom, never the panel's width — that separation is what
-   * stops a resized panel from rescaling the design.
-   */
-  const designEdge = useMemo(
-    () =>
-      state.frames.reduce(
-        (tallest, frame) => Math.max(tallest, frame.designHeight, frame.designWidth),
-        0,
-      ),
-    [state.frames],
-  );
   const [camera, setCamera] = useState<CanvasCamera>(initialCanvasCamera);
   const cameraRef = useRef(camera);
-  /**
-   * The floor the render edge only ever rises to.
-   *
-   * A rasterized frame stays readable when the zoom comes back down, so zooming out must not throw
-   * away resolution that was already paid for. It is raised here, where a zoom actually happens,
-   * rather than inside the derived edge, so the derivation stays a pure function of the camera.
-   */
-  const renderEdgeFloorRef = useRef<number>(RENDER_EDGE_LADDER[0]);
-  const [renderEdgeFloor, setRenderEdgeFloor] = useState<number>(RENDER_EDGE_LADDER[0]);
-  const moveCamera = useCallback(
-    (next: CanvasCamera | ((c: CanvasCamera) => CanvasCamera)) => {
-      setCamera((current) => {
-        const resolved = typeof next === "function" ? next(current) : next;
-        cameraRef.current = resolved;
-        // Raising the floor here is what keeps the edge monotonic without a second state update.
-        const needed =
-          designEdge === 0
-            ? RENDER_EDGE_LADDER[0]
-            : edgeForZoom(designEdge, resolved.zoom, window.devicePixelRatio);
-        if (needed > renderEdgeFloorRef.current) {
-          renderEdgeFloorRef.current = needed;
-          setRenderEdgeFloor(needed);
-        }
-        return resolved;
-      });
-    },
-    [designEdge],
-  );
+  const moveCamera = useCallback((next: CanvasCamera | ((c: CanvasCamera) => CanvasCamera)) => {
+    setCamera((current) => {
+      const resolved = typeof next === "function" ? next(current) : next;
+      cameraRef.current = resolved;
+      return resolved;
+    });
+  }, []);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   /**
@@ -195,27 +172,27 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
   const timerRef = useRef<number | null>(null);
 
   /**
-   * The raster edge, derived from the camera rather than stored.
+   * The scale the frames are asked for at, derived from the camera rather than stored.
    *
-   * A frame is drawn at its design size times the zoom, so that product is what has to be resolved.
-   * The panel's width appears nowhere, which is the whole point: it cannot rescale the design.
-   *
-   * Purely derived. The floor that keeps it monotonic is raised in `moveCamera`, which is where a
-   * zoom actually happens — deriving it here would mean calling setState from a memo, which is the
-   * shape React warns about and can loop on.
+   * The panel's width appears nowhere, which is the whole point: it cannot rescale the design. A
+   * different rung is a different request, which is what makes zooming in ask the server for pixels
+   * the frames do not have yet instead of magnifying the ones they do.
    */
-  const renderEdge = useMemo(() => {
-    if (designEdge === 0) return renderEdgeFloor;
-    return Math.max(edgeForZoom(designEdge, camera.zoom, window.devicePixelRatio), renderEdgeFloor);
-  }, [designEdge, camera.zoom, renderEdgeFloor]);
+  const renderScale = useMemo(
+    () => renderScaleForZoom(camera.zoom, window.devicePixelRatio),
+    [camera.zoom],
+  );
+  /** What this zoom actually needs, which is what a soft frame is measured against. */
+  const neededScale = camera.zoom * Math.max(1, window.devicePixelRatio);
 
   const renderAtom = useMemo(
     () =>
       canvasEnvironment.render({
         environmentId,
-        input: { projectId, documentId, maxEdge: renderEdge },
+        // No `maxEdge`: the server's own ceiling is the cap, and the scale above is the ask.
+        input: { projectId, documentId, scale: renderScale },
       }),
-    [environmentId, projectId, documentId, renderEdge],
+    [environmentId, projectId, documentId, renderScale],
   );
   const sequenceAtom = useMemo(
     () => canvasEnvironment.sequence({ environmentId, input: { projectId, documentId } }),
@@ -232,11 +209,12 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
    *
    * The subscription only ever carries a sequence, so the decision to spend server CPU is the
    * client's. Bumps coalesce behind a short trailing timer, so an agent running fifty edits costs
-   * one render rather than fifty.
+   * one render rather than fifty. A forced render skips the wait: it is a request whose answer is
+   * already known to be different, such as one carrying a finer scale.
    */
   const requestRender = useCallback(
-    (force: boolean) => {
-      if (!shouldRenderCanvas(stateRef.current, force ? { force: true } : {})) return;
+    (options: { readonly force?: boolean } = {}) => {
+      if (!shouldRenderCanvas(stateRef.current, options)) return;
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
       const run = () => {
         timerRef.current = null;
@@ -245,14 +223,21 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
         commit(canvasRenderStarted(stateRef.current));
         refreshRender();
       };
-      if (force) run();
+      if (options.force === true) run();
       else timerRef.current = window.setTimeout(run, CANVAS_RENDER_COALESCE_MS);
     },
     [commit, refreshRender],
   );
 
+  /**
+   * The first render, and every render a new request implies.
+   *
+   * `requestRender` is rebuilt whenever the request changes — a finer rung of scale, a design opened
+   * from another tab — so this fires again then, which is how zooming in reaches the server instead
+   * of leaving the fit-sized raster magnified across the frame.
+   */
   useEffect(() => {
-    requestRender(true);
+    requestRender({ force: true });
   }, [requestRender]);
 
   useEffect(
@@ -274,7 +259,7 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
     commit(applyCanvasSequence(stateRef.current, sequence.value));
     const resubscribed = !seenSequenceRef.current;
     seenSequenceRef.current = true;
-    requestRender(resubscribed);
+    requestRender({ force: resubscribed });
   }, [sequence, requestRender, commit]);
 
   const renderResult = useAtomValue(renderAtom);
@@ -303,7 +288,6 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
                 })),
                 sequence: renderResult.value.sequence,
                 title: renderResult.value.title,
-                maxEdge: renderResult.value.maxEdge,
                 omittedFrames: renderResult.value.omittedFrames,
                 projectionCurrent: renderResult.value.projectionCurrent,
               },
@@ -332,7 +316,7 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
     // An edit that landed while this render was in flight was declined at the time, so this is the
     // only place a catch-up can be asked for. Without it the view holds the older frames until some
     // later sequence arrives, while the staleness marker claims an update that never happens.
-    if (canvasCatchUpDue(settled)) requestRender(false);
+    if (canvasCatchUpDue(settled)) requestRender();
   }, [renderResult, commit, requestRender]);
 
   // The tab takes its real name from the render, so a design opened by id is labelled properly.
@@ -505,7 +489,10 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
   // user closed the panel over stops costing layout work without losing its place.
   if (!visible) return <div className="h-full min-h-0 w-full" data-canvas-panel-mode={mode} />;
 
-  const reducedDetail = state.renderedEdge !== null && state.renderedEdge < renderEdge;
+  // Measured against the scale this zoom actually needs, not the rung it asked for: the rung rounds
+  // up, so anything short of the raw need was capped by the server or the budget, and the frames
+  // themselves say which one.
+  const reducedDetail = canvasIsUnderResolved(state, neededScale);
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col" data-canvas-panel-mode={mode}>
@@ -528,7 +515,7 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
               <TooltipTrigger>
                 <span className="shrink-0 text-xs text-muted-foreground">Reduced detail</span>
               </TooltipTrigger>
-              <TooltipPopup>Shown at reduced detail to keep this view light.</TooltipPopup>
+              <TooltipPopup>Shown below the resolution this zoom needs.</TooltipPopup>
             </Tooltip>
           ) : null}
           <CanvasZoomControl
@@ -858,7 +845,9 @@ export function CanvasWorld({
       <div className="pointer-events-none absolute bottom-2 left-2 flex flex-col gap-1">
         {omittedFrames > 0 ? (
           <p className="text-xs text-muted-foreground">
-            {omittedFrames} more frames were left out of this view.
+            {omittedFrames === 1
+              ? "1 more frame was left out of this view."
+              : `${omittedFrames} more frames were left out of this view.`}
           </p>
         ) : null}
         {!projectionCurrent ? (

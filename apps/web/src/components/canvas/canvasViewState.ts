@@ -17,8 +17,6 @@ export interface CanvasViewState {
   readonly frames: readonly CanvasRenderedFrame[];
   /** The sequence those frames were rendered at. */
   readonly renderedSequence: number | null;
-  /** The edge those frames were actually rasterized at, which the server may have lowered. */
-  readonly renderedEdge: number | null;
   readonly title: string | null;
   /** The newest sequence the stream has reported, which may be ahead of what is on screen. */
   readonly observedSequence: number | null;
@@ -65,7 +63,6 @@ export interface CanvasRenderedFrame {
 export const initialCanvasViewState: CanvasViewState = {
   frames: [],
   renderedSequence: null,
-  renderedEdge: null,
   title: null,
   observedSequence: null,
   observedTrashed: false,
@@ -101,11 +98,29 @@ export function applyCanvasSequence(
 }
 
 /**
+ * Whether the frames on screen are rasterized below the scale they are being shown at.
+ *
+ * A design is rasterized at the scale the view draws it at, so zooming in asks for more pixels than
+ * the frames already have. Measuring each frame against its own design size is what makes this
+ * honest: the server caps a frame's long edge and the payload budget can lower the scale, so a
+ * comparison against a single number the view asked for would call a magnified bitmap fine, and one
+ * against the rung the view picked would miss a frame the cap left short.
+ */
+export function canvasIsUnderResolved(state: CanvasViewState, scale: number): boolean {
+  // Nothing is on screen before the first render lands, so there is nothing to call soft. The half
+  // pixel is slack for the raster being rounded up and for the multiply's own rounding.
+  return state.frames.some((frame) => frame.width + 0.5 < frame.designWidth * scale);
+}
+
+/**
  * Whether a render should start now.
  *
- * A view renders when it has nothing on screen, when the stream has moved past what it shows, or when
- * a previous render failed. It does not render on every subscription tick: an unchanged sequence must
- * not repaint, or a panel left open all day would repaint forever.
+ * A view renders when it has nothing on screen, when the stream has moved past what it shows, or
+ * when a previous render failed. It does not render on every subscription tick: an unchanged
+ * sequence must not repaint, or a panel left open all day would repaint forever.
+ *
+ * A zoom that outgrows the raster on screen is not here: it is a different request, so the atom that
+ * holds the request is a different atom and the render follows from that.
  */
 export function shouldRenderCanvas(
   state: CanvasViewState,
@@ -182,7 +197,6 @@ export function canvasRenderSettled(
   return {
     frames: rendered.frames,
     renderedSequence: rendered.sequence,
-    renderedEdge: rendered.maxEdge,
     title: rendered.title,
     rendering: false,
     // An edit that landed while this render was in flight belongs to a sequence newer than the one
@@ -204,8 +218,6 @@ export function canvasRenderSettled(
 export interface CanvasRenderSettled {
   readonly frames: readonly CanvasRenderedFrame[];
   readonly sequence: number;
-  /** The edge the server actually rasterized at, which is lower than asked when it reduced detail. */
-  readonly maxEdge: number;
   readonly title: string;
   readonly omittedFrames: number;
   readonly projectionCurrent: boolean;

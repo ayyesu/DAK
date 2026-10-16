@@ -10,6 +10,7 @@ import {
   detectModuleViewportMismatch,
   isProjectionCurrent,
   isSafeFilenameSegment,
+  reducedRenderResolution,
   resolveImplicitLayout,
   resolveTrashConfirmation,
   summarizeReviewIssues,
@@ -616,5 +617,50 @@ describe("canvas conflict retry", () => {
     if (result._tag !== "GiveUp") return;
     expect(result.attempts).toBe(3);
     expect(result.message).toContain("not applied");
+  });
+});
+
+describe("canvas render retry", () => {
+  it("leaves a payload that already fits alone", () => {
+    expect(
+      reducedRenderResolution({
+        scale: 2,
+        maxEdge: 2048,
+        payloadChars: 1_000_000,
+        budgetChars: 1_000_000,
+        minScale: 0.25,
+        minEdge: 256,
+      }),
+    ).toBeNull();
+  });
+
+  it("brings the scale and the cap down together, to the share of the budget it aims at", () => {
+    const retry = reducedRenderResolution({
+      scale: 2,
+      maxEdge: 2048,
+      payloadChars: 4_000_000,
+      budgetChars: 1_000_000,
+      minScale: 0.25,
+      minEdge: 256,
+    });
+
+    // Either number can be what set a frame's pixels, so both come down rather than one being
+    // assumed to be the binding one. Aiming at 80% of the budget makes the factor sqrt(0.2).
+    expect(retry?.scale).toBe(Math.floor(2 * Math.sqrt(0.2) * 100) / 100);
+    expect(retry?.maxEdge).toBe(Math.floor(2048 * Math.sqrt(0.2)));
+  });
+
+  it("declines a retry that would rasterize the same pixels", () => {
+    // Both numbers are already at their floor, so the fit has to drop frames instead.
+    expect(
+      reducedRenderResolution({
+        scale: 0.25,
+        maxEdge: 256,
+        payloadChars: 4_000_000,
+        budgetChars: 1_000_000,
+        minScale: 0.25,
+        minEdge: 256,
+      }),
+    ).toBeNull();
   });
 });
