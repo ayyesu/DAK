@@ -228,7 +228,7 @@ export function createSidebarSortingStrategy(input: {
       const measured = collapsing ? undefined : rect?.height;
       return item.kind === "marker" &&
         (item.marker === "pinned-header" || item.marker === "pinned-divider")
-        ? labelHeight
+        ? measured || labelHeight
         : item.kind === "marker" && item.marker.endsWith("placeholder")
           ? slimHeight
           : (measured ?? slimHeight);

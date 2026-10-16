@@ -753,37 +753,49 @@ type SidebarSweepAction = "settle" | "unsettle" | "unsnooze";
 // sorting strategy opens 24px for a 16px label with 4px clearance on each side.
 const SIDEBAR_DRAG_LABEL_HEIGHT = 24;
 
+// Both boundaries are real headers: they name their shelf and carry its count
+// whether or not a drag is in flight. The label keeps its
+// `sidebar-drag-boundary-label` hook, which the collision detector reads to
+// decide which side of the divider a pointer is on, and the marker keeps a
+// measured height so the resting layout and the drag projection agree.
 function SidebarDragBoundary(props: {
   marker: "pinned-header" | "pinned-divider";
   label: string;
-  visible: boolean;
+  /** Rows the shelf holds, shown at rest as well as while dragging. */
+  count: number;
   isDropTarget: boolean;
 }) {
   return (
     <SortableSidebarMarker
       marker={props.marker}
       data-testid={`sidebar-${props.marker}`}
-      className="pointer-events-none relative mx-0.5 -mb-px h-0"
+      className="pointer-events-none relative mx-0.5 -mb-px h-6"
     >
-      {props.visible ? (
-        <div className="sidebar-drag-boundary-label absolute inset-x-2 top-1 flex h-4 items-center gap-2">
-          <span
-            className={cn(
-              "shrink-0 text-xs font-medium",
-              props.isDropTarget ? "text-primary" : "text-sidebar-foreground/80",
-            )}
-          >
-            {props.label}
-          </span>
-          <span
-            aria-hidden
-            className={cn(
-              "h-px flex-1",
-              props.isDropTarget ? "bg-primary/50" : "bg-sidebar-foreground/25",
-            )}
-          />
-        </div>
-      ) : null}
+      <div className="sidebar-drag-boundary-label absolute inset-x-2 top-1 flex h-4 items-center gap-2">
+        <span
+          className={cn(
+            "shrink-0 text-xs font-medium",
+            props.isDropTarget ? "text-primary" : "text-sidebar-foreground/80",
+          )}
+        >
+          {props.label}
+        </span>
+        <span
+          aria-hidden
+          className={cn(
+            "h-px flex-1",
+            props.isDropTarget ? "bg-primary/50" : "bg-sidebar-foreground/25",
+          )}
+        />
+        <span
+          className={cn(
+            "shrink-0 text-xs tabular-nums",
+            props.isDropTarget ? "text-primary" : "text-sidebar-muted-foreground",
+          )}
+        >
+          {props.count}
+        </span>
+      </div>
     </SortableSidebarMarker>
   );
 }
@@ -5457,7 +5469,7 @@ export default function Sidebar() {
                                 key="pinned-header"
                                 marker="pinned-header"
                                 label="Pinned"
-                                visible={from !== null}
+                                count={pinnedThreads.length}
                                 isDropTarget={dragTargetSection === "pinned"}
                               />,
                             );
@@ -5468,7 +5480,7 @@ export default function Sidebar() {
                                 key="pinned-divider"
                                 marker="pinned-divider"
                                 label="Working"
-                                visible={from !== null}
+                                count={activeThreads.length}
                                 isDropTarget={dragTargetSection === "active"}
                               />,
                             );
