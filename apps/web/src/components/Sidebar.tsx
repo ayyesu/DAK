@@ -194,6 +194,7 @@ import {
   isSidebarThreadWorking,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
+  SIDEBAR_STATUS_RAIL_CLASS,
   planSidebarThreadDrop,
   reduceSidebarProjectScopeMenuState,
   resolveAdjacentThreadId,
@@ -203,12 +204,14 @@ import {
   resolveSidebarThreadSection,
   resolveSidebarRowAccessibility,
   type SidebarDropVerb,
+  resolveSidebarStatusRailTone,
   resolveSidebarThreadStatus,
   resolveThreadLastVisitedAt,
   searchSidebarThreads,
   shouldCreateNewThreadInCurrentProject,
   shouldNavigateAfterThreadPark,
   shouldRecedeSidebarThread,
+  shouldShowSidebarV2Duration,
   resolveWorkingStartedAt,
   sidebarListItemId,
   sidebarMarkerId,
@@ -1575,6 +1578,20 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
     ],
   );
 
+  // Dense rows have no room for a status label, so the rail is the row's
+  // status at rest. Both variants use the same element: the rail describes the
+  // thread, not the row shape, and the row's own `overflow-hidden` clips it to
+  // the rounded corners.
+  const statusRail = (
+    <span
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute inset-y-0 left-0 w-[3px]",
+        SIDEBAR_STATUS_RAIL_CLASS[resolveSidebarStatusRailTone({ status, isUnread, isWoke })],
+      )}
+    />
+  );
+
   // All sidebar rows share one surface model. Live threads used to look
   // like elevated cards while settled threads were plain rows, leaving neither
   // a useful hierarchy nor a reliable hover cue. Status now lives in the row
@@ -1795,8 +1812,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
         {...sortableRootProps}
         {...(fileDropHandlers ?? {})}
         className={cn(
-          // Matches the h-9 row so unrendered rows never shift the list when they paint.
-          "list-none [content-visibility:auto] [contain-intrinsic-size:auto_36px]",
+          // Matches the h-8 row so unrendered rows never shift the list when they paint.
+          "list-none [content-visibility:auto] [contain-intrinsic-size:auto_32px]",
           sortable?.isDragging && "relative z-20",
         )}
       >
@@ -1811,7 +1828,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                 aria-current={accessibility.current}
                 data-testid="sidebar-row-slim"
                 aria-busy={isRegeneratingTitle || undefined}
-                className={cn(rowSurfaceClassName, "flex h-9 items-center gap-2.5 px-2.5")}
+                className={cn(rowSurfaceClassName, "flex h-8 items-center gap-2.5 px-2.5")}
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
                 onKeyDown={handleKeyDown}
@@ -1820,6 +1837,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
             }
           >
             {accessibleTitle}
+            {statusRail}
             {/* Settled history recedes: dimmed favicon at rest, restored on
               hover so the tail stays scannable when you're hunting. */}
             <span
@@ -1838,6 +1856,19 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
             {isRegeneratingTitle ? (
               <span role="status" className="sr-only">
                 Regenerating title
+              </span>
+            ) : null}
+            {/* A remote thread keeps its machine cue when it goes dense. The
+              card carries it in the branch line and the tooltip repeats it, but
+              the glyph is the only thing that answers "which machine is this
+              running on" without a hover. Single-environment users never see
+              it: the local environment has nothing to disambiguate. */}
+            {isRemote && !showsScratchMachine ? (
+              <span
+                aria-hidden
+                className="inline-flex shrink-0 items-center text-sidebar-muted-foreground/70"
+              >
+                <EnvironmentMachineIcon kind={props.environmentMachine} className="size-3.5" />
               </span>
             ) : null}
             {/* The PR badge stays outside the hover-fading slot: it must
@@ -1886,9 +1917,15 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                     </Tooltip>
                   ) : (
                     <span className="text-xs">
-                      {variantAction === "unsettle"
-                        ? settledTimeLabel(thread)
-                        : threadTimeLabel(thread)}
+                      {variantAction === "unsettle" ? (
+                        settledTimeLabel(thread)
+                      ) : shouldShowSidebarV2Duration(status) ? (
+                        // The rail already reads "working"; the elapsed time is
+                        // what tells you whether it is still moving.
+                        <WorkingDuration startedAt={resolveWorkingStartedAt(thread)} />
+                      ) : (
+                        threadTimeLabel(thread)
+                      )}
                     </span>
                   )}
                 </span>
@@ -1985,6 +2022,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
           }
         >
           {accessibleTitle}
+          {statusRail}
           <div className="relative z-10 h-[4.875rem] px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)">
             <div className="flex h-5 min-w-0 items-center gap-1.5">
               {draftIndicator}
@@ -5255,13 +5293,16 @@ export default function Sidebar() {
                         const threadKey = scopedThreadKey(
                           scopeThreadRef(thread.environmentId, thread.id),
                         );
-                        // Settled and snoozed are the ONLY things that collapse a
-                        // row: every other thread is a full card. Density comes
-                        // from users (or the auto rules) actually parking work,
-                        // not from the sidebar second-guessing what still matters.
-                        // Working rows stay cards so their live status shows.
-                        const isCard =
-                          section === "active" || section === "pinned" || section === "working";
+                        // Density comes from the row shape, not from parking
+                        // work: a live thread is one 32px line whose state lives
+                        // on the leading rail, and only the thread you are in or
+                        // one blocked on a human expands back into the card.
+                        // Parked rows stay dense however, because their quick
+                        // action is un-settle or wake, and only the dense row
+                        // offers those: the card's action is always Settle.
+                        const parked = section === "settled" || section === "snoozed";
+                        const needsHuman = thread.hasPendingApprovals || thread.hasPendingUserInput;
+                        const isCard = !parked && (routeThreadKey === threadKey || needsHuman);
                         const rowVariant = isCard ? "card" : "slim";
                         return (
                           <SidebarThreadRow

@@ -34,12 +34,14 @@ import {
   resolveSidebarStageBadgeLabel,
   resolveSidebarThreadSection,
   resolveSidebarRowAccessibility,
+  resolveSidebarStatusRailTone,
   resolveSidebarThreadStatus,
   resolveSidebarV2TopStatus,
   resolveThreadLastVisitedAt,
   resolveThreadRowClassName,
   resolveThreadStatusPill,
   resolveWorkingStartedAt,
+  SIDEBAR_STATUS_RAIL_CLASS,
   searchSidebarThreads,
   shouldClearThreadSelectionOnMouseDown,
   shouldShowSidebarV2Duration,
@@ -991,6 +993,45 @@ describe("resolveSidebarThreadStatus", () => {
   it("keeps Waiting static while Working shows elapsed duration", () => {
     expect(shouldShowSidebarV2Duration("waiting")).toBe(false);
     expect(shouldShowSidebarV2Duration("working")).toBe(true);
+  });
+});
+
+describe("resolveSidebarStatusRailTone", () => {
+  const rest = { isUnread: false, isWoke: false };
+
+  it("carries the label's precedence: work in motion, then blocked, then unseen", () => {
+    expect(resolveSidebarStatusRailTone({ status: "working", ...rest })).toBe("working");
+    expect(resolveSidebarStatusRailTone({ status: "approval", ...rest })).toBe("approval");
+    expect(resolveSidebarStatusRailTone({ status: "input", ...rest })).toBe("input");
+    expect(resolveSidebarStatusRailTone({ status: "failed", ...rest })).toBe("failed");
+    expect(resolveSidebarStatusRailTone({ status: "limited", ...rest })).toBe("limited");
+  });
+
+  it("prefers live status over unread and woke, which only dress a resting row", () => {
+    expect(resolveSidebarStatusRailTone({ status: "working", isUnread: true, isWoke: true })).toBe(
+      "working",
+    );
+    expect(resolveSidebarStatusRailTone({ status: "waiting", isUnread: true, isWoke: true })).toBe(
+      "waiting",
+    );
+    expect(resolveSidebarStatusRailTone({ status: "ready", isUnread: true, isWoke: true })).toBe(
+      "woke",
+    );
+  });
+
+  it("falls back to a quiet rail so the list keeps one leading edge", () => {
+    expect(resolveSidebarStatusRailTone({ status: "ready", ...rest })).toBe("quiet");
+    expect(resolveSidebarStatusRailTone({ status: "ready", isUnread: true, isWoke: false })).toBe(
+      "done",
+    );
+  });
+
+  it("gives every tone a static colour and no animation", () => {
+    for (const tone of Object.keys(SIDEBAR_STATUS_RAIL_CLASS)) {
+      const className = SIDEBAR_STATUS_RAIL_CLASS[tone as keyof typeof SIDEBAR_STATUS_RAIL_CLASS];
+      expect(className).toMatch(/^bg-/);
+      expect(className).not.toContain("animate");
+    }
   });
 });
 
