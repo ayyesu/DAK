@@ -248,7 +248,7 @@ const SidebarEnvironmentStatus = memo(function SidebarEnvironmentStatus() {
       />
       <span className="min-w-0 truncate">{environment.label}</span>
       <span aria-hidden className="shrink-0 text-sidebar-muted-foreground/60">
-        -
+        ·
       </span>
       <span className="shrink-0">{resolveSidebarConnectionMode(environment.entry.target)}</span>
     </div>
