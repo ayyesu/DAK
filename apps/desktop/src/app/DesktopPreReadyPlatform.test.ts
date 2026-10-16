@@ -117,7 +117,7 @@ describe("DesktopPreReadyPlatform", () => {
         const identity = yield* Effect.promise(() => portalIdentity);
         assert.equal(identity.desktopName, "com.dak.DAK.desktop");
         assert.include(identity.desktopEntry ?? "", 'Exec="/Applications/current.AppImage" %U');
-        assert.include(identity.desktopEntry ?? "", "Name=DAK (Alpha)");
+        assert.include(identity.desktopEntry ?? "", "Name=DAK");
         assert.include(identity.desktopEntry ?? "", "MimeType=x-scheme-handler/dak;");
         assert.include(identity.desktopEntry ?? "", "Icon=/xdg/icons/com.dak.DAK.desktop.png");
         assert.isTrue(identity.iconInstalled);

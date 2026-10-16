@@ -114,7 +114,11 @@ export function resolveDesktopAppBranding(input: {
   return {
     baseName: APP_BASE_NAME,
     stageLabel,
-    displayName: `${APP_BASE_NAME} (${stageLabel})`,
+    // The window title, the About panel and the Linux desktop entry all read
+    // this, so it stays the plain product name. The stage label is carried
+    // separately for the environment-identification affordance rather than
+    // being folded back into the name every surface shows.
+    displayName: APP_BASE_NAME,
   };
 }
 
