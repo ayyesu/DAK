@@ -3,10 +3,21 @@ import type { ReactNode } from "react";
 import { memo, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 
+import { connectionStatusText } from "@dak/client-runtime/connection";
+
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
-import { usePullRequestsSupported } from "../../state/environments";
+import {
+  useEnvironments,
+  usePrimaryEnvironment,
+  usePullRequestsSupported,
+} from "../../state/environments";
 import { DakWordmark } from "../DakWordmark";
+import {
+  ConnectionStatusDot,
+  connectionPhaseDotClassName,
+  connectionPhasePingClassName,
+} from "../ConnectionStatusDot";
 import {
   resolveEnvironmentIdentificationPillLabel,
   useEnvironmentStageLabel,
@@ -23,6 +34,7 @@ import {
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { readPullRequestListPreferences } from "../pullRequest/pullRequestListPreferences";
 import { isSidebarUtilityPage, useNavigateToMainApp } from "./mainAppLocation";
+import { resolveSidebarConnectionMode } from "./SidebarChrome.logic";
 import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
 import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
@@ -214,13 +226,50 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   );
 });
 
+/** The footer names the primary environment — the backend serving this
+    client. A hosted client can connect to remotes only, so it falls back to the
+    first catalogued environment rather than showing nothing. */
+function useFooterEnvironment() {
+  const primary = usePrimaryEnvironment();
+  const { environments } = useEnvironments();
+  return primary ?? environments[0] ?? null;
+}
+
+const SidebarEnvironmentStatus = memo(function SidebarEnvironmentStatus() {
+  const environment = useFooterEnvironment();
+  if (environment === null) return null;
+  const phase = environment.connection.phase;
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 text-xs text-sidebar-muted-foreground">
+      <ConnectionStatusDot
+        dotClassName={connectionPhaseDotClassName(phase)}
+        pingClassName={connectionPhasePingClassName(phase)}
+        tooltipText={connectionStatusText(environment.connection)}
+      />
+      <span className="min-w-0 truncate">{environment.label}</span>
+      <span aria-hidden className="shrink-0 text-sidebar-muted-foreground/60">
+        -
+      </span>
+      <span className="shrink-0">{resolveSidebarConnectionMode(environment.entry.target)}</span>
+    </div>
+  );
+});
+
 export const SidebarChromeFooter = memo(function SidebarChromeFooter() {
   return (
     <SidebarFooter>
       <SidebarThreadUndoNotice />
       <SidebarProviderUpdatePill />
       <SidebarUpdateArchitectureWarning />
-      <SidebarUtilityMenu />
+      {/* Status on the left, utilities pushed right. Every utility entry point
+          (Settings, Pull Requests, Usage, update) stays; only the plain
+          overflow glyph the mock draws is dropped. */}
+      <div className="flex min-w-0 items-center gap-2">
+        <SidebarEnvironmentStatus />
+        <div className="ml-auto flex shrink-0 items-center">
+          <SidebarUtilityMenu />
+        </div>
+      </div>
     </SidebarFooter>
   );
 });

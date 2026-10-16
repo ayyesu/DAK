@@ -12,11 +12,11 @@ import {
 const stationary = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
 const hidden = { ...stationary, scaleY: 0 };
 
-/** A card is 4.875rem tall and a dense row is h-8, so any measured row height
-    falls clearly on one side of the midpoint. The projection classifies rows by
-    height because which shape a thread row takes no longer follows its section:
-    a live thread is a card only when it is the route thread or blocked on a
-    human, and either can sit in any shelf. */
+/** A card is 6rem tall and a dense row is h-8, so the floor separates the two
+    shapes with a clear margin. The projection classifies rows by height because
+    which shape a thread row takes no longer follows its section: a live thread
+    is a card only when it is the route thread or blocked on a human, and either
+    can sit in any shelf. */
 const CARD_HEIGHT_FLOOR = 56;
 
 type ThreadItem = Extract<SidebarListItem, { kind: "thread" }>;
