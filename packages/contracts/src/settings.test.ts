@@ -544,8 +544,10 @@ describe("ClientSettings recording input overlays", () => {
 });
 
 describe("ClientSettings glass opacity", () => {
-  it("defaults to a readable translucent surface", () => {
-    expect(decodeClientSettings({}).glassOpacity).toBe(80);
+  it("defaults to a solid surface", () => {
+    // The sharp & editorial language separates layers with hairlines, so the
+    // frosted look is opt-in via Settings -> Interface rather than the default.
+    expect(decodeClientSettings({}).glassOpacity).toBe(100);
   });
 
   it.each([39, 101, 72.5])("rejects an invalid glass opacity: %s", (value) => {

@@ -54,6 +54,13 @@ import { isElectron } from "../env";
 import { cn } from "../lib/utils";
 import { applyAppearanceFontVariables } from "~/appearanceFonts";
 import { applyAppearanceContrast } from "~/appearanceContrast";
+import {
+  APPEARANCE_BACKGROUND_STORAGE_KEY,
+  AppearanceBackgroundPreferences,
+  DEFAULT_APPEARANCE_BACKGROUND,
+  applyAppearanceBackground,
+} from "~/appearanceBackground";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useClientSettings } from "../hooks/useSettings";
 import {
   deriveLogicalProjectKeyFromSettings,
@@ -178,6 +185,7 @@ function RootRouteView() {
           <ContrastAppearanceSync />
           <EnvironmentThemeSync />
           <GlassAppearanceSync />
+          <BackgroundAppearanceSync />
           <FontAppearanceSync />
           <ProviderAuthCallbackCoordinator />
           <CustomSnoozeDialogHost />
@@ -219,6 +227,7 @@ function RootRouteView() {
         <ContrastAppearanceSync />
         <EnvironmentThemeSync />
         <GlassAppearanceSync />
+        <BackgroundAppearanceSync />
         <FontAppearanceSync />
         <ProviderAuthCallbackCoordinator />
         <ChatGptWelcomeCoordinator />
@@ -299,6 +308,25 @@ function GlassAppearanceSync() {
       style.removeProperty("--glass-blur");
     }
   }, [glassOpacity]);
+
+  return null;
+}
+
+/**
+ * The background picture is device-local (see `appearanceBackground`), so it is
+ * read straight from storage rather than from client settings: the picture must
+ * never ride along with the rest of the configuration over the websocket.
+ */
+function BackgroundAppearanceSync() {
+  const [background] = useLocalStorage(
+    APPEARANCE_BACKGROUND_STORAGE_KEY,
+    DEFAULT_APPEARANCE_BACKGROUND,
+    AppearanceBackgroundPreferences,
+  );
+
+  useEffect(() => {
+    applyAppearanceBackground(document.documentElement, background);
+  }, [background]);
 
   return null;
 }

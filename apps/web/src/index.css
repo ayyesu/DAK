@@ -87,7 +87,9 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
 }
 
 :root {
-  --app-scrollbar-width: 6px;
+  /* SHARP & EDITORIAL: wider than the old 6px so a square thumb still has a
+     comfortable hit target without needing to look like a pill. */
+  --app-scrollbar-width: 9px;
   --appearance-contrast-base: 100%;
   --appearance-contrast-boost: 0%;
   --appearance-contrast-border-boost: 0%;
@@ -97,8 +99,13 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   /*
    * Compact UI geometry. Keep these values semantic so sidebar, palette,
    * tooltip, and toolbar controls cannot quietly drift apart.
+   *
+   * SHARP & EDITORIAL: the app's shape language is near-square. One radius
+   * (`--control-radius`) drives every control, and the container scale below
+   * is fixed rather than derived, so a card, a menu, and the composer all land
+   * within a couple of pixels of each other instead of spanning 6px to 22px.
    */
-  --control-radius: 0.5rem;
+  --control-radius: 3px;
   --sidebar-content-inset: 0.5rem;
   --sidebar-control-gap: 0.5rem;
   --sidebar-icon-color: color-mix(
@@ -113,8 +120,15 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   /* App layer order: docked sheets, then the floating preview player (47–49, see
      previewMiniPlayerLayout.ts), then dialogs and popovers (50 and up). */
   --z-sheet: 46;
+  /*
+   * SHARP & EDITORIAL: layered surfaces are solid, so what is behind a menu
+   * never bleeds through and contrast is a property of the theme alone. This
+   * is the stylesheet's default, matching `DEFAULT_GLASS_OPACITY`; the
+   * Settings → Interface slider overrides it inline, so lowering glass opacity
+   * still brings the blur back rather than leaving a half-declared setting.
+   */
+  --glass-opacity: 100%;
   --glass-blur: 12px;
-  --glass-opacity: 80%;
   --glass-saturation: 1.14;
   --desktop-window-right-resize-inset: 0px;
   --workspace-topbar-height: 52px;
@@ -141,8 +155,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
 
   @variant dark {
     --appearance-contrast-target: white;
-    --app-scrollbar-thumb: rgb(255 255 255 / 8%);
-    --app-scrollbar-thumb-hover: rgb(255 255 255 / 12%);
+    --app-scrollbar-thumb: rgb(255 255 255 / 14%);
+    --app-scrollbar-thumb-hover: rgb(255 255 255 / 22%);
     --glass-blur: 16px;
     --glass-saturation: 1.08;
   }
@@ -188,10 +202,38 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   --inset-shadow-control-highlight: 0 1px rgb(255 255 255 / 16%);
   --inset-shadow-control-pressed: 0 1px rgb(0 0 0 / 8%);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  /*
+   * Elevation scale. Three steps, one job each: e2 lifts a card out of the
+   * page, e3 is a floating layer (menu, popover, toast), e4 owns the window
+   * (dialog, sheet).
+   *
+   * SHARP & EDITORIAL: a contact shadow plus one tight, fast-falling shade.
+   * No wide soft bloom — depth comes from the hairline border and the edge
+   * highlight, so a raised surface reads as a plate of glass sitting on the
+   * canvas rather than as a glowing card. Exposed as `shadow-e2` … `shadow-e4`
+   * utilities and as `var(--shadow-e*)` for the surfaces that compose them
+   * with a highlight.
+   */
+  --shadow-e2: 0 1px 0 0 rgb(0 0 0 / 5%);
+  --shadow-e3: 0 1px 0 0 rgb(0 0 0 / 6%), 0 4px 10px -4px rgb(0 0 0 / 16%);
+  --shadow-e4: 0 1px 0 0 rgb(0 0 0 / 7%), 0 10px 20px -8px rgb(0 0 0 / 20%);
+  --shadow-hairline: inset 0 1px 0 0 rgb(255 255 255 / 5%);
+  /*
+   * Tailwind's built-in shadow scale, retuned to the same crisp profile so the
+   * ad-hoc `shadow-xs` / `shadow-sm` / `shadow-lg` sprinkled across features
+   * stop reintroducing the soft bloom the app no longer uses.
+   */
+  --shadow-2xs: 0 1px 0 0 rgb(0 0 0 / 4%);
+  --shadow-xs: 0 1px 1px -0.5px rgb(0 0 0 / 6%);
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --shadow-md: 0 2px 4px -2px rgb(0 0 0 / 10%);
+  --shadow-lg: 0 4px 8px -4px rgb(0 0 0 / 12%);
+  --shadow-xl: 0 8px 14px -6px rgb(0 0 0 / 14%);
+  --shadow-2xl: 0 12px 22px -10px rgb(0 0 0 / 16%);
   /* The composer's elevation: a soft drop pulled in under the surface, shared
      by the composer, its context strip and attached banners. */
-  --shadow-composer: 0 12px 28px -18px rgb(0 0 0 / 40%);
-  --shadow-composer-dark: 0 14px 32px -18px rgb(0 0 0 / 75%);
+  --shadow-composer: 0 1px 0 0 rgb(0 0 0 / 5%);
+  --shadow-composer-dark: 0 1px 0 0 rgb(0 0 0 / 5%);
   /* Dark-mode shade where an attached surface meets the composer: 10px of
      shadow fading away from the seam. Inline, so the offsets resolve on the
      element. below: the context strip under the composer (1rem seam, faint
@@ -274,12 +316,19 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   --color-sidebar-row-active: var(--sidebar-row-active);
   --color-sidebar-row-selected: var(--sidebar-row-selected);
   --color-sidebar-border: var(--contrast-sidebar-border);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
+  /*
+   * SHARP & EDITORIAL: a fixed, tight radius scale instead of one derived from
+   * `--radius`. The old scale spanned 6px to 22px, so a badge, a card, a menu
+   * and the composer all read as differently-shaped objects. Everything now
+   * sits inside 1–6px: near-square, but never harsh enough to look like a
+   * missing radius at small sizes.
+   */
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+  --radius-2xl: 5px;
+  --radius-3xl: 6px;
   @keyframes skeleton {
     /* The single loading-bar breath used by every skeleton: one opacity pulse
        per container, stepped so however many bars sit under it, the compositor
@@ -378,13 +427,13 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   border-color: color-mix(in srgb, var(--contrast-foreground) 10%, transparent);
-  box-shadow: 0 24px 64px -24px rgb(0 0 0 / 65%);
+  box-shadow: var(--shadow-e4), var(--shadow-hairline);
 
   @variant dark {
     border-color: color-mix(in srgb, var(--color-white) 8%, transparent);
     box-shadow:
-      inset 0 1px rgb(255 255 255 / 4%),
-      0 24px 72px -20px rgb(0 0 0 / 90%);
+      inset 0 1px rgb(255 255 255 / 5%),
+      var(--shadow-e4);
   }
 
   @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
@@ -411,6 +460,13 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   border: 1px solid color-mix(in srgb, var(--contrast-foreground) 10%, transparent);
+  box-shadow: var(--shadow-e3), var(--shadow-hairline);
+
+  @variant dark {
+    box-shadow:
+      inset 0 1px rgb(255 255 255 / 5%),
+      var(--shadow-e3);
+  }
 
   @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
     background: var(--popover) !important;
@@ -1061,7 +1117,9 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
 
 :root {
   color-scheme: light;
-  --radius: 0.625rem;
+  /* Matches `--control-radius`; everything that reads the base radius directly
+     (input groups, inline code chips) lands on the same near-square edge. */
+  --radius: 3px;
   --background: var(--color-zinc-25);
   --app-chrome-background: var(--background);
   --toolbar-background: var(--app-chrome-background);
@@ -1097,8 +1155,14 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   --tool-error-icon: var(--error);
   --error-surface: color-mix(in srgb, var(--error) 8%, transparent);
   --destructive: var(--error);
-  --border: var(--color-zinc-200);
-  --input: var(--color-zinc-300);
+  /*
+   * SHARP & EDITORIAL: separation comes from the hairline, not from a soft
+   * shadow, so the edges are a step stronger than the old near-invisible
+   * zinc-200. Cascades through `--contrast-border` into every `border-border`
+   * in the app.
+   */
+  --border: var(--color-zinc-300);
+  --input: var(--color-zinc-400);
   --ring: var(--primary);
   --destructive-foreground: var(--error-foreground);
   --info: var(--color-blue-500);
@@ -1151,8 +1215,10 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
     --error-foreground: var(--color-red-400);
     --tool-error-icon: #fca5a5;
     --error-surface: color-mix(in srgb, var(--error) 16%, transparent);
-    --border: --alpha(var(--color-white) / 6%);
-    --input: --alpha(var(--color-white) / 8%);
+    /* SHARP & EDITORIAL: doubled from the old near-invisible 6%, so panels
+       separate on a black canvas without needing a glow. */
+    --border: --alpha(var(--color-white) / 13%);
+    --input: --alpha(var(--color-white) / 17%);
     --info-foreground: var(--color-blue-400);
     --success-foreground: var(--color-emerald-400);
     --warning-foreground: var(--color-amber-400);
@@ -1182,8 +1248,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   --accent-foreground: var(--color-zinc-900);
   --muted: var(--color-zinc-50);
   --muted-foreground: var(--color-zinc-500);
-  --border: var(--color-zinc-200);
-  --input: var(--color-zinc-300);
+  --border: var(--color-zinc-300);
+  --input: var(--color-zinc-400);
   --sidebar: var(--color-zinc-50);
   --sidebar-foreground: var(--color-zinc-800);
   --sidebar-muted-foreground: var(--color-zinc-500);
@@ -1191,7 +1257,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   --sidebar-row-hover: var(--color-zinc-25);
   --sidebar-row-active: var(--color-white);
   --sidebar-row-selected: var(--color-white);
-  --sidebar-border: var(--color-zinc-200);
+  --sidebar-border: var(--color-zinc-300);
   --sidebar-stage-fade: var(--sidebar);
 
   @variant dark {
@@ -1203,8 +1269,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
     --accent-foreground: #f7f9ff;
     --muted: #0a0a0a;
     --muted-foreground: #a3a3a3;
-    --border: rgb(255 255 255 / 8%);
-    --input: rgb(255 255 255 / 18%);
+    --border: rgb(255 255 255 / 14%);
+    --input: rgb(255 255 255 / 20%);
     --sidebar: var(--card);
     --sidebar-foreground: var(--foreground);
     --sidebar-muted-foreground: var(--muted-foreground);
@@ -1668,15 +1734,224 @@ html[data-theme-id="dak-chat"] {
   --surface-grain-size: 128px 128px;
 }
 
+/* Canvas depth. Read by the body's gradient stack below, and overridden per
+   appearance so dark themes carry more glow without washing out. */
+:root {
+  --canvas-glow: 7%;
+  --canvas-top-light: 3%;
+}
+
 body {
-  background-image: var(--surface-grain);
-  background-repeat: repeat;
-  background-size: var(--surface-grain-size);
+  /*
+   * The canvas is no longer a flat fill. Three stacked layers, all derived
+   * from the active theme so a custom palette keeps its own character:
+   *
+   * 1. A brand glow washing down from the top edge, tinted with the theme's
+   *    focus color. It is what makes the app read as one lit surface rather
+   *    than a gray rectangle, and it is the cue that survives every theme.
+   * 2. A whisper of foreground over the top so light and dark appearances
+   *    both get the same "light from above" falloff.
+   * 3. The existing grain, still baked in per-surface rather than overlaid.
+   *
+   * Layers stay translucent so an uploaded background picture (Settings ->
+   * Appearance) reads through: `body::before` paints beneath this stack and
+   * the tint composites over it instead of hiding it.
+   */
+  background-image:
+    radial-gradient(
+      118% 74% at 50% -12%,
+      color-mix(in oklab, var(--ring) var(--canvas-glow), transparent),
+      transparent 72%
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--foreground) var(--canvas-top-light), transparent),
+      transparent 38%
+    ),
+    var(--surface-grain);
+  background-repeat: no-repeat, no-repeat, repeat;
+  background-size:
+    100% 100%,
+    100% 100%,
+    var(--surface-grain-size);
+
+  @variant dark {
+    --canvas-glow: 13%;
+    --canvas-top-light: 5%;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Background picture (Settings -> Appearance).
+
+   Painted on `body::before` rather than a mounted element: nothing has to be
+   created, re-parented or re-painted when the preference changes, and the
+   picture never competes with the boot splash for paint order (it sits behind
+   #root and its descendants).
+
+   The layer is overset by the blur radius so the filtered edges fall outside
+   the viewport instead of leaving a vignette, and the scrim is listed first so
+   it darkens the picture itself. It is static, so the compositor rasterizes it
+   once rather than re-blending every frame.
+   --------------------------------------------------------------------------- */
+html[data-app-background] {
+  /*
+   * The picture is the root element's own background image, not a
+   * pseudo-element's. That matters: the root's background is the one layer in
+   * the document that nothing can paint over except a descendant with its own
+   * background — which is exactly the app surfaces this feature makes
+   * translucent. An earlier version painted it on `body::before` at
+   * `z-index: -1`, which depended on body staying transparent to be visible at
+   * all; it was invisible the moment anything filled body's background.
+   *
+   * Two layers, top first: the legibility veil, then the picture. The root
+   * keeps the picture at its own strength. The "picture opacity" slider is
+   * spent where the picture actually meets an interface surface (see the shell
+   * rules below), because that is the only place a fade can read as one.
+   *
+   * Painting the slider as a third scrim here as well multiplied it into the
+   * surface's own translucency — 22% of the picture under 78% of the canvas
+   * left about 2% of the photo on screen, which is to say none of it.
+   */
+  --app-background-veil: color-mix(in oklab, #000 var(--app-background-dim), transparent);
+  /* How much of a shell's own surface color stays over the picture. */
+  --app-background-surface: calc(100% - var(--app-background-opacity, 22%));
+
+  background-image:
+    linear-gradient(var(--app-background-veil), var(--app-background-veil)),
+    var(--app-background-image, none);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover, var(--app-background-fit, cover);
+}
+
+html[data-app-background] body {
+  /*
+   * Body is positioned, so it paints after the root's background. An opaque
+   * background-color here would therefore cover the picture, and would cover
+   * the theme canvas with it. Unlayered, so it outranks the `@layer base` fill.
+   */
+  background-color: transparent;
+}
+
+html[data-app-background] body::before {
+  /*
+   * Carries the blur only. `backdrop-filter` samples whatever was painted
+   * below it — the picture on the root's background — so this element has no
+   * picture of its own to lose. If it fails to composite the picture is still
+   * there, just sharp: the blur is the only thing at risk.
+   */
+  content: "";
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  -webkit-backdrop-filter: blur(var(--app-background-blur, 0px));
+  backdrop-filter: blur(var(--app-background-blur, 0px));
+  pointer-events: none;
+}
+
+/* Only when a picture is set: the large shells let it through, so the photo
+   reads as the surface the interface sits on. Content surfaces (cards,
+   popovers, code, terminal, inputs) stay opaque so text contrast never depends
+   on the user's choice of image. The mix resolves on the consuming element so
+   each shell uses the surface token it already paints with.
+
+   `sidebar-inset` is the outermost main-content shell (it wraps the chat
+   column, settings, pull requests, usage and every empty state) and
+   `sidebar-inner` is the navigation rail, so those two carry the picture. The
+   right-hand diff/preview panel sits inside the chat column, so it takes a
+   higher opacity to stay a distinct surface rather than a window. */
+html[data-app-background] :is([data-slot="sidebar-inset"], [data-slot="sidebar-inner"]) {
+  background-color: color-mix(
+    in srgb,
+    var(--background) var(--app-background-surface),
+    transparent
+  );
+}
+
+html[data-app-background] [data-slot="sidebar-inner"] {
+  background-color: color-mix(in srgb, var(--sidebar) var(--app-background-surface), transparent);
+}
+
+/* The panel sits inside the chat column, so it already stacks on the picture
+   once; it keeps half the picture of the shell it sits in to stay a surface. */
+html[data-app-background] [data-panel-shell] {
+  background-color: color-mix(
+    in srgb,
+    var(--background) calc(100% - var(--app-background-opacity, 22%) / 2),
+    transparent
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   Shell refinement.
+
+   Details that make the app read as a finished product rather than a layout
+   with tokens: a lit edge where the sidebar meets the content, and a selection
+   color that belongs to the theme rather than the platform default.
+   --------------------------------------------------------------------------- */
+
+/* The sidebar's leading edge catches the canvas glow, which is what makes the
+   panel read as a raised sheet instead of a flat fill. */
+[data-app-sidebar] [data-slot="sidebar-inner"] {
+  box-shadow: 1px 0 0 0 color-mix(in srgb, var(--contrast-sidebar-border) 70%, transparent);
+}
+
+::selection {
+  background: color-mix(in oklab, var(--ring) 26%, transparent);
+  color: var(--contrast-foreground);
+}
+
+/* The thread top bar and the workspace pages get the same "lit from above"
+   treatment as the canvas, so the whole chrome reads as one sheet of light
+   rather than three unrelated fills. The hairline replaces a hard border: on a
+   gradient edge a 1px stroke reads as a seam, a shadow reads as a step. */
+[data-chat-header],
+[data-workspace-page-header] {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--foreground) var(--canvas-top-light), transparent),
+    transparent 100%
+  );
+  box-shadow: 0 1px 0 0 color-mix(in srgb, var(--contrast-border) 60%, transparent);
 }
 
 pre,
 code {
   font-family: var(--font-mono);
+}
+
+/* ---------------------------------------------------------------------------
+   SHARP & EDITORIAL — typography.
+
+   Three cues that read as "engineering tool" rather than "consumer app":
+   tighter tracking on prose and headings, tabular figures everywhere a number
+   can change under the user (so counts and timestamps never reflow their row),
+   and small caps section labels that behave like the rules in a spec sheet.
+   --------------------------------------------------------------------------- */
+
+body {
+  letter-spacing: -0.011em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Prose keeps proportional figures: tabular numerals are a chrome affordance,
+   not something to impose on the agent's writing. */
+.chat-markdown {
+  font-variant-numeric: normal;
+}
+
+:is(h1, h2, h3, h4, h5, h6) {
+  letter-spacing: -0.02em;
+}
+
+/* Section labels: uppercase, letter-spaced, no faux-bold. Replaces the old
+   `font-normal text-foreground/70` heading, which read as ordinary body text
+   at 14px rather than as a divider. */
+[data-settings-scroll-target] h2 {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 500;
 }
 
 /* Code blocks in chat carry the size preference. Scoped to chat markdown
@@ -1722,7 +1997,11 @@ code {
   -webkit-app-region: no-drag;
 }
 
-/* Scrollbar styling */
+/* Scrollbar styling. SHARP & EDITORIAL: a wider gutter, so a thin thumb still
+   has a comfortable hit target without needing to look like a pill.
+   Deliberately left rounded: code blocks and the timeline style their own
+   scrollbar thumbs, and an unlayered square rule here would outrank those
+   utilities and flatten them app-wide. */
 ::-webkit-scrollbar {
   width: var(--app-scrollbar-width);
 }
@@ -1733,7 +2012,7 @@ code {
 
 ::-webkit-scrollbar-thumb {
   background: var(--app-scrollbar-thumb);
-  border-radius: 3px;
+  border-radius: 1px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
