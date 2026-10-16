@@ -47,3 +47,9 @@ export function SectionHeaderStatus({ children }: { children: ReactNode }) {
     <span className="shrink-0 text-3xs leading-none text-destructive-foreground">{children}</span>
   );
 }
+
+/** How many rows a shelf holds, so a collapsed shelf still says how much it
+ * is hiding. Neutral where SectionHeaderStatus is a warning. */
+export function SectionHeaderCount({ children }: { children: ReactNode }) {
+  return <span className="shrink-0 text-3xs leading-none tabular-nums opacity-70">{children}</span>;
+}

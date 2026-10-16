@@ -1,6 +1,6 @@
 import { type EnvironmentId } from "@dak/contracts";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "./ThreadHoverCard";
-import { CollapsibleSectionHeader } from "./ui/collapsible-section-header";
+import { CollapsibleSectionHeader, SectionHeaderCount } from "./ui/collapsible-section-header";
 import { setThreadChangeRequestSnapshot } from "./ThreadStatusIndicators";
 import { ThreadContextDragGhost } from "./chat/ThreadContextDragGhost";
 import {
@@ -792,6 +792,8 @@ function SidebarDragBoundary(props: {
 function SidebarSectionHeader(props: {
   marker: "working-header" | "snoozed-header" | "settled-header";
   label: string;
+  /** Rows the shelf holds, shown whether or not it is expanded. */
+  count: number;
   className?: string;
   // While dragging, the settled header reads at full strength and takes the
   // accent while the lifted row is over it.
@@ -818,6 +820,7 @@ function SidebarSectionHeader(props: {
         tone={
           props.isDropTarget ? "accent" : props.dragging ? "emphasized" : snoozed ? "info" : "muted"
         }
+        accessory={<SectionHeaderCount>{props.count}</SectionHeaderCount>}
         data-testid={`sidebar-${shelf}-shelf-toggle`}
       >
         {props.label}
@@ -5157,7 +5160,6 @@ export default function Sidebar() {
                   </ComboboxPopup>
                 </Combobox>
               }
-              onNewProject={openAddProjectCommandPalette}
               onNewThread={handleNewThreadClick}
               newThreadDisabled={projects.length === 0}
               newThreadShortcutLabel={newThreadShortcutLabel}
@@ -5465,7 +5467,7 @@ export default function Sidebar() {
                               <SidebarDragBoundary
                                 key="pinned-divider"
                                 marker="pinned-divider"
-                                label="Active"
+                                label="Working"
                                 visible={from !== null}
                                 isDropTarget={dragTargetSection === "active"}
                               />,
@@ -5476,7 +5478,7 @@ export default function Sidebar() {
                               <SidebarSectionPlaceholder
                                 key="active-placeholder"
                                 marker="active-placeholder"
-                                label="Active"
+                                label="Working"
                                 showHint={
                                   from !== null &&
                                   (activeThreads.length === 0 ||
@@ -5495,11 +5497,8 @@ export default function Sidebar() {
                                 key="working-shelf-header"
                                 marker="working-header"
                                 className="mt-auto"
-                                label={
-                                  workingShelfExpanded
-                                    ? "Working"
-                                    : `Working (${workingThreads.length})`
-                                }
+                                label="Working"
+                                count={workingThreads.length}
                                 toggle={{
                                   expanded: workingShelfExpanded,
                                   onToggle: toggleWorkingShelf,
@@ -5513,11 +5512,8 @@ export default function Sidebar() {
                                 key="snoozed-shelf-header"
                                 marker="snoozed-header"
                                 className={cn(workingThreads.length === 0 && "mt-auto")}
-                                label={
-                                  snoozedShelfExpanded
-                                    ? "Snoozed"
-                                    : `Snoozed (${snoozedThreads.length})`
-                                }
+                                label="Snoozed"
+                                count={snoozedThreads.length}
                                 toggle={{
                                   expanded: snoozedShelfExpanded,
                                   onToggle: toggleSnoozedShelf,
@@ -5533,11 +5529,8 @@ export default function Sidebar() {
                                 className={cn(
                                   workingThreads.length + snoozedThreads.length === 0 && "mt-auto",
                                 )}
-                                label={
-                                  settledShelfExpanded
-                                    ? "Settled"
-                                    : `Settled (${settledThreads.length})`
-                                }
+                                label="Earlier"
+                                count={settledThreads.length}
                                 dragging={from !== null}
                                 isDropTarget={dragTargetSection === "settled"}
                                 toggle={{
@@ -5552,7 +5545,7 @@ export default function Sidebar() {
                               <SidebarSectionPlaceholder
                                 key="settled-placeholder"
                                 marker="settled-placeholder"
-                                label="Settled"
+                                label="Earlier"
                                 showHint={
                                   from !== null &&
                                   (renderedSettledThreads.length === 0 ||
