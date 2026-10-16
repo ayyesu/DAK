@@ -103,6 +103,13 @@ describe("electron development launcher", () => {
     assert.notInclude(script, "node_modules/electron");
   });
 
+  it("names the macOS bundle DAK with no build channel in it", () => {
+    const values = resolveMacBundleInfoPlistStrings("DAK Dev Launcher");
+
+    assert.equal(values.CFBundleDisplayName, "DAK");
+    assert.equal(values.CFBundleName, "DAK");
+  });
+
   it("declares why the macOS app needs protected access", () => {
     const values = resolveMacBundleInfoPlistStrings("DAK (Dev) Launcher");
 

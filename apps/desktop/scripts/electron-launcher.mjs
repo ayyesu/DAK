@@ -1,4 +1,4 @@
-// This file mostly exists because we want dev mode to say "DAK (Dev)" instead of "electron"
+// This file mostly exists because we want dev mode to say "DAK" instead of "electron"
 
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
@@ -15,7 +15,12 @@ const repoRoot = NodePath.resolve(desktopDir, "..", "..");
 const devBundleIdSuffix = NodePath.basename(repoRoot)
   .toLowerCase()
   .replaceAll(/[^a-z0-9]+/g, "");
-const APP_DISPLAY_NAME = isDevelopment ? "DAK (Dev)" : "DAK (Alpha)";
+// Names three things: Electron's default profile directory, the extracted
+// runtime app bundle, and the launcher executable. macOS also shows it in the
+// Dock, the menu bar and the helper processes, so it carries no build channel -
+// the product name is the name. Development keeps a name of its own so a dev
+// run never lands on the installed app's directory.
+const APP_DISPLAY_NAME = isDevelopment ? "DAK Dev" : "DAK";
 const APP_BUNDLE_ID = isDevelopment
   ? `com.dak.dak.dev.${devBundleIdSuffix || "local"}`
   : "com.dak.dak";
