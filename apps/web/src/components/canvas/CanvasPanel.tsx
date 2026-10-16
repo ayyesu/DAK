@@ -374,8 +374,17 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
   }, [visible]);
 
   const frames = state.frames;
+  /**
+   * The frames as the camera sees them: each frame's own size, plus the room its name needs above
+   * it. Fit is built on these, so a fitted view frames the design and the names together instead of
+   * cropping the row of captions off the top.
+   */
   const frameBoxes = useMemo(
-    () => frames.map((frame) => ({ width: frame.designWidth, height: frame.designHeight })),
+    () =>
+      frames.map((frame) => ({
+        width: frame.designWidth,
+        height: frame.designHeight + FRAME_LABEL_GUTTER,
+      })),
     [frames],
   );
 
@@ -529,6 +538,9 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
                 zoomCameraCentered(current, factor / current.zoom, viewportSize),
               )
             }
+            onStep={(shortcut) =>
+              moveCamera((current) => applyShortcut(current, shortcut, viewportSize))
+            }
             onFit={() => moveCamera(fitCamera(frameBoxes, viewportSize))}
           />
         </div>
@@ -542,7 +554,7 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
         aria-label={`${state.title ?? "Design"} canvas`}
         data-canvas-viewport=""
         data-canvas-zoom={camera.zoom.toFixed(4)}
-        className={`min-h-0 flex-1 overflow-hidden outline-none ${
+        className={`min-h-0 flex-1 overflow-hidden bg-foreground/5 outline-none ${
           dragging ? "cursor-grabbing" : spaceHeld ? "cursor-grab" : ""
         }`}
         onWheel={onWheel}
@@ -568,14 +580,26 @@ export const CanvasPanel = memo(function CanvasPanel({ mode, threadRef, surface,
 function CanvasZoomControl({
   zoom,
   onSelect,
+  onStep,
   onFit,
 }: {
   readonly zoom: number;
   readonly onSelect: (zoom: number) => void;
+  /** Steps by one of the camera's own zoom shortcuts, so the buttons and the keys share one path. */
+  readonly onStep: (shortcut: "zoomIn" | "zoomOut") => void;
   readonly onFit: () => void;
 }) {
   return (
     <div className="ml-auto flex shrink-0 items-center gap-1">
+      <button
+        type="button"
+        data-canvas-zoom-out=""
+        aria-label="Zoom out"
+        className="rounded border border-border px-1.5 py-0.5 text-xs"
+        onClick={() => onStep("zoomOut")}
+      >
+        −
+      </button>
       <select
         aria-label="Zoom"
         data-canvas-zoom-select=""
@@ -597,6 +621,15 @@ function CanvasZoomControl({
           </option>
         ))}
       </select>
+      <button
+        type="button"
+        data-canvas-zoom-in=""
+        aria-label="Zoom in"
+        className="rounded border border-border px-1.5 py-0.5 text-xs"
+        onClick={() => onStep("zoomIn")}
+      >
+        +
+      </button>
       <button
         type="button"
         data-canvas-fit=""
@@ -680,6 +713,19 @@ function useCanvasBody(
  */
 const WORLD_GAP = 48;
 
+/**
+ * Room above each frame for its own name, in design units.
+ *
+ * The name sits above the frame rather than inside it. A caption laid over the artwork covers the
+ * part of a design that is read first, and it is the one thing on this surface that is always read
+ * before anything else.
+ *
+ * This is a design-space length while the caption is drawn at a constant size on screen, so the two
+ * agree exactly at 100% and nowhere else. Above that the caption leaves slack; below it the caption
+ * grows relative to the design, which is why this is sized generously rather than to the pixel.
+ */
+export const FRAME_LABEL_GUTTER = 32;
+
 /** One frame's place in the design's own coordinates. */
 export interface PlacedFrame {
   readonly frame: CanvasRenderedFrame;
@@ -712,15 +758,16 @@ export const layoutFrames = (
     items.push({
       frame,
       // Top-aligned rather than centred: frames in a row read as one set when they share an edge,
-      // and a design's frames usually start at the same y in the author's own document.
-      top: 0,
+      // and a design's frames usually start at the same y in the author's own document. The row
+      // starts below the gutter so that every frame has the same room above it for its name.
+      top: FRAME_LABEL_GUTTER,
       left,
       width: frame.designWidth,
       height: frame.designHeight,
     });
     left += frame.designWidth + WORLD_GAP;
     width = Math.max(width, left - WORLD_GAP);
-    height = Math.max(height, frame.designHeight);
+    height = Math.max(height, frame.designHeight + FRAME_LABEL_GUTTER);
   }
   return { items, width, height };
 };
@@ -785,19 +832,21 @@ export function CanvasWorld({
                 height={frame.height}
                 alt={label}
                 draggable={false}
-                className="block h-full w-full rounded-md border border-border bg-white"
+                className="block h-full w-full rounded-lg bg-white shadow-lg ring-1 ring-foreground/10"
                 style={{ height: "100%", width: "100%" }}
               />
-              {/* Constant-size and inside the transform's inverse, so a label does not grow with the
-                  zoom — a caption that scaled with the design would be unreadable at 800% and a smear
-                  at 2%. */}
+              {/* Above the frame, and constant-size because it sits inside the transform's inverse:
+                  a caption that scaled with the design would be unreadable at 800% and a smear at 2%.
+                  Its layout width is the frame's width in screen pixels, so it truncates at the
+                  frame's own edge instead of at a design-space width that means something else at
+                  this zoom. */}
               <figcaption
-                className="pointer-events-none absolute left-0 top-0 max-w-full truncate rounded-tl-md bg-black/55 px-1.5 py-0.5 text-2xs leading-tight text-white"
+                className="pointer-events-none absolute bottom-full left-0 mb-1.5 w-max truncate text-xs text-muted-foreground"
                 style={{
                   fontSize: `${11 / camera.zoom}px`,
                   transform: `scale(${1 / camera.zoom})`,
-                  transformOrigin: "0 0",
-                  maxWidth: `${width}px`,
+                  transformOrigin: "0 bottom",
+                  maxWidth: `${width * camera.zoom}px`,
                 }}
               >
                 {label}
