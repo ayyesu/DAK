@@ -220,4 +220,41 @@ describe("searchSlashCommandItems", () => {
       "skill:claudeAgent:unslop",
     ]);
   });
+
+  it("finds a starting point by its command name or its description", () => {
+    const items = [
+      {
+        id: "starting-point:review",
+        type: "starting-point",
+        command: "review",
+        label: "/review",
+        description: "Review the diff · +1,046 / -72 on main, uncommitted",
+        prompt: "Review my uncommitted changes and flag anything risky before I commit.",
+      },
+      {
+        id: "starting-point:check",
+        type: "starting-point",
+        command: "check",
+        label: "/check",
+        description: "Check the repo",
+        prompt: "Run this project's build, tests, and type checking, then fix whatever fails.",
+      },
+    ] satisfies Array<Extract<ComposerCommandItem, { type: "starting-point" }>>;
+
+    expect(searchSlashCommandItems(items, "/rev").map((item) => item.id)).toEqual([
+      "starting-point:review",
+    ]);
+    expect(searchSlashCommandItems(items, "/check").map((item) => item.id)).toEqual([
+      "starting-point:check",
+    ]);
+    // The description is searchable too, so a remembered phrase finds it.
+    expect(searchSlashCommandItems(items, "/uncommitted").map((item) => item.id)).toEqual([
+      "starting-point:review",
+    ]);
+    // A prompt is text like a skill mention, so it survives mid-message.
+    expect(slashCommandItemsForPromptPosition(items, false).map((item) => item.id)).toEqual([
+      "starting-point:review",
+      "starting-point:check",
+    ]);
+  });
 });

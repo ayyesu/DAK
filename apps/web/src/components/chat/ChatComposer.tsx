@@ -279,6 +279,10 @@ import {
   ComposerSelectControl,
 } from "./ComposerControl";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
+import {
+  startingPointsWithoutProviderCommands,
+  type ComposerStartingPoint,
+} from "./composerStartingPoints.logic";
 import { buildPullRequestReferenceContext } from "../pullRequest/pullRequestDetail.logic";
 import {
   matchesPullRequestQuery,
@@ -1619,6 +1623,11 @@ export interface ChatComposerProps {
   keybindings: ResolvedKeybindingsConfig;
   terminalOpen: boolean;
   gitCwd: string | null;
+  /**
+   * Prompts the slash menu offers beside the built-in commands. A new thread
+   * fills this with its starting points; anywhere else it stays empty.
+   */
+  startingPoints: ReadonlyArray<ComposerStartingPoint>;
   pullRequestProjectId: ProjectId | null;
   pullRequestRepository: string | null;
   restingControlsHost: HTMLDivElement | null;
@@ -1764,6 +1773,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     keybindings,
     terminalOpen,
     gitCwd,
+    startingPoints,
     pullRequestProjectId,
     pullRequestRepository,
     restingControlsHost,
@@ -2706,6 +2716,19 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         label: `/${command.name}`,
         description: command.description ?? command.input?.hint ?? "Run provider command",
       }));
+      // A starting point is a whole prompt rather than a mode: it is listed
+      // after the built-ins and inserts its instruction into the composer.
+      const startingPointItems = startingPointsWithoutProviderCommands(
+        startingPoints,
+        providerSlashCommandItems.map((item) => item.command.name),
+      ).map((point) => ({
+        id: `starting-point:${point.command}`,
+        type: "starting-point" as const,
+        command: point.command,
+        label: `/${point.command}`,
+        description: point.description,
+        prompt: point.prompt,
+      }));
       const query = composerTrigger.query.trim().toLowerCase();
       const skillItems = slashMenuSkills.map((skill) => ({
         id: `skill:${selectedProvider}:${skill.name}`,
@@ -2722,7 +2745,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         (item) => item.command.name !== "compact" || compactSlashCommandAvailable,
       );
       const slashCommandItems = slashCommandItemsForPromptPosition(
-        [...builtInSlashCommandItems, ...visibleProviderSlashCommandItems, ...skillItems],
+        [
+          ...builtInSlashCommandItems,
+          ...startingPointItems,
+          ...visibleProviderSlashCommandItems,
+          ...skillItems,
+        ],
         composerTrigger.rangeStart === 0,
       );
       return searchSlashCommandItems(slashCommandItems, query);
@@ -2809,6 +2837,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     selectedProviderSlashCommands,
     selectedProviderStatus,
     settings.showSkillsInSlashMenu,
+    startingPoints,
     workspaceEntries.entries,
   ]);
 
@@ -3988,6 +4017,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         if (!planModeUiEnabled) return;
         void handleInteractionModeChange(item.command === "plan" ? "plan" : "default");
         const applied = applyPromptReplacement(trigger.rangeStart, trigger.rangeEnd, "", {
+          expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd),
+        });
+        if (applied) {
+          setComposerHighlightedItemId(null);
+        }
+        return;
+      }
+      if (item.type === "starting-point") {
+        // The command is a complete prompt, so it lands in the composer for the
+        // reader to edit or send as written rather than being sent outright.
+        const applied = applyPromptReplacement(trigger.rangeStart, trigger.rangeEnd, item.prompt, {
           expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd),
         });
         if (applied) {
@@ -6888,7 +6928,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 <button
                   type="button"
                   data-chat-composer-transition-actions="true"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-message-action text-message-action-foreground hover:bg-message-action-hover disabled:opacity-64"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-message-action text-message-action-foreground hover:bg-message-action-hover disabled:opacity-64"
                   disabled={collapsedComposerPrimaryActionDisabled}
                   aria-label={collapsedComposerPrimaryActionLabel}
                   onPointerDown={(event) => event.preventDefault()}

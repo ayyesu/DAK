@@ -48,6 +48,15 @@ export type ComposerCommandItem =
     }
   | {
       id: string;
+      type: "starting-point";
+      command: string;
+      label: string;
+      description: string;
+      /** The whole instruction the command drops in the composer. */
+      prompt: string;
+    }
+  | {
+      id: string;
       type: "provider-slash-command";
       provider: ProviderDriverKind;
       command: ServerProviderSlashCommand;

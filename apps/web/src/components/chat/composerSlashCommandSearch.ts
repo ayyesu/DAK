@@ -9,14 +9,15 @@ import { scoreProviderSkill } from "../../providerSkillSearch";
 
 type SlashSearchItem = Extract<
   ComposerCommandItem,
-  { type: "slash-command" | "provider-slash-command" | "skill" }
+  { type: "slash-command" | "starting-point" | "provider-slash-command" | "skill" }
 >;
 
 /**
  * A provider expands a slash command only when it opens the whole message;
  * anywhere else it reaches the agent as literal text, so it is not offered
- * there. Built-ins apply locally on selection and skills insert a `$` mention
- * the server dispatches from any position, so both stay available.
+ * there. Built-ins apply locally on selection, and starting points and skills
+ * insert text the server dispatches from any position, so all three stay
+ * available.
  */
 export function slashCommandItemsForPromptPosition(
   items: ReadonlyArray<SlashSearchItem>,
@@ -42,7 +43,9 @@ function scoreSlashCommandItem(item: SlashSearchItem, query: string): number | n
   }
 
   const primaryValue =
-    item.type === "slash-command" ? item.command.toLowerCase() : item.command.name.toLowerCase();
+    item.type === "provider-slash-command"
+      ? item.command.name.toLowerCase()
+      : item.command.toLowerCase();
   const description = item.description.toLowerCase();
 
   const scores = [
@@ -100,11 +103,11 @@ export function searchSlashCommandItems(
         item,
         score,
         tieBreaker:
-          item.type === "slash-command"
-            ? `0\u0000${item.command}`
-            : item.type === "provider-slash-command"
-              ? `1\u0000${item.command.name}\u0000${item.provider}`
-              : `2\u0000${item.skill.name}\u0000${item.provider}`,
+          item.type === "provider-slash-command"
+            ? `1\u0000${item.command.name}\u0000${item.provider}`
+            : item.type === "skill"
+              ? `2\u0000${item.skill.name}\u0000${item.provider}`
+              : `0\u0000${item.command}`,
       },
       Number.POSITIVE_INFINITY,
     );

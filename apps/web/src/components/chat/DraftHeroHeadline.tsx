@@ -358,10 +358,16 @@ export function DraftHeroHeadline({
     ) : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col items-center">
+    <div className="flex w-full flex-col items-start">
+      {/* Names the surface rather than repeating the breadcrumb: on a phone the
+          title bar truncates the thread name, and this is where the reader
+          lands after tapping "new thread". */}
+      <p className="font-medium text-2xs text-muted-foreground/70 uppercase tracking-widest">
+        New thread
+      </p>
       <h1
         aria-label={headingLabel}
-        className="w-full text-center font-normal text-2xl text-foreground tracking-tight sm:text-3xl"
+        className="mt-2.5 max-w-3xl text-balance font-normal text-3xl text-foreground tracking-tight sm:text-5xl"
       >
         {isScratchDraft ? (
           <>What should we work on?</>
@@ -376,7 +382,7 @@ export function DraftHeroHeadline({
       {/* Reserved whenever threads can skip a project, so the heading does not
           move. Without a project, the picker moves here to choose one. */}
       {scratchWorkspaceRoot === null ? null : (
-        <p className="mt-2 flex h-6 items-center text-sm">
+        <p className="mt-3 flex h-6 items-center text-sm">
           {isScratchDraft ? projectSelector : orStartWithoutProject}
         </p>
       )}

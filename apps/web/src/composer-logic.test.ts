@@ -24,6 +24,7 @@ import {
   isCollapsedCursorAdjacentToInlineToken,
   parseStandaloneComposerSlashCommand,
   replaceTextRange,
+  resolveComposerShortcutHints,
 } from "./composer-logic";
 import { carryDisplacedCustomAnswerIntoPrompt } from "./pendingUserInput";
 import { formatTerminalContextReference } from "./lib/terminalContext";
@@ -815,5 +816,55 @@ describe("parseStandaloneComposerSlashCommand", () => {
 
   it("ignores slash commands with extra message text", () => {
     expect(parseStandaloneComposerSlashCommand("/plan explain this")).toBeNull();
+  });
+});
+
+describe("resolveComposerShortcutHints", () => {
+  const base = { commandPaletteShortcut: "Ctrl+K", platform: "Win32" };
+
+  it("names the key that actually sends", () => {
+    expect(resolveComposerShortcutHints({ ...base, sendShortcut: "enter" })).toEqual([
+      "Enter to send",
+      "Shift+Enter for a new line",
+      "Ctrl+K for commands",
+    ]);
+    expect(resolveComposerShortcutHints({ ...base, sendShortcut: "mod-enter" })).toEqual([
+      "Ctrl+Enter to send",
+      "Enter for a new line",
+      "Ctrl+K for commands",
+    ]);
+    expect(resolveComposerShortcutHints({ ...base, sendShortcut: "mod-enter-multiline" })).toEqual([
+      "Enter to send",
+      "Ctrl+Enter for a multiline prompt",
+      "Ctrl+K for commands",
+    ]);
+  });
+
+  it("treats a missing setting as the default it decodes to", () => {
+    expect(resolveComposerShortcutHints({ ...base, sendShortcut: undefined })).toEqual([
+      "Enter to send",
+      "Shift+Enter for a new line",
+      "Ctrl+K for commands",
+    ]);
+  });
+
+  it("uses the platform's modifier labels", () => {
+    expect(
+      resolveComposerShortcutHints({
+        sendShortcut: "enter",
+        commandPaletteShortcut: "⌘K",
+        platform: "MacIntel",
+      }),
+    ).toEqual(["Enter to send", "⇧Enter for a new line", "⌘K for commands"]);
+  });
+
+  it("drops the command palette hint when the command is unbound", () => {
+    expect(
+      resolveComposerShortcutHints({
+        ...base,
+        commandPaletteShortcut: null,
+        sendShortcut: "enter",
+      }),
+    ).toEqual(["Enter to send", "Shift+Enter for a new line"]);
   });
 });

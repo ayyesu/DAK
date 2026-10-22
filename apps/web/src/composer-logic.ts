@@ -9,7 +9,7 @@ import {
   type ComposerPromptSegment,
 } from "./composer-editor-mentions";
 
-import { resolveShortcutCommand, type ShortcutEventLike } from "./keybindings";
+import { formatShortcutLabel, resolveShortcutCommand, type ShortcutEventLike } from "./keybindings";
 
 export type ComposerTriggerKind = "path" | "pull-request" | "slash-command" | "skill";
 export type ComposerSlashCommand = "model" | "plan" | "default";
@@ -71,6 +71,42 @@ export function composerSubmissionIntentForKey(input: {
 }
 
 const isInlineTokenSegment = (segment: ComposerPromptSegment): boolean => segment.type !== "text";
+
+/** A bare Enter, for building the keyboard legend's labels. */
+const ENTER_SHORTCUT = {
+  key: "enter",
+  metaKey: false,
+  ctrlKey: false,
+  shiftKey: false,
+  altKey: false,
+  modKey: false,
+} as const;
+
+/**
+ * The keyboard legend under the composer. Every entry is read from the user's
+ * own settings and keybindings: a hint that disagrees with what the keys
+ * actually do is worse than no hint at all.
+ */
+export function resolveComposerShortcutHints(input: {
+  sendShortcut: ClientSettings["sendShortcut"] | undefined;
+  commandPaletteShortcut: string | null;
+  platform: string;
+}): string[] {
+  const modifiedEnter = formatShortcutLabel({ ...ENTER_SHORTCUT, modKey: true }, input.platform);
+  const hints =
+    input.sendShortcut === "mod-enter"
+      ? [`${modifiedEnter} to send`, "Enter for a new line"]
+      : input.sendShortcut === "mod-enter-multiline"
+        ? ["Enter to send", `${modifiedEnter} for a multiline prompt`]
+        : [
+            "Enter to send",
+            `${formatShortcutLabel({ ...ENTER_SHORTCUT, shiftKey: true }, input.platform)} for a new line`,
+          ];
+  if (input.commandPaletteShortcut !== null) {
+    hints.push(`${input.commandPaletteShortcut} for commands`);
+  }
+  return hints;
+}
 
 function clampCursor(text: string, cursor: number): number {
   if (!Number.isFinite(cursor)) return text.length;

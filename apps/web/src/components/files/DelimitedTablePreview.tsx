@@ -34,7 +34,7 @@ export function DelimitedTablePreview(props: {
                   <th
                     key={columnIndex}
                     scope="col"
-                    className="max-w-80 border-b border-border bg-muted/60 px-3 py-1.5 text-left align-bottom font-medium whitespace-pre-wrap break-words backdrop-blur"
+                    className="max-w-80 border-b border-border bg-muted/60 px-3 py-1.5 text-left align-bottom font-medium whitespace-pre-wrap break-words"
                   >
                     {cell}
                   </th>

@@ -100,7 +100,13 @@ export const GlassOpacity = Schema.Int.check(
   }),
 );
 export type GlassOpacity = typeof GlassOpacity.Type;
-const DEFAULT_GLASS_OPACITY: GlassOpacity = 80;
+/**
+ * Solid by default. The sharp & editorial language separates surfaces with
+ * hairlines rather than with frosted translucency, so the setting's default
+ * has to agree with the stylesheet's or the interface disagrees with itself
+ * until the preference syncs. Lowering it re-enables the frosted look.
+ */
+const DEFAULT_GLASS_OPACITY: GlassOpacity = 100;
 
 export const MIN_APPEARANCE_CONTRAST = 50;
 export const MAX_APPEARANCE_CONTRAST = 200;

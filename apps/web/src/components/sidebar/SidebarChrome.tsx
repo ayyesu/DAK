@@ -50,7 +50,7 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
     // The titlebar row, not a padded SidebarHeader: it aligns to the window controls.
     <div
       className={cn(
-        "relative flex h-[var(--workspace-topbar-height)] shrink-0 flex-row items-center gap-2 px-3 md:pl-0",
+        "relative flex h-[var(--workspace-topbar-height)] shrink-0 flex-row items-center gap-2 border-b border-border/60 px-3 md:pl-0",
         isElectron && "drag-region",
       )}
     >
@@ -124,17 +124,12 @@ function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
 
 function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
   return (
-    // Center the visible capitals, without the font's ascender/descender space.
-    <span className="inline-flex min-w-0 items-baseline gap-1 text-sm font-medium tracking-tight">
-      <DakWordmark aria-label="DAK" className="h-[1cap] w-auto shrink-0" />
-      <span
-        className={cn(
-          "truncate [text-box:trim-both_cap_alphabetic]",
-          onBackdrop ? "text-white/70" : "text-muted-foreground",
-        )}
-      >
-        Code
-      </span>
+    // The wordmark itself spells DAK, so the brand needs no companion text.
+    <span className="inline-flex min-w-0 items-center" role="img">
+      <DakWordmark
+        aria-label="DAK"
+        className={cn("h-[1.35cap] w-auto shrink-0", onBackdrop ? "text-white" : "text-foreground")}
+      />
     </span>
   );
 }

@@ -36,7 +36,7 @@ export function StandalonePage({
       </div>
 
       <section
-        className={`relative w-full max-w-xl rounded-2xl border border-border/80 shadow-2xl shadow-black/20 backdrop-blur-md ${tone === "brand" ? "overflow-hidden bg-card/94" : "bg-card/90"}`}
+        className={`relative w-full max-w-xl rounded-xl border border-border/80 shadow-2xl shadow-black/20 ${tone === "brand" ? "overflow-hidden bg-card" : "bg-card"}`}
       >
         {masthead}
         <div className="p-6 sm:p-8">{children}</div>

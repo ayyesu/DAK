@@ -184,6 +184,7 @@ import {
   type ComposerSubmissionIntent,
   collapseExpandedComposerCursor,
   parseStandaloneComposerSlashCommand,
+  resolveComposerShortcutHints,
 } from "../composer-logic";
 import {
   derivePendingApprovals,
@@ -437,6 +438,11 @@ import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { createPageScrollController, type PageScrollKey } from "./chat/pageScrollController";
 import { isTimelineScrollTarget } from "./chat/timelineScrollTarget";
 import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
+import {
+  resolveComposerStartingPoints,
+  type ComposerStartingPoint,
+  type StartingPointCheckout,
+} from "./chat/composerStartingPoints.logic";
 import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
 import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
@@ -554,6 +560,7 @@ import {
   shouldRefocusComposerOnWindowFocus,
 } from "./ChatView.logic";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
+import { useHasBackgroundPicture } from "~/hooks/useAppearanceBackground";
 import { useComposerHandleContext } from "../composerHandleContext";
 import {
   awaitAttachmentUploads,
@@ -621,6 +628,7 @@ const EMPTY_FEEDBACK_SUBMISSIONS: ReadonlyArray<CodexFeedbackSubmission> = [];
 // watermark per interval is plenty.
 const VISIT_DISPATCH_THROTTLE_MS = 10_000;
 const EMPTY_PROVIDER_SKILLS: ServerProvider["skills"] = [];
+const EMPTY_COMPOSER_STARTING_POINTS: ReadonlyArray<ComposerStartingPoint> = [];
 const EMPTY_PENDING_USER_INPUT_ANSWERS: Record<string, PendingUserInputDraftAnswer> = {};
 function useDraftHeroLayoutTransition(
   isDraftHeroState: boolean,
@@ -4082,6 +4090,7 @@ export default function ChatView(props: ChatViewProps) {
     panelAnimationDurationMs,
   );
   const captureDraftHeroComposerRect = draftHeroTransition.captureComposerRect;
+  const hasBackgroundPicture = useHasBackgroundPicture();
   const { turnDiffSummaries } = useTurnDiffSummaries(serverProjection);
 
   /**
@@ -4129,6 +4138,18 @@ export default function ChatView(props: ChatViewProps) {
     resourceKey: `git-status:${activeThreadKey ?? ""}:${gitStatusCwd ?? ""}`,
   });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const sendShortcut = useClientSettings((settings) => settings.sendShortcut);
+  // The composer's keyboard legend: which key really sends, from the reader's
+  // own settings rather than a guess.
+  const composerShortcutHints = useMemo(
+    () =>
+      resolveComposerShortcutHints({
+        sendShortcut,
+        commandPaletteShortcut: shortcutLabelForCommand(keybindings, "commandPalette.toggle"),
+        platform: navigator.platform,
+      }),
+    [keybindings, sendShortcut],
+  );
   const scriptKeybindings =
     useAtomValue(serverEnvironment.configValueAtom(environmentId))?.keybindings ??
     DEFAULT_RESOLVED_KEYBINDINGS;
@@ -4243,6 +4264,35 @@ export default function ChatView(props: ChatViewProps) {
     }
   }, [environmentId, gitStatusCwd, liveIsGitRepo]);
   const isGitRepo = liveIsGitRepo ?? recallCheckoutIsRepo(environmentId, gitStatusCwd) ?? true;
+  /**
+   * The new thread's starting points live in the composer's slash menu rather
+   * than on the screen, so they cost no space until the reader asks for them.
+   * The checkout state is what lets the diff command say what is actually
+   * there; a thread that is already underway gets none of them.
+   */
+  const startingPointCheckout = useMemo<StartingPointCheckout | null>(() => {
+    const status = gitStatusQuery.data;
+    if (status?.isRepo !== true) {
+      return null;
+    }
+    return {
+      refName: status.refName,
+      hasWorkingTreeChanges: status.hasWorkingTreeChanges,
+      insertions: status.workingTree.insertions,
+      deletions: status.workingTree.deletions,
+    };
+  }, [gitStatusQuery.data]);
+  const composerStartingPoints = useMemo(
+    () =>
+      isDraftHeroState
+        ? resolveComposerStartingPoints({
+            hasProject: activeProject !== null,
+            isGitRepo,
+            checkout: startingPointCheckout,
+          })
+        : EMPTY_COMPOSER_STARTING_POINTS,
+    [activeProject, isDraftHeroState, isGitRepo, startingPointCheckout],
+  );
   // When context is enabled, keep a hidden, off-flow strip mounted so the composer
   // can measure whether its relocated controls fit. The visible chrome remains
   // content-driven: Git/environment context or controls that actually fit.
@@ -11272,6 +11322,7 @@ export default function ChatView(props: ChatViewProps) {
   return (
     <div
       ref={workspaceLayoutRef}
+      data-chat-draft-hero={isDraftHeroState ? "" : undefined}
       className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
     >
       <Dialog
@@ -11362,7 +11413,7 @@ export default function ChatView(props: ChatViewProps) {
               >
                 <div
                   role="status"
-                  className="flex items-center gap-2 rounded-full border border-primary/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg"
+                  className="flex items-center gap-2 rounded-lg border border-primary/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg"
                 >
                   <PaperclipIcon className="size-4 text-primary" aria-hidden="true" />
                   Drop files to attach
@@ -11391,7 +11442,10 @@ export default function ChatView(props: ChatViewProps) {
               />
             </div>
             {/* Messages Wrapper */}
-            <div className="relative flex min-h-0 flex-1 flex-col bg-background">
+            <div
+              className="relative flex min-h-0 flex-1 flex-col bg-background"
+              data-chat-draft-hero={isDraftHeroState ? "" : undefined}
+            >
               {/* Messages — LegendList handles virtualization and scrolling internally */}
               <MessagesTimeline
                 citationRequest={paintOnlyDisplayedTimeline ? null : citationRequest}
@@ -11523,16 +11577,14 @@ export default function ChatView(props: ChatViewProps) {
               )}
             </div>
 
-            {/* Input bar — centered for an empty draft, docked after sending. */}
+            {/* Input bar. Docked at the bottom in every state, so an empty
+                draft is already shaped like the thread it becomes and sending
+                the first message does not move the composer. */}
             <div
               ref={setComposerOverlayElement}
               inert={isRevertingCheckpoint}
               data-chat-composer-overlay="true"
-              className={
-                isDraftHeroState
-                  ? "pointer-events-none absolute inset-0 z-20 flex items-center"
-                  : "pointer-events-none absolute inset-x-0 bottom-0 z-20 pt-1.5 sm:pt-2"
-              }
+              className="pointer-events-none absolute inset-x-0 bottom-0 z-20 pt-1.5 sm:pt-2"
             >
               <div
                 ref={draftHeroTransition.transitionGroupRef}
@@ -11545,7 +11597,17 @@ export default function ChatView(props: ChatViewProps) {
                   {isDraftHeroState ? (
                     <div className="absolute inset-x-0 bottom-full">
                       <div
-                        className="pb-4 group-has-data-[composer-shoulder-tab]/composer-stack:pb-0"
+                        className={cn(
+                          "pb-4 group-has-data-[composer-shoulder-tab]/composer-stack:pb-0",
+                          // Over a background picture the hero needs a surface
+                          // of its own: the headline is the one thing on this
+                          // screen whose contrast cannot come from the theme.
+                          // Reuses the composer's glass, so the Interface
+                          // slider tunes both and a fully opaque theme stays
+                          // fully opaque.
+                          hasBackgroundPicture &&
+                            "surface-glass mb-3 rounded-3xl border border-border/60 px-4 py-3.5 sm:px-5",
+                        )}
                         style={
                           forceExpandedMobileComposer
                             ? { viewTransitionName: MOBILE_DRAFT_HEADLINE_VIEW_TRANSITION_NAME }
@@ -11723,6 +11785,7 @@ export default function ChatView(props: ChatViewProps) {
                               keybindings={keybindings}
                               terminalOpen={Boolean(terminalUiState.terminalOpen)}
                               gitCwd={gitCwd}
+                              startingPoints={composerStartingPoints}
                               pullRequestProjectId={
                                 supportsPullRequests ? (activeProject?.id ?? null) : null
                               }
@@ -11847,6 +11910,14 @@ export default function ChatView(props: ChatViewProps) {
                         </div>
                       </div>
                     </ComposerSurface.Shell>
+                    {/* The composer's keyboard legend, in the space the
+                        composer already leaves under itself. Every line is
+                        read from the user's settings and keybindings, and it
+                        is drawn in both the draft and the thread so sending
+                        cannot move the composer by the height of a hint. */}
+                    <p className="mx-auto hidden w-full max-w-(--chat-content-max-width) px-3 pt-1.5 text-2xs text-muted-foreground/60 sm:block sm:px-4">
+                      {composerShortcutHints.join(" · ")}
+                    </p>
                     <div
                       aria-hidden
                       className="h-[calc(env(safe-area-inset-bottom)+1rem)] sm:h-[calc(env(safe-area-inset-bottom)+1.25rem)]"
