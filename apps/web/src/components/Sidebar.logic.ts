@@ -1039,6 +1039,39 @@ export function shouldShowSidebarV2Duration(status: SidebarThreadStatus): boolea
   return status === "working";
 }
 
+// ── Sidebar v2 status rail ──────────────────────────────────────────
+/** Dense rows have no room for a status label, so every row carries a 3px
+    rail on its leading edge instead. The tone reuses the label's own
+    precedence, so rail and label can never disagree. "Quiet" is the resting
+    state: it still draws a faint rail so the list's leading edge stays on one
+    line instead of shifting with each row's state. Colours are static by
+    contract — a rail that animated would repaint the whole list every frame,
+    which is the GPU cost this sidebar exists to avoid. */
+export type SidebarStatusRailTone = SidebarV2TopStatusKind | "quiet";
+
+export function resolveSidebarStatusRailTone(input: {
+  readonly status: SidebarThreadStatus;
+  readonly isUnread: boolean;
+  readonly isWoke: boolean;
+}): SidebarStatusRailTone {
+  return resolveSidebarV2TopStatus(input) ?? "quiet";
+}
+
+/** Tone → rail colour, in one place so adding a tone is a single edit.
+    Waiting stays grey, matching its label: background work is not the user's
+    turn, and colour is reserved for work that is moving or blocked. */
+export const SIDEBAR_STATUS_RAIL_CLASS: Record<SidebarStatusRailTone, string> = {
+  approval: "bg-warning",
+  input: "bg-indigo-500 dark:bg-indigo-400",
+  working: "bg-info",
+  waiting: "bg-muted-foreground/40",
+  failed: "bg-error",
+  limited: "bg-warning",
+  woke: "bg-warning",
+  done: "bg-success",
+  quiet: "bg-sidebar-muted-foreground/20",
+};
+
 /** First VALID timestamp wins: `a ?? b` falls through on null, but a present-
     yet-malformed string must also fall through to the next candidate rather
     than sink the row to the epoch. */

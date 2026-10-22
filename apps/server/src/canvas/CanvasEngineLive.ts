@@ -496,6 +496,7 @@ export const make = (options: CanvasEngineOptions = {}): CanvasEngine => {
     payload: CanvasDocumentPayload;
     nodeIds: ReadonlyArray<string>;
     maxEdge?: number | undefined;
+    scale?: number | undefined;
     viewport?: CanvasViewport | undefined;
   }): Promise<ReadonlyArray<CanvasEngineScreenshot>> => {
     if (input.nodeIds.length === 0) return [];
@@ -510,12 +511,16 @@ export const make = (options: CanvasEngineOptions = {}): CanvasEngine => {
         await renderViewport(document, input.nodeIds, input.viewport, input.maxEdge),
       );
     }
+    const screenshotOptions: { scale?: number; maxDimension?: number } = {};
+    // Undefined means the exporter's own default, which is 1. Passing it would be the same render.
+    if (input.scale !== undefined) screenshotOptions.scale = input.scale;
+    if (input.maxEdge !== undefined) screenshotOptions.maxDimension = input.maxEdge;
     return toScreenshots(
       await takeDocumentScreenshots(
         document,
         input.nodeIds.map((nodeIds) => ({ nodeIds: [nodeIds] })),
         undefined,
-        input.maxEdge === undefined ? {} : { maxDimension: input.maxEdge },
+        screenshotOptions,
       ),
     );
   };

@@ -3,14 +3,23 @@ import type { ReactNode } from "react";
 import { memo, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 
+import { connectionStatusText } from "@dak/client-runtime/connection";
+
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
-import { usePullRequestsSupported } from "../../state/environments";
+import {
+  useEnvironments,
+  usePrimaryEnvironment,
+  usePullRequestsSupported,
+} from "../../state/environments";
 import { DakWordmark } from "../DakWordmark";
 import {
+  ConnectionStatusDot,
+  connectionPhaseDotClassName,
+  connectionPhasePingClassName,
+} from "../ConnectionStatusDot";
+import {
   resolveEnvironmentIdentificationPillLabel,
-  resolveSidebarStageBackdropVariant,
-  SidebarStageBackdrop,
   useEnvironmentStageLabel,
 } from "../SidebarStageBackdrop";
 import { Badge } from "../ui/badge";
@@ -25,6 +34,7 @@ import {
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { readPullRequestListPreferences } from "../pullRequest/pullRequestListPreferences";
 import { isSidebarUtilityPage, useNavigateToMainApp } from "./mainAppLocation";
+import { resolveSidebarConnectionMode } from "./SidebarChrome.logic";
 import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
 import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
@@ -37,10 +47,6 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 }) {
   const stageLabel = useEnvironmentStageLabel();
   const environmentIdentificationMode = useEnvironmentIdentificationMode();
-  const backdropVariant = resolveSidebarStageBackdropVariant(
-    stageLabel,
-    environmentIdentificationMode === "artwork",
-  );
   const pillLabel =
     environmentIdentificationMode === "pill"
       ? resolveEnvironmentIdentificationPillLabel(stageLabel)
@@ -54,16 +60,11 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
         isElectron && "drag-region",
       )}
     >
-      {backdropVariant ? <SidebarStageBackdrop variant={backdropVariant} /> : null}
-      <SidebarTrigger
-        // Over the stage artwork: the media viewer's control-on-imagery treatment.
-        variant={backdropVariant ? "media-navigation" : "ghost"}
-        className="relative top-auto z-10 translate-y-0 md:hidden"
-      />
+      <SidebarTrigger variant="ghost" className="relative top-auto z-10 translate-y-0 md:hidden" />
       {/* One visible line: the pill wraps onto the clipped second line once it no longer fits.
           The padding keeps the brand's focus ring inside the clip. */}
       <div className="relative z-10 flex h-8 min-w-0 flex-1 flex-wrap content-start items-center gap-x-2 overflow-hidden py-0.5">
-        <SidebarBrand onBackdrop={backdropVariant !== null} />
+        <SidebarBrand />
         {pillLabel ? (
           <div className="ml-1 flex h-7 items-center">
             <Badge data-environment-identification="pill" size="sm" variant="secondary">
@@ -101,35 +102,29 @@ export function SidebarBrandWidthProbe({
       ref={observeWidth}
     >
       <div className="ml-[var(--workspace-titlebar-content-left)] flex">
-        <SidebarBrandMark onBackdrop={false} />
+        <SidebarBrandMark />
       </div>
     </div>
   );
 }
 
-function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
+function SidebarBrand() {
   return (
     <Link
       aria-label="Go to threads"
-      className={cn(
-        "relative z-10 ml-[var(--workspace-titlebar-content-left)] hidden h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md outline-hidden ring-ring focus-visible:ring-2 md:flex",
-        onBackdrop ? "text-white" : "text-foreground",
-      )}
+      className="relative z-10 ml-[var(--workspace-titlebar-content-left)] hidden h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md text-foreground outline-hidden ring-ring focus-visible:ring-2 md:flex"
       to="/"
     >
-      <SidebarBrandMark onBackdrop={onBackdrop} />
+      <SidebarBrandMark />
     </Link>
   );
 }
 
-function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
+function SidebarBrandMark() {
   return (
     // The wordmark itself spells DAK, so the brand needs no companion text.
     <span className="inline-flex min-w-0 items-center" role="img">
-      <DakWordmark
-        aria-label="DAK"
-        className={cn("h-[1.35cap] w-auto shrink-0", onBackdrop ? "text-white" : "text-foreground")}
-      />
+      <DakWordmark aria-label="DAK" className="h-[1.35cap] w-auto shrink-0" />
     </span>
   );
 }
@@ -231,13 +226,50 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   );
 });
 
+/** The footer names the primary environment — the backend serving this
+    client. A hosted client can connect to remotes only, so it falls back to the
+    first catalogued environment rather than showing nothing. */
+function useFooterEnvironment() {
+  const primary = usePrimaryEnvironment();
+  const { environments } = useEnvironments();
+  return primary ?? environments[0] ?? null;
+}
+
+const SidebarEnvironmentStatus = memo(function SidebarEnvironmentStatus() {
+  const environment = useFooterEnvironment();
+  if (environment === null) return null;
+  const phase = environment.connection.phase;
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 text-xs text-sidebar-muted-foreground">
+      <ConnectionStatusDot
+        dotClassName={connectionPhaseDotClassName(phase)}
+        pingClassName={connectionPhasePingClassName(phase)}
+        tooltipText={connectionStatusText(environment.connection)}
+      />
+      <span className="min-w-0 truncate">{environment.label}</span>
+      <span aria-hidden className="shrink-0 text-sidebar-muted-foreground/60">
+        ·
+      </span>
+      <span className="shrink-0">{resolveSidebarConnectionMode(environment.entry.target)}</span>
+    </div>
+  );
+});
+
 export const SidebarChromeFooter = memo(function SidebarChromeFooter() {
   return (
     <SidebarFooter>
       <SidebarThreadUndoNotice />
       <SidebarProviderUpdatePill />
       <SidebarUpdateArchitectureWarning />
-      <SidebarUtilityMenu />
+      {/* Status on the left, utilities pushed right. Every utility entry point
+          (Settings, Pull Requests, Usage, update) stays; only the plain
+          overflow glyph the mock draws is dropped. */}
+      <div className="flex min-w-0 items-center gap-2">
+        <SidebarEnvironmentStatus />
+        <div className="ml-auto flex shrink-0 items-center">
+          <SidebarUtilityMenu />
+        </div>
+      </div>
     </SidebarFooter>
   );
 });

@@ -546,29 +546,44 @@ export function renderPayloadChars(frames: ReadonlyArray<{ readonly data: string
 }
 
 /**
- * The edge to retry a render at when the frames it produced exceeded the wire budget.
+ * What to retry a render at when the frames it produced exceeded the wire budget.
  *
- * PNG weight follows the rendered area, so the edge follows the square root of how far over budget
- * it went. `null` means a retry would not help: there is either nothing to gain or only an unreadable
- * edge left, and a design nobody can read is not a saving.
+ * PNG weight follows the rendered area, so the reduction follows the square root of how far over
+ * budget the payload went, aimed at 80% of the budget rather than at it. Both are approximations: the
+ * area relationship is one, and how densely a design's frames compress varies from frame to frame, so
+ * a retry that lands on the budget can still come back over it — which costs a frame to the fit rather
+ * than a few pixels nobody can see.
+ *
+ * Both numbers come down by that factor, because either one can be what set a frame's pixels. A frame
+ * following the view's scale shrinks with the scale; a frame already at the ceiling shrinks only when
+ * the ceiling does, and a design whose tallest frame is at the cap would otherwise be re-rendered for
+ * nothing and lose a frame to the fit. `null` means a retry would not help: the payload already fits,
+ * or both numbers are at their floor, and a design nobody can read is not a saving.
  */
-export function reducedRenderEdge({
-  edge,
+export function reducedRenderResolution({
+  scale,
+  maxEdge,
   payloadChars,
   budgetChars,
+  minScale,
   minEdge,
 }: {
-  readonly edge: number;
+  readonly scale: number;
+  readonly maxEdge: number;
   readonly payloadChars: number;
   readonly budgetChars: number;
+  readonly minScale: number;
   readonly minEdge: number;
-}): number | null {
+}): { readonly scale: number; readonly maxEdge: number } | null {
   if (payloadChars <= budgetChars) return null;
-  const scaled = Math.floor(edge * Math.sqrt(budgetChars / payloadChars));
-  const candidate = Math.min(edge - 1, scaled);
-  // A retry that saves almost nothing costs a full re-rasterization for nothing.
-  if (candidate < edge * 0.75) return Math.max(candidate, Math.min(minEdge, edge - 1));
-  return null;
+  const factor = Math.sqrt((budgetChars * 0.8) / payloadChars);
+  // Floored to a hundredth, which is the smallest step of scale worth naming, and to whole pixels for
+  // the edge, which is what the raster is measured in.
+  const nextScale = Math.max(Math.floor(scale * factor * 100) / 100, Math.min(minScale, scale));
+  const nextEdge = Math.max(Math.floor(maxEdge * factor), Math.min(minEdge, maxEdge));
+  // A retry at the numbers the frames are already at would rasterize the same pixels for nothing.
+  if (nextScale >= scale && nextEdge >= maxEdge) return null;
+  return { scale: nextScale, maxEdge: nextEdge };
 }
 
 /**

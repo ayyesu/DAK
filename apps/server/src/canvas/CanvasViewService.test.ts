@@ -2,6 +2,7 @@ import {
   CANVAS_RENDER_FRAME_LIMIT,
   CANVAS_RENDER_MAX_EDGE,
   CANVAS_RENDER_MIN_EDGE,
+  CANVAS_RENDER_MIN_SCALE,
   CANVAS_RENDER_PAYLOAD_BUDGET_CHARS,
 } from "@dak/contracts";
 import * as Effect from "effect/Effect";
@@ -64,15 +65,20 @@ const storeDouble = (document: CanvasStoredDocument, projection: CanvasDocument)
   };
 };
 
+/** The frame the test's design holds, in design units. Long edge first: the cap applies to it. */
+const FRAME_LONG_EDGE = 1200;
+const FRAME_SHORT_EDGE = 800;
+
 /** Frames whose base64 length the test decides, so the budget arithmetic is exact. */
 const engineDouble = (options: {
   readonly projection: CanvasDocument;
-  readonly charsPerFrameAtMaxEdge: number;
-  /** False models a frame that does not get smaller when the edge does. */
-  readonly scalesWithEdge?: boolean;
+  readonly charsPerFrameAtFullSize: number;
+  /** True models a payload that does not shrink when the raster does, such as photographic noise. */
+  readonly payloadIgnoresResolution?: boolean;
   readonly onRender?: () => void;
 }) => {
   const edges: number[] = [];
+  const scales: (number | undefined)[] = [];
   const engine: CanvasEngine = {
     createBlankDocument: async () => ({
       document: options.projection,
@@ -85,27 +91,36 @@ const engineDouble = (options: {
     materialize: async () => options.projection,
     extract: async () => ({ artifacts: [], consequences: [], rasterized: [] }),
     renderRegion: () => Promise.reject(new Error("not used in this test")),
-    renderFrames: async ({ nodeIds, maxEdge }) => {
+    renderFrames: async ({ nodeIds, maxEdge, scale }) => {
       options.onRender?.();
       const edge = maxEdge ?? CANVAS_RENDER_MAX_EDGE;
       edges.push(edge);
-      const scale =
-        options.scalesWithEdge === false ? 1 : Math.max(0.01, (edge / CANVAS_RENDER_MAX_EDGE) ** 2);
+      scales.push(scale);
+      // The two steps the engine takes: the caller's scale, then the cap on the frame's long edge.
+      // PNG weight follows the raster's area, which is why the cap has to come down with the scale
+      // for a design whose frames are already at it.
+      const resolution = Math.min(scale ?? edge / CANVAS_RENDER_MAX_EDGE, edge / FRAME_LONG_EDGE);
+      const width = Math.max(1, Math.floor(FRAME_LONG_EDGE * resolution));
+      const height = Math.max(1, Math.floor(FRAME_SHORT_EDGE * resolution));
+      const weight =
+        options.payloadIgnoresResolution === true
+          ? 1
+          : (width * height) / (FRAME_LONG_EDGE * FRAME_SHORT_EDGE);
       return nodeIds.map((nodeId) => ({
         nodeIds: [nodeId],
-        width: Math.min(edge, 1200),
-        height: Math.min(edge, 800),
+        width,
+        height,
         mimeType: "image/png" as const,
-        data: "A".repeat(Math.round(options.charsPerFrameAtMaxEdge * scale)),
+        data: "A".repeat(Math.round(options.charsPerFrameAtFullSize * weight)),
       }));
     },
   };
-  return { engine, edges };
+  return { engine, edges, scales };
 };
 
 const harness = (options: {
-  readonly charsPerFrameAtMaxEdge: number;
-  readonly scalesWithEdge?: boolean;
+  readonly charsPerFrameAtFullSize: number;
+  readonly payloadIgnoresResolution?: boolean;
   readonly file?: Partial<CanvasStoredDocument>;
   /** The design's top-level nodes. Defaults to six slides. */
   readonly frames?: ReadonlyArray<{ readonly id: string; readonly role?: string }>;
@@ -113,9 +128,9 @@ const harness = (options: {
 }) => {
   const document = stored(options.file);
   const frames = options.frames ?? frameIds.map((id) => ({ id, role: "slide" }));
-  const { engine, edges } = engineDouble({ ...options, projection: { children: frames } });
+  const { engine, edges, scales } = engineDouble({ ...options, projection: { children: frames } });
   const view = makeCanvasView({ store: storeDouble(document, { children: frames }), engine });
-  return { view, edges };
+  return { view, edges, scales };
 };
 
 const payloadChars = (frames: ReadonlyArray<{ readonly data: string }>) =>
@@ -124,7 +139,7 @@ const payloadChars = (frames: ReadonlyArray<{ readonly data: string }>) =>
 describe("canvas render budget", () => {
   it.effect("renders once at the requested edge when the payload fits", () =>
     Effect.gen(function* () {
-      const { view, edges } = harness({ charsPerFrameAtMaxEdge: 10_000 });
+      const { view, edges } = harness({ charsPerFrameAtFullSize: 10_000 });
       const rendered = yield* view.render({ documentId: "doc-1", maxEdge: 1024 });
 
       expect(edges).toEqual([1024]);
@@ -136,7 +151,7 @@ describe("canvas render budget", () => {
 
   it.effect("re-renders once at a smaller edge when the payload does not fit", () =>
     Effect.gen(function* () {
-      const { view, edges } = harness({ charsPerFrameAtMaxEdge: 400_000 });
+      const { view, edges } = harness({ charsPerFrameAtFullSize: 400_000 });
       const rendered = yield* view.render({ documentId: "doc-1" });
 
       expect(edges).toHaveLength(2);
@@ -148,11 +163,42 @@ describe("canvas render budget", () => {
     }),
   );
 
+  it.effect("re-renders smaller when a view's own scale does not fit its budget", () =>
+    Effect.gen(function* () {
+      const { view, edges, scales } = harness({ charsPerFrameAtFullSize: 100_000 });
+      const rendered = yield* view.render({ documentId: "doc-1", scale: 3 });
+
+      expect(scales[0]).toBe(3);
+      expect(scales[1]!).toBeLessThan(3);
+      expect(scales[1]!).toBeGreaterThanOrEqual(CANVAS_RENDER_MIN_SCALE);
+      // The cap comes down with the scale. A frame tall enough to be at the cap does not shrink when
+      // only the scale does, and a tall design's payload is mostly made of those frames — which is
+      // how a retry that left the cap alone still cost a frame to the fit.
+      expect(edges[1]!).toBeLessThan(edges[0]!);
+      expect(edges[1]!).toBeGreaterThanOrEqual(CANVAS_RENDER_MIN_EDGE);
+      expect(rendered.maxEdge).toBe(edges[1]!);
+      expect(payloadChars(rendered.frames)).toBeLessThanOrEqual(CANVAS_RENDER_PAYLOAD_BUDGET_CHARS);
+      expect(rendered.omittedFrames).toBe(0);
+    }),
+  );
+
+  it.effect("passes a view's scale to the engine and leaves it unset for an edge-only caller", () =>
+    Effect.gen(function* () {
+      const { view, scales } = harness({ charsPerFrameAtFullSize: 10_000 });
+      yield* view.render({ documentId: "doc-1", scale: 2 });
+      yield* view.render({ documentId: "doc-1", maxEdge: 1024 });
+      expect(scales).toEqual([2, undefined]);
+    }),
+  );
+
   it.effect(
     "drops trailing frames rather than shrinking below readability when reducing cannot help",
     () =>
       Effect.gen(function* () {
-        const { view } = harness({ charsPerFrameAtMaxEdge: 2_000_000, scalesWithEdge: false });
+        const { view } = harness({
+          charsPerFrameAtFullSize: 2_000_000,
+          payloadIgnoresResolution: true,
+        });
         const rendered = yield* view.render({ documentId: "doc-1" });
 
         // A design that cannot be made smaller is bounded by showing less of it, never silently.
@@ -164,7 +210,7 @@ describe("canvas render budget", () => {
 
   it.effect("never asks for an edge a design could not be read at", () =>
     Effect.gen(function* () {
-      const { view, edges } = harness({ charsPerFrameAtMaxEdge: 400_000 });
+      const { view, edges } = harness({ charsPerFrameAtFullSize: 400_000 });
       yield* view.render({ documentId: "doc-1" });
       expect(edges.every((edge) => edge >= CANVAS_RENDER_MIN_EDGE)).toBe(true);
     }),
@@ -179,8 +225,8 @@ describe("canvas render budget", () => {
           role: "slide",
         }));
         const { view } = harness({
-          charsPerFrameAtMaxEdge: 2_000_000,
-          scalesWithEdge: false,
+          charsPerFrameAtFullSize: 2_000_000,
+          payloadIgnoresResolution: true,
           frames: many,
         });
         const rendered = yield* view.render({ documentId: "doc-1" });
@@ -194,7 +240,7 @@ describe("canvas render budget", () => {
     Effect.gen(function* () {
       let renders = 0;
       const { view } = harness({
-        charsPerFrameAtMaxEdge: 10_000,
+        charsPerFrameAtFullSize: 10_000,
         frames: [],
         onRender: () => {
           renders += 1;
@@ -211,7 +257,7 @@ describe("canvas render budget", () => {
 
   it.effect("refuses to render a design that is in the trash", () =>
     Effect.gen(function* () {
-      const { view } = harness({ charsPerFrameAtMaxEdge: 10_000, file: { trashed: true } });
+      const { view } = harness({ charsPerFrameAtFullSize: 10_000, file: { trashed: true } });
       const failure = yield* Effect.flip(view.render({ documentId: "doc-1" }));
       expect(String(failure)).toMatch(/trash/u);
     }),
@@ -220,7 +266,7 @@ describe("canvas render budget", () => {
   it.effect("reports the sequence and whether the projection can be trusted", () =>
     Effect.gen(function* () {
       const { view } = harness({
-        charsPerFrameAtMaxEdge: 10_000,
+        charsPerFrameAtFullSize: 10_000,
         file: { sequence: 9, projectionCurrent: false },
       });
       const rendered = yield* view.render({ documentId: "doc-1" });

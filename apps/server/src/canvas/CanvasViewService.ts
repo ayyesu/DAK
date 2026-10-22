@@ -2,6 +2,7 @@ import {
   CANVAS_RENDER_FRAME_LIMIT,
   CANVAS_RENDER_MAX_EDGE,
   CANVAS_RENDER_MIN_EDGE,
+  CANVAS_RENDER_MIN_SCALE,
   CANVAS_RENDER_PAYLOAD_BUDGET_CHARS,
   CanvasViewError,
   type CanvasFrame,
@@ -12,7 +13,11 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import { fitFramesToBudget, reducedRenderEdge, renderPayloadChars } from "./canvasInvariants.ts";
+import {
+  fitFramesToBudget,
+  reducedRenderResolution,
+  renderPayloadChars,
+} from "./canvasInvariants.ts";
 import type { CanvasDocument, CanvasEngine, CanvasStore } from "./CanvasPorts.ts";
 
 /**
@@ -115,6 +120,8 @@ export class CanvasViewService extends Context.Service<
     readonly render: (input: {
       readonly documentId: string;
       readonly maxEdge?: number | undefined;
+      /** The scale the caller draws the design at: its zoom times its pixel ratio. */
+      readonly scale?: number | undefined;
     }) => Effect.Effect<
       {
         readonly documentId: string;
@@ -194,13 +201,14 @@ export const make = (deps: CanvasViewServiceDeps): CanvasViewService["Service"] 
         };
       }
 
-      const rasterize = (maxEdge: number) =>
+      const rasterize = (maxEdge: number, scale: number | undefined) =>
         Effect.tryPromise({
           try: () =>
             engine.renderFrames({
               payload,
               nodeIds: selection.frames.map((frame) => frame.nodeId),
               maxEdge,
+              ...(scale === undefined ? {} : { scale }),
             }),
           // A raster runtime that is missing or out of memory is the user's machine, not the design,
           // so the message says what to do rather than naming an engine error.
@@ -214,27 +222,36 @@ export const make = (deps: CanvasViewServiceDeps): CanvasViewService["Service"] 
 
       const requestedEdge = input.maxEdge ?? CANVAS_RENDER_MAX_EDGE;
       const maxEdge = Math.min(requestedEdge, CANVAS_RENDER_MAX_EDGE);
-      let images = yield* rasterize(maxEdge);
+      let images = yield* rasterize(maxEdge, input.scale);
       let renderedEdge = maxEdge;
+      let renderedScale = input.scale;
 
       /*
        * The payload budget. A view is not allowed to cost the user an unbounded amount of bandwidth
        * or server CPU because a design happens to be large, and the frames it is showing are the
-       * only knob that matters. One retry at a smaller edge covers the common case — a design with a
-       * photographic frame — because PNG weight follows the rendered area. If that still does not
-       * fit, the trailing frames go instead of shrinking the design below the point of being
+       * only knob that matters. One retry at a smaller resolution covers the common case — a design
+       * with a photographic frame — because PNG weight follows the rendered area. If that still does
+       * not fit, the trailing frames go instead of shrinking the design below the point of being
        * readable, and `omittedFrames` says how many.
+       *
+       * The retry lowers the scale and the cap together: a frame tall enough to be at the cap does
+       * not shrink when only the scale does, and those are the frames a tall design's payload is
+       * mostly made of.
        */
       const firstOverflow = renderPayloadChars(images);
-      const retryEdge = reducedRenderEdge({
-        edge: renderedEdge,
+      const retry = reducedRenderResolution({
+        // An edge-only caller has no scale to lower — undefined already means the frame's own size.
+        scale: renderedScale ?? 1,
+        maxEdge: renderedEdge,
         payloadChars: firstOverflow,
         budgetChars: CANVAS_RENDER_PAYLOAD_BUDGET_CHARS,
+        minScale: CANVAS_RENDER_MIN_SCALE,
         minEdge: CANVAS_RENDER_MIN_EDGE,
       });
-      if (retryEdge !== null) {
-        images = yield* rasterize(retryEdge);
-        renderedEdge = retryEdge;
+      if (retry !== null) {
+        renderedEdge = retry.maxEdge;
+        if (renderedScale !== undefined) renderedScale = retry.scale;
+        images = yield* rasterize(renderedEdge, renderedScale);
       }
 
       const fitted = fitFramesToBudget(images, CANVAS_RENDER_PAYLOAD_BUDGET_CHARS);

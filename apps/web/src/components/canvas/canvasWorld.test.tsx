@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { CanvasWorld, layoutFrames } from "./CanvasPanel";
+import { CanvasWorld, FRAME_LABEL_GUTTER, layoutFrames } from "./CanvasPanel";
 import type { CanvasCamera } from "./canvasCamera";
 import type { CanvasRenderedFrame } from "./canvasViewState";
 
@@ -143,6 +143,17 @@ describe("the layout itself", () => {
       [1440, 900],
     ]);
     expect(laid.width).toBe(1440 + 48 + 390);
-    expect(laid.height).toBe(900);
+    expect(laid.height).toBe(900 + FRAME_LABEL_GUTTER);
+  });
+
+  it("leaves room above every frame for the frame's own name", () => {
+    // The name is drawn above the frame, so the layout has to reserve the space for it. Without
+    // this, a caption and the top of its own frame want the same pixels, and the caption wins.
+    const laid = layoutFrames([frame({ nodeId: "a" }), frame({ nodeId: "b" })]);
+    expect(laid.items.map((placed) => placed.top)).toEqual([
+      FRAME_LABEL_GUTTER,
+      FRAME_LABEL_GUTTER,
+    ]);
+    expect(laid.height).toBe(1550 + FRAME_LABEL_GUTTER);
   });
 });

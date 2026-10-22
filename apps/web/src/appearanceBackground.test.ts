@@ -113,15 +113,25 @@ describe("index.css background picture contract", () => {
   });
 
   it("lets the picture through the shells that cover the viewport", () => {
-    // The two full-height shells, plus the right-hand panel.
+    // The two full-height shells, plus the right-hand panel. Each mixes the
+    // picture in through the shared opacity token, so the slider moves every
+    // shell at once instead of a hardcoded percentage per surface.
     expect(flat).toMatch(
-      /html\[data-app-background\] :is\(\[data-slot="sidebar-inset"\], \[data-slot="sidebar-inner"\]\) \{[^}]*background-color: color-mix\(in srgb, var\(--background\) 84%, transparent\)/,
+      /html\[data-app-background\] :is\(\[data-slot="sidebar-inset"\], \[data-slot="sidebar-inner"\]\) \{[^}]*background-color: color-mix\(\s*in srgb, var\(--background\) var\(--app-background-surface\)/,
     );
     expect(flat).toMatch(
-      /html\[data-app-background\] \[data-slot="sidebar-inner"\] \{[^}]*background-color: color-mix\(in srgb, var\(--sidebar\) 88%, transparent\)/,
+      /html\[data-app-background\] \[data-slot="sidebar-inner"\] \{[^}]*background-color: color-mix\(\s*in srgb, var\(--sidebar\) var\(--app-background-surface\)/,
     );
     expect(flat).toMatch(
-      /html\[data-app-background\] \[data-panel-shell\] \{[^}]*background-color: color-mix\(in srgb, var\(--background\) 92%, transparent\)/,
+      /html\[data-app-background\] \[data-panel-shell\] \{[^}]*background-color: color-mix\(\s*in srgb, var\(--background\) calc\(100% - var\(--app-background-opacity, 22%\) \/ 2\)/,
+    );
+  });
+
+  it("keeps the new-thread screen's shells clear of the picture", () => {
+    // The chat column fills the viewport: one opaque ancestor here would hide
+    // the picture on the very screen meant to show it.
+    expect(flat).toMatch(
+      /html\[data-app-background\] \[data-chat-draft-hero\], html\[data-app-background\] \[data-chat-draft-hero\] \[data-timeline-loading\] \{[^}]*background-color: transparent/,
     );
   });
 });

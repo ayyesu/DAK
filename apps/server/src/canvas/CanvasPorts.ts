@@ -266,6 +266,12 @@ export interface CanvasEngine {
     /** Cap on the rendered edge length. The engine also enforces its own maximum. */
     readonly maxEdge?: number | undefined;
     /**
+     * The scale to rasterize each frame at, relative to the frame's own size: 2 is twice as many
+     * pixels across. The engine draws text and shapes at this scale, so it is detail rather than
+     * interpolation. Clamped by `maxEdge` after it is applied.
+     */
+    readonly scale?: number | undefined;
+    /**
      * A window onto the design, in design coordinates, rather than the whole thing.
      *
      * A page taller than the raster cap cannot be shown legibly in one image: fitting 4400px of

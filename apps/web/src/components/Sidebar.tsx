@@ -1,6 +1,6 @@
 import { type EnvironmentId } from "@dak/contracts";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "./ThreadHoverCard";
-import { CollapsibleSectionHeader } from "./ui/collapsible-section-header";
+import { CollapsibleSectionHeader, SectionHeaderCount } from "./ui/collapsible-section-header";
 import { setThreadChangeRequestSnapshot } from "./ThreadStatusIndicators";
 import { ThreadContextDragGhost } from "./chat/ThreadContextDragGhost";
 import {
@@ -194,6 +194,7 @@ import {
   isSidebarThreadWorking,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
+  SIDEBAR_STATUS_RAIL_CLASS,
   planSidebarThreadDrop,
   reduceSidebarProjectScopeMenuState,
   resolveAdjacentThreadId,
@@ -203,12 +204,14 @@ import {
   resolveSidebarThreadSection,
   resolveSidebarRowAccessibility,
   type SidebarDropVerb,
+  resolveSidebarStatusRailTone,
   resolveSidebarThreadStatus,
   resolveThreadLastVisitedAt,
   searchSidebarThreads,
   shouldCreateNewThreadInCurrentProject,
   shouldNavigateAfterThreadPark,
   shouldRecedeSidebarThread,
+  shouldShowSidebarV2Duration,
   resolveWorkingStartedAt,
   sidebarListItemId,
   sidebarMarkerId,
@@ -258,6 +261,7 @@ import {
   shouldShowInstanceBadge,
   type ProviderInstanceEntry,
 } from "../providerInstances";
+import { formatProviderDriverKindLabel } from "../providerModels";
 import { useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Button, InlineButton } from "./ui/button";
@@ -750,37 +754,49 @@ type SidebarSweepAction = "settle" | "unsettle" | "unsnooze";
 // sorting strategy opens 24px for a 16px label with 4px clearance on each side.
 const SIDEBAR_DRAG_LABEL_HEIGHT = 24;
 
+// Both boundaries are real headers: they name their shelf and carry its count
+// whether or not a drag is in flight. The label keeps its
+// `sidebar-drag-boundary-label` hook, which the collision detector reads to
+// decide which side of the divider a pointer is on, and the marker keeps a
+// measured height so the resting layout and the drag projection agree.
 function SidebarDragBoundary(props: {
   marker: "pinned-header" | "pinned-divider";
   label: string;
-  visible: boolean;
+  /** Rows the shelf holds, shown at rest as well as while dragging. */
+  count: number;
   isDropTarget: boolean;
 }) {
   return (
     <SortableSidebarMarker
       marker={props.marker}
       data-testid={`sidebar-${props.marker}`}
-      className="pointer-events-none relative mx-0.5 -mb-px h-0"
+      className="pointer-events-none relative mx-0.5 -mb-px h-6"
     >
-      {props.visible ? (
-        <div className="sidebar-drag-boundary-label absolute inset-x-2 top-1 flex h-4 items-center gap-2">
-          <span
-            className={cn(
-              "shrink-0 text-xs font-medium",
-              props.isDropTarget ? "text-primary" : "text-sidebar-foreground/80",
-            )}
-          >
-            {props.label}
-          </span>
-          <span
-            aria-hidden
-            className={cn(
-              "h-px flex-1",
-              props.isDropTarget ? "bg-primary/50" : "bg-sidebar-foreground/25",
-            )}
-          />
-        </div>
-      ) : null}
+      <div className="sidebar-drag-boundary-label absolute inset-x-2 top-1 flex h-4 items-center gap-2">
+        <span
+          className={cn(
+            "shrink-0 text-xs font-medium",
+            props.isDropTarget ? "text-primary" : "text-sidebar-foreground/80",
+          )}
+        >
+          {props.label}
+        </span>
+        <span
+          aria-hidden
+          className={cn(
+            "h-px flex-1",
+            props.isDropTarget ? "bg-primary/50" : "bg-sidebar-foreground/25",
+          )}
+        />
+        <span
+          className={cn(
+            "shrink-0 text-xs tabular-nums",
+            props.isDropTarget ? "text-primary" : "text-sidebar-muted-foreground",
+          )}
+        >
+          {props.count}
+        </span>
+      </div>
     </SortableSidebarMarker>
   );
 }
@@ -789,6 +805,8 @@ function SidebarDragBoundary(props: {
 function SidebarSectionHeader(props: {
   marker: "working-header" | "snoozed-header" | "settled-header";
   label: string;
+  /** Rows the shelf holds, shown whether or not it is expanded. */
+  count: number;
   className?: string;
   // While dragging, the settled header reads at full strength and takes the
   // accent while the lifted row is over it.
@@ -815,6 +833,7 @@ function SidebarSectionHeader(props: {
         tone={
           props.isDropTarget ? "accent" : props.dragging ? "emphasized" : snoozed ? "info" : "muted"
         }
+        accessory={<SectionHeaderCount>{props.count}</SectionHeaderCount>}
         data-testid={`sidebar-${shelf}-shelf-toggle`}
       >
         {props.label}
@@ -1366,6 +1385,14 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
   const modelLabel = selectedModel
     ? getTriggerDisplayModelLabel(selectedModel)
     : thread.modelSelection.model;
+  // The agent line names the provider from its instance entry, falling back to
+  // the driver label when a display name is somehow blank. With no entry at all
+  // the segment is omitted rather than showing a placeholder id.
+  const providerDisplayName =
+    providerEntry === null
+      ? null
+      : providerEntry.displayName.trim() || formatProviderDriverKindLabel(providerEntry.driverKind);
+  const showsWorkingDuration = shouldShowSidebarV2Duration(status);
 
   // The local environment is "this machine" and needs no marker; every other
   // one gets its machine glyph. With no local environment (the hosted app)
@@ -1573,6 +1600,20 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
       props.isActive,
       threadRef,
     ],
+  );
+
+  // Dense rows have no room for a status label, so the rail is the row's
+  // status at rest. Both variants use the same element: the rail describes the
+  // thread, not the row shape, and the row's own `overflow-hidden` clips it to
+  // the rounded corners.
+  const statusRail = (
+    <span
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute inset-y-0 left-0 w-[3px]",
+        SIDEBAR_STATUS_RAIL_CLASS[resolveSidebarStatusRailTone({ status, isUnread, isWoke })],
+      )}
+    />
   );
 
   // All sidebar rows share one surface model. Live threads used to look
@@ -1795,8 +1836,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
         {...sortableRootProps}
         {...(fileDropHandlers ?? {})}
         className={cn(
-          // Matches the h-9 row so unrendered rows never shift the list when they paint.
-          "list-none [content-visibility:auto] [contain-intrinsic-size:auto_36px]",
+          // Matches the h-8 row so unrendered rows never shift the list when they paint.
+          "list-none [content-visibility:auto] [contain-intrinsic-size:auto_32px]",
           sortable?.isDragging && "relative z-20",
         )}
       >
@@ -1811,7 +1852,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                 aria-current={accessibility.current}
                 data-testid="sidebar-row-slim"
                 aria-busy={isRegeneratingTitle || undefined}
-                className={cn(rowSurfaceClassName, "flex h-9 items-center gap-2.5 px-2.5")}
+                className={cn(rowSurfaceClassName, "flex h-8 items-center gap-2.5 px-2.5")}
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
                 onKeyDown={handleKeyDown}
@@ -1820,6 +1861,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
             }
           >
             {accessibleTitle}
+            {statusRail}
             {/* Settled history recedes: dimmed favicon at rest, restored on
               hover so the tail stays scannable when you're hunting. */}
             <span
@@ -1838,6 +1880,19 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
             {isRegeneratingTitle ? (
               <span role="status" className="sr-only">
                 Regenerating title
+              </span>
+            ) : null}
+            {/* A remote thread keeps its machine cue when it goes dense. The
+              card carries it in the branch line and the tooltip repeats it, but
+              the glyph is the only thing that answers "which machine is this
+              running on" without a hover. Single-environment users never see
+              it: the local environment has nothing to disambiguate. */}
+            {isRemote && !showsScratchMachine ? (
+              <span
+                aria-hidden
+                className="inline-flex shrink-0 items-center text-sidebar-muted-foreground/70"
+              >
+                <EnvironmentMachineIcon kind={props.environmentMachine} className="size-3.5" />
               </span>
             ) : null}
             {/* The PR badge stays outside the hover-fading slot: it must
@@ -1886,9 +1941,15 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                     </Tooltip>
                   ) : (
                     <span className="text-xs">
-                      {variantAction === "unsettle"
-                        ? settledTimeLabel(thread)
-                        : threadTimeLabel(thread)}
+                      {variantAction === "unsettle" ? (
+                        settledTimeLabel(thread)
+                      ) : shouldShowSidebarV2Duration(status) ? (
+                        // The rail already reads "working"; the elapsed time is
+                        // what tells you whether it is still moving.
+                        <WorkingDuration startedAt={resolveWorkingStartedAt(thread)} />
+                      ) : (
+                        threadTimeLabel(thread)
+                      )}
                     </span>
                   )}
                 </span>
@@ -1960,8 +2021,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
       {...sortableRootProps}
       {...(fileDropHandlers ?? {})}
       className={cn(
-        // Matches the h-[4.875rem] content box; the py-0.5 padding is added on top.
-        "list-none py-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_78px]",
+        // Matches the h-24 content box; the py-0.5 padding is added on top.
+        "list-none py-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_96px]",
         sortable?.isDragging && "relative z-20",
       )}
     >
@@ -1985,11 +2046,69 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
           }
         >
           {accessibleTitle}
-          <div className="relative z-10 h-[4.875rem] px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)">
+          {statusRail}
+          <div className="relative z-10 h-24 px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)">
             <div className="flex h-5 min-w-0 items-center gap-1.5">
               {draftIndicator}
               {props.project ? (
                 <ProjectFavicon project={props.project} className="size-4 shrink-0" />
+              ) : null}
+              {/* The status leads the row, beside the project name, instead of
+                  owning the trailing slot. Woke is itself an action, so it stays
+                  a live button here. */}
+              {topStatus ? (
+                isWokeStatus ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          aria-label="Dismiss Woke notification"
+                          onClick={handleAcknowledgeWokeClick}
+                          className={cn(
+                            "inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring",
+                            topStatus.className,
+                          )}
+                        >
+                          <AlarmClockIcon aria-hidden className="size-4 shrink-0" />
+                          <span role="status">{topStatus.label}</span>
+                        </button>
+                      }
+                    />
+                    <TooltipPopup side="top">Dismiss Woke notification</TooltipPopup>
+                  </Tooltip>
+                ) : (
+                  <span
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1 font-medium",
+                      topStatus.className,
+                    )}
+                  >
+                    {topStatus.icon === "working" ? (
+                      <CircleDashedIcon aria-hidden className="size-4 shrink-0" />
+                    ) : topStatus.icon === "input" ? (
+                      <MessageCircleQuestionIcon aria-hidden className="size-4 shrink-0" />
+                    ) : topStatus.icon === "approval" ? (
+                      <ShieldQuestionIcon aria-hidden className="size-4 shrink-0" />
+                    ) : topStatus.icon === "failed" ? (
+                      <CircleAlertIcon aria-hidden className="size-4 shrink-0" />
+                    ) : topStatus.icon === "done" ? (
+                      <CircleCheckIcon aria-hidden className="size-4 shrink-0" />
+                    ) : null}
+                    {/* The label alone is the live region: a role="status"
+                      wrapper around the ticking duration would make
+                      screen readers announce every second. The elapsed time
+                      now lives on the agent line, so this stays a plain label. */}
+                    <span role="status">{topStatus.label}</span>
+                  </span>
+                )
+              ) : null}
+              {/* The mock reads "Working · dak": render the separator here rather
+                  than baking punctuation into the status label string. */}
+              {topStatus && props.projectDisplayName ? (
+                <span aria-hidden className="shrink-0 text-secondary-label">
+                  ·
+                </span>
               ) : null}
               {props.projectDisplayName ? (
                 <span
@@ -2004,10 +2123,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                 <span className="flex-1" />
               )}
               {pinIndicator}
-              {/* The visible state owns this slot's width: status at rest,
-                  actions on hover/keyboard focus or while the popover is open. Keeping
-                  the hidden state out of flow lets the project label reclaim
-                  space without either state overlapping it. */}
+              {/* The visible state owns this slot's width: the relative time at
+                  rest, actions on hover/keyboard focus or while the popover is
+                  open. Keeping the hidden state out of flow lets the project
+                  label reclaim space without either state overlapping it. */}
               {sortable?.isDragging ? (
                 dragDestination
               ) : (
@@ -2017,71 +2136,14 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                     props.sweepAction !== null && "hidden",
                   )}
                 >
-                  {/* Read-only status labels yield to the hover actions. Woke is
-                    itself an action, so it stays pointer-enabled and visible
-                    while the other controls appear beside it. */}
                   <span
                     className={cn(
-                      isWokeStatus
-                        ? "pointer-events-auto"
-                        : "pointer-events-none group-has-[:focus-visible]/sidebar-status-slot:absolute group-has-[:focus-visible]/sidebar-status-slot:right-0 group-has-[:focus-visible]/sidebar-status-slot:opacity-0 group-any-hover/sidebar-row:absolute group-any-hover/sidebar-row:right-0 group-any-hover/sidebar-row:opacity-0",
+                      "pointer-events-none group-has-[:focus-visible]/sidebar-status-slot:absolute group-has-[:focus-visible]/sidebar-status-slot:right-0 group-has-[:focus-visible]/sidebar-status-slot:opacity-0 group-any-hover/sidebar-row:absolute group-any-hover/sidebar-row:right-0 group-any-hover/sidebar-row:opacity-0",
                       "flex items-center self-center justify-self-end tabular-nums text-secondary-label transition-opacity",
                       snoozeMenuOpen && "pointer-events-none absolute right-0 opacity-0",
                     )}
                   >
-                    {topStatus ? (
-                      isWokeStatus ? (
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <button
-                                type="button"
-                                aria-label="Dismiss Woke notification"
-                                onClick={handleAcknowledgeWokeClick}
-                                className={cn(
-                                  "inline-flex cursor-pointer items-center gap-1 rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring",
-                                  topStatus.className,
-                                )}
-                              >
-                                <AlarmClockIcon aria-hidden className="size-4 shrink-0" />
-                                <span role="status">{topStatus.label}</span>
-                              </button>
-                            }
-                          />
-                          <TooltipPopup side="top">Dismiss Woke notification</TooltipPopup>
-                        </Tooltip>
-                      ) : (
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 font-medium",
-                            topStatus.className,
-                          )}
-                        >
-                          {topStatus.icon === "working" ? (
-                            <CircleDashedIcon aria-hidden className="size-4 shrink-0" />
-                          ) : topStatus.icon === "input" ? (
-                            <MessageCircleQuestionIcon aria-hidden className="size-4 shrink-0" />
-                          ) : topStatus.icon === "approval" ? (
-                            <ShieldQuestionIcon aria-hidden className="size-4 shrink-0" />
-                          ) : topStatus.icon === "failed" ? (
-                            <CircleAlertIcon aria-hidden className="size-4 shrink-0" />
-                          ) : topStatus.icon === "done" ? (
-                            <CircleCheckIcon aria-hidden className="size-4 shrink-0" />
-                          ) : null}
-                          {/* The label alone is the live region: a role="status"
-                            wrapper around the ticking duration would make
-                            screen readers announce every second. */}
-                          <span role="status">{topStatus.label}</span>
-                          {status === "working" ? (
-                            <span aria-hidden>
-                              <WorkingDuration startedAt={resolveWorkingStartedAt(thread)} />
-                            </span>
-                          ) : null}
-                        </span>
-                      )
-                    ) : (
-                      threadTimeLabel(thread)
-                    )}
+                    {threadTimeLabel(thread)}
                   </span>
                   {props.settlementSupported || showSnoozeButton || hasUnsentDraft ? (
                     <span
@@ -2208,6 +2270,27 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                 />
               </span>
             </div>
+            {/* The agent line: who is running this thread, and for how long.
+                The mock's tool count has no source here — no tool count is
+                reachable from the thread shells the sidebar renders from (see
+                the report), so only the resolvable segments appear. */}
+            {providerDisplayName !== null || showsWorkingDuration ? (
+              <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs">
+                {providerDisplayName !== null ? (
+                  <span className="min-w-0 truncate">{providerDisplayName}</span>
+                ) : null}
+                {providerDisplayName !== null && showsWorkingDuration ? (
+                  <span aria-hidden className="shrink-0 text-muted-foreground/40">
+                    |
+                  </span>
+                ) : null}
+                {showsWorkingDuration ? (
+                  <span className="shrink-0">
+                    running <WorkingDuration startedAt={resolveWorkingStartedAt(thread)} />
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           {props.jumpLabel ? <JumpHintBadge label={props.jumpLabel} /> : null}
         </TooltipTrigger>
@@ -5119,7 +5202,6 @@ export default function Sidebar() {
                   </ComboboxPopup>
                 </Combobox>
               }
-              onNewProject={openAddProjectCommandPalette}
               onNewThread={handleNewThreadClick}
               newThreadDisabled={projects.length === 0}
               newThreadShortcutLabel={newThreadShortcutLabel}
@@ -5255,13 +5337,16 @@ export default function Sidebar() {
                         const threadKey = scopedThreadKey(
                           scopeThreadRef(thread.environmentId, thread.id),
                         );
-                        // Settled and snoozed are the ONLY things that collapse a
-                        // row: every other thread is a full card. Density comes
-                        // from users (or the auto rules) actually parking work,
-                        // not from the sidebar second-guessing what still matters.
-                        // Working rows stay cards so their live status shows.
-                        const isCard =
-                          section === "active" || section === "pinned" || section === "working";
+                        // Density comes from the row shape, not from parking
+                        // work: a live thread is one 32px line whose state lives
+                        // on the leading rail, and only the thread you are in or
+                        // one blocked on a human expands back into the card.
+                        // Parked rows stay dense however, because their quick
+                        // action is un-settle or wake, and only the dense row
+                        // offers those: the card's action is always Settle.
+                        const parked = section === "settled" || section === "snoozed";
+                        const needsHuman = thread.hasPendingApprovals || thread.hasPendingUserInput;
+                        const isCard = !parked && (routeThreadKey === threadKey || needsHuman);
                         const rowVariant = isCard ? "card" : "slim";
                         return (
                           <SidebarThreadRow
@@ -5414,7 +5499,7 @@ export default function Sidebar() {
                                 key="pinned-header"
                                 marker="pinned-header"
                                 label="Pinned"
-                                visible={from !== null}
+                                count={pinnedThreads.length}
                                 isDropTarget={dragTargetSection === "pinned"}
                               />,
                             );
@@ -5424,8 +5509,8 @@ export default function Sidebar() {
                               <SidebarDragBoundary
                                 key="pinned-divider"
                                 marker="pinned-divider"
-                                label="Active"
-                                visible={from !== null}
+                                label="Working"
+                                count={activeThreads.length}
                                 isDropTarget={dragTargetSection === "active"}
                               />,
                             );
@@ -5435,7 +5520,7 @@ export default function Sidebar() {
                               <SidebarSectionPlaceholder
                                 key="active-placeholder"
                                 marker="active-placeholder"
-                                label="Active"
+                                label="Working"
                                 showHint={
                                   from !== null &&
                                   (activeThreads.length === 0 ||
@@ -5454,11 +5539,8 @@ export default function Sidebar() {
                                 key="working-shelf-header"
                                 marker="working-header"
                                 className="mt-auto"
-                                label={
-                                  workingShelfExpanded
-                                    ? "Working"
-                                    : `Working (${workingThreads.length})`
-                                }
+                                label="Working"
+                                count={workingThreads.length}
                                 toggle={{
                                   expanded: workingShelfExpanded,
                                   onToggle: toggleWorkingShelf,
@@ -5472,11 +5554,8 @@ export default function Sidebar() {
                                 key="snoozed-shelf-header"
                                 marker="snoozed-header"
                                 className={cn(workingThreads.length === 0 && "mt-auto")}
-                                label={
-                                  snoozedShelfExpanded
-                                    ? "Snoozed"
-                                    : `Snoozed (${snoozedThreads.length})`
-                                }
+                                label="Snoozed"
+                                count={snoozedThreads.length}
                                 toggle={{
                                   expanded: snoozedShelfExpanded,
                                   onToggle: toggleSnoozedShelf,
@@ -5492,11 +5571,8 @@ export default function Sidebar() {
                                 className={cn(
                                   workingThreads.length + snoozedThreads.length === 0 && "mt-auto",
                                 )}
-                                label={
-                                  settledShelfExpanded
-                                    ? "Settled"
-                                    : `Settled (${settledThreads.length})`
-                                }
+                                label="Earlier"
+                                count={settledThreads.length}
                                 dragging={from !== null}
                                 isDropTarget={dragTargetSection === "settled"}
                                 toggle={{
@@ -5511,7 +5587,7 @@ export default function Sidebar() {
                               <SidebarSectionPlaceholder
                                 key="settled-placeholder"
                                 marker="settled-placeholder"
-                                label="Settled"
+                                label="Earlier"
                                 showHint={
                                   from !== null &&
                                   (renderedSettledThreads.length === 0 ||

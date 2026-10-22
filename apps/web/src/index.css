@@ -1804,26 +1804,25 @@ html[data-app-background] {
    * `z-index: -1`, which depended on body staying transparent to be visible at
    * all; it was invisible the moment anything filled body's background.
    *
-   * Three layers, top first: the legibility veil, the opacity scrim, then the
-   * picture. The scrim carries the "picture opacity" slider because a
-   * background layer has no opacity of its own — tinting the canvas over the
-   * picture is arithmetically the same thing, and it keeps both sliders
-   * working without an element to fade.
+   * Two layers, top first: the legibility veil, then the picture. The root
+   * keeps the picture at its own strength. The "picture opacity" slider is
+   * spent where the picture actually meets an interface surface (see the shell
+   * rules below), because that is the only place a fade can read as one.
+   *
+   * Painting the slider as a third scrim here as well multiplied it into the
+   * surface's own translucency — 22% of the picture under 78% of the canvas
+   * left about 2% of the photo on screen, which is to say none of it.
    */
   --app-background-veil: color-mix(in oklab, #000 var(--app-background-dim), transparent);
-  --app-background-scrim: color-mix(
-    in oklab,
-    var(--background) calc(100% - var(--app-background-opacity)),
-    transparent
-  );
+  /* How much of a shell's own surface color stays over the picture. */
+  --app-background-surface: calc(100% - var(--app-background-opacity, 22%));
 
   background-image:
     linear-gradient(var(--app-background-veil), var(--app-background-veil)),
-    linear-gradient(var(--app-background-scrim), var(--app-background-scrim)),
     var(--app-background-image, none);
   background-repeat: no-repeat;
   background-position: center;
-  background-size: cover, cover, var(--app-background-fit, cover);
+  background-size: cover, var(--app-background-fit, cover);
 }
 
 html[data-app-background] body {
@@ -1863,15 +1862,25 @@ html[data-app-background] body::before {
    right-hand diff/preview panel sits inside the chat column, so it takes a
    higher opacity to stay a distinct surface rather than a window. */
 html[data-app-background] :is([data-slot="sidebar-inset"], [data-slot="sidebar-inner"]) {
-  background-color: color-mix(in srgb, var(--background) 84%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--background) var(--app-background-surface),
+    transparent
+  );
 }
 
 html[data-app-background] [data-slot="sidebar-inner"] {
-  background-color: color-mix(in srgb, var(--sidebar) 88%, transparent);
+  background-color: color-mix(in srgb, var(--sidebar) var(--app-background-surface), transparent);
 }
 
+/* The panel sits inside the chat column, so it already stacks on the picture
+   once; it keeps half the picture of the shell it sits in to stay a surface. */
 html[data-app-background] [data-panel-shell] {
-  background-color: color-mix(in srgb, var(--background) 92%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--background) calc(100% - var(--app-background-opacity, 22%) / 2),
+    transparent
+  );
 }
 
 /* The new-thread screen is the one place the picture is the subject rather

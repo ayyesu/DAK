@@ -144,9 +144,10 @@ export const listCanvas = Effect.fn("ws.canvas.list")(function* (input: CanvasLi
 /**
  * Frames plus the sequence they were rendered at, for the client to show.
  *
- * `maxEdge` is the caller's displayed size times its pixel ratio rather than the design's own
- * dimensions. The frames are base64 PNG over a socket that may be a relay or a tunnel, so rendering
- * a design larger than anyone is looking at spends the user's bandwidth on pixels nobody sees.
+ * `scale` is how large the caller is drawing the design — its zoom times its pixel ratio — and
+ * `maxEdge` caps what comes back. The frames are base64 PNG over a socket that may be a relay or a
+ * tunnel, so rendering a design larger than anyone is looking at spends the user's bandwidth on
+ * pixels nobody sees, and rendering it at its own size only spends the sharpness the display paid for.
  */
 export const renderCanvas = Effect.fn("ws.canvas.render")(function* (input: CanvasRenderInput) {
   const { view } = yield* projectServices(input.projectId, input.documentId);
@@ -154,6 +155,7 @@ export const renderCanvas = Effect.fn("ws.canvas.render")(function* (input: Canv
   const rasterize = view.render({
     documentId: input.documentId,
     ...(input.maxEdge === undefined ? {} : { maxEdge: input.maxEdge }),
+    ...(input.scale === undefined ? {} : { scale: input.scale }),
   });
   const rendered = yield* limiter.withPermits(1)(rasterize);
   return {

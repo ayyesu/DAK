@@ -443,13 +443,16 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 96px;
-        height: 96px;
+        width: 160px;
+        height: 160px;
       }
 
+      /* The mark sits in a 128-unit viewBox but its ink only spans 80 units
+         across and 37 tall, so a box of N renders a wordmark of 0.63N by 0.29N.
+         The box has to run well ahead of the size the logo reads as on screen. */
       #boot-shell-logo {
-        width: 64px;
-        height: 64px;
+        width: 128px;
+        height: 128px;
         object-fit: contain;
       }
 
@@ -477,7 +480,7 @@
         cursor: pointer;
       }
     </style>
-    <title>DAK (Alpha)</title>
+    <title>DAK</title>
   </head>
   <body>
     <div id="root">

@@ -11,6 +11,14 @@ import {
 
 const stationary = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
 const hidden = { ...stationary, scaleY: 0 };
+
+/** A card is 6rem tall and a dense row is h-8, so the floor separates the two
+    shapes with a clear margin. The projection classifies rows by height because
+    which shape a thread row takes no longer follows its section: a live thread
+    is a card only when it is the route thread or blocked on a human, and either
+    can sit in any shelf. */
+const CARD_HEIGHT_FLOOR = 56;
+
 type ThreadItem = Extract<SidebarListItem, { kind: "thread" }>;
 type Layout = Parameters<SortingStrategy>[0];
 const isShelfHeader = (item: SidebarListItem | undefined) =>
@@ -133,9 +141,9 @@ export function createSidebarSortingStrategy(input: {
       snoozed: [],
       settled: [],
     };
+    let headerScale: number | undefined;
     let cardHeight = input.cardHeight;
     let slimHeight = input.slimHeight;
-    let headerScale: number | undefined;
     for (const [index, item] of items.entries()) {
       if (item.kind === "marker") {
         if (isShelfHeader(item)) {
@@ -144,16 +152,19 @@ export function createSidebarSortingStrategy(input: {
         }
         continue;
       }
-      if (item.section === "pinned" || item.section === "active" || item.section === "working")
-        cardHeight ??= rects[index]?.height;
-      else slimHeight ??= rects[index]?.height;
+      const height = rects[index]?.height;
+      if (height) {
+        if (height >= CARD_HEIGHT_FLOOR) cardHeight ??= height;
+        else slimHeight ??= height;
+      }
       if (item.key !== active.key) groups[item.section].push(item);
     }
-    // Cards are 4.875rem + 0.25rem padding; slim rows/placeholders are h-9.
+    // The two nominal heights double as the ratio for whole-list scaling
+    // (zoom, font size): each is only reachable when the list holds no row of
+    // that shape, and a card is the other measurable fixed height.
     const scale =
-      slimHeight !== undefined ? slimHeight / 36 : (headerScale ?? (cardHeight ?? 82) / 82);
-    cardHeight ??= 82 * scale;
-    slimHeight ??= 36 * scale;
+      slimHeight !== undefined ? slimHeight / 32 : (headerScale ?? (cardHeight ?? 82) / 82);
+    slimHeight ??= 32 * scale;
     const labelHeight = (input.boundaryLabelHeight ?? 0) * scale;
     const group = groups[target.section];
     const order =
@@ -206,20 +217,21 @@ export function createSidebarSortingStrategy(input: {
     const heights = projected.map((item) => {
       const index = indices.get(sidebarListItemId(item));
       const rect = index === undefined ? undefined : rects[index];
-      const fallback =
+      // A row keeps the shape it was picked up in — the dragged row is hidden
+      // rather than unmounted, so its own rect is still there to read — except
+      // that arriving in a parked shelf collapses it, since settled and snoozed
+      // rows are always dense.
+      const collapsing =
         item.kind === "thread" &&
-        (item.section === "pinned" || item.section === "active" || item.section === "working")
-          ? cardHeight
-          : slimHeight;
-      const moved = item.kind === "thread" && item.key === active.key;
+        item.key === active.key &&
+        (item.section === "settled" || item.section === "snoozed");
+      const measured = collapsing ? undefined : rect?.height;
       return item.kind === "marker" &&
         (item.marker === "pinned-header" || item.marker === "pinned-divider")
-        ? labelHeight
+        ? measured || labelHeight
         : item.kind === "marker" && item.marker.endsWith("placeholder")
           ? slimHeight
-          : moved
-            ? fallback
-            : (rect?.height ?? fallback);
+          : (measured ?? slimHeight);
     });
     const firstShelf = items.findIndex(isShelfHeader);
     const shelfRect = rects[firstShelf];

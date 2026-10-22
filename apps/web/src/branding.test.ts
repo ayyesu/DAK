@@ -47,7 +47,8 @@ describe("branding", () => {
     expect(branding.HOSTED_APP_CHANNEL).toBe("nightly");
     expect(branding.HOSTED_APP_CHANNEL_LABEL).toBe("Nightly");
     expect(branding.APP_STAGE_LABEL).toBe("Nightly");
-    expect(branding.APP_DISPLAY_NAME).toBe("DAK (Nightly)");
+    // The channel is carried by the stage label; the name is the product name.
+    expect(branding.APP_DISPLAY_NAME).toBe("DAK");
   });
 
   it("does not label the latest hosted app channel", async () => {

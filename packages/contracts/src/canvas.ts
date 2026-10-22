@@ -509,8 +509,8 @@ export const CANVAS_RENDER_MAX_EDGE = 2048;
  *
  * Measured, not guessed: the real engine rasterizing a text-bearing 24-slide deck at the maximum
  * edge produces 547K characters, so this leaves room for the same deck plus a photographic frame
- * and still refuses a payload nobody asked for. A design over budget is re-rendered at a smaller
- * edge and, failing that, has its trailing frames dropped — never silently, `omittedFrames` says so.
+ * and still refuses a payload nobody asked for. A design over budget is re-rendered smaller and,
+ * failing that, has its trailing frames dropped — never silently, `omittedFrames` says so.
  */
 export const CANVAS_RENDER_PAYLOAD_BUDGET_CHARS = 1_048_576;
 
@@ -519,6 +519,15 @@ export const CANVAS_RENDER_PAYLOAD_BUDGET_CHARS = 1_048_576;
  * payload that still does not fit is bounded by dropping frames instead of shrinking them further.
  */
 export const CANVAS_RENDER_MIN_EDGE = 256;
+
+/**
+ * The smallest scale a view may ask for, and the floor a reduced render falls back to.
+ *
+ * A wide design fitted into a narrow panel legitimately asks for a quarter of itself, so the floor is
+ * well below 1. Below it the frames are unreadable smudges rather than a smaller design, and a view
+ * that cannot be read is not a saving.
+ */
+export const CANVAS_RENDER_MIN_SCALE = 0.25;
 
 /**
  * How many renders one environment may have in flight.
@@ -553,6 +562,18 @@ export const CanvasRenderInput = Schema.Struct({
   maxEdge: Schema.optional(
     Schema.Int.check(Schema.isGreaterThan(0), Schema.isLessThanOrEqualTo(CANVAS_RENDER_MAX_EDGE)),
   ),
+  /**
+   * The scale the view draws the design at: its zoom times its pixel ratio.
+   *
+   * Frames come back at their own size times this, so a design shown at 125% pixel ratio is
+   * rasterized at 125% rather than magnified from its own size, and zooming in asks the engine for
+   * the scale it is looking at instead of enlarging a bitmap. The engine renders text and shapes at
+   * whatever scale it is given, so this is detail, not interpolation. `maxEdge` and the payload
+   * budget still cap what comes back.
+   */
+  scale: Schema.optional(
+    Schema.Number.check(Schema.isGreaterThanOrEqualTo(CANVAS_RENDER_MIN_SCALE)),
+  ),
 });
 export type CanvasRenderInput = typeof CanvasRenderInput.Type;
 
@@ -566,9 +587,10 @@ export const CanvasRenderResult = Schema.Struct({
   projectionCurrent: Schema.Boolean,
   frames: Schema.Array(CanvasFrame),
   /**
-   * The edge these frames were actually rasterized at. Lower than the requested one when the
-   * payload did not fit its budget, so a view can say it is showing less detail rather than
-   * pretending the frames are what was asked for.
+   * The edge cap these frames were rasterized under: the requested one, or lower when the payload did
+   * not fit its budget. A frame's own `width` and `height` are what it actually got, which is how a
+   * view knows a frame answered below the scale it asked for — by this cap, by the budget, or by the
+   * frame being taller than the cap at the scale it wanted.
    */
   maxEdge: Schema.Int,
   /**

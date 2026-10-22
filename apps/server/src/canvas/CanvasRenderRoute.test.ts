@@ -195,6 +195,54 @@ describe("the panel's canvas.render path", () => {
     { timeout: 300_000 },
   );
 
+  /**
+   * The scale a view draws at is the scale it is rendered at.
+   *
+   * A frame rasterized at its own size is soft on any display whose pixel ratio is not 1, and worse
+   * at zoom: the browser magnifies the bitmap, so a design shown at 200% was 100% detail drawn twice
+   * as large. Asking for the scale is what the engine can act on — it renders text and shapes at
+   * whatever scale it is given — so the raster comes back larger than the design, up to the ceiling.
+   */
+  effectIt.effect(
+    "renders above the design's own size when the view asks for a scale",
+    () =>
+      Effect.gen(function* () {
+        const { workspaceRoot, documentId } = yield* Effect.promise(seedPortfolioDesign);
+
+        const scaled = yield* renderCanvas({
+          projectId: PROJECT_ID,
+          documentId,
+          scale: 2,
+        }).pipe(Effect.provide(layerFor(workspaceRoot)));
+        expect(scaled.frames.length).toBe(6);
+
+        const shortest = [...scaled.frames].sort((a, b) => a.designHeight - b.designHeight)[0];
+        // Twice as many pixels across, not the same bitmap drawn twice as large.
+        expect(shortest?.width).toBe((shortest?.designWidth ?? 0) * 2);
+        // The design's own size is still what the view lays out from.
+        expect(shortest?.height).toBe((shortest?.designHeight ?? 0) * 2);
+
+        // And the ceiling still bounds it: the tallest frame is a phone screen, so it is capped below
+        // the scale asked for rather than rasterized at 3100px.
+        const tallest = scaled.frames.find((frame) => frame.designHeight === 1550);
+        expect(tallest?.height).toBeGreaterThan(1550);
+        expect(tallest?.height).toBeLessThanOrEqual(2048);
+
+        // Below 1 the same request ships *fewer* pixels, which is the bandwidth half of the story: a
+        // design fitted into a small panel no longer pays for full-size rasters nobody is looking at.
+        const fitted = yield* renderCanvas({
+          projectId: PROJECT_ID,
+          documentId,
+          scale: 0.5,
+        }).pipe(Effect.provide(layerFor(workspaceRoot)));
+        const fittedShortest = [...fitted.frames].sort(
+          (a, b) => a.designHeight - b.designHeight,
+        )[0];
+        expect(fittedShortest?.width).toBe(Math.ceil((fittedShortest?.designWidth ?? 0) / 2));
+      }),
+    { timeout: 300_000 },
+  );
+
   effectIt.effect(
     "reports the sequence through canvas.subscribe, so the view can tell a live design from a stale one",
     () =>

@@ -10,7 +10,7 @@
  * of the sidebar's scope logic. `searchFieldRef` lands on the search field so
  * the picker's popup can anchor to that width rather than to its 28px trigger.
  */
-import { FolderPlusIcon, SearchIcon, SquarePenIcon, XIcon } from "lucide-react";
+import { PlusIcon, SearchIcon, XIcon } from "lucide-react";
 import {
   type ComponentProps,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -31,7 +31,6 @@ export interface SidebarThreadHeaderProps {
   hasProjects: boolean;
   /** The project scope combobox, rendered as the first icon of the group. */
   projectScope: ReactNode;
-  onNewProject: () => void;
   /** Receives the click so Shift+click can skip the project picker. */
   onNewThread: (event: ReactMouseEvent) => void;
   newThreadDisabled: boolean;
@@ -53,7 +52,6 @@ export function SidebarThreadHeader({
   searchFieldRef,
   hasProjects,
   projectScope,
-  onNewProject,
   onNewThread,
   newThreadDisabled,
   newThreadShortcutLabel,
@@ -91,7 +89,7 @@ export function SidebarThreadHeader({
           value={searchQuery}
           onChange={(event) => onSearchQueryChange(event.currentTarget.value)}
           onKeyDown={onSearchKeyDown}
-          placeholder="Search"
+          placeholder="Search threads"
           aria-label="Search threads"
           role="combobox"
           aria-autocomplete="list"
@@ -120,22 +118,29 @@ export function SidebarThreadHeader({
           </Button>
         ) : null}
       </div>
-      {/* Unfilled like the search field beside it: the buttons carry their own
-          hover states, and a background well reads far louder on themed
-          palettes than on the base light and dark ones. */}
-      <div className="flex shrink-0 items-center">
-        {hasProjects ? (
-          <>
-            {projectScope}
-            <SidebarHeaderIconButton label="Add project" onClick={onNewProject}>
-              <FolderPlusIcon />
-            </SidebarHeaderIconButton>
-          </>
-        ) : null}
-        <SidebarHeaderIconButton
-          label="New thread"
-          tooltip={
-            showNewThreadInProjectHint ? (
+      {/* The new-thread action is the header's one labelled control, so the
+          scope picker shrinks to its icon beside it. Adding a project lives in
+          the command palette and the empty state's own button. */}
+      <div className="flex shrink-0 items-center gap-1">
+        {hasProjects ? projectScope : null}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                aria-label="New thread"
+                disabled={newThreadDisabled}
+                onClick={onNewThread}
+              />
+            }
+          >
+            <PlusIcon className="size-3.5" />
+            New
+          </TooltipTrigger>
+          <TooltipPopup side="top">
+            {showNewThreadInProjectHint ? (
               <span className="flex flex-col gap-0.5">
                 <span>{newThreadLabel}</span>
                 <span className="text-muted-foreground">
@@ -145,13 +150,9 @@ export function SidebarThreadHeader({
               </span>
             ) : (
               newThreadLabel
-            )
-          }
-          disabled={newThreadDisabled}
-          onClick={onNewThread}
-        >
-          <SquarePenIcon />
-        </SidebarHeaderIconButton>
+            )}
+          </TooltipPopup>
+        </Tooltip>
       </div>
     </div>
   );
