@@ -181,7 +181,7 @@ export function CanvasDesignPicker({
                 </EmptyTitle>
                 <EmptyDescription>
                   {settledQuery === ""
-                    ? "Ask the agent to create one — “design a landing page for this project”."
+                    ? "Ask the agent to create one. “Design a landing page for this project”."
                     : "Try a different search, or clear it to see every design."}
                 </EmptyDescription>
               </Empty>

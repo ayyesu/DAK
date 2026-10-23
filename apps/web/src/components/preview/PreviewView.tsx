@@ -919,7 +919,7 @@ export function PreviewView({
         // user wouldn't be able to actually click anything underneath).
         pickDisabled={!tabId || isUnreachable}
         pickDisabledReason={
-          isUnreachable ? "Page didn't load — pick unavailable until the page renders" : undefined
+          isUnreachable ? "Page didn't load. Pick unavailable until the page renders" : undefined
         }
         leadingActions={
           // Only when it differs from the default: labelling every tab

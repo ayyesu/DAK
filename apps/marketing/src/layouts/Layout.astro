@@ -2,7 +2,7 @@
 import { getImage, Image } from "astro:assets";
 import appIcon from "../assets/icon.webp";
 import socialCard from "../assets/social-card.webp";
-import dmSansLatinUrl from "../assets/fonts/dm-sans-latin.woff2?url";
+import bricolageLatinUrl from "../assets/fonts/bricolage-grotesque-latin.woff2?url";
 import "../styles/fonts.css";
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
 
 const {
   title = "DAK",
-  description = "DAK. The control plane for coding agents, with a visual canvas.",
+  description = "DAK. One window for every coding agent, with a visual canvas.",
   pageClass,
 } = Astro.props;
 
@@ -29,7 +29,7 @@ const socialImage = await getImage({
 });
 const socialImageUrl = new URL(socialImage.src, Astro.site);
 const socialImageAlt =
-  "DAK: the control plane for coding agents, with a visual canvas.";
+  "DAK: one window for every coding agent, with a visual canvas.";
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 ---
 
@@ -56,7 +56,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     <meta name="twitter:image:alt" content={socialImageAlt} />
     <link
       rel="preload"
-      href={dmSansLatinUrl}
+      href={bricolageLatinUrl}
       as="font"
       type="font/woff2"
       crossorigin="anonymous"
@@ -120,25 +120,27 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 
 <style is:global>
   :root {
-    --bg: #050816;
-    --bg-elev: #0a0f22;
-    --bg-card: #0f1530;
-    --fg: #f8fafc;
-    --fg-muted: #9fb0d0;
-    --fg-dim: #6f7fa5;
-    --fg-faint: #4b5880;
-    --border: rgba(120, 160, 255, 0.14);
-    --border-strong: rgba(120, 160, 255, 0.26);
-    --accent-h: 255;
-    --accent: oklch(0.74 0.18 var(--accent-h));
-    --accent-dim: oklch(0.68 0.17 var(--accent-h) / 0.15);
-    --ok: oklch(0.72 0.16 150);
-    --warn: oklch(0.76 0.15 75);
-    --font-sans: "DM Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    /* Stone and blueprint. Warm paper ground, near-black warm ink, one
+       blueprint-blue accent used only on the primary action. */
+    --bg: #dfdedb;
+    --bg-elev: #d9d8d4;
+    --bg-card: #d3d2ce;
+    --fg: #26251e;
+    --fg-muted: #5f5d55;
+    --fg-dim: #84827a;
+    --fg-faint: #a6a49a;
+    --border: rgb(38 37 30 / 14%);
+    --border-strong: rgb(38 37 30 / 28%);
+    --accent: #2456d6;
+    --accent-dim: rgb(36 86 214 / 12%);
+    --ok: #3c6b45;
+    --warn: #8a6a1f;
+    --font-sans: "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-    --radius: 12px;
-    --radius-sm: 8px;
-    --radius-lg: 16px;
+    /* One motif corner (14px) for media frames; controls stay square. */
+    --radius: 0px;
+    --radius-sm: 0px;
+    --radius-lg: 14px;
   }
 
   * {
@@ -148,7 +150,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
   }
 
   html {
-    color-scheme: dark;
+    color-scheme: light;
     scroll-behavior: smooth;
   }
 
@@ -156,7 +158,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     background: var(--bg);
     color: var(--fg);
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "ss02";
+    font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
@@ -169,7 +171,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     position: fixed;
     inset: 0;
     pointer-events: none;
-    opacity: 0.035;
+    opacity: 0.05;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     background-repeat: repeat;
     background-size: 256px 256px;
@@ -205,9 +207,9 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
   }
 
   .display {
-    font-weight: 500;
-    letter-spacing: -0.035em;
-    line-height: 1.05;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 0.92;
   }
 
   .container {
@@ -225,50 +227,48 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     font-weight: 500;
     font-size: 14px;
     padding: 10px 18px;
-    border-radius: 8px;
-    transition: transform 0.18s ease, background 0.18s ease,
-      border-color 0.18s ease, color 0.18s ease;
+    border-radius: 2px;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
     white-space: nowrap;
   }
 
   .btn-primary {
-    background: var(--fg);
-    color: #09090b;
+    background: var(--accent);
+    color: #fff;
     font-weight: 600;
   }
 
   .btn-primary:hover {
-    transform: translateY(-1px);
-    background: #fff;
+    background: #1d47b4;
   }
 
   .btn-primary:active {
-    transform: translateY(0);
+    background: #183c9a;
   }
 
   .btn-ghost {
     color: var(--fg-muted);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-strong);
     background: transparent;
   }
 
   .btn-ghost:hover {
     color: var(--fg);
-    border-color: var(--border-strong);
-    background: rgba(255, 255, 255, 0.02);
+    border-color: var(--fg);
+    background: transparent;
   }
 
   .btn-lg {
     padding: 14px 22px;
-    font-size: 15px;
-    border-radius: 10px;
+    font-size: 16px;
+    border-radius: 2px;
   }
 
   .tile {
     position: relative;
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0));
+    border-radius: var(--radius-lg);
+    background: var(--bg-card);
     overflow: hidden;
   }
 
@@ -380,7 +380,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     height: 36px;
     padding: 0 14px;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: 3px;
     background: rgba(255, 255, 255, 0.02);
     color: var(--fg-muted);
     font-size: 13px;
@@ -413,7 +413,6 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 
   .footer {
     margin-top: auto;
-    border-top: 1px solid var(--border);
     padding: 40px 0 32px;
   }
 
@@ -432,8 +431,8 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 13px;
-    color: var(--fg-dim);
+    font-size: 14px;
+    color: var(--fg-muted);
   }
 
   .footer-brand img {

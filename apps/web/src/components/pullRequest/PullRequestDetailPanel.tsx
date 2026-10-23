@@ -196,7 +196,7 @@ const ACTION_SUCCESS_LABELS: Record<PullRequestAction, string> = {
   // True whichever it did: a pull request that was already mergeable merges the moment this is
   // armed, and the client has no way to tell that apart from one still waiting on something.
   "enable-auto-merge":
-    "Auto-merge turned on — merges as soon as this is ready, sooner if it already is",
+    "Auto-merge turned on: merges as soon as this is ready, sooner if it already is",
   "disable-auto-merge": "Auto-merge turned off",
   revert: "Revert pull request opened",
   "approve-workflows": "Workflows approved",
@@ -228,7 +228,7 @@ const ACTION_FAILURE_HINTS: Record<PullRequestAction, string> = {
   // Said for the merge commit, which is what an update is unless a rebase was asked for. The
   // rebase has its own reasons to fail and its own sentence below.
   "update-branch":
-    "The host refused it. Check that you have write access to the branch — one from a fork also needs its author to allow edits from maintainers — and that it does not conflict with the base.",
+    "The host refused it. Check that you have write access to the branch (one from a fork also needs its author to allow edits from maintainers) and that it does not conflict with the base.",
   // The one refusal that is usually a repository setting rather than anything about this branch:
   // GitHub will not arm an auto-merge at all unless the repository has the feature switched on.
   "enable-auto-merge":
@@ -1142,8 +1142,8 @@ export function PullRequestDetailPanel({
         title: "Added to the composer",
         description:
           task.prompt.length > 0
-            ? "The question is in the composer — read it over, then send."
-            : "The pull request is in the composer — type your question, then send.",
+            ? "The question is in the composer. Read it over, then send."
+            : "The pull request is in the composer. Type your question, then send.",
       });
       return;
     }
@@ -1166,8 +1166,8 @@ export function PullRequestDetailPanel({
       // the reader looking for something that is not there. The chips are what landed.
       description:
         task.prompt.length > 0
-          ? "The question is in the composer — read it over, then send."
-          : "The pull request is in the composer — type your question, then send.",
+          ? "The question is in the composer. Read it over, then send."
+          : "The pull request is in the composer. Type your question, then send.",
     });
   };
 
@@ -1188,7 +1188,7 @@ export function PullRequestDetailPanel({
       toastManager.add({
         type: "success",
         title: "Added to the composer",
-        description: "The task is in the composer — read it over, then send.",
+        description: "The task is in the composer. Read it over, then send.",
       });
       return;
     }
@@ -1313,7 +1313,7 @@ export function PullRequestDetailPanel({
         ? {
             type: "success",
             title: "Checkout ready",
-            description: "The task is in the composer — read it over, then send.",
+            description: "The task is in the composer. Read it over, then send.",
           }
         : staleCheckoutToast,
     );
@@ -2615,7 +2615,7 @@ export function PullRequestDetailPanel({
                   >
                     <MessageSquareIcon aria-hidden className="size-3" />
                     {activityError
-                      ? "—"
+                      ? "-"
                       : activityPending
                         ? "…"
                         : detail.commentCount.toLocaleString()}
@@ -2632,7 +2632,7 @@ export function PullRequestDetailPanel({
                   >
                     <GitCommitHorizontalIcon aria-hidden className="size-3" />
                     {activityError
-                      ? "—"
+                      ? "-"
                       : activityPending
                         ? "…"
                         : detail.commits.length.toLocaleString()}

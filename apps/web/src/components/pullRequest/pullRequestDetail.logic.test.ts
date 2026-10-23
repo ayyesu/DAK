@@ -810,7 +810,7 @@ describe("fix findings handoff", () => {
       reviewThreads: [],
       checks: [failingCheck],
     });
-    expect(handoff.prompt).toContain("> typecheck — 2 errors");
+    expect(handoff.prompt).toContain("> typecheck: 2 errors");
     expect(handoff.reviewComments).toEqual([]);
   });
 
@@ -1006,7 +1006,7 @@ describe("one finding handed over on its own", () => {
         check: { name: "typecheck", status: "failure", description: "2 errors", url: null },
       },
     });
-    expect(handoff.prompt).toContain("> typecheck — 2 errors");
+    expect(handoff.prompt).toContain("> typecheck: 2 errors");
     expect(handoff.prompt).toContain("Reproduce it locally first");
   });
 

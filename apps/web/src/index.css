@@ -174,11 +174,38 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   );
 }
 
+/* The app's display/UI face, vendored so it loads offline in the desktop bundle
+   and over the wire on web. Weight is a variable range (400–700); width axis is
+   left at default. Mirrors the marketing site's face so both surfaces share one
+   identity. Files live in public/fonts/ and are copied verbatim by Vite. */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/bricolage-grotesque-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/bricolage-grotesque-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
 /* The font tokens are declared outside the inline theme so utilities reference
    the variables and Settings -> Appearance can override them at runtime. The
    default stacks are mirrored in `appearanceFonts.ts`. */
 @theme {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-sans:
+    "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono:
     ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 }
@@ -1120,7 +1147,10 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   /* Matches `--control-radius`; everything that reads the base radius directly
      (input groups, inline code chips) lands on the same near-square edge. */
   --radius: 3px;
-  --background: var(--color-zinc-25);
+  /* STONE & BLUEPRINT: warm paper ground instead of near-white zinc. Raised
+     cards sit a hair lighter than the canvas; muted/sunken fields use the
+     darker stone step. One blueprint-blue accent carries every primary action. */
+  --background: #dfdedb;
   --app-chrome-background: var(--background);
   --toolbar-background: var(--app-chrome-background);
   --toolbar-foreground: var(--foreground);
@@ -1129,17 +1159,17 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   --toolbar-control-foreground: var(--foreground);
   --toolbar-control-hover: var(--accent);
   --surface-raised: color-mix(in srgb, var(--card) 20%, transparent);
-  --foreground: var(--color-zinc-800);
-  --card: var(--color-white);
-  --card-foreground: var(--color-zinc-800);
-  --popover: var(--color-white);
-  --popover-foreground: var(--color-zinc-800);
-  --primary: oklch(0.488 0.217 264);
-  --primary-foreground: var(--color-white);
-  --secondary: var(--color-zinc-50);
-  --secondary-foreground: var(--color-zinc-800);
-  --muted: var(--color-zinc-50);
-  --muted-foreground: var(--color-zinc-500);
+  --foreground: #26251e;
+  --card: #e8e7e3;
+  --card-foreground: #26251e;
+  --popover: #e8e7e3;
+  --popover-foreground: #26251e;
+  --primary: #2456d6;
+  --primary-foreground: #ffffff;
+  --secondary: #d3d2ce;
+  --secondary-foreground: #26251e;
+  --muted: #d3d2ce;
+  --muted-foreground: #5f5d55;
   --placeholder: var(--muted-foreground);
   --secondary-label: var(--muted-foreground);
   --icon-muted: var(--muted-foreground);
@@ -1148,21 +1178,20 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   --message-action: var(--primary);
   --message-action-foreground: var(--primary-foreground);
   --message-action-hover: color-mix(in srgb, var(--primary) 90%, var(--background));
-  --accent: var(--color-zinc-100);
-  --accent-foreground: var(--color-zinc-900);
+  --accent: #d3d2ce;
+  --accent-foreground: #26251e;
   --error: var(--color-red-500);
   --error-foreground: var(--color-red-700);
   --tool-error-icon: var(--error);
   --error-surface: color-mix(in srgb, var(--error) 8%, transparent);
   --destructive: var(--error);
   /*
-   * SHARP & EDITORIAL: separation comes from the hairline, not from a soft
-   * shadow, so the edges are a step stronger than the old near-invisible
-   * zinc-200. Cascades through `--contrast-border` into every `border-border`
-   * in the app.
+   * STONE & BLUEPRINT: separation still comes from the hairline, warmed to sit
+   * on the paper ground. Cascades through `--contrast-border` into every
+   * `border-border` in the app.
    */
-  --border: var(--color-zinc-300);
-  --input: var(--color-zinc-400);
+  --border: #c7c5bf;
+  --input: #b3b1aa;
   --ring: var(--primary);
   --destructive-foreground: var(--error-foreground);
   --info: var(--color-blue-500);
@@ -1175,50 +1204,50 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   --update: var(--primary);
   --update-foreground: var(--primary);
   --update-surface: color-mix(in srgb, var(--update) 12%, transparent);
-  /* Keep every sidebar primitive on the same light surface hierarchy, including
+  /* Keep every sidebar primitive on the same warm stone hierarchy, including
      portaled mobile sheets and settings navigation outside the app sidebar. */
-  --sidebar: var(--color-zinc-50);
+  --sidebar: #d9d8d4;
   --sidebar-foreground: var(--foreground);
   --sidebar-muted-foreground: var(--muted-foreground);
-  --sidebar-control-surface: var(--color-zinc-100);
-  --sidebar-row-hover: var(--color-zinc-25);
-  --sidebar-row-active: var(--color-white);
-  --sidebar-row-selected: var(--color-white);
+  --sidebar-control-surface: #cfceca;
+  --sidebar-row-hover: #d3d2ce;
+  --sidebar-row-active: #e8e7e3;
+  --sidebar-row-selected: #e8e7e3;
   --sidebar-border: var(--border);
   --sidebar-stage-fade: var(--sidebar);
   --code-background: color-mix(in srgb, var(--card) 90%, var(--background));
   --code-foreground: var(--foreground);
   --terminal-background: var(--background);
   --terminal-foreground: var(--foreground);
-  --terminal-cursor: rgb(38 56 78);
-  --terminal-selection-background: rgb(37 63 99 / 20%);
+  --terminal-cursor: #2456d6;
+  --terminal-selection-background: rgb(36 86 214 / 20%);
 
   @variant dark {
     color-scheme: dark;
-    /* Keep controls and floating surfaces close to the neutral-black canvas.
-       Borders and hover states provide separation without milky gray fills. */
-    --background: var(--color-neutral-950);
-    --surface-raised: color-mix(in srgb, var(--background) 97%, var(--color-white));
-    --foreground: var(--color-neutral-100);
-    --card: color-mix(in srgb, var(--background) 97%, var(--color-white));
-    --card-foreground: var(--color-neutral-100);
-    --popover: color-mix(in srgb, var(--background) 97%, var(--color-white));
-    --popover-foreground: var(--color-neutral-100);
-    --primary: oklch(0.571 0.21 264);
-    --secondary: --alpha(var(--color-white) / 3%);
-    --secondary-foreground: var(--color-neutral-100);
-    --muted: --alpha(var(--color-white) / 3%);
-    --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-white));
-    --accent: --alpha(var(--color-white) / 4%);
-    --accent-foreground: var(--color-neutral-100);
+    /* Warm ink ground for dark mode: a near-black with the paper's warmth, so
+       the two schemes read as one family rather than a cold/warm split. */
+    --background: #1b1a17;
+    --surface-raised: color-mix(in srgb, var(--background) 94%, var(--color-white));
+    --foreground: #e7e5df;
+    --card: color-mix(in srgb, var(--background) 94%, var(--color-white));
+    --card-foreground: #e7e5df;
+    --popover: color-mix(in srgb, var(--background) 94%, var(--color-white));
+    --popover-foreground: #e7e5df;
+    --primary: #3f6ee0;
+    --secondary: --alpha(var(--color-white) / 5%);
+    --secondary-foreground: #e7e5df;
+    --muted: --alpha(var(--color-white) / 5%);
+    --muted-foreground: #a29f96;
+    --accent: --alpha(var(--color-white) / 6%);
+    --accent-foreground: #e7e5df;
     --error: color-mix(in srgb, var(--color-red-500) 90%, var(--color-white));
     --error-foreground: var(--color-red-400);
     --tool-error-icon: #fca5a5;
     --error-surface: color-mix(in srgb, var(--error) 16%, transparent);
-    /* SHARP & EDITORIAL: doubled from the old near-invisible 6%, so panels
-       separate on a black canvas without needing a glow. */
-    --border: --alpha(var(--color-white) / 13%);
-    --input: --alpha(var(--color-white) / 17%);
+    /* Warmed hairline, a step stronger than the old near-invisible white 6%, so
+       panels separate on the ink canvas without a glow. */
+    --border: rgb(231 229 223 / 14%);
+    --input: rgb(231 229 223 / 20%);
     --info-foreground: var(--color-blue-400);
     --success-foreground: var(--color-emerald-400);
     --warning-foreground: var(--color-amber-400);
@@ -1231,46 +1260,46 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
     --sidebar-row-active: var(--accent);
     --sidebar-row-selected: var(--muted);
     --sidebar-stage-fade: var(--card);
-    --terminal-cursor: rgb(180 203 255);
-    --terminal-selection-background: rgb(180 203 255 / 25%);
+    --terminal-cursor: #6f94ec;
+    --terminal-selection-background: rgb(111 148 236 / 25%);
   }
 }
 
-/* Keep both sidebar implementations (default and legacy) on the same quiet
-   zinc hierarchy: zinc-50 navigation, zinc-25 hover, and white selected/raised
-   surfaces. */
+/* Keep both sidebar implementations (default and legacy) on the same warm
+   stone hierarchy: stone-50 navigation, stone-25 hover, and lighter
+   selected/raised surfaces. */
 [data-app-sidebar] {
-  --background: var(--color-zinc-25);
-  --foreground: var(--color-zinc-800);
-  --card: var(--color-white);
-  --card-foreground: var(--color-zinc-800);
-  --accent: var(--color-zinc-100);
-  --accent-foreground: var(--color-zinc-900);
-  --muted: var(--color-zinc-50);
-  --muted-foreground: var(--color-zinc-500);
-  --border: var(--color-zinc-300);
-  --input: var(--color-zinc-400);
-  --sidebar: var(--color-zinc-50);
-  --sidebar-foreground: var(--color-zinc-800);
-  --sidebar-muted-foreground: var(--color-zinc-500);
-  --sidebar-control-surface: var(--color-zinc-100);
-  --sidebar-row-hover: var(--color-zinc-25);
-  --sidebar-row-active: var(--color-white);
-  --sidebar-row-selected: var(--color-white);
-  --sidebar-border: var(--color-zinc-300);
+  --background: #dfdedb;
+  --foreground: #26251e;
+  --card: #e8e7e3;
+  --card-foreground: #26251e;
+  --accent: #d3d2ce;
+  --accent-foreground: #26251e;
+  --muted: #d3d2ce;
+  --muted-foreground: #5f5d55;
+  --border: #c7c5bf;
+  --input: #b3b1aa;
+  --sidebar: #d9d8d4;
+  --sidebar-foreground: #26251e;
+  --sidebar-muted-foreground: #5f5d55;
+  --sidebar-control-surface: #cfceca;
+  --sidebar-row-hover: #d3d2ce;
+  --sidebar-row-active: #e8e7e3;
+  --sidebar-row-selected: #e8e7e3;
+  --sidebar-border: #c7c5bf;
   --sidebar-stage-fade: var(--sidebar);
 
   @variant dark {
-    --background: #000;
-    --foreground: #f1f3f7;
-    --card: #000;
-    --card-foreground: var(--foreground);
-    --accent: #191a1d;
-    --accent-foreground: #f7f9ff;
-    --muted: #0a0a0a;
-    --muted-foreground: #a3a3a3;
-    --border: rgb(255 255 255 / 14%);
-    --input: rgb(255 255 255 / 20%);
+    --background: #141311;
+    --foreground: #e7e5df;
+    --card: #1b1a17;
+    --card-foreground: #e7e5df;
+    --accent: #26241f;
+    --accent-foreground: #e7e5df;
+    --muted: #201f1b;
+    --muted-foreground: #a29f96;
+    --border: rgb(231 229 223 / 13%);
+    --input: rgb(231 229 223 / 20%);
     --sidebar: var(--card);
     --sidebar-foreground: var(--foreground);
     --sidebar-muted-foreground: var(--muted-foreground);

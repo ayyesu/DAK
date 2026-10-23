@@ -341,8 +341,8 @@ export function usePullRequestHandoffs({
       // the reader looking for something that is not there. The chips are what landed.
       description:
         task.prompt.length > 0
-          ? "The question is in the composer — read it over, then send."
-          : "The pull request is in the composer — type your question, then send.",
+          ? "The question is in the composer. Read it over, then send."
+          : "The pull request is in the composer. Type your question, then send.",
     });
   };
 
@@ -461,7 +461,7 @@ export function usePullRequestHandoffs({
         ? {
             type: "success",
             title: "Checkout ready",
-            description: "The task is in the composer — read it over, then send.",
+            description: "The task is in the composer. Read it over, then send.",
           }
         : staleCheckoutToast,
     );

@@ -1260,8 +1260,8 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
   const RuntimeModeIcon = runtimeModeOption.icon;
   const interactionModeTooltip =
     props.interactionMode === "plan"
-      ? "Plan mode — click to return to normal build mode"
-      : "Default mode — click to enter plan mode";
+      ? "Plan mode. Click to return to normal build mode"
+      : "Default mode. Click to enter plan mode";
 
   const interactionModeToggle = props.showInteractionModeToggle ? (
     <>

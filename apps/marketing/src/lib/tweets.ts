@@ -22,7 +22,7 @@ export const tweets = [
   {
     handle: "ryanrhughes",
     content:
-      "I think I've finally found the one AI harness to steal me away from the terminal — @t3dotcodes.",
+      "I think I've finally found the one AI harness to steal me away from the terminal, @t3dotcodes.",
     excerpt: "I think I've finally found the one AI harness to steal me away from the terminal",
     link: "https://x.com/ryanrhughes/status/2093051703616573769",
   },
