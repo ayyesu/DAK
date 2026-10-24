@@ -217,6 +217,13 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     max-width: 100%;
   }
 
+  /* The homepage presents itself as the app window, so it draws its own
+     chrome and drops the site nav and footer. */
+  .page--app > .nav,
+  .page--app > .footer {
+    display: none;
+  }
+
   .eyebrow {
     font-family: var(--font-mono);
     font-size: 11px;
