@@ -73,7 +73,7 @@ const panes = [
       <div class="side-foot">
         <p class="side-label">Open source</p>
         <a class="side-repo" href={GITHUB_REPOSITORY_URL} target="_blank" rel="noreferrer">
-          {MARKETING_STATS.githubStars} stars on GitHub
+          View on GitHub
         </a>
       </div>
     </aside>
@@ -183,10 +183,6 @@ const panes = [
           <div class="stat">
             <span class="stat-num">{MARKETING_STATS.users}</span>
             <span class="stat-cap">developers</span>
-          </div>
-          <div class="stat">
-            <span class="stat-num">{MARKETING_STATS.githubStars}</span>
-            <span class="stat-cap">stars on GitHub</span>
           </div>
           <div class="stat">
             <span class="stat-num">6</span>
@@ -938,9 +934,9 @@ const panes = [
   .stats {
     margin-top: 8px;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
-    max-width: 760px;
+    max-width: 560px;
   }
 
   .stat {
