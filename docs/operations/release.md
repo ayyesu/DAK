@@ -26,8 +26,9 @@
 > - **Targets** are macOS arm64/x64, Linux x64 and Windows x64. The arm64 runners
 >   bill minutes on a private repository, so both arm64 jobs are gone.
 > - **Publishing gates on the build jobs only.** The quality and test jobs still run
->   and still report, but they are red for `t3` -> `DAK` rename fallout inside the
->   app. Add them back to the `release` job's `needs` once that debt is paid.
+>   and still report, but they are not in the `release` job's `needs`. They have
+>   been green since `v0.2.1`, so promoting them is now a deliberate call about how
+>   much flake a release should absorb, not a debt to pay off.
 > - **Signing stays optional and auto-detected** from secrets, as below.
 >
 > The Apple, Azure and npm setup sections below still describe what those account
