@@ -37,6 +37,7 @@ import serverPackageJson from "../apps/server/package.json" with { type: "json" 
 import {
   createStagePatchedDependencies,
   createStageWorkspaceConfig,
+  pinStageDependenciesToPatchedVersions,
   resolveFffNativeDependencies,
   STAGE_INSTALL_ARGS,
 } from "./build-desktop-artifact.ts";
@@ -180,6 +181,10 @@ const stageRuntimeExternals = Effect.fn("stageRuntimeExternals")(function* (inpu
     workspace.patchedDependencies ?? {},
     dependencies,
   );
+  const stagedDependencies = pinStageDependenciesToPatchedVersions(
+    patchedDependencies,
+    dependencies,
+  );
 
   yield* fs.writeFileString(
     path.join(input.stageDir, "package.json"),
@@ -188,7 +193,7 @@ const stageRuntimeExternals = Effect.fn("stageRuntimeExternals")(function* (inpu
       version: input.version,
       private: true,
       packageManager: rootPackageJson.packageManager,
-      dependencies,
+      dependencies: stagedDependencies,
     })}\n`,
   );
   yield* fs.writeFileString(

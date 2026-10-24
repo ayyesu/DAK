@@ -29,7 +29,8 @@ function Shell({
         "before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-3xl before:bg-(--chat-composer-glass-surface)/(--glass-opacity) before:backdrop-blur-(--glass-blur) before:backdrop-saturate-(--glass-saturation)",
         // The material catches a faint light along its top edge, the way a
         // frosted macOS panel does. Subtle in dark so it never glows.
-        "before:inset-shadow-[0_1px_0_rgb(255_255_255/0.5)] dark:before:inset-shadow-[0_1px_0_rgb(255_255_255/0.07)]",
+        "[--chat-composer-top-edge-light:0_1px_0_rgb(255_255_255/0.5)] dark:[--chat-composer-top-edge-light:0_1px_0_rgb(255_255_255/0.07)]",
+        "before:inset-shadow-(--chat-composer-top-edge-light)",
         "not-supports-[((backdrop-filter:blur(1px))_or_(-webkit-backdrop-filter:blur(1px)))]:before:bg-(--chat-composer-glass-surface)",
         "has-data-[composer-banner-surface=attached]:before:hidden data-model-strip-transition:before:hidden",
         contextStrip && [
@@ -60,9 +61,10 @@ function Host({ className, ...props }: ComponentProps<"div">) {
       className={cn(
         // A floating plate lifts with a soft layered shadow and settles into its
         // focus glow on the macOS ease, rather than snapping a ring on/off.
+        "[--chat-composer-plate-shadow:0_1px_2px_-1px_rgb(0_0_0/10%),0_12px_28px_-12px_rgb(0_0_0/22%)] [--chat-composer-plate-focus-shadow:0_0_0_3px_color-mix(in_srgb,var(--primary)_18%,transparent),0_1px_2px_-1px_rgb(0_0_0/10%),0_12px_28px_-12px_rgb(0_0_0/22%)]",
         "relative z-10 w-full rounded-3xl after:z-1 transition-[box-shadow] duration-(--duration-macos) ease-(--ease-macos)",
-        "shadow-[0_1px_2px_-1px_rgb(0_0_0/10%),0_12px_28px_-12px_rgb(0_0_0/22%)]",
-        "group-focus-within/composer-surface:shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_18%,transparent),0_1px_2px_-1px_rgb(0_0_0/10%),0_12px_28px_-12px_rgb(0_0_0/22%)]",
+        "shadow-(--chat-composer-plate-shadow)",
+        "group-focus-within/composer-surface:shadow-(--chat-composer-plate-focus-shadow)",
         outlineClasses,
         contextSeamClasses,
         "group-has-data-[composer-banner-surface=attached]/composer-surface:shadow-none group-has-data-[composer-banner-surface=attached]/composer-surface:after:hidden",

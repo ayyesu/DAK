@@ -1554,6 +1554,26 @@ function getPatchedDependencyPackageName(patchKey: string): string {
   return versionSeparator > 0 ? patchKey.slice(0, versionSeparator) : patchKey;
 }
 
+/**
+ * A staged install resolves fresh, with no lockfile, so a range like
+ * `^1.2.0-beta.15` drifts onto a newer release once it ages past
+ * minimumReleaseAge. pnpm patches are keyed to one exact version, so the
+ * drifted install both drops the patch and fails on the unused declaration.
+ * Pin any staged dependency that carries a patch to the patch's own version.
+ */
+export function pinStageDependenciesToPatchedVersions(
+  patchedDependencies: Record<string, string>,
+  dependencies: Record<string, string>,
+): Record<string, string> {
+  const pinned = { ...dependencies };
+  for (const patchKey of Object.keys(patchedDependencies)) {
+    const packageName = getPatchedDependencyPackageName(patchKey);
+    if (!Object.hasOwn(pinned, packageName)) continue;
+    pinned[packageName] = patchKey.slice(patchKey.lastIndexOf("@") + 1);
+  }
+  return pinned;
+}
+
 const AzureTrustedSigningOptionsConfig = Config.all({
   publisherName: Config.String("AZURE_TRUSTED_SIGNING_PUBLISHER_NAME"),
   endpoint: Config.String("AZURE_TRUSTED_SIGNING_ENDPOINT"),
@@ -2973,12 +2993,16 @@ export const stageWindowsServerSidecar = Effect.fn("stageWindowsServerSidecar")(
     input.patchedDependencies,
     sidecarDependencies,
   );
+  const stagedSidecarDependencies = pinStageDependenciesToPatchedVersions(
+    sidecarPatchedDependencies,
+    sidecarDependencies,
+  );
   const sidecarPackageJson = {
     name: "dak-server",
     version: input.appVersion,
     private: true,
     packageManager: rootPackageJson.packageManager,
-    dependencies: sidecarDependencies,
+    dependencies: stagedSidecarDependencies,
   };
   const sidecarPackageJsonString = yield* encodeJsonString(sidecarPackageJson);
   yield* fs.writeFileString(
@@ -3703,6 +3727,10 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     workspacePatchedDependencies,
     stageDependencies,
   );
+  const stagedDependencies = pinStageDependenciesToPatchedVersions(
+    stagePatchedDependencies,
+    stageDependencies,
+  );
   const windowsServerAsarPath =
     options.platform === "win"
       ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
@@ -3737,7 +3765,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       bundlesWslRuntime({ platform: options.platform, runtimeArchivePath: options.wslRuntime }),
       options.arch,
     ),
-    dependencies: stageDependencies,
+    dependencies: stagedDependencies,
     devDependencies: {
       electron: electronVersion,
     },

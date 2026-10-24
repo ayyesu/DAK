@@ -100,7 +100,7 @@ export function SidebarThreadHeader({
               ? `sidebar-thread-search-result-${activeSearchResultIndex}`
               : undefined
           }
-          className="min-w-0 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
+          className="min-w-0 flex-1"
         />
         {isSearching ? (
           <Button
