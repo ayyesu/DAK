@@ -1,235 +1,276 @@
 ---
+import { Image } from "astro:assets";
 import Layout from "../layouts/Layout.astro";
 import { RELEASES_URL } from "../lib/releases";
 import { GITHUB_REPOSITORY_URL, MARKETING_STATS } from "../lib/site";
+import appWindow from "../assets/app-window.png";
+import canvasFull from "../assets/canvas-full.png";
+import rackFragment from "../assets/fragments/rack.png";
+import envPanel from "../assets/fragments/env-panel.png";
+import composerFragment from "../assets/fragments/composer.png";
+import reviewFragment from "../assets/fragments/review.png";
+import canvasFrames from "../assets/fragments/canvas-frames.png";
+
+const marks = [
+  { name: "Codex", src: "/harnesses/openai_dark.svg" },
+  { name: "Claude Code", src: "/harnesses/claude-ai-icon.svg" },
+  { name: "Cursor", src: "/harnesses/cursor_light.svg" },
+  { name: "Grok", src: "/harnesses/grok-dark.svg" },
+  { name: "OpenCode", src: "/harnesses/opencode-dark.svg" },
+  { name: "Antigravity", src: "/harnesses/antigravity.svg" },
+];
+
+const threads = [
+  { badge: "DA", name: "DAK", task: "Do a revamp of the marketing site", age: "8m", mark: "/harnesses/opencode-dark.svg", markName: "OpenCode", where: "main", note: "Checkpoint captured. +13 -7 on fix/webpack-build-hostinger." },
+  { badge: "ke", name: "keldra", task: "Do a code review on my changes in the cart", age: "55m", mark: "/harnesses/claude-ai-icon.svg", markName: "Claude Code", where: "main", note: "Four files touched, two suggestions left unresolved." },
+  { badge: "EH", name: "EllysHouse-shop", task: "Before users pay for an order they can see the total", age: "11h", mark: "/harnesses/openai_dark.svg", markName: "Codex", where: "main", note: "Re-quote runs before confirmPayment. Residual race window flagged." },
+  { badge: "DA", name: "DAK", task: "Replicate the design visually in the canvas", age: "20h", mark: "/harnesses/opencode-dark.svg", markName: "OpenCode", where: "main", note: "Six frames drawn on the canvas, ready to hand to an agent." },
+  { badge: "po", name: "portfolio", task: "hello", age: "22h", mark: "/harnesses/cursor_light.svg", markName: "Cursor", where: "main", note: "Idle. No checkpoint pending." },
+  { badge: "ke", name: "keldra", task: "Wire the Windows sidecar into the release archive", age: "1d", mark: "/harnesses/grok-dark.svg", markName: "Grok", where: "fix/sidecar", note: "Build green. Ready to restore or keep." },
+  { badge: "EH", name: "EllysHouse-shop", task: "Bring the product grid onto the new tokens", age: "2d", mark: "/harnesses/antigravity.svg", markName: "Antigravity", where: "feat/tokens", note: "Stopped at a checkpoint so you can read the diff." },
+];
 ---
 
 <Layout>
-  <!-- Hero: the sentence is the layout. A real product window sits inline on
-       the baseline, standing in for the word it replaces. -->
+  <!-- Hero. The sentence is split and pushed to the edges; the product sits in
+       the gap and advances on scroll, one real window at a time. -->
   <section class="hero">
-    <h1 class="hero-sentence">
-      <span class="hero-word" data-rise>One</span>
-      <span class="hero-slot" data-ui data-rise style="--d:80ms" aria-label="The DAK window: a thread with an agent and a composer">
-        <span class="slot-inner" data-shutter>
-          <span class="win-bar">
-            <span class="win-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="win-title">dak auth-middleware</span>
-          </span>
-          <span class="win-body">
-            <span class="win-row">
-              <i class="win-av"></i>
-              <span class="win-msg win-msg--user">Rename the auth middleware and run the tests</span>
-            </span>
-            <span class="win-row">
-              <i class="win-av win-av--accent"></i>
-              <span class="win-msg">Opening a thread and running the test suite.</span>
-            </span>
-            <span class="win-row">
-              <i class="win-av win-av--accent"></i>
-              <span class="win-msg">Done. Checkpoint captured and ready to review.</span>
-            </span>
-            <span class="win-composer">
-              <b class="win-composer-text">Ask anything, press Enter to send</b>
-              <span class="win-send" aria-hidden="true"></span>
-            </span>
-          </span>
-        </span>
-      </span>
-      <span class="hero-word" data-rise style="--d:160ms">for every agent</span>
+    <h1 class="hero-line" data-rise>
+      <span class="hero-half">One window</span>
+      <span class="hero-half hero-half--right">for every agent</span>
     </h1>
-    <div class="hero-action" data-rise style="--d:320ms">
-      <a id="download-btn" href={RELEASES_URL} class="btn btn-primary btn-lg">
-        <span id="download-label">Get DAK</span>
-      </a>
-      <a class="hero-alt-link" href="/download">All platforms</a>
+
+    <div class="reel" data-reel>
+      <div class="reel-sticky">
+        <div class="reel-viewport" data-ui aria-label="The DAK window: a thread with an agent, a canvas, and the project rack">
+          <div class="reel-track" data-reel-track>
+            <figure class="reel-frame reel-frame--lead">
+              <Image
+                src={appWindow}
+                alt="DAK showing a code review thread beside its environment panel"
+                format="webp"
+                quality={82}
+                sizes="(max-width: 760px) 92vw, 1080px"
+              />
+            </figure>
+            <figure class="reel-frame">
+              <Image
+                src={canvasFull}
+                alt="The DAK canvas with six mobile screens drawn on it"
+                format="webp"
+                quality={82}
+                sizes="(max-width: 760px) 92vw, 1080px"
+              />
+            </figure>
+            <figure class="reel-frame reel-frame--pair">
+              <Image
+                src={rackFragment}
+                alt="The thread rack, one row per agent"
+                format="webp"
+                quality={85}
+              />
+              <Image
+                src={envPanel}
+                alt="The environment panel showing branch, sync ref and changes"
+                format="webp"
+                quality={85}
+              />
+            </figure>
+          </div>
+        </div>
+        <p class="reel-caption" data-reel-caption>
+          <span data-caption>A thread with an agent, and the environment it runs in.</span>
+        </p>
+      </div>
     </div>
-    <p class="hero-support" data-rise style="--d:440ms">
-      <span>One window for the coding agents you already pay for. Bring your own subscriptions.</span>
+
+    <div class="hero-foot" data-rise style="--d:200ms">
+      <p class="hero-support">
+        Bring your own subscriptions. DAK hosts the coding agents you already pay for.
+      </p>
+      <div class="hero-action">
+        <a id="download-btn" href={RELEASES_URL} class="btn btn-primary btn-lg">
+          <span id="download-label">Get DAK</span>
+        </a>
+        <a class="hero-alt-link" href="/download">All platforms</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- The rack. The product's signature, and the one thing here you can press:
+       every row is a thread, and the open one is the working one. -->
+  <section class="rack" id="rack">
+    <div class="rack-inner">
+      <p class="rack-lead" data-in>
+        Every agent gets its own thread. All of them live in the same list.
+      </p>
+
+      <div class="board" data-board data-in>
+        {
+          threads.map((t, i) => (
+            <button class="row" data-open={i === 0 ? "" : undefined} aria-expanded={i === 0 ? "true" : "false"}>
+              <span class="row-id">
+                <span class="row-badge">{t.badge}</span>
+                <span class="row-name">{t.name}</span>
+              </span>
+              <span class="row-task">{t.task}</span>
+              <img class="row-mark" src={t.mark} alt={t.markName} width="20" height="20" />
+              <span class="row-age">{t.age}</span>
+              <span class="row-detail">
+                <span>
+                  {t.where} · {t.note}
+                </span>
+                <span>Open the diff, keep what you like, restore the rest.</span>
+              </span>
+            </button>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- What is inside. A single-column run of rows, each a statement beside the
+       real fragment that proves it. The fragments differ in shape on purpose. -->
+  <section class="caps" id="capabilities">
+    <div class="caps-inner">
+      <article class="cap cap--lead">
+        <div class="cap-text" data-in>
+          <h2 class="cap-title">Ask in plain language</h2>
+          <p class="cap-body">
+            Tag a file, pull in a skill, or drop to a slash command without leaving
+            the box you type in. The agent picks up the rest.
+          </p>
+        </div>
+        <figure class="cap-media cap-media--full" data-ui data-in style="--d:100ms">
+          <Image
+            src={composerFragment}
+            alt="The DAK composer, with its model, permission and access pickers"
+            format="webp"
+            quality={88}
+            sizes="(max-width: 900px) 92vw, 1144px"
+          />
+        </figure>
+      </article>
+
+      <article class="cap">
+        <div class="cap-text" data-in>
+          <h2 class="cap-title">A canvas to design on</h2>
+          <p class="cap-body">
+            Sketch, wireframe and mock inside the same window your agent is working in.
+            Hand the frames straight to a thread when they are ready.
+          </p>
+        </div>
+        <figure class="cap-media cap-media--wide" data-ui data-in style="--d:100ms">
+          <Image
+            src={canvasFrames}
+            alt="Six mobile screens laid out on the DAK canvas"
+            format="webp"
+            quality={85}
+            sizes="(max-width: 900px) 92vw, 620px"
+          />
+        </figure>
+      </article>
+
+      <article class="cap cap--flip">
+        <div class="cap-text" data-in>
+          <h2 class="cap-title">It shows its work</h2>
+          <p class="cap-body">
+            Every turn ends in a checkpoint: a hidden git ref you can diff against.
+            Keep the change, or restore the branch and go again.
+          </p>
+        </div>
+        <figure class="cap-media" data-ui data-in style="--d:100ms">
+          <Image
+            src={reviewFragment}
+            alt="An agent's review of a payment fix, with the risks it found"
+            format="webp"
+            quality={85}
+            sizes="(max-width: 900px) 92vw, 620px"
+          />
+        </figure>
+      </article>
+
+      <article class="cap">
+        <div class="cap-text" data-in>
+          <h2 class="cap-title">The machine it runs on</h2>
+          <p class="cap-body">
+            Branch, sync ref and the changes a turn actually made, one panel away
+            from the conversation that made them.
+          </p>
+        </div>
+        <figure class="cap-media cap-media--tall" data-ui data-in style="--d:100ms">
+          <Image
+            src={envPanel}
+            alt="The environment panel: branch, sync ref and +13 -7 changes"
+            format="webp"
+            quality={88}
+            sizes="(max-width: 900px) 92vw, 362px"
+          />
+        </figure>
+      </article>
+    </div>
+  </section>
+
+  <!-- Install. One command, then the three things that happen next. -->
+  <section class="install" id="install">
+    <div class="install-inner" data-in>
+      <h2 class="install-title">One command</h2>
+      <div class="cmd">
+        <code id="install-cmd">npx dak@latest</code>
+        <button class="cmd-copy" id="copy-btn" type="button">Copy</button>
+      </div>
+
+      <ol class="steps">
+        <li>
+          <b>Install</b>
+          <span>The desktop app, or straight from the terminal.</span>
+        </li>
+        <li>
+          <b>Connect</b>
+          <span>Point DAK at the agents you already pay for. Nothing is re-billed, no key to paste.</span>
+        </li>
+        <li>
+          <b>Work</b>
+          <span>Threads, checkpoints and a canvas, in one window that also reaches your machine remotely.</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- Proof. The agents it hosts, on the dark stage they belong on. -->
+  <section class="agents" id="agents">
+    <div class="agents-inner" data-in>
+      <div class="agent-tile agent-tile--head">
+        <p class="agent-head">Runs the agents you already pay for</p>
+        <p class="agent-sub">
+          Bring your own subscriptions. Open source, {MARKETING_STATS.githubStars} on GitHub.
+        </p>
+      </div>
+      {
+        marks.map((m) => (
+          <div class="agent-tile">
+            <img class="agent-mark" src={m.src} alt="" width="72" height="72" loading="lazy" />
+            <span class="agent-name">{m.name}</span>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- Close. One sentence, one action. -->
+  <section class="cta">
+    <p class="cta-line" data-rise>
+      DAK is free and open source. It hosts the agents you already pay for, in one window.
     </p>
-  </section>
-
-  <!-- Features: a short statement with picture words, then the workbench that
-       proves it. Each slot shows the thing the adjacent word names. -->
-  <section id="features" class="sec-features">
-    <div class="container">
-      <p class="statement" data-rise>
-        Every agent gets its own
-        <span class="inline-slot" data-ui aria-hidden="true">
-          <span class="frag frag-thread">
-            <span class="frag-thread-line"><i></i><b></b></span>
-            <span class="frag-thread-line"><i></i><b></b></span>
-          </span>
-        </span>
-        thread and
-        <span class="inline-slot" data-ui aria-hidden="true">
-          <span class="frag frag-shell">
-            <span class="frag-shell-prompt"></span>
-            <span class="frag-shell-bar"></span>
-          </span>
-        </span>
-        shell, a canvas to design on, and diffs to ship.
-      </p>
-      <div class="workbench" data-ui data-rise style="--d:120ms" role="img" aria-label="One window: a sidebar of agent threads, a design canvas, and a diff ready to ship.">
-        <aside class="wb-side">
-          <span class="wb-side-item is-active"><i></i><b style="width:64%"></b></span>
-          <span class="wb-side-item"><i></i><b style="width:52%"></b></span>
-          <span class="wb-side-item"><i></i><b style="width:70%"></b></span>
-          <span class="wb-side-item"><i></i><b style="width:44%"></b></span>
-        </aside>
-        <div class="wb-main">
-          <div class="wb-canvas">
-            <div class="wb-canvas-frame">
-              <span class="wb-block" style="width:38%;height:32%"></span>
-              <span class="wb-block wb-block--accent" style="width:24%;height:54%"></span>
-              <span class="wb-block wb-block--wide" style="width:56%;height:20%"></span>
-            </div>
-          </div>
-          <div class="wb-diff">
-            <span class="wb-diff-line wb-diff-line--add" style="width:78%"></span>
-            <span class="wb-diff-line wb-diff-line--del" style="width:52%"></span>
-            <span class="wb-diff-line" style="width:64%"></span>
-          </div>
-        </div>
-      </div>
+    <div class="cta-action" data-rise style="--d:120ms">
+      <a id="download-btn-2" href={RELEASES_URL} class="btn btn-primary btn-lg">
+        <span id="download-label-2">Get DAK</span>
+      </a>
+      <a class="cta-link" href={GITHUB_REPOSITORY_URL} target="_blank" rel="noreferrer">
+        {MARKETING_STATS.users} people already use it
+      </a>
     </div>
   </section>
-
-  <!-- Showcase: the headline is an input. Type in it; the product answers in
-       its own interface below. -->
-  <section id="showcase" class="sec-showcase">
-    <div class="container">
-      <input
-        id="showcase-input"
-        class="showcase-input"
-        type="text"
-        autocomplete="off"
-        spellcheck="false"
-        placeholder="Ask DAK to do something"
-        aria-label="Type a task for DAK"
-        data-rise
-      />
-      <div class="showcase-answer" data-ui data-rise style="--d:120ms" aria-live="polite">
-        <div class="answer-thread">
-          <div class="answer-row answer-row--user">
-            <span class="answer-role">You</span>
-            <span class="answer-text" id="answer-prompt">Ask DAK to do something</span>
-          </div>
-          <div class="answer-row answer-row--agent">
-            <span class="answer-role"><i class="answer-dot"></i>Codex</span>
-            <span class="answer-text" id="answer-response">Reading the task, then working it in a thread.</span>
-          </div>
-          <div class="answer-row answer-row--agent">
-            <span class="answer-role"><i class="answer-dot"></i>Codex</span>
-            <span class="answer-text">Opening a thread, running the task, then checkpointing.</span>
-          </div>
-          <div class="answer-row answer-row--agent">
-            <span class="answer-role"><i class="answer-dot"></i>Codex</span>
-            <span class="answer-text">Editing src/auth/middleware.ts and running the test suite.</span>
-          </div>
-          <div class="answer-row answer-row--agent">
-            <span class="answer-role"><i class="answer-dot"></i>Codex</span>
-            <span class="answer-text">Done. Checkpoint captured and ready to review.</span>
-          </div>
-        </div>
-      </div>
-      <div class="showcase-examples">
-        <button type="button" class="example-chip" data-example="Rename the auth middleware and run the tests">
-          Rename the auth middleware
-        </button>
-        <button type="button" class="example-chip" data-example="Open the pricing page and fix the spacing">
-          Fix the pricing spacing
-        </button>
-        <button type="button" class="example-chip" data-example="Review my last commit and suggest improvements">
-          Review my last commit
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <!-- How it works: the install command, then the time bar as the diagram.
-       Install is a sliver; the work is everything after. -->
-  <section id="how" class="sec-how">
-    <div class="container">
-      <p class="how-statement" data-rise>One command to install, two minutes to connect, then it works all day.</p>
-      <div class="terminal" data-ui data-rise style="--d:120ms" role="img" aria-label="A terminal running npx dak@latest, starting the server.">
-        <pre class="term-pre"><span class="term-p">$</span> npx dak@latest
-<span class="term-ok">server</span> running on localhost:3000
-<span class="term-ok">web</span> &middot; <span class="term-ok">desktop</span> &middot; <span class="term-ok">mobile</span> ready
-<span class="term-ok">provider</span> codex &middot; connected
-<span class="term-ok">workspace</span> ~/projects/app
-<span class="term-ok">checkpoint</span> ready to review</pre>
-      </div>
-      <div class="bar" data-ui role="img" aria-label="Three stages: run one command in a minute, connect a provider in two minutes, then ship all day.">
-        <div class="bar-seg bar-seg--install" style="flex-grow: 1">
-          <span class="bar-name">npx dak</span>
-        </div>
-        <div class="bar-seg bar-seg--connect" style="flex-grow: 2">
-          <span class="bar-name">Connect a provider</span>
-        </div>
-        <div class="bar-seg bar-seg--ship" style="flex-grow: 9">
-          <span class="bar-name">Ship</span>
-        </div>
-      </div>
-      <div class="bar-legend">
-        <span class="bar-dur">One minute</span>
-        <span class="bar-dur">Two minutes</span>
-        <span class="bar-dur">The rest is yours</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- Proof: the providers are one sentence; one name is lit and cycles. -->
-  <section id="proof" class="sec-proof">
-    <div class="container">
-      <p class="proof-line" data-rise>
-        Runs the agents you already pay for:
-        <span class="proof-names" id="proof-names">
-          <span class="proof-name is-lit">Codex</span><span class="proof-sep">,</span>
-          <span class="proof-name">Claude Code</span><span class="proof-sep">,</span>
-          <span class="proof-name">Cursor</span><span class="proof-sep">,</span>
-          <span class="proof-name">Grok</span><span class="proof-sep">,</span>
-          <span class="proof-name">OpenCode</span><span class="proof-sep">,</span>
-          <span class="proof-name">Antigravity</span><span class="proof-sep">.</span>
-        </span>
-      </p>
-      <p class="proof-meta">
-        Open source. {MARKETING_STATS.githubStars} on GitHub.
-      </p>
-    </div>
-  </section>
-
-  <!-- CTA: a sentence with a blank. The blank holds the command; the last
-       word is the button that copies it. -->
-  <section id="cta" class="sec-cta">
-    <div class="container">
-      <p class="cta-sentence" data-rise>
-        Open a terminal and run
-        <span class="cta-field">
-          <code id="install-cmd">npx dak@latest</code>
-        </span>
-        <button type="button" id="copy-btn" class="btn btn-primary cta-copy">Copy</button>
-      </p>
-      <p class="cta-note">Or grab the desktop app for macOS, Windows, and Linux.</p>
-    </div>
-  </section>
-
-  <!-- Footer: the repo link is the headline, on a full field of blueprint. -->
-  <footer class="footer-field">
-    <a class="footer-headline" href={GITHUB_REPOSITORY_URL} target="_blank" rel="noopener noreferrer">
-      github.com/<wbr />ayyesu/DAK
-    </a>
-    <div class="footer-meta">
-      <span class="footer-brand">DAK</span>
-      <nav class="footer-links">
-        <a href="/download">Download</a>
-        <a href="/privacy-policy">Privacy</a>
-        <a href="/terms-of-service">Terms</a>
-        <a href={GITHUB_REPOSITORY_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
-      </nav>
-      <span class="footer-credits">Open source. Bring your own subscriptions.</span>
-    </div>
-  </footer>
 </Layout>
 
 <script>
@@ -263,67 +304,37 @@ import { GITHUB_REPOSITORY_URL, MARKETING_STATS } from "../lib/site";
   }
 
   async function initDownload() {
-    const btn = document.getElementById("download-btn") as HTMLAnchorElement | null;
-    const label = document.getElementById("download-label");
     const platform = detectPlatform();
     if (!platform) return;
     document.documentElement.dataset.platform = platform.os;
-    if (label) label.textContent = platform.label;
-    try {
-      const release = await fetchLatestRelease();
-      const url = pickAsset(release.assets ?? [], platform);
-      if (url && btn) {
-        btn.href = url;
-        btn.removeAttribute("target");
-        btn.removeAttribute("rel");
+    for (const [btnId, labelId] of [
+      ["download-btn", "download-label"],
+      ["download-btn-2", "download-label-2"],
+    ] as const) {
+      const btn = document.getElementById(btnId) as HTMLAnchorElement | null;
+      const label = document.getElementById(labelId);
+      if (label) label.textContent = platform.label;
+      if (!btn) continue;
+      try {
+        const release = await fetchLatestRelease();
+        const url = pickAsset(release.assets ?? [], platform);
+        if (url) {
+          btn.href = url;
+          btn.removeAttribute("target");
+          btn.removeAttribute("rel");
+        }
+      } catch {
+        btn.href = RELEASES_URL;
       }
-    } catch {
-      if (btn) btn.href = RELEASES_URL;
     }
   }
   initDownload();
-
-  // Showcase: the headline is an input, and the product answers in its own
-  // interface. The response names the task back so it feels addressed.
-  const input = document.getElementById("showcase-input") as HTMLInputElement | null;
-  const promptEl = document.getElementById("answer-prompt");
-  const responseEl = document.getElementById("answer-response");
-  const fallbackPrompt = "Ask DAK to do something";
-  const fallbackResponse = "Reading the task, then working it in a thread.";
-
-  function renderAnswer(value: string) {
-    const task = value.trim();
-    if (!task) {
-      if (promptEl) promptEl.textContent = fallbackPrompt;
-      if (responseEl) responseEl.textContent = fallbackResponse;
-      return;
-    }
-    if (promptEl) promptEl.textContent = task;
-    if (responseEl) {
-      responseEl.textContent = `Opening a thread for "${task}" and starting on it now.`;
-    }
-  }
-
-  if (input) {
-    input.addEventListener("input", () => renderAnswer(input.value));
-  }
-  document.querySelectorAll<HTMLButtonElement>(".example-chip").forEach((chip) => {
-    chip.addEventListener("click", () => {
-      const example = chip.dataset.example ?? "";
-      if (input) {
-        input.value = example;
-        input.focus();
-      }
-      renderAnswer(example);
-    });
-  });
 
   // CTA: copy the install command.
   const copyBtn = document.getElementById("copy-btn");
   const cmdEl = document.getElementById("install-cmd");
   if (copyBtn && cmdEl) {
     copyBtn.addEventListener("click", async () => {
-      const original = "Copy";
       try {
         await navigator.clipboard.writeText(cmdEl.textContent?.trim() ?? "npx dak@latest");
         copyBtn.textContent = "Copied";
@@ -331,884 +342,740 @@ import { GITHUB_REPOSITORY_URL, MARKETING_STATS } from "../lib/site";
         copyBtn.textContent = "Press Cmd+C";
       }
       setTimeout(() => {
-        copyBtn.textContent = original;
+        copyBtn.textContent = "Copy";
       }, 1600);
     });
   }
 
-  // Proof: one name is lit and cycles. The only thing moving in this section.
-  const names = Array.from(document.querySelectorAll(".proof-name"));
-  if (names.length > 1) {
-    let idx = 0;
-    setInterval(() => {
-      names[idx].classList.remove("is-lit");
-      idx = (idx + 1) % names.length;
-      names[idx].classList.add("is-lit");
-    }, 1400);
+  // The rack: exactly one row is open, and pressing another moves it.
+  const board = document.querySelector("[data-board]");
+  if (board) {
+    const rows = Array.from(board.querySelectorAll<HTMLButtonElement>(".row"));
+    rows.forEach((row) => {
+      row.addEventListener("click", () => {
+        const already = row.hasAttribute("data-open");
+        rows.forEach((other) => {
+          other.removeAttribute("data-open");
+          other.setAttribute("aria-expanded", "false");
+        });
+        if (!already) {
+          row.setAttribute("data-open", "");
+          row.setAttribute("aria-expanded", "true");
+        }
+      });
+    });
+  }
+
+  // Sections enter once, on the way in. Nothing here loops, so the GPU stays idle.
+  const rising = document.querySelectorAll("[data-in]");
+  if (rising.length > 0 && "IntersectionObserver" in window) {
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-in");
+            io.unobserve(entry.target);
+          }
+        }
+      },
+      { rootMargin: "0px 0px -12% 0px", threshold: 0.08 }
+    );
+    rising.forEach((el) => io.observe(el));
+  } else {
+    rising.forEach((el) => el.classList.add("is-in"));
+  }
+
+  // The hero reel advances one frame per step of scroll. One rAF per frame,
+  // driven by a passive listener, so the page never repaints on its own.
+  const reel = document.querySelector("[data-reel]");
+  const track = document.querySelector<HTMLElement>("[data-reel-track]");
+  const caption = document.querySelector<HTMLElement>("[data-caption]");
+  const captions = [
+    "A thread with an agent, and the environment it runs in.",
+    "The canvas, where a design becomes something you can hand to an agent.",
+    "The rack and the panel: what is running, and what it changed.",
+  ];
+  if (reel && track) {
+    const steps = track.children.length - 1;
+    let ticking = false;
+    const update = () => {
+      ticking = false;
+      const box = reel.getBoundingClientRect();
+      const span = box.height - window.innerHeight;
+      if (span <= 0) return;
+      const p = Math.min(1, Math.max(0, -box.top / span));
+      const at = p * steps;
+      track.style.setProperty("--p", at.toFixed(4));
+      if (caption) {
+        const next = captions[Math.min(captions.length - 1, Math.round(at))];
+        if (caption.textContent !== next) caption.textContent = next;
+      }
+    };
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(update);
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    update();
   }
 </script>
 
 <style>
-  /* ── Hero ─────────────────────────────────────────────── */
-  .hero {
-    min-height: 92svh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 120px 0 64px;
+  /* Sections enter once. Armed only when JS is on, so nothing is ever hidden
+     behind a script that failed to load. */
+  :global(.js) [data-in] {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0ms),
+      transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0ms);
   }
 
-  .hero-sentence {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.16em 0.28em;
-    font-size: clamp(44px, 8vw, 116px);
-    font-weight: 600;
-    letter-spacing: -0.04em;
-    line-height: 0.94;
-    padding: 0 32px;
-    max-width: 1440px;
-    margin: 0 auto;
-    width: 100%;
+  :global(.js) [data-in].is-in {
+    opacity: 1;
+    transform: none;
   }
 
-  .hero-word {
-    display: inline-block;
-    white-space: nowrap;
-  }
-
-  /* The media slot is a real product window standing in for a word. data-ui
-     marks it a cropped interface fragment, so its 1px frame is exempt. */
-  .hero-slot[data-ui] {
-    flex: 1 1 auto;
-    min-width: min(50vw, 560px);
-    min-height: clamp(250px, 24vw, 264px);
-    border-radius: 14px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    overflow: hidden;
-    display: flex;
-  }
-
-  .slot-inner {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    /* Stretches to the slot's height (which floors at min-height and grows
-       with content), so the composer is never clipped at any viewport. */
-    /* Shutter reveal: opens vertically once on load. */
-    clip-path: inset(50% 0 50% 0);
-    animation: shutter-open 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.25s forwards;
-  }
-
-  @keyframes shutter-open {
-    to {
-      clip-path: inset(0 0 0 0);
+  /* The one moving picture. Transform only, so it composites rather than
+     repaints, and it stops entirely under reduced motion. */
+  @keyframes drift {
+    from {
+      transform: scale(1);
     }
+    to {
+      transform: scale(1.035);
+    }
+  }
+
+  .reel-frame--lead > :global(img) {
+    animation: drift 24s ease-in-out infinite alternate;
+    transform-origin: 30% 40%;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .slot-inner {
+    :global(.js) [data-in] {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+
+    .reel-frame--lead > :global(img) {
       animation: none;
-      clip-path: none;
     }
   }
 
-  /* Window chrome. Separated by tone, not lines. */
-  .win-bar {
+  /* ── Hero ─────────────────────────────────────────────── */
+  .hero {
+    --reel-h: min(58svh, 54vw);
+    --peek: 48px;
+    padding: 64px 0 0;
+  }
+
+  .hero-line {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 32px;
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    background: var(--bg-elev);
-    flex-shrink: 0;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 24px;
+    font-size: clamp(40px, 3.6vw, 60px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 0.92;
   }
 
-  .win-dots {
-    display: inline-flex;
-    gap: 6px;
+  .hero-half--right {
+    text-align: right;
   }
 
-  .win-dots i {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: var(--border-strong);
+  .reel {
+    height: calc(var(--reel-h) + 92svh);
+    margin-top: 44px;
   }
 
-  .win-title {
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 1.3;
-    color: var(--fg-muted);
-    letter-spacing: -0.01em;
-    white-space: nowrap;
+  .reel-sticky {
+    position: sticky;
+    top: 84px;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  .reel-viewport {
+    height: calc(var(--reel-h) + var(--peek) * 2 + 24px);
     overflow: hidden;
-    text-overflow: ellipsis;
   }
 
-  .win-body {
+  .reel-track {
+    display: grid;
+    gap: 24px;
+    padding-top: var(--peek);
+    transform: translateY(calc(var(--p, 0) * (var(--reel-h) + 24px) * -1));
+  }
+
+  .reel-frame {
+    height: var(--reel-h);
+    background: var(--stage);
+    border-radius: var(--radius-lg);
+    padding: 10px;
+    display: grid;
+  }
+
+  .reel-frame > :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+  }
+
+  .reel-frame--pair {
+    grid-auto-flow: column;
+    align-items: center;
+    justify-items: center;
+    gap: 40px;
+    padding: 28px;
+  }
+
+  .reel-frame--pair > :global(img) {
+    width: auto;
+    height: 100%;
+  }
+
+  .reel-caption {
+    margin-top: 20px;
+    min-height: 1.5em;
+    font-size: 17px;
+    color: var(--fg-muted);
+  }
+
+  .hero-foot {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 40px 32px 0;
     display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: clamp(16px, 2.4vw, 26px);
-    flex: 1;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
   }
 
-  .win-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .win-av {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: var(--fg-faint);
-    flex-shrink: 0;
-  }
-
-  .win-av--accent {
-    background: var(--accent);
-  }
-
-  .win-msg {
-    font-size: clamp(13px, 1.3vw, 16px);
-    line-height: 1.4;
-    letter-spacing: -0.01em;
+  .hero-support {
+    max-width: 46ch;
+    font-size: 17px;
     color: var(--fg);
-  }
-
-  .win-msg--user {
-    color: #4e4c43;
-  }
-
-  .win-composer {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: auto;
-    padding: 12px 14px;
-    background: var(--bg-elev);
-    border-radius: 8px;
-  }
-
-  .win-composer-text {
-    font-size: clamp(13px, 1.3vw, 16px);
-    font-weight: 400;
-    line-height: 1.4;
-    letter-spacing: -0.01em;
-    color: var(--fg-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .win-send {
-    margin-left: auto;
-    flex-shrink: 0;
-    width: 30px;
-    height: 30px;
-    border-radius: 3px;
-    background: var(--accent);
-    position: relative;
-  }
-
-  .win-send::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    margin: auto;
-    width: 8px;
-    height: 8px;
-    border-top: 2px solid #fff;
-    border-right: 2px solid #fff;
-    transform: rotate(45deg) translate(-1px, 1px);
   }
 
   .hero-action {
     display: flex;
     align-items: center;
-    gap: 20px;
-    margin-top: clamp(48px, 10vw, 150px);
-    padding: 0 32px;
-    max-width: 1440px;
-    margin-left: auto;
-    margin-right: auto;
-    width: 100%;
+    gap: 16px;
   }
 
   .hero-alt-link {
     font-size: 14px;
     color: var(--fg-muted);
-    text-decoration: underline;
-    text-decoration-color: var(--border-strong);
-    text-underline-offset: 3px;
     transition: color 0.18s ease;
+  }
+
+  .hero-alt-link::after {
+    content: " \2192";
   }
 
   .hero-alt-link:hover {
     color: var(--fg);
   }
 
-  .hero-support {
-    padding: 48px 32px 0;
-    max-width: 1440px;
-    margin-left: auto;
-    margin-right: auto;
-    width: 100%;
+  /* ── The rack ─────────────────────────────────────────── */
+  .rack {
+    margin-top: 96px;
+    background: var(--stage);
+    color: var(--stage-ink);
+    padding: 88px 0 96px;
   }
 
-  .hero-support > span {
-    display: block;
-    max-width: 52ch;
-    font-size: 22px;
-    line-height: 1.4;
-    letter-spacing: -0.01em;
-    color: var(--fg);
-  }
-
-  /* ── Shared container ─────────────────────────────────── */
-  .container {
+  .rack-inner {
     max-width: 1240px;
     margin: 0 auto;
     padding: 0 32px;
   }
 
-  /* ── Features: statement + workbench ──────────────────── */
-  .sec-features {
-    padding: clamp(72px, 12vw, 160px) 0;
+  .rack-lead {
+    font-size: 17px;
+    color: var(--stage-ink-dim);
+    margin-bottom: 28px;
   }
 
-  .statement {
-    font-size: clamp(24px, 3.4vw, 36px);
-    font-weight: 500;
-    letter-spacing: -0.02em;
-    line-height: 1.22;
-    max-width: 30ch;
-    color: var(--fg);
-    margin-bottom: clamp(40px, 6vw, 72px);
+  .board {
+    display: grid;
+    gap: 4px;
   }
 
-  /* Picture words: tiny interface fragments inline in the sentence. Filled
-     by tone, no frame, so they read as words that happen to be pictures. */
-  .inline-slot[data-ui] {
-    display: inline-flex;
-    align-items: center;
-    vertical-align: baseline;
-    width: 1.7em;
-    height: 0.86em;
-    margin: 0 0.1em;
-    border-radius: 5px;
-    background: var(--bg-card);
-    overflow: hidden;
-    translate: 0 0.1em;
-  }
-
-  .inline-slot .frag {
+  .row {
     width: 100%;
-    height: 100%;
-  }
-
-  .frag {
-    display: block;
-  }
-
-  .frag-thread {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.16em;
-    padding: 0 0.28em;
-  }
-
-  .frag-thread-line {
-    display: flex;
+    min-height: 72px;
+    padding: 12px 20px;
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
     align-items: center;
-    gap: 0.16em;
+    gap: 6px 18px;
+    text-align: left;
+    background: var(--stage-2);
+    color: var(--stage-ink);
+    transition: background 0.18s ease;
   }
 
-  .frag-thread-line i {
-    width: 0.2em;
-    height: 0.2em;
-    border-radius: 50%;
+  .row:hover {
+    background: #2c2b27;
+  }
+
+  .row[data-open] {
     background: var(--accent);
-    flex-shrink: 0;
+    color: #fff;
   }
 
-  .frag-thread-line b {
-    height: 0.12em;
-    border-radius: 0.06em;
-    background: var(--fg-faint);
-    flex: 1;
-  }
-
-  .frag-shell {
+  .row-id {
     display: flex;
     align-items: center;
-    gap: 0.16em;
-    padding: 0 0.28em;
-  }
-
-  .frag-shell-prompt {
-    width: 0.18em;
-    height: 0.18em;
-    border-top: 0.14em solid var(--accent);
-    border-right: 0.14em solid var(--accent);
-    transform: rotate(45deg);
-    flex-shrink: 0;
-  }
-
-  .frag-shell-bar {
-    height: 0.12em;
-    border-radius: 0.06em;
-    background: var(--fg-faint);
-    flex: 1;
-  }
-
-  /* The workbench: one window, four surfaces. A cropped interface fragment. */
-  .workbench[data-ui] {
-    display: flex;
-    gap: 0;
-    width: 100%;
-    height: clamp(220px, 24vw, 300px);
-    border-radius: 14px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    overflow: hidden;
-  }
-
-  .wb-side {
-    width: clamp(120px, 18%, 190px);
-    flex-shrink: 0;
-    background: var(--bg-elev);
-    padding: 16px 14px;
-    display: flex;
-    flex-direction: column;
     gap: 12px;
-  }
-
-  .wb-side-item {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 8px 9px;
-    border-radius: 5px;
-  }
-
-  .wb-side-item.is-active {
-    background: var(--bg-card);
-  }
-
-  .wb-side-item i {
-    width: 14px;
-    height: 14px;
-    border-radius: 4px;
-    background: var(--fg-faint);
-    flex-shrink: 0;
-  }
-
-  .wb-side-item.is-active i {
-    background: var(--accent);
-  }
-
-  .wb-side-item b {
-    height: 8px;
-    border-radius: 4px;
-    background: var(--border);
-  }
-
-  .wb-side-item.is-active b {
-    background: var(--fg-dim);
-  }
-
-  .wb-main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
     min-width: 0;
   }
 
-  .wb-canvas {
-    flex: 1;
-    padding: clamp(16px, 2.4vw, 28px);
-    display: flex;
-  }
-
-  .wb-canvas-frame {
-    flex: 1;
-    border-radius: 8px;
-    background: var(--bg-elev);
-    position: relative;
-    overflow: hidden;
-  }
-
-  .wb-block {
-    position: absolute;
+  .row-badge {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    background: rgb(255 255 255 / 12%);
     border-radius: 6px;
-    background: var(--border);
-  }
-
-  .wb-block--accent {
-    background: var(--accent);
-  }
-
-  .wb-block--wide {
-    background: var(--fg-faint);
-    left: 12%;
-    bottom: 12%;
-  }
-
-  .wb-block:first-child {
-    left: 12%;
-    top: 14%;
-  }
-
-  .wb-block--accent {
-    right: 14%;
-    top: 20%;
-  }
-
-  .wb-diff {
-    flex-shrink: 0;
-    padding: 16px clamp(16px, 2.4vw, 28px);
-    background: var(--bg-elev);
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-  }
-
-  .wb-diff-line {
-    height: 9px;
-    border-radius: 4px;
-    background: var(--border);
-  }
-
-  .wb-diff-line--add {
-    background: rgb(60 107 69 / 32%);
-  }
-
-  .wb-diff-line--del {
-    background: rgb(38 37 30 / 16%);
-  }
-
-  /* ── Showcase: headline you can type ──────────────────── */
-  .sec-showcase {
-    padding: clamp(72px, 12vw, 160px) 0;
-    background: var(--bg-elev);
-  }
-
-  .showcase-input {
-    width: 100%;
-    border: 0;
-    background: transparent;
-    color: var(--fg);
-    font-family: var(--font-sans);
-    font-size: clamp(28px, 4vw, 56px);
-    font-weight: 500;
-    letter-spacing: -0.03em;
-    line-height: 1.1;
-    padding: 0;
-    border-bottom: 2px solid var(--border-strong);
-    outline: none;
-    transition: border-color 0.18s ease;
-  }
-
-  .showcase-input::placeholder {
-    color: var(--fg-muted);
-  }
-
-  .showcase-input:focus {
-    border-color: var(--accent);
-  }
-
-  /* The answer transcript is a cropped interface fragment (data-ui), so its
-     1px frame and the row dividers are exempt like the real product's chrome. */
-  .showcase-answer[data-ui] {
-    margin-top: 36px;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    background: var(--bg-card);
-    overflow: hidden;
-    max-width: 880px;
-  }
-
-  .answer-thread {
-    display: flex;
-    flex-direction: column;
-  }
-
-  [data-ui] .answer-row {
-    display: flex;
-    gap: 16px;
-    padding: 18px 24px;
-    align-items: baseline;
-  }
-
-  .answer-role {
-    flex-shrink: 0;
-    width: 72px;
     font-size: 14px;
-    color: #4e4c43;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .answer-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--accent);
-    display: inline-block;
-  }
-
-  .answer-text {
-    font-size: 16px;
-    color: var(--fg);
+    font-weight: 600;
     letter-spacing: -0.01em;
   }
 
-  .showcase-examples {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 24px;
-  }
-
-  .example-chip {
-    font-family: var(--font-sans);
-    font-size: 14px;
-    color: #4e4c43;
-    background: var(--bg-card);
-    border: 0;
-    border-radius: 3px;
-    padding: 9px 15px;
-    cursor: pointer;
-    transition: color 0.18s ease, background 0.18s ease;
-  }
-
-  .example-chip:hover {
-    color: var(--fg);
-    background: var(--border);
-  }
-
-  /* ── How it works: terminal + the bar is the diagram ──── */
-  .sec-how {
-    padding: clamp(72px, 12vw, 160px) 0;
-  }
-
-  .how-statement {
-    font-size: clamp(24px, 3.4vw, 36px);
-    font-weight: 500;
-    letter-spacing: -0.02em;
-    line-height: 1.22;
-    max-width: 34ch;
-    color: var(--fg);
-    margin-bottom: clamp(36px, 5vw, 56px);
-  }
-
-  .terminal[data-ui] {
-    display: block;
-    max-width: 560px;
-    border-radius: 14px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+  .row-name {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    white-space: nowrap;
     overflow: hidden;
-    margin-bottom: clamp(28px, 4vw, 44px);
+    text-overflow: ellipsis;
   }
 
-  .terminal pre.term-pre {
-    margin: 0;
-    padding: 28px 26px;
-    font-family: var(--font-mono);
-    font-size: 14px;
-    line-height: 1.85;
-    color: var(--fg);
-    white-space: pre;
-    overflow-x: auto;
-  }
-
-  .term-p {
-    color: var(--accent);
-    font-weight: 700;
-  }
-
-  .term-ok {
-    color: #2e5235;
-  }
-
-  .bar {
-    display: flex;
-    gap: 4px;
-    height: 64px;
-    width: 100%;
-  }
-
-  .bar-seg {
-    position: relative;
-    border-radius: 3px;
-    display: flex;
-    align-items: center;
-    padding: 0 16px;
+  .row-task {
+    font-size: 17px;
+    color: var(--stage-ink-dim);
+    white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
     min-width: 0;
   }
 
-  .bar-seg--install {
-    background: var(--bg-card);
+  .row[data-open] .row-task,
+  .row[data-open] .row-age {
+    color: rgb(255 255 255 / 76%);
   }
 
-  .bar-seg--connect {
-    background: var(--fg-faint);
+  .row-mark {
+    width: 20px;
+    height: 20px;
+    flex: none;
   }
 
-  .bar-seg--ship {
-    background: var(--accent);
-  }
-
-  .bar-name {
+  .row-age {
     font-size: 14px;
-    font-weight: 500;
+    color: var(--stage-ink-dim);
     white-space: nowrap;
-    color: var(--fg);
   }
 
-  .bar-seg--ship .bar-name {
-    color: #fff;
+  .row-detail {
+    grid-column: 1 / -1;
+    display: none;
+    gap: 6px;
+    padding-top: 14px;
+    font-size: 17px;
+    line-height: 1.5;
+    color: rgb(255 255 255 / 82%);
   }
 
-  .bar-legend {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 12px;
-    gap: 12px;
+  .row[data-open] .row-detail {
+    display: grid;
   }
 
-  .bar-dur {
-    font-size: 14px;
-    color: var(--fg-muted);
+  /* ── What is inside ───────────────────────────────────── */
+  .caps {
+    padding: 104px 0;
   }
 
-  /* ── Proof: names as one sentence ─────────────────────── */
-  .sec-proof {
-    padding: clamp(72px, 12vw, 160px) 0;
-    background: var(--bg-elev);
+  .caps-inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: grid;
+    gap: 88px;
   }
 
-  .proof-line {
-    font-size: clamp(24px, 3.4vw, 36px);
-    font-weight: 500;
-    letter-spacing: -0.02em;
-    line-height: 1.24;
-    max-width: 28ch;
-    color: var(--fg);
-  }
-
-  .proof-names {
-    margin-left: 0.22em;
-  }
-
-  .proof-name {
-    color: #4e4c43;
-    transition: color 0.3s ease;
-  }
-
-  .proof-name.is-lit {
-    color: var(--accent);
-  }
-
-  .proof-sep {
-    color: #4e4c43;
-    margin-right: 0.22em;
-  }
-
-  .proof-meta {
-    margin-top: 28px;
-    font-size: 14px;
-    color: var(--fg-muted);
-  }
-
-  /* ── CTA: a sentence with a blank ─────────────────────── */
-  .sec-cta {
-    padding: clamp(72px, 12vw, 160px) 0;
-  }
-
-  .cta-sentence {
-    display: flex;
+  .cap {
+    display: grid;
+    grid-template-columns: 5fr 7fr;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 0.24em;
-    font-size: clamp(24px, 4vw, 52px);
-    font-weight: 500;
-    letter-spacing: -0.03em;
-    line-height: 1.1;
-    color: var(--fg);
+    gap: 56px;
   }
 
-  .cta-field {
-    display: inline-flex;
-    align-items: center;
-    border-bottom: 2px solid var(--accent);
-    padding: 0 0.12em;
+  .cap--flip {
+    grid-template-columns: 7fr 5fr;
   }
 
-  .cta-field code {
-    font-family: var(--font-sans);
-    font-size: 0.72em;
-    font-weight: 600;
-    color: var(--fg);
-    background: transparent;
+  .cap--flip .cap-text {
+    order: 2;
   }
 
-  .cta-copy {
-    font-size: max(14px, 0.5em);
-    padding: 0.5em 1em;
+  .cap--lead {
+    grid-template-columns: 1fr;
+    gap: 28px;
   }
 
-  .cta-note {
-    margin-top: 28px;
-    font-size: 16px;
-    color: var(--fg-muted);
-    max-width: 60ch;
-  }
-
-  /* ── Footer: the repo link is the headline, on blueprint ─ */
-  .footer-field {
-    background: var(--accent);
-    color: #fff;
-    min-height: 90svh;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: clamp(48px, 8vw, 96px) 32px;
-  }
-
-  .footer-headline {
-    font-size: clamp(36px, 8vw, 116px);
+  .cap-title {
+    font-size: clamp(32px, 3vw, 46px);
     font-weight: 600;
     letter-spacing: -0.04em;
-    line-height: 0.94;
-    color: #fff;
-    word-break: break-word;
-    margin-top: auto;
-    margin-bottom: auto;
+    line-height: 0.98;
+    max-width: 16ch;
   }
 
-  .footer-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 16px 32px;
-    font-size: 14px;
-    color: rgb(255 255 255 / 82%);
+  .cap-body {
+    margin-top: 18px;
+    max-width: 42ch;
+    font-size: 17px;
+    color: var(--fg);
   }
 
-  .footer-brand {
+  .cap-media {
+    background: var(--stage);
+    border-radius: var(--radius-lg);
+    padding: 12px;
+  }
+
+  .cap-media--full {
+    padding: 44px 32px;
+  }
+
+  .cap-media > :global(img) {
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+
+  .cap-media--tall {
+    justify-self: start;
+    max-width: 362px;
+  }
+
+  /* ── Install ──────────────────────────────────────────── */
+  .install {
+    padding: 96px 0;
+  }
+
+  .install-inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  .install-title {
+    font-size: clamp(32px, 3vw, 46px);
     font-weight: 600;
-    color: #fff;
+    letter-spacing: -0.04em;
+    line-height: 0.98;
   }
 
-  .footer-links {
-    display: flex;
-    flex-wrap: wrap;
+  .cmd {
+    margin-top: 28px;
+    display: inline-flex;
+    align-items: center;
     gap: 20px;
+    padding: 14px 18px;
+    background: var(--stage);
+    color: var(--stage-ink);
+    border-radius: 8px;
   }
 
-  .footer-links a {
-    color: rgb(255 255 255 / 82%);
+  .cmd code {
+    font-family: var(--font-mono);
+    font-size: 17px;
+    color: var(--stage-ink);
+  }
+
+  .cmd-copy {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--stage-ink-dim);
     transition: color 0.18s ease;
   }
 
-  .footer-links a:hover {
-    color: #fff;
+  .cmd-copy:hover {
+    color: var(--stage-ink);
   }
 
-  .footer-credits {
-    margin-left: auto;
+  .steps {
+    margin-top: 48px;
+    list-style: none;
+    display: grid;
+    gap: 26px;
+    max-width: 60ch;
   }
 
-  /* ── Responsive ───────────────────────────────────────── */
-  @media (max-width: 720px) {
+  .steps li {
+    display: grid;
+    gap: 4px;
+  }
+
+  .steps b {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .steps span {
+    font-size: 17px;
+    color: var(--fg);
+  }
+
+  /* ── Proof ────────────────────────────────────────────── */
+  .agents {
+    padding: 40px 0 104px;
+  }
+
+  .agents-inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .agent-tile {
+    background: var(--stage);
+    border-radius: var(--radius-lg);
+    aspect-ratio: 3 / 2;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .agent-tile--head {
+    grid-column: span 2;
+    aspect-ratio: auto;
+    background: var(--bg-card);
+    place-content: center;
+    justify-items: start;
+    padding: 32px;
+    gap: 10px;
+  }
+
+  .agent-head {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    max-width: 18ch;
+  }
+
+  .agent-sub {
+    font-size: 17px;
+    color: var(--fg);
+    max-width: 34ch;
+  }
+
+  .agent-mark {
+    width: 72px;
+    height: 72px;
+  }
+
+  .agent-name {
+    font-size: 14px;
+    color: var(--stage-ink-dim);
+  }
+
+  /* ── Close ────────────────────────────────────────────── */
+  .cta {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 30svh 32px 24px;
+  }
+
+  .cta-line {
+    max-width: 46ch;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  .cta-action {
+    margin-top: 24px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+
+  .cta-link {
+    font-size: 14px;
+    color: var(--fg-muted);
+    transition: color 0.18s ease;
+  }
+
+  .cta-link::after {
+    content: " \2192";
+  }
+
+  .cta-link:hover {
+    color: var(--fg);
+  }
+
+  /* ── Narrow ───────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .cap,
+    .cap--flip {
+      grid-template-columns: 1fr;
+      gap: 28px;
+    }
+
+    .cap--flip .cap-text {
+      order: 0;
+    }
+
+    .cap-media--tall {
+      max-width: 100%;
+    }
+
+    .agents-inner {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 760px) {
     .hero {
-      padding: 88px 20px 48px;
+      padding-top: 40px;
     }
 
-    .hero-sentence {
-      padding: 0;
-      gap: 0.12em 0.2em;
-    }
-
-    .hero-slot[data-ui] {
-      order: 3;
-      flex-basis: 100%;
-      min-width: 0;
-      width: 100%;
-      min-height: 250px;
-      margin: 0.14em 0;
-    }
-
-    .hero-word:first-child {
-      flex-basis: 100%;
-    }
-
-    .hero-action {
-      margin-top: 40px;
-      padding: 0;
-    }
-
-    .hero-support {
-      padding: 32px 0 0;
-    }
-
-    .hero-support > span {
-      font-size: 18px;
-    }
-
-    .statement,
-    .how-statement,
-    .proof-line {
-      max-width: none;
-    }
-
-    .container {
+    .hero-line {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
       padding: 0 20px;
     }
 
-    .workbench[data-ui] {
-      flex-direction: column;
+    .hero-half--right {
+      text-align: left;
+    }
+
+    .reel {
       height: auto;
-      min-height: 260px;
+      margin-top: 28px;
     }
 
-    .wb-side {
-      gap: 8px;
+    .reel-sticky {
+      position: static;
+      padding: 0 20px;
     }
 
-    .bar {
-      flex-direction: column;
+    .reel-viewport {
       height: auto;
-      gap: 4px;
+      overflow: visible;
     }
 
-    .bar-seg {
-      height: 52px;
+    .reel-track {
+      transform: none;
+      padding-top: 0;
     }
 
-    .bar-legend {
+    .reel-frame {
+      height: auto;
+    }
+
+    .reel-frame > :global(img) {
+      height: auto;
+    }
+
+    .reel-frame--pair {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      padding: 14px;
+    }
+
+    .reel-frame--pair > :global(img) {
+      height: auto;
+      width: 100%;
+    }
+
+    .reel-caption {
       display: none;
     }
 
-    .answer-row {
-      flex-direction: column;
-      gap: 6px;
+    .hero-foot {
+      padding: 32px 20px 0;
     }
 
-    .footer-credits {
-      margin-left: 0;
-      flex-basis: 100%;
+    .rack {
+      margin-top: 64px;
+      padding: 56px 0 64px;
+    }
+
+    .rack-inner,
+    .caps-inner,
+    .install-inner,
+    .agents-inner,
+    .cta {
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+
+    .row {
+      grid-template-columns: auto 1fr auto;
+      padding: 12px 16px;
+    }
+
+    .row-name {
+      font-size: 22px;
+    }
+
+    .row-task {
+      grid-column: 1 / -1;
+      font-size: 16px;
+      white-space: normal;
+    }
+
+    .row-mark {
+      display: none;
+    }
+
+    .row-detail {
+      font-size: 16px;
+    }
+
+    .caps {
+      padding: 64px 0;
+    }
+
+    .caps-inner {
+      gap: 56px;
+    }
+
+    .install,
+    .agents {
+      padding: 64px 0;
+    }
+
+    .cta {
+      padding-top: 22svh;
     }
   }
 </style>

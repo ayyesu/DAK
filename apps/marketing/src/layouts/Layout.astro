@@ -3,6 +3,7 @@ import { getImage, Image } from "astro:assets";
 import appIcon from "../assets/icon.webp";
 import socialCard from "../assets/social-card.webp";
 import bricolageLatinUrl from "../assets/fonts/bricolage-grotesque-latin.woff2?url";
+import { GITHUB_REPOSITORY_URL } from "../lib/site";
 import "../styles/fonts.css";
 
 interface Props {
@@ -66,6 +67,10 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     <link rel="icon" type="image/png" href="/favicon-16x16.png" sizes="16x16" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>{title}</title>
+    <script is:inline>
+      // Set before paint so entrance states never hide content when JS is off.
+      document.documentElement.classList.add("js");
+    </script>
   </head>
   <body>
     <div class:list={["page", pageClass]}>
@@ -76,7 +81,10 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
             <span class="nav-brand-name">DAK</span>
           </a>
           <div class="nav-right">
-            <a class="nav-link" href="/download">Download</a>
+            <a class="nav-link" href="/#rack">Threads</a>
+            <a class="nav-link" href="/#agents">Agents</a>
+            <a class="nav-link" href="/#install">Install</a>
+            <a class="btn btn-primary" href="/download">Download</a>
           </div>
         </div>
       </nav>
@@ -99,9 +107,14 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
               loading="lazy"
               decoding="async"
             />
-            <span>&copy; {new Date().getFullYear()} DAK Inc. All rights reserved.</span>
+            <span>&copy; {new Date().getFullYear()} DAK</span>
+          </div>
+          <div class="footer-links">
+            <a href={GITHUB_REPOSITORY_URL} target="_blank" rel="noreferrer">GitHub</a>
+            <a href="/download">Download</a>
+            <a href="/legal">Legal</a>
+          </div>
         </div>
-      </div>
       </footer>
     </div>
 
@@ -135,6 +148,13 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     --accent-dim: rgb(36 86 214 / 12%);
     --ok: #3c6b45;
     --warn: #8a6a1f;
+    /* The app's own chrome is near-black. Where a real screenshot or a provider
+       mark needs a home, it sits on this stage rather than on the paper. */
+    --stage: #1a1916;
+    --stage-2: #242320;
+    --stage-line: rgb(232 230 224 / 12%);
+    --stage-ink: #e8e6e0;
+    --stage-ink-dim: #8d8b83;
     --font-sans: "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
     /* One motif corner (14px) for media frames; controls stay square. */
@@ -456,6 +476,13 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 
   .footer-links a:hover {
     color: var(--fg);
+  }
+
+  @media (max-width: 720px) {
+    /* The direction's narrow nav: wordmark left, one action right. */
+    .nav-link {
+      display: none;
+    }
   }
 
   @media (max-width: 820px) {
