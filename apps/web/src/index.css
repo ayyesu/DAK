@@ -87,7 +87,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
 }
 
 :root {
-  /* SHARP & EDITORIAL: wider than the old 6px so a square thumb still has a
+  /* STONE & BLUEPRINT: wider than the old 6px so a square thumb still has a
      comfortable hit target without needing to look like a pill. */
   --app-scrollbar-width: 9px;
   --appearance-contrast-base: 100%;
@@ -100,7 +100,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
    * Compact UI geometry. Keep these values semantic so sidebar, palette,
    * tooltip, and toolbar controls cannot quietly drift apart.
    *
-   * SHARP & EDITORIAL: the app's shape language is near-square. One radius
+   * STONE & BLUEPRINT: the app's shape language is near-square. One radius
    * (`--control-radius`) drives every control, and the container scale below
    * is fixed rather than derived, so a card, a menu, and the composer all land
    * within a couple of pixels of each other instead of spanning 6px to 22px.
@@ -121,7 +121,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
      previewMiniPlayerLayout.ts), then dialogs and popovers (50 and up). */
   --z-sheet: 46;
   /*
-   * SHARP & EDITORIAL: layered surfaces are solid, so what is behind a menu
+   * STONE & BLUEPRINT: layered surfaces are solid, so what is behind a menu
    * never bleeds through and contrast is a property of the theme alone. This
    * is the stylesheet's default, matching `DEFAULT_GLASS_OPACITY`; the
    * Settings → Interface slider overrides it inline, so lowering glass opacity
@@ -130,6 +130,12 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   --glass-opacity: 100%;
   --glass-blur: 12px;
   --glass-saturation: 1.14;
+  /* macOS motion. The system's signature ease, used across its window and
+     sheet animations: a fast start that settles softly. Restrained durations,
+     never a continuous repaint. */
+  --ease-macos: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-macos-fast: 160ms;
+  --duration-macos: 240ms;
   --desktop-window-right-resize-inset: 0px;
   --workspace-topbar-height: 52px;
   --workspace-controls-top: 0px;
@@ -234,8 +240,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
    * page, e3 is a floating layer (menu, popover, toast), e4 owns the window
    * (dialog, sheet).
    *
-   * SHARP & EDITORIAL: a contact shadow plus one tight, fast-falling shade.
-   * No wide soft bloom — depth comes from the hairline border and the edge
+   * STONE & BLUEPRINT: a contact shadow plus one tight, fast-falling shade.
+   * No wide soft bloom: depth comes from the hairline border and the edge
    * highlight, so a raised surface reads as a plate of glass sitting on the
    * canvas rather than as a glowing card. Exposed as `shadow-e2` … `shadow-e4`
    * utilities and as `var(--shadow-e*)` for the surfaces that compose them
@@ -344,7 +350,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   --color-sidebar-row-selected: var(--sidebar-row-selected);
   --color-sidebar-border: var(--contrast-sidebar-border);
   /*
-   * SHARP & EDITORIAL: a fixed, tight radius scale instead of one derived from
+   * STONE & BLUEPRINT: a fixed, tight radius scale instead of one derived from
    * `--radius`. The old scale spanned 6px to 22px, so a badge, a card, a menu
    * and the composer all read as differently-shaped objects. Everything now
    * sits inside 1–6px: near-square, but never harsh enough to look like a
@@ -1133,6 +1139,15 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(dak-mobi
   background-size: var(--surface-grain-size);
 }
 
+/* macOS vibrancy: blur and re-saturate the canvas behind a translucent panel
+   so the paper texture softly bleeds through, the way NSVisualEffectView does.
+   Only for chrome whose backdrop is the (static) body, never over scrolling
+   content, or it re-blurs every frame. */
+@utility mac-vibrancy {
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+}
+
 /* Suppress all transitions during theme changes */
 .no-transitions,
 .no-transitions *,
@@ -1750,9 +1765,25 @@ body {
    SVG rect instead. Surfaces that float over the body (e.g. the inset main
    card) must opt in via the surface-grain utility, or they lose the
    grain's subtle brightening and stand out against the body. */
+/* The tooth is speckle in the ground's own ink, shaped by luminance so the
+   brightest noise pixels take the most color: dark flecks on the stone ground
+   read as paper fiber, not a gray film. Old value (0.035 near-black on both
+   schemes) was invisible on the ink canvas because dark-on-dark has nothing
+   to modulate. */
 :root {
-  --surface-grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-  --surface-grain-size: 256px 256px;
+  --surface-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch' result='t'/%3E%3CfeColorMatrix in='t' type='luminanceToAlpha' result='a'/%3E%3CfeFlood flood-color='%2326251e' result='f'/%3E%3CfeComposite in='f' in2='a' operator='in'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.17'/%3E%3C/svg%3E");
+  --surface-grain-size: 200px 200px;
+}
+
+/* Dark ground gets the opposite speckle: the same tooth in paper-white, so
+   the ink canvas reads as a lit surface rather than a flat void. A plain
+   html.dark rule (not @variant dark) because the app toggles the .dark class
+   on the root element itself, and @variant's generated selector did not
+   reliably match it. Sits before the dak-chat preset so that branded theme
+   keeps its own texture in either mode. */
+html.dark {
+  --surface-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch' result='t'/%3E%3CfeColorMatrix in='t' type='luminanceToAlpha' result='a'/%3E%3CfeFlood flood-color='%23e7e5df' result='f'/%3E%3CfeComposite in='f' in2='a' operator='in'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.14'/%3E%3C/svg%3E");
+  --surface-grain-size: 200px 200px;
 }
 
 /* The live DAK Chat texture is a 128px grayscale tile with a constant 7/255
@@ -1783,8 +1814,8 @@ body {
    * 3. The existing grain, still baked in per-surface rather than overlaid.
    *
    * Layers stay translucent so an uploaded background picture (Settings ->
-   * Appearance) reads through: `body::before` paints beneath this stack and
-   * the tint composites over it instead of hiding it.
+   * Appearance) reads through: the root paints the picture beneath this stack
+   * and the tint composites over it instead of hiding it.
    */
   background-image:
     radial-gradient(
@@ -1813,10 +1844,11 @@ body {
 /* ---------------------------------------------------------------------------
    Background picture (Settings -> Appearance).
 
-   Painted on `body::before` rather than a mounted element: nothing has to be
-   created, re-parented or re-painted when the preference changes, and the
-   picture never competes with the boot splash for paint order (it sits behind
-   #root and its descendants).
+   Painted on the root's own background image rather than a mounted element or a
+   pseudo-element: nothing has to be created, re-parented or re-painted when the
+   preference changes, and the root's background is the one layer no descendant
+   can paint over except through its own surface, which is how the shells below
+   let it through.
 
    The layer is overset by the blur radius so the filtered edges fall outside
    the viewport instead of leaving a vignette, and the scrim is listed first so
@@ -1964,7 +1996,7 @@ code {
 }
 
 /* ---------------------------------------------------------------------------
-   SHARP & EDITORIAL — typography.
+   STONE & BLUEPRINT: typography.
 
    Three cues that read as "engineering tool" rather than "consumer app":
    tighter tracking on prose and headings, tabular figures everywhere a number
@@ -2039,7 +2071,7 @@ body {
   -webkit-app-region: no-drag;
 }
 
-/* Scrollbar styling. SHARP & EDITORIAL: a wider gutter, so a thin thumb still
+/* Scrollbar styling. STONE & BLUEPRINT: a wider gutter, so a thin thumb still
    has a comfortable hit target without needing to look like a pill.
    Deliberately left rounded: code blocks and the timeline style their own
    scrollbar thumbs, and an unlayered square rule here would outrank those

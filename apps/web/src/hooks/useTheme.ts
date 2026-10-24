@@ -305,7 +305,16 @@ export function syncBrowserChromeTheme() {
   if (!backgroundColor) return;
 
   document.documentElement.style.backgroundColor = backgroundColor;
-  document.body.style.backgroundColor = backgroundColor;
+  // With a background picture set the root paints the picture as its own
+  // background image; an inline fill on body sits over it and hides it, because
+  // inline styles outrank the stylesheet's transparent rule. So body yields to
+  // the stylesheet (`html[data-app-background] body`), which clears it to
+  // transparent and lets the picture show through.
+  if (document.documentElement.hasAttribute("data-app-background")) {
+    document.body.style.removeProperty("background-color");
+  } else {
+    document.body.style.backgroundColor = backgroundColor;
+  }
   // Update every theme-color meta so any element another layer added (for
   // example a media-scoped one) carries the resolved color too.
   const themeColorMetas = document.querySelectorAll<HTMLMetaElement>(

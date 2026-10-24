@@ -367,7 +367,7 @@ export function DraftHeroHeadline({
       </p>
       <h1
         aria-label={headingLabel}
-        className="mt-2.5 max-w-3xl text-balance font-normal text-3xl text-foreground tracking-tight sm:text-5xl"
+        className="mt-2.5 max-w-3xl text-balance font-normal text-3xl text-foreground tracking-tight sm:text-6xl"
       >
         {isScratchDraft ? (
           <>What should we work on?</>

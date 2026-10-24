@@ -14,12 +14,22 @@ function Shell({
       data-with-context={contextStrip || undefined}
       className={cn(
         "@container/composer-surface group/composer-surface relative isolate mx-auto w-full max-w-(--chat-content-max-width)",
-        "[--chat-composer-drawer-inset:1.375rem] [--chat-composer-glass-surface:var(--card)] [--chat-composer-outline:rgb(0_0_0/8%)]",
-        "dark:[--chat-composer-glass-surface:var(--surface-raised)] dark:[--chat-composer-highlight:rgb(255_255_255/3%)] dark:[--chat-composer-outline:color-mix(in_srgb,var(--color-white)_5%,transparent)]",
+        // macOS vibrancy: a frosted material that lets the canvas bleed through,
+        // blurred and saturated like NSVisualEffectView, rather than an opaque
+        // card. Scoped here so the user's global glass-opacity setting still wins.
+        "[--glass-blur:26px] [--glass-saturation:1.7] [--glass-opacity:74%]",
+        "[--chat-composer-drawer-inset:1.375rem] [--chat-composer-glass-surface:var(--card)] [--chat-composer-outline:color-mix(in_srgb,var(--foreground)_16%,transparent)]",
+        "dark:[--chat-composer-glass-surface:var(--surface-raised)] dark:[--chat-composer-highlight:rgb(255_255_255/3%)] dark:[--chat-composer-outline:color-mix(in_srgb,var(--color-white)_13%,transparent)]",
+        // Focus hands the outline to the blueprint accent, so typing lights the
+        // plate's edge instead of relying on a separate ring.
+        "focus-within:[--chat-composer-outline:color-mix(in_srgb,var(--primary)_48%,transparent)] dark:focus-within:[--chat-composer-outline:color-mix(in_srgb,var(--primary)_58%,transparent)]",
         "[html[data-theme-id]_&]:[--chat-composer-glass-surface:var(--app-theme-surface-raised)] [html[data-theme-id]_&]:[--chat-composer-outline:var(--app-theme-toolbar-border)]",
         "dark:[html[data-theme-id]:not([data-theme-id=dak-chat])_&]:[--chat-composer-highlight:color-mix(in_srgb,var(--app-theme-input)_12%,transparent)] dark:[html[data-theme-id]:not([data-theme-id=dak-chat])_&]:[--chat-composer-outline:color-mix(in_srgb,var(--app-theme-input)_30%,var(--background))]",
         "dark:[html[data-theme-id=dak-chat]_&]:[--chat-composer-highlight:color-mix(in_srgb,#432d48_12%,transparent)] dark:[html[data-theme-id=dak-chat]_&]:[--chat-composer-outline:#241e28]",
         "before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-3xl before:bg-(--chat-composer-glass-surface)/(--glass-opacity) before:backdrop-blur-(--glass-blur) before:backdrop-saturate-(--glass-saturation)",
+        // The material catches a faint light along its top edge, the way a
+        // frosted macOS panel does. Subtle in dark so it never glows.
+        "before:inset-shadow-[0_1px_0_rgb(255_255_255/0.5)] dark:before:inset-shadow-[0_1px_0_rgb(255_255_255/0.07)]",
         "not-supports-[((backdrop-filter:blur(1px))_or_(-webkit-backdrop-filter:blur(1px)))]:before:bg-(--chat-composer-glass-surface)",
         "has-data-[composer-banner-surface=attached]:before:hidden data-model-strip-transition:before:hidden",
         contextStrip && [
@@ -48,7 +58,11 @@ function Host({ className, ...props }: ComponentProps<"div">) {
     <div
       data-slot="composer-host"
       className={cn(
-        "relative z-10 w-full rounded-3xl shadow-composer after:z-1 dark:shadow-none",
+        // A floating plate lifts with a soft layered shadow and settles into its
+        // focus glow on the macOS ease, rather than snapping a ring on/off.
+        "relative z-10 w-full rounded-3xl after:z-1 transition-[box-shadow] duration-(--duration-macos) ease-(--ease-macos)",
+        "shadow-[0_1px_2px_-1px_rgb(0_0_0/10%),0_12px_28px_-12px_rgb(0_0_0/22%)]",
+        "group-focus-within/composer-surface:shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_18%,transparent),0_1px_2px_-1px_rgb(0_0_0/10%),0_12px_28px_-12px_rgb(0_0_0/22%)]",
         outlineClasses,
         contextSeamClasses,
         "group-has-data-[composer-banner-surface=attached]/composer-surface:shadow-none group-has-data-[composer-banner-surface=attached]/composer-surface:after:hidden",

@@ -76,10 +76,10 @@ export function SidebarThreadHeader({
     : "New thread";
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1.5">
       <div
         ref={searchFieldRef}
-        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
+        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-sidebar-border/70 bg-sidebar-control-surface/60 px-2 py-1.5 text-sm text-sidebar-muted-foreground transition-colors focus-within:border-primary/45 focus-within:bg-sidebar-control-surface/90 hover:border-sidebar-border"
       >
         <SearchIcon className="size-4 shrink-0 text-(--sidebar-icon-color)" />
         <SidebarInput
@@ -100,7 +100,7 @@ export function SidebarThreadHeader({
               ? `sidebar-thread-search-result-${activeSearchResultIndex}`
               : undefined
           }
-          className="min-w-0 flex-1"
+          className="min-w-0 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
         />
         {isSearching ? (
           <Button
@@ -120,7 +120,8 @@ export function SidebarThreadHeader({
       </div>
       {/* The new-thread action is the header's one labelled control, so the
           scope picker shrinks to its icon beside it. Adding a project lives in
-          the command palette and the empty state's own button. */}
+          the command palette and the empty state's own button. It wears the
+          primary accent: the one thing to do from this row. */}
       <div className="flex shrink-0 items-center gap-1">
         {hasProjects ? projectScope : null}
         <Tooltip>
@@ -129,7 +130,7 @@ export function SidebarThreadHeader({
               <Button
                 type="button"
                 size="sm"
-                variant="secondary"
+                variant="default"
                 aria-label="New thread"
                 disabled={newThreadDisabled}
                 onClick={onNewThread}

@@ -326,6 +326,9 @@ function BackgroundAppearanceSync() {
 
   useEffect(() => {
     applyAppearanceBackground(document.documentElement, background);
+    // Toggling the picture changes whether body's inline fill must yield to the
+    // stylesheet, so re-run the chrome sync the moment the attribute flips.
+    syncBrowserChromeTheme();
   }, [background]);
 
   return null;

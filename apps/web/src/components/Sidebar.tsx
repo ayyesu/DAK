@@ -775,8 +775,8 @@ function SidebarDragBoundary(props: {
       <div className="sidebar-drag-boundary-label absolute inset-x-2 top-1 flex h-4 items-center gap-2">
         <span
           className={cn(
-            "shrink-0 text-xs font-medium",
-            props.isDropTarget ? "text-primary" : "text-sidebar-foreground/80",
+            "shrink-0 text-3xs font-medium",
+            props.isDropTarget ? "text-primary" : "text-sidebar-muted-foreground",
           )}
         >
           {props.label}
@@ -785,12 +785,12 @@ function SidebarDragBoundary(props: {
           aria-hidden
           className={cn(
             "h-px flex-1",
-            props.isDropTarget ? "bg-primary/50" : "bg-sidebar-foreground/25",
+            props.isDropTarget ? "bg-primary/50" : "bg-sidebar-foreground/20",
           )}
         />
         <span
           className={cn(
-            "shrink-0 text-xs tabular-nums",
+            "shrink-0 text-3xs tabular-nums",
             props.isDropTarget ? "text-primary" : "text-sidebar-muted-foreground",
           )}
         >
@@ -924,7 +924,7 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
         aria-current={accessibility.current}
         data-testid="sidebar-draft-row"
         className={cn(
-          "group/sidebar-row relative w-full cursor-pointer overflow-hidden rounded-md text-left text-sidebar-foreground outline-none select-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+          "group/sidebar-row relative w-full cursor-pointer overflow-hidden rounded-md text-left text-sidebar-foreground outline-none select-none transition-colors duration-(--duration-macos-fast) ease-(--ease-macos) focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
           props.isActive ? "bg-sidebar-row-active" : draftSurfaceClassName,
         )}
         onClick={handleActivate}
