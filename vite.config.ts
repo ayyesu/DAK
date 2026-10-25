@@ -170,6 +170,7 @@ export default defineConfig({
         "error",
         { paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS] },
       ],
+      "dak/no-em-dash": "off",
       "dak/no-global-process-runtime": "error",
       "dak/no-inline-schema-compile": "warn",
       "dak/no-manual-effect-runtime-in-tests": "error",
@@ -183,6 +184,12 @@ export default defineConfig({
       "dak/require-suppression-reason": "error",
     },
     overrides: [
+      {
+        // The rest of the repo still carries existing em dashes, so the rule holds only where it
+        // is already clean. Clear a directory of them, then add its glob here.
+        files: ["apps/marketing/**", "oxlint-plugin-dak/**", "packages/effect-codex-app-server/**"],
+        rules: { "dak/no-em-dash": "error" },
+      },
       {
         files: ["packages/client-runtime/src/state/**", "apps/{web,mobile,desktop}/src/**"],
         rules: { "dak/no-rpc-permission-bypass": ["error", { allowRawClientAccess: false }] },
