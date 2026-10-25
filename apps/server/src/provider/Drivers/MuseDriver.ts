@@ -1,5 +1,6 @@
 import { MuseSettings, ProviderDriverKind } from "@dak/contracts";
 import { HostProcessEnvironment } from "@dak/shared/hostProcess";
+import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -21,6 +22,7 @@ import * as ProviderEventLoggers from "../ProviderEventLoggers.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import { enrichMuseSnapshot, latestMuseVersion, museMaintenance } from "../museMaintenance.ts";
 import { makeMuseEnvironment } from "../museSdk.ts";
+import { makeTerminalAuth } from "../TerminalAuth.ts";
 import { instanceProfileEnvironment } from "../InstanceProfile.ts";
 import {
   defaultProviderContinuationIdentity,
@@ -47,6 +49,7 @@ export type MuseDriverEnv =
   | BackgroundPolicy.BackgroundPolicy
   | ChildProcessSpawner.ChildProcessSpawner
   | FileSystem.FileSystem
+  | Crypto.Crypto
   | HttpClient.HttpClient
   | Path.Path
   | ProviderEventLoggers.ProviderEventLoggers
@@ -173,6 +176,29 @@ export const MuseDriver: ProviderDriver<MuseSettings, MuseDriverEnv> = {
         environment: processEnvironment,
         modelCatalog,
       });
+      // Terminal sign-in runs `muse login` inside this instance's profile, so
+      // a second Meta account never touches the host credentials.
+      const auth = yield* makeTerminalAuth({
+        instanceId,
+        displayName: displayName ?? "Muse Code",
+        enabled: effectiveConfig.enabled,
+        credentialBinding: { owner: "provider", key: `muse:${instanceId}` },
+        command: effectiveConfig.binaryPath,
+        environment: processEnvironment,
+        cwd,
+        methods: [
+          {
+            id: "terminal",
+            name: "Sign in with your Meta account",
+            description:
+              "Runs `muse login` so you can approve a code in your browser. The credential lands in this instance's own profile.",
+            args: ["login"],
+          },
+        ],
+        logoutArgs: ["logout"],
+        onChanged: () => snapshot.refresh.pipe(Effect.asVoid),
+      });
+
       return {
         instanceId,
         driverKind: DRIVER_KIND,
@@ -181,6 +207,7 @@ export const MuseDriver: ProviderDriver<MuseSettings, MuseDriverEnv> = {
         accentColor,
         enabled,
         snapshot,
+        auth,
         orchestrationAdapter,
         textGeneration,
       } satisfies ProviderInstance;

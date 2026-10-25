@@ -47,6 +47,7 @@ import {
 } from "../OpenCodeProvider.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import * as OpenCodeRuntime from "../opencodeRuntime.ts";
+import { makeTerminalAuth } from "../TerminalAuth.ts";
 import {
   makeOpenCodeRuntimeProbe,
   probeOpenCodeRuntime,
@@ -491,6 +492,28 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         ),
       );
 
+      // Terminal sign-in runs `opencode auth login` inside this instance's
+      // profile, so a second account never touches the host credentials.
+      const auth = yield* makeTerminalAuth({
+        instanceId,
+        displayName: displayName ?? "OpenCode",
+        enabled: effectiveConfig.enabled,
+        credentialBinding: { owner: "provider", key: `opencode:${instanceId}` },
+        command: effectiveConfig.binaryPath,
+        environment: processEnv,
+        cwd: serverConfig.cwd,
+        methods: [
+          {
+            id: "terminal",
+            name: "Sign in with OpenCode",
+            description:
+              "Runs `opencode auth login` for this instance. The new account's credentials land in its own profile.",
+            args: ["auth", "login"],
+          },
+        ],
+        onChanged: () => snapshot.refresh.pipe(Effect.asVoid),
+      });
+
       return {
         instanceId,
         driverKind: DRIVER_KIND,
@@ -499,6 +522,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         accentColor,
         enabled,
         snapshot,
+        auth,
         snapshotForCwd: (cwd) =>
           !effectiveConfig.enabled
             ? snapshot.getSnapshot
