@@ -21,6 +21,7 @@ import * as ProviderEventLoggers from "../ProviderEventLoggers.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import { enrichMuseSnapshot, latestMuseVersion, museMaintenance } from "../museMaintenance.ts";
 import { makeMuseEnvironment } from "../museSdk.ts";
+import { instanceProfileEnvironment } from "../InstanceProfile.ts";
 import {
   defaultProviderContinuationIdentity,
   type ProviderDriver,
@@ -66,13 +67,18 @@ export const MuseDriver: ProviderDriver<MuseSettings, MuseDriverEnv> = {
       const serverSettings = yield* ServerSettings.ServerSettingsService;
       const eventLoggers = yield* ProviderEventLoggers.ProviderEventLoggers;
       const serverConfig = yield* ServerConfig.ServerConfig;
-      const { cwd } = serverConfig;
+      const { cwd, stateDir } = serverConfig;
       const idAllocator = yield* IdAllocator.IdAllocatorV2;
       const continuationRequests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
       const hostEnvironment = yield* HostProcessEnvironment;
       // Drop an inherited META_API_KEY so Muse uses its login; an instance value still wins.
       const processEnvironment = mergeProviderInstanceEnvironment(
-        environment,
+        instanceProfileEnvironment({
+          stateDir,
+          driverKind: DRIVER_KIND,
+          instanceId,
+          environment,
+        }),
         makeMuseEnvironment(hostEnvironment),
       );
       const effectiveConfig = {
