@@ -36,41 +36,16 @@ const panes = [
 <Layout pageClass="page--app">
   <div class="app">
     <!-- macOS window chrome -->
-    <header class="titlebar">
-      <span class="titlebar-name">DAK</span>
-      <div class="titlebar-end">
-        <a class="btn btn--sm" href="/download">Get DAK</a>
-        <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Show navigation" aria-expanded="false">
-          <span></span><span></span><span></span>
-        </button>
-      </div>
-    </header>
-
-    <aside class="sidebar" id="sidebar">
-      <label class="search">
-        <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
-          <circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.5"></circle>
-          <path d="M10.4 10.4 L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
-        </svg>
-        <input type="text" placeholder="Search" aria-label="Search this page" id="side-search" />
-      </label>
-
-      <p class="side-label">On this page</p>
-      <nav class="side-list" id="side-list">
-        <span class="side-pill" aria-hidden="true"></span>
-        <a class="side-item is-active" href="#overview">Overview</a>
-        <a class="side-item" href="#agents">Agents</a>
-        <a class="side-item" href="#canvas">Canvas</a>
-        <a class="side-item" href="#install">Install</a>
+    <header class="topbar">
+      <span class="topbar-name">DAK</span>
+      <nav class="topnav" aria-label="Sections">
+        <a class="topnav-link is-active" href="#overview">Overview</a>
+        <a class="topnav-link" href="#agents">Agents</a>
+        <a class="topnav-link" href="#canvas">Canvas</a>
+        <a class="topnav-link" href="#install">Install</a>
       </nav>
-
-      <div class="side-foot">
-        <p class="side-label">Open source</p>
-        <a class="side-repo" href={GITHUB_REPOSITORY_URL} target="_blank" rel="noreferrer">
-          View on GitHub
-        </a>
-      </div>
-    </aside>
+      <a class="btn btn--sm" href="/download">Get DAK</a>
+    </header>
 
     <main class="pane">
       <!-- Overview -->
@@ -90,10 +65,18 @@ const panes = [
           </button>
         </div>
 
-        <div class="agent-line" data-in style="--d:220ms" aria-hidden="true">
-          <span class="agent-dot"></span>
-          <span class="agent-text" id="agent-text">Codex is reading the repo</span>
-          <span class="agent-step" id="agent-step">step 1 of 4</span>
+        <div class="run" data-in style="--d:220ms" aria-hidden="true">
+          <div class="run-head">
+            <span class="run-dot"></span>
+            <span class="run-title">Working</span>
+            <span class="run-count" id="run-count">1 of 4</span>
+          </div>
+          <ol class="run-steps" id="run-steps">
+            <li>Read the repo</li>
+            <li>Plan the change</li>
+            <li>Edit files</li>
+            <li>Capture checkpoint</li>
+          </ol>
         </div>
 
         <figure class="shot" data-in style="--d:240ms">
@@ -296,41 +279,27 @@ const panes = [
     rising.forEach((el) => el.classList.add("is-in"));
   }
 
-  // The sidebar pill tracks the section you are reading.
-  const list = document.getElementById("side-list");
-  const pill = list?.querySelector<HTMLElement>(".side-pill");
-  const items = list ? Array.from(list.querySelectorAll<HTMLAnchorElement>(".side-item")) : [];
-  const movePill = (item: HTMLElement) => {
-    if (!pill) return;
-    pill.style.height = `${item.offsetHeight}px`;
-    pill.style.transform = `translateY(${item.offsetTop}px)`;
-  };
-  if (items.length > 0) {
+  // The top nav marks the section you are reading.
+  const items = Array.from(document.querySelectorAll<HTMLAnchorElement>(".topnav-link"));
+  if (items.length > 0 && "IntersectionObserver" in window) {
     const setActive = (id: string) => {
-      items.forEach((item) => {
-        const on = item.getAttribute("href") === `#${id}`;
-        item.classList.toggle("is-active", on);
-        if (on) movePill(item);
-      });
+      items.forEach((item) =>
+        item.classList.toggle("is-active", item.getAttribute("href") === `#${id}`)
+      );
     };
     const sections = items
       .map((i) => document.querySelector<HTMLElement>(i.getAttribute("href") ?? ""))
       .filter((s): s is HTMLElement => Boolean(s));
-    if ("IntersectionObserver" in window) {
-      const spy = new IntersectionObserver(
-        (entries) => {
-          const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-          if (visible[0]?.target.id) setActive(visible[0].target.id);
-        },
-        { rootMargin: "-25% 0px -55% 0px", threshold: [0.01, 0.25, 0.6] }
-      );
-      sections.forEach((s) => spy.observe(s));
-    }
-    requestAnimationFrame(() => movePill(items[0]));
-    window.addEventListener("resize", () => {
-      const active = items.find((i) => i.classList.contains("is-active"));
-      if (active) movePill(active);
-    });
+    const spy = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible[0]?.target.id) setActive(visible[0].target.id);
+      },
+      { rootMargin: "-25% 0px -55% 0px", threshold: [0.01, 0.25, 0.6] }
+    );
+    sections.forEach((s) => spy.observe(s));
   }
 
   // The segmented control slides its thumb and swaps the pane.
@@ -357,24 +326,25 @@ const panes = [
     });
   }
 
-  // The agent line walks through what an agent does in a turn. It is the one
-  // thing on the page that moves without being asked, so the product reads as
-  // working rather than as a brochure.
-  const agentText = document.getElementById("agent-text");
-  const agentStep = document.getElementById("agent-step");
-  if (agentText && agentStep && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const steps = [
-      "Codex is reading the repo",
-      "Claude is reviewing the diff",
-      "Checkpoint captured",
-      "Canvas frame handed to Grok",
-    ];
+  // The run panel walks a turn step by step. It is the one thing on the page
+  // that moves unprompted, so the product reads as working, not as a brochure.
+  const runSteps = document.getElementById("run-steps");
+  const runCount = document.getElementById("run-count");
+  if (runSteps && runCount && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const steps = Array.from(runSteps.querySelectorAll("li"));
     let at = 0;
+    const paint = () => {
+      steps.forEach((li, i) => {
+        li.classList.toggle("is-done", i < at);
+        li.classList.toggle("is-active", i === at);
+      });
+      runCount.textContent = `${at + 1} of ${steps.length}`;
+    };
+    paint();
     setInterval(() => {
       at = (at + 1) % steps.length;
-      agentText.textContent = steps[at];
-      agentStep.textContent = `step ${at + 1} of ${steps.length}`;
-    }, 2600);
+      paint();
+    }, 2400);
   }
 
   // The terminal types the install command once, when it comes into view.
@@ -410,39 +380,21 @@ const panes = [
       }
     }
   }
-
-  // Narrow screens: the sidebar slides in over the pane.
-  const toggle = document.getElementById("sidebar-toggle");
-  const sidebar = document.getElementById("sidebar");
-  if (toggle && sidebar) {
-    const setOpen = (open: boolean) => {
-      sidebar.classList.toggle("is-open", open);
-      toggle.setAttribute("aria-expanded", String(open));
-    };
-    toggle.addEventListener("click", () => setOpen(!sidebar.classList.contains("is-open")));
-    sidebar.addEventListener("click", (e) => {
-      if ((e.target as HTMLElement).closest("a")) setOpen(false);
-    });
-    window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") setOpen(false);
-    });
-  }
 </script>
 
 <style>
   :global(.page--app) {
-    --desk: #e9e9ee;
-    --win: #ffffff;
-    --chrome: rgba(248, 248, 250, 0.72);
-    --chrome-solid: #f7f7f9;
-    --side: rgba(240, 240, 244, 0.66);
-    --line: rgba(0, 0, 0, 0.08);
-    --line-2: rgba(0, 0, 0, 0.13);
-    --ink: #1d1d1f;
-    --ink-2: #4a4a51;
-    --ink-3: #66666d;
-    --blue: #0068e8;
-    --blue-deep: #0052c0;
+    --desk: #e6ebf2;
+    --pane: #f4f7fb;
+    --card: #ffffff;
+    --chrome: rgba(244, 247, 251, 0.82);
+    --line: rgba(21, 32, 51, 0.09);
+    --line-2: rgba(21, 32, 51, 0.15);
+    --ink: #141922;
+    --ink-2: #454d5c;
+    --ink-3: #5c6675;
+    --blue: #0b63d6;
+    --blue-deep: #084da8;
     --ctl-r: 7px;
     --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--desk);
@@ -451,16 +403,14 @@ const panes = [
     position: relative;
   }
 
-  /* A soft wallpaper, barely there, so the translucent chrome has something
-     to sit over the way vibrancy does in a real window. */
+  /* One cool wash, no second accent. It gives the translucent bar something
+     to sit on without turning the page into a gradient. */
   :global(.page--app)::before {
     content: "";
     position: fixed;
     inset: 0;
     pointer-events: none;
-    background:
-      radial-gradient(900px 620px at 12% -8%, rgb(10 132 255 / 9%), transparent 62%),
-      radial-gradient(760px 560px at 96% 4%, rgb(255 122 89 / 7%), transparent 60%);
+    background: radial-gradient(1100px 700px at 18% -12%, rgb(11 99 214 / 10%), transparent 66%);
   }
 
   .app {
@@ -469,168 +419,58 @@ const panes = [
     min-height: 100svh;
   }
 
-  /* ── Title bar ────────────────────────────────────────── */
-  .titlebar {
+  /* ── Top bar ──────────────────────────────────────────── */
+  .topbar {
     position: fixed;
     inset: 0 0 auto 0;
-    height: 52px;
+    height: 54px;
     z-index: 40;
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 0 16px;
+    gap: 20px;
+    padding: 0 clamp(16px, 4vw, 40px);
     background: var(--chrome);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
     border-bottom: 1px solid var(--line);
   }
 
-  .titlebar-name {
-    font-size: 13px;
+  .topbar-name {
+    font-family: var(--font-sans);
+    font-size: 15px;
     font-weight: 600;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
     color: var(--ink);
   }
 
-  .titlebar-end {
-    margin-left: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .sidebar-toggle {
-    display: none;
-    width: 30px;
-    height: 24px;
-    border-radius: 6px;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 3px;
-    transition: background 0.15s ease;
-  }
-
-  .sidebar-toggle:hover { background: rgb(0 0 0 / 6%); }
-
-  .sidebar-toggle span {
-    display: block;
-    width: 14px;
-    height: 1.5px;
-    border-radius: 1px;
-    background: var(--ink-2);
-  }
-
-  /* ── Sidebar ──────────────────────────────────────────── */
-  .sidebar {
-    position: fixed;
-    top: 52px;
-    bottom: 0;
-    left: 0;
-    width: 250px;
-    z-index: 30;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 14px 12px 16px;
-    background: var(--side);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
-    border-right: 1px solid var(--line);
-  }
-
-  .search {
+  .topnav {
     display: flex;
     align-items: center;
-    gap: 7px;
-    height: 28px;
-    padding: 0 9px;
-    border-radius: var(--ctl-r);
-    background: rgb(255 255 255 / 72%);
-    box-shadow: inset 0 0 0 1px var(--line), inset 0 1px 1px rgb(0 0 0 / 4%);
-    color: var(--ink-3);
-    margin-bottom: 10px;
+    gap: 4px;
+    margin-right: auto;
   }
 
-  .search input {
-    flex: 1;
-    min-width: 0;
-    border: 0;
-    background: none;
-    outline: none;
-    font: inherit;
-    font-size: 13px;
-    color: var(--ink);
-  }
-
-  .search input::placeholder { color: var(--ink-3); }
-
-  .side-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    color: var(--ink-3);
-    padding: 0 8px;
-    margin-bottom: 2px;
-  }
-
-  .side-list {
-    position: relative;
-    display: grid;
-    gap: 1px;
-  }
-
-  .side-pill {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    height: 28px;
-    border-radius: var(--ctl-r);
-    background: var(--blue);
-    transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1), height 0.2s ease;
-  }
-
-  .side-item {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 28px;
-    padding: 0 8px;
+  .topnav-link {
+    padding: 6px 11px;
     border-radius: var(--ctl-r);
     font-size: 13px;
-    color: var(--ink);
-    transition: color 0.2s ease, background 0.15s ease;
+    color: var(--ink-2);
+    transition: color 0.18s ease, background 0.18s ease;
   }
 
-  .side-item:hover:not(.is-active) { background: rgb(0 0 0 / 5%); }
+  .topnav-link:hover { background: rgb(11 99 214 / 8%); color: var(--ink); }
 
-  .side-item.is-active {
-    color: #fff;
+  .topnav-link.is-active {
+    background: rgb(11 99 214 / 12%);
+    color: var(--blue);
     font-weight: 500;
   }
 
-  .side-foot {
-    margin-top: auto;
-    padding: 12px 8px 0;
-  }
-
-  .side-foot .side-label { padding: 0; margin-bottom: 4px; }
-
-  .side-repo {
-    font-size: 13px;
-    color: var(--ink-2);
-    transition: color 0.15s ease;
-  }
-
-  .side-repo:hover { color: var(--blue); }
-
   /* ── Pane ─────────────────────────────────────────────── */
   .pane {
-    margin: 52px 0 0 250px;
-    padding: 0 clamp(24px, 5vw, 72px);
-    max-width: 1200px;
+    margin: 54px 0 0;
+    padding: 0 clamp(20px, 5vw, 64px);
+    max-width: 1160px;
   }
 
   .display {
@@ -708,40 +548,92 @@ const panes = [
     color: var(--ink-3);
   }
 
-  /* The agent line is the only thing on the page that keeps moving on its
-     own: it shows what an agent is doing right now, which is the whole
-     product, rather than decorating the section. */
-  .agent-line {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-    margin-top: 20px;
-    padding: 7px 13px 7px 11px;
-    border-radius: 999px;
-    background: rgb(255 255 255 / 72%);
+  /* The run panel is the only thing on the page that moves unprompted. It
+     walks a real turn so the product reads as working, not as a brochure. */
+  .run {
+    margin-top: 26px;
+    max-width: 420px;
+    padding: 14px 16px 15px;
+    border-radius: 10px;
+    background: var(--pane);
     box-shadow: inset 0 0 0 1px var(--line);
-    font-size: 13px;
-    color: var(--ink-2);
   }
 
-  .agent-dot {
+  .run-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 11px;
+  }
+
+  .run-dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
     background: var(--blue);
     flex: none;
-    animation: agent-pulse 1.6s ease-in-out infinite;
+    animation: run-pulse 1.6s ease-in-out infinite;
   }
 
-  .agent-step {
+  .run-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  .run-count {
+    margin-left: auto;
     font-size: 11px;
     color: var(--ink-3);
     font-variant-numeric: tabular-nums;
   }
 
-  .agent-text { min-width: 22ch; }
+  .run-steps {
+    list-style: none;
+    display: grid;
+    gap: 7px;
+  }
 
-  @keyframes agent-pulse {
+  .run-steps li {
+    position: relative;
+    padding-left: 20px;
+    font-size: 13px;
+    color: var(--ink-3);
+    transition: color 0.4s ease;
+  }
+
+  .run-steps li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 5px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1.5px var(--line-2);
+    transition: box-shadow 0.4s ease, background 0.4s ease;
+  }
+
+  .run-steps li.is-done {
+    color: var(--ink-2);
+  }
+
+  .run-steps li.is-done::before {
+    background: var(--ink-3);
+    box-shadow: inset 0 0 0 1.5px var(--ink-3);
+  }
+
+  .run-steps li.is-active {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .run-steps li.is-active::before {
+    background: var(--blue);
+    box-shadow: inset 0 0 0 1.5px var(--blue);
+  }
+
+  @keyframes run-pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.35; transform: scale(0.72); }
   }
@@ -792,7 +684,7 @@ const panes = [
     margin-top: 26px;
     list-style: none;
     max-width: 620px;
-    background: var(--win);
+    background: var(--card);
     border-radius: 10px;
     box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px rgb(0 0 0 / 5%);
     overflow: hidden;
@@ -842,7 +734,7 @@ const panes = [
     left: 0;
     height: calc(100% - 4px);
     border-radius: 7px;
-    background: var(--win);
+    background: var(--card);
     box-shadow: 0 1px 2px rgb(0 0 0 / 14%), inset 0 0 0 0.5px rgb(0 0 0 / 5%);
     transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1), width 0.34s cubic-bezier(0.32, 0.72, 0, 1);
   }
@@ -903,7 +795,7 @@ const panes = [
     margin: 0 auto;
     padding-right: 32px;
     font-size: 11px;
-    color: #8a8a90;
+    color: #a8a8b0;
   }
 
   .term-line {
@@ -1012,24 +904,15 @@ const panes = [
     }
 
     .caret { animation: none; }
-    .agent-dot { animation: none; }
-    .side-pill, .seg-thumb { transition: none; }
+    .run-dot { animation: none; }
+    .seg-thumb { transition: none; }
   }
 
   /* ── Narrow ───────────────────────────────────────────── */
   @media (max-width: 860px) {
-    .sidebar-toggle { display: flex; }
+    .topnav { display: none; }
 
-    .sidebar {
-      width: 260px;
-      transform: translateX(-100%);
-      transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
-      box-shadow: 0 0 40px rgb(0 0 0 / 18%);
-    }
-
-    .sidebar.is-open { transform: none; }
-
-    .pane { margin-left: 0; padding: 0 20px; }
+    .pane { padding: 0 20px; }
 
     .display { margin-top: 56px; }
 
@@ -1037,13 +920,12 @@ const panes = [
 
     .sec { padding-top: 60px; }
 
-    .stats { grid-template-columns: 1fr; }
+    .run { max-width: none; }
 
     .close { padding-top: 18svh; }
   }
 
   @media (max-width: 460px) {
-    .titlebar-name { display: none; }
     .copy code { font-size: 13px; }
   }
 </style>
