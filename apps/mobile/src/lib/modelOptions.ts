@@ -1,7 +1,9 @@
 import type { MenuAction } from "@react-native-menu/menu";
+import { resolveProviderInstanceDisplayName } from "@dak/client-runtime/state/provider-instance-display";
 import type {
   ModelCapabilities,
   ModelSelection,
+  ProviderDriverKind,
   RuntimeMode,
   ServerConfig as DakServerConfig,
 } from "@dak/contracts";
@@ -31,18 +33,6 @@ export type ProviderGroup = {
   readonly providerLabel: string;
   readonly models: ReadonlyArray<ModelOption>;
 };
-
-function providerDisplayLabel(provider: {
-  readonly displayName?: string | undefined;
-  readonly driver: string;
-  readonly instanceId: string;
-}): string {
-  if (provider.displayName) return provider.displayName;
-  if (provider.driver === "codex") return "Codex";
-  if (provider.driver === "claudeAgent") return "Claude";
-  if (provider.driver === "pi") return "Pi";
-  return provider.instanceId;
-}
 
 function normalizeSelectionOptions(
   selection: ModelSelection,
@@ -173,7 +163,7 @@ export function buildModelOptions(
       continue;
     }
 
-    const providerLabel = providerDisplayLabel(provider);
+    const providerLabel = resolveProviderInstanceDisplayName(provider);
     for (const model of provider.models) {
       const key = `${provider.instanceId}:${model.slug}`;
       options.set(key, {
@@ -225,8 +215,12 @@ export function buildModelOptions(
       );
       const providerDriver =
         provider?.driver ?? instanceConfig?.driver ?? fallbackModelSelection.instanceId;
-      const providerLabel = providerDisplayLabel({
-        driver: providerDriver,
+      const providerLabel = resolveProviderInstanceDisplayName({
+        // A second unnamed instance of a driver kept its slug through the
+        // brand-label fallbacks, so its account stays distinct from the
+        // default instance. The driver kind here can be the bare instance
+        // slug; the resolver humanizes what it does not recognize.
+        driver: providerDriver as ProviderDriverKind,
         displayName: provider?.displayName ?? instanceConfig?.displayName,
         instanceId: fallbackModelSelection.instanceId,
       });

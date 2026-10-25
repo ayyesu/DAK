@@ -12,7 +12,7 @@
  *
  * @module provider/Drivers/OpenCodeDriver
  */
-import { OpenCodeSettings, ProviderDriverKind } from "@dak/contracts";
+import { OpenCodeSettings, ProviderDriverKind, type ServerProvider } from "@dak/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -221,6 +221,13 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         accentColor,
         continuationGroupKey: continuationIdentity.continuationKey,
       });
+      // Advertise the terminal sign-in this driver wires to every instance, so
+      // account surfaces show its sign-in once the CLI is present. DAK does
+      // not install OpenCode itself.
+      const stampAuthSetup = (snapshot: ServerProvider) => ({
+        ...snapshot,
+        setup: { canAuthenticate: snapshot.installed, canInstall: false },
+      });
       const effectiveConfig = { ...config, enabled } satisfies OpenCodeSettings;
       const runtimeProbe = yield* makeOpenCodeRuntimeProbe(
         probeOpenCodeRuntime(effectiveConfig, processEnv).pipe(
@@ -394,6 +401,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
       ).pipe(
         Effect.map(({ provider, usageLimits }) => ({ ...provider, usageLimits })),
         Effect.map(stampIdentity),
+        Effect.map(stampAuthSetup),
         Effect.provideService(FileSystem.FileSystem, fileSystem),
         Effect.provideService(Path.Path, pathService),
         Effect.provideService(HttpClient.HttpClient, httpClient),
@@ -467,7 +475,10 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
           checkProviderOnSettingsChange: () => false,
           refreshOnInterval: false,
           initialSnapshot: (settings) =>
-            makePendingOpenCodeProvider(settings.provider).pipe(Effect.map(stampIdentity)),
+            makePendingOpenCodeProvider(settings.provider).pipe(
+              Effect.map(stampIdentity),
+              Effect.map(stampAuthSetup),
+            ),
           checkProvider,
           enrichSnapshot: ({ settings, snapshot, publishSnapshot }) =>
             resolveMaintenance().pipe(

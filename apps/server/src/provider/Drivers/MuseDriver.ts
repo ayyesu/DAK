@@ -1,4 +1,4 @@
-import { MuseSettings, ProviderDriverKind } from "@dak/contracts";
+import { MuseSettings, ProviderDriverKind, type ServerProvider } from "@dak/contracts";
 import { HostProcessEnvironment } from "@dak/shared/hostProcess";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
@@ -100,6 +100,13 @@ export const MuseDriver: ProviderDriver<MuseSettings, MuseDriverEnv> = {
         accentColor,
         continuationGroupKey: continuationIdentity.continuationKey,
       });
+      // Advertise the terminal sign-in this driver wires to every instance, so
+      // account surfaces show its sign-in once the CLI is present. DAK does
+      // not install Muse Code itself.
+      const stampAuthSetup = (snapshot: ServerProvider) => ({
+        ...snapshot,
+        setup: { canAuthenticate: snapshot.installed, canInstall: false },
+      });
       const snapshotSettings = makeProviderSnapshotSettingsSource(effectiveConfig, serverSettings);
       const resolveInstallation = yield* makeCachedProviderMaintenanceResolution(
         resolveProviderMaintenanceCapabilitiesEffect(museMaintenance, {
@@ -129,9 +136,13 @@ export const MuseDriver: ProviderDriver<MuseSettings, MuseDriverEnv> = {
         streamSettings: snapshotSettings.streamSettings,
         haveSettingsChanged: haveProviderSnapshotSettingsChanged,
         initialSnapshot: (settings) =>
-          makePendingMuseProvider(settings.provider).pipe(Effect.map(stampIdentity)),
+          makePendingMuseProvider(settings.provider).pipe(
+            Effect.map(stampIdentity),
+            Effect.map(stampAuthSetup),
+          ),
         checkProvider: checkMuseProviderStatus(effectiveConfig, processEnvironment, cwd).pipe(
           Effect.map(stampIdentity),
+          Effect.map(stampAuthSetup),
           Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
           Effect.provideService(FileSystem.FileSystem, fileSystem),
           Effect.provideService(Path.Path, path),
