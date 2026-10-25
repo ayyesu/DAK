@@ -1,6 +1,5 @@
 ---
-import { getImage, Image } from "astro:assets";
-import appIcon from "../assets/icon.webp";
+import { getImage } from "astro:assets";
 import socialCard from "../assets/social-card.webp";
 import bricolageLatinUrl from "../assets/fonts/bricolage-grotesque-latin.woff2?url";
 import { GITHUB_REPOSITORY_URL } from "../lib/site";
@@ -96,14 +95,11 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
       <footer class="footer">
         <div class="footer-inner">
           <div class="footer-brand">
-            <Image
-              src={appIcon}
+            <img
+              src="/apple-touch-icon.png"
               alt=""
-              width={20}
-              height={20}
-              densities={[1, 2, 3]}
-              format="webp"
-              quality={90}
+              width="20"
+              height="20"
               loading="lazy"
               decoding="async"
             />

@@ -37,11 +37,6 @@ const panes = [
   <div class="app">
     <!-- macOS window chrome -->
     <header class="titlebar">
-      <div class="lights" aria-hidden="true">
-        <span class="light light--close"></span>
-        <span class="light light--min"></span>
-        <span class="light light--zoom"></span>
-      </div>
       <span class="titlebar-name">DAK</span>
       <div class="titlebar-end">
         <a class="btn btn--sm" href="/download">Get DAK</a>
@@ -60,14 +55,13 @@ const panes = [
         <input type="text" placeholder="Search" aria-label="Search this page" id="side-search" />
       </label>
 
-      <p class="side-label">Favorites</p>
+      <p class="side-label">On this page</p>
       <nav class="side-list" id="side-list">
         <span class="side-pill" aria-hidden="true"></span>
         <a class="side-item is-active" href="#overview">Overview</a>
         <a class="side-item" href="#agents">Agents</a>
         <a class="side-item" href="#canvas">Canvas</a>
         <a class="side-item" href="#install">Install</a>
-        <a class="side-item" href="#proof">Proof</a>
       </nav>
 
       <div class="side-foot">
@@ -94,6 +88,12 @@ const panes = [
             <code id="install-cmd">npx dak@latest</code>
             <span class="copy-label" id="copy-label">Copy</span>
           </button>
+        </div>
+
+        <div class="agent-line" data-in style="--d:220ms" aria-hidden="true">
+          <span class="agent-dot"></span>
+          <span class="agent-text" id="agent-text">Codex is reading the repo</span>
+          <span class="agent-step" id="agent-step">step 1 of 4</span>
         </div>
 
         <figure class="shot" data-in style="--d:240ms">
@@ -160,10 +160,7 @@ const panes = [
         <h3 class="sec-title" data-in>One command</h3>
         <div class="term" data-in style="--d:60ms" aria-hidden="true">
           <div class="term-bar">
-            <span class="light light--close"></span>
-            <span class="light light--min"></span>
-            <span class="light light--zoom"></span>
-            <span class="term-name">zsh</span>
+            <span class="term-name">install</span>
           </div>
           <p class="term-line">
             <span class="term-prompt">$</span>
@@ -175,20 +172,6 @@ const panes = [
           <li><b>Connect</b><span>Point DAK at the agents already on your machine.</span></li>
           <li><b>Work</b><span>Threads, checkpoints and a canvas, reachable from any device.</span></li>
         </ol>
-      </section>
-
-      <!-- Proof -->
-      <section class="sec" id="proof">
-        <div class="stats" data-in>
-          <div class="stat">
-            <span class="stat-num">{MARKETING_STATS.users}</span>
-            <span class="stat-cap">developers</span>
-          </div>
-          <div class="stat">
-            <span class="stat-num">6</span>
-            <span class="stat-cap">agents hosted</span>
-          </div>
-        </div>
       </section>
 
       <!-- Close -->
@@ -374,6 +357,26 @@ const panes = [
     });
   }
 
+  // The agent line walks through what an agent does in a turn. It is the one
+  // thing on the page that moves without being asked, so the product reads as
+  // working rather than as a brochure.
+  const agentText = document.getElementById("agent-text");
+  const agentStep = document.getElementById("agent-step");
+  if (agentText && agentStep && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const steps = [
+      "Codex is reading the repo",
+      "Claude is reviewing the diff",
+      "Checkpoint captured",
+      "Canvas frame handed to Grok",
+    ];
+    let at = 0;
+    setInterval(() => {
+      at = (at + 1) % steps.length;
+      agentText.textContent = steps[at];
+      agentStep.textContent = `step ${at + 1} of ${steps.length}`;
+    }, 2600);
+  }
+
   // The terminal types the install command once, when it comes into view.
   const typed = document.getElementById("typed");
   if (typed) {
@@ -482,27 +485,7 @@ const panes = [
     border-bottom: 1px solid var(--line);
   }
 
-  .lights {
-    display: inline-flex;
-    gap: 8px;
-    flex: none;
-  }
-
-  .light {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 12%);
-  }
-
-  .light--close { background: #ff5f57; }
-  .light--min { background: #febc2e; }
-  .light--zoom { background: #28c840; }
-
   .titlebar-name {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
     font-size: 13px;
     font-weight: 600;
     letter-spacing: -0.01em;
@@ -725,6 +708,44 @@ const panes = [
     color: var(--ink-3);
   }
 
+  /* The agent line is the only thing on the page that keeps moving on its
+     own: it shows what an agent is doing right now, which is the whole
+     product, rather than decorating the section. */
+  .agent-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 20px;
+    padding: 7px 13px 7px 11px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 72%);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+
+  .agent-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--blue);
+    flex: none;
+    animation: agent-pulse 1.6s ease-in-out infinite;
+  }
+
+  .agent-step {
+    font-size: 11px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .agent-text { min-width: 22ch; }
+
+  @keyframes agent-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.72); }
+  }
+
   /* ── The one image ────────────────────────────────────── */
   .shot {
     margin: 56px 0 0;
@@ -930,34 +951,6 @@ const panes = [
 
   .steps span { font-size: 16px; line-height: 1.45; color: var(--ink-2); }
 
-  /* ── Proof ────────────────────────────────────────────── */
-  .stats {
-    margin-top: 8px;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    max-width: 560px;
-  }
-
-  .stat {
-    display: grid;
-    gap: 4px;
-    padding: 22px 20px;
-    border-radius: 10px;
-    background: var(--win);
-    box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px rgb(0 0 0 / 5%);
-  }
-
-  .stat-num {
-    font-family: var(--font-sans);
-    font-size: clamp(30px, 3.4vw, 42px);
-    font-weight: 600;
-    letter-spacing: -0.04em;
-    line-height: 1;
-  }
-
-  .stat-cap { font-size: 13px; color: var(--ink-3); }
-
   /* ── Close ────────────────────────────────────────────── */
   .close {
     padding: 18svh 0 0;
@@ -1019,6 +1012,7 @@ const panes = [
     }
 
     .caret { animation: none; }
+    .agent-dot { animation: none; }
     .side-pill, .seg-thumb { transition: none; }
   }
 
