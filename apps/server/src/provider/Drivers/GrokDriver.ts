@@ -31,6 +31,7 @@ import {
 } from "../ProviderDriver.ts";
 import { withInstanceIdentity } from "./instanceIdentity.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
+import { instanceProfileEnvironment } from "../InstanceProfile.ts";
 import { discoverGrokSkills } from "./GrokSkills.ts";
 import {
   makeCachedProviderMaintenanceResolution,
@@ -102,8 +103,14 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv> = {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const serverSettings = yield* ServerSettings.ServerSettingsService;
-      const { cwd } = yield* ServerConfig.ServerConfig;
-      const processEnv = mergeProviderInstanceEnvironment(environment);
+      const { cwd, stateDir } = yield* ServerConfig.ServerConfig;
+      const instanceEnvironment = instanceProfileEnvironment({
+        stateDir,
+        driverKind: DRIVER_KIND,
+        instanceId,
+        environment,
+      });
+      const processEnv = mergeProviderInstanceEnvironment(instanceEnvironment);
       const continuationIdentity = defaultProviderContinuationIdentity({
         driverKind: DRIVER_KIND,
         instanceId,
@@ -130,7 +137,7 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv> = {
         instanceId,
         displayName,
         accentColor,
-        environment,
+        environment: instanceEnvironment,
         enabled,
         config,
       }).pipe(

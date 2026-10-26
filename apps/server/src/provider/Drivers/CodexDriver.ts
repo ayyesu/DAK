@@ -54,6 +54,7 @@ import * as ModelManifest from "../ModelManifest.ts";
 import type { ProviderDriver, ProviderInstance } from "../ProviderDriver.ts";
 import { withInstanceIdentity } from "./instanceIdentity.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
+import { resolveInstanceProfileDir } from "../InstanceProfile.ts";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   makeCachedProviderMaintenanceResolution,
@@ -150,8 +151,21 @@ export const CodexDriver: ProviderDriver<CodexSettings, CodexDriverEnv> = {
       const httpClient = yield* HttpClient.HttpClient;
       const serverSettings = yield* ServerSettings.ServerSettingsService;
       const modelManifest = yield* ModelManifest.ModelManifest;
+      const { stateDir } = yield* ServerConfig.ServerConfig;
+      // Codex resolves its home from config rather than from the environment,
+      // so an account beyond the primary gets a private one here. Any home the
+      // user already chose, including a shadow home or a CODEX_HOME row, stays
+      // as configured.
+      const profileHomePath =
+        config.homePath.trim() ||
+        config.shadowHomePath.trim() ||
+        environment.some((variable) => variable.name === "CODEX_HOME" && variable.value.trim())
+          ? ""
+          : (resolveInstanceProfileDir(stateDir, DRIVER_KIND, instanceId) ?? "");
+      const effectiveCodexConfig: CodexSettings =
+        profileHomePath === "" ? config : { ...config, homePath: profileHomePath };
       const processEnv = mergeProviderInstanceEnvironment(environment);
-      const homeLayout = yield* resolveCodexHomeLayout(config);
+      const homeLayout = yield* resolveCodexHomeLayout(effectiveCodexConfig);
       const continuationIdentity = codexContinuationIdentity(homeLayout);
       const stampIdentity = withInstanceIdentity({
         instanceId,
@@ -172,9 +186,9 @@ export const CodexDriver: ProviderDriver<CodexSettings, CodexDriverEnv> = {
         ),
       );
       const effectiveConfig = {
-        ...config,
+        ...effectiveCodexConfig,
         enabled,
-        binaryPath: expandHomePath(config.binaryPath),
+        binaryPath: expandHomePath(effectiveCodexConfig.binaryPath),
         homePath: homeLayout.effectiveHomePath ?? "",
       } satisfies CodexSettings;
       const resolveMaintenance = yield* makeCachedProviderMaintenanceResolution(
@@ -198,7 +212,7 @@ export const CodexDriver: ProviderDriver<CodexSettings, CodexDriverEnv> = {
           accentColor,
           environment,
           enabled,
-          config,
+          config: effectiveCodexConfig,
         },
         { onUsageLimits: (update) => snapshot.applyUsageLimits(update) },
       ).pipe(

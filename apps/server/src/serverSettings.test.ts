@@ -470,6 +470,42 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
+  it.effect("persists the computed profile stamp on a fresh instance create", () =>
+    Effect.gen(function* () {
+      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
+      const path = yield* Path.Path;
+      const { stateDir } = yield* ServerConfig.ServerConfig;
+      const instanceId = ProviderInstanceId.make("claude_work");
+      const persisted = yield* serverSettings.updateProviderInstance({
+        operation: "create",
+        instanceId,
+        instance: {
+          driver: ProviderDriverKind.make("claudeAgent"),
+          displayName: "Claude Work",
+        },
+      });
+      assert.deepStrictEqual(persisted.providerInstances[instanceId]?.environment, [
+        {
+          name: "CLAUDE_CONFIG_DIR",
+          value: path.join(stateDir, "providers", "claudeAgent", "claude_work"),
+          sensitive: false,
+        },
+      ]);
+
+      // The stamp applies to fresh creates only: an upsert without the row
+      // keeps it deleted, so removing a row stays an escape hatch.
+      const upserted = yield* serverSettings.updateProviderInstance({
+        operation: "upsert",
+        instanceId,
+        instance: {
+          driver: ProviderDriverKind.make("claudeAgent"),
+          displayName: "Claude Work",
+        },
+      });
+      assert.equal(upserted.providerInstances[instanceId]?.environment, undefined);
+    }).pipe(Effect.provide(layerServerSettings())),
+  );
+
   it.effect("pauses provider-instance mutations while a settings snapshot is in use", () =>
     Effect.gen(function* () {
       const serverSettings = yield* ServerSettingsModule.ServerSettingsService;

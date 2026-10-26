@@ -1,5 +1,6 @@
-import { MuseSettings, ProviderDriverKind } from "@dak/contracts";
+import { MuseSettings, ProviderDriverKind, type ServerProvider } from "@dak/contracts";
 import { HostProcessEnvironment } from "@dak/shared/hostProcess";
+import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -21,6 +22,8 @@ import * as ProviderEventLoggers from "../ProviderEventLoggers.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import { enrichMuseSnapshot, latestMuseVersion, museMaintenance } from "../museMaintenance.ts";
 import { makeMuseEnvironment } from "../museSdk.ts";
+import { makeTerminalAuth } from "../TerminalAuth.ts";
+import { instanceProfileEnvironment } from "../InstanceProfile.ts";
 import {
   defaultProviderContinuationIdentity,
   type ProviderDriver,
@@ -46,6 +49,7 @@ export type MuseDriverEnv =
   | BackgroundPolicy.BackgroundPolicy
   | ChildProcessSpawner.ChildProcessSpawner
   | FileSystem.FileSystem
+  | Crypto.Crypto
   | HttpClient.HttpClient
   | Path.Path
   | ProviderEventLoggers.ProviderEventLoggers
@@ -66,13 +70,18 @@ export const MuseDriver: ProviderDriver<MuseSettings, MuseDriverEnv> = {
       const serverSettings = yield* ServerSettings.ServerSettingsService;
       const eventLoggers = yield* ProviderEventLoggers.ProviderEventLoggers;
       const serverConfig = yield* ServerConfig.ServerConfig;
-      const { cwd } = serverConfig;
+      const { cwd, stateDir } = serverConfig;
       const idAllocator = yield* IdAllocator.IdAllocatorV2;
       const continuationRequests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
       const hostEnvironment = yield* HostProcessEnvironment;
       // Drop an inherited META_API_KEY so Muse uses its login; an instance value still wins.
       const processEnvironment = mergeProviderInstanceEnvironment(
-        environment,
+        instanceProfileEnvironment({
+          stateDir,
+          driverKind: DRIVER_KIND,
+          instanceId,
+          environment,
+        }),
         makeMuseEnvironment(hostEnvironment),
       );
       const effectiveConfig = {
@@ -90,6 +99,13 @@ export const MuseDriver: ProviderDriver<MuseSettings, MuseDriverEnv> = {
         displayName,
         accentColor,
         continuationGroupKey: continuationIdentity.continuationKey,
+      });
+      // Advertise the terminal sign-in this driver wires to every instance, so
+      // account surfaces show its sign-in once the CLI is present. DAK does
+      // not install Muse Code itself.
+      const stampAuthSetup = (snapshot: ServerProvider) => ({
+        ...snapshot,
+        setup: { canAuthenticate: snapshot.installed, canInstall: false },
       });
       const snapshotSettings = makeProviderSnapshotSettingsSource(effectiveConfig, serverSettings);
       const resolveInstallation = yield* makeCachedProviderMaintenanceResolution(
@@ -120,9 +136,13 @@ export const MuseDriver: ProviderDriver<MuseSettings, MuseDriverEnv> = {
         streamSettings: snapshotSettings.streamSettings,
         haveSettingsChanged: haveProviderSnapshotSettingsChanged,
         initialSnapshot: (settings) =>
-          makePendingMuseProvider(settings.provider).pipe(Effect.map(stampIdentity)),
+          makePendingMuseProvider(settings.provider).pipe(
+            Effect.map(stampIdentity),
+            Effect.map(stampAuthSetup),
+          ),
         checkProvider: checkMuseProviderStatus(effectiveConfig, processEnvironment, cwd).pipe(
           Effect.map(stampIdentity),
+          Effect.map(stampAuthSetup),
           Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
           Effect.provideService(FileSystem.FileSystem, fileSystem),
           Effect.provideService(Path.Path, path),
@@ -167,6 +187,29 @@ export const MuseDriver: ProviderDriver<MuseSettings, MuseDriverEnv> = {
         environment: processEnvironment,
         modelCatalog,
       });
+      // Terminal sign-in runs `muse login` inside this instance's profile, so
+      // a second Meta account never touches the host credentials.
+      const auth = yield* makeTerminalAuth({
+        instanceId,
+        displayName: displayName ?? "Muse Code",
+        enabled: effectiveConfig.enabled,
+        credentialBinding: { owner: "provider", key: `muse:${instanceId}` },
+        command: effectiveConfig.binaryPath,
+        environment: processEnvironment,
+        cwd,
+        methods: [
+          {
+            id: "terminal",
+            name: "Sign in with your Meta account",
+            description:
+              "Runs `muse login` so you can approve a code in your browser. The credential lands in this instance's own profile.",
+            args: ["login"],
+          },
+        ],
+        logoutArgs: ["logout"],
+        onChanged: () => snapshot.refresh.pipe(Effect.asVoid),
+      });
+
       return {
         instanceId,
         driverKind: DRIVER_KIND,
@@ -175,6 +218,7 @@ export const MuseDriver: ProviderDriver<MuseSettings, MuseDriverEnv> = {
         accentColor,
         enabled,
         snapshot,
+        auth,
         orchestrationAdapter,
         textGeneration,
       } satisfies ProviderInstance;

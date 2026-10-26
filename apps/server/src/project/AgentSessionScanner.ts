@@ -50,6 +50,11 @@ import { normalizeProjectPathForComparison } from "@dak/shared/path";
 import * as ServerConfig from "../config.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
+import {
+  instanceProfileEnvironment,
+  resolveInstanceProfileDir,
+} from "../provider/InstanceProfile.ts";
+import { mergeProviderInstanceEnvironment } from "../provider/ProviderInstanceEnvironment.ts";
 import { expandHomePath } from "../pathExpansion.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import {
@@ -1126,10 +1131,36 @@ export const make = Effect.gen(function* () {
       const seenHomes = new Set<string>();
       for (const { instanceId, config: instance } of instances) {
         const homeVariable = source === "claudeAgent" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME";
-        const environmentHome =
-          instance.environment?.findLast((variable) => variable.name === homeVariable)?.value ??
-          hostEnvironment[homeVariable];
-
+        // The profile stamp is computed at driver create and never stored, so
+        // the child's effective home must be re-derived here exactly as the
+        // driver derives it, or a secondary account's sessions are attributed
+        // to the default instance's home.
+        const stampedEnvironment = mergeProviderInstanceEnvironment(
+          instanceProfileEnvironment({
+            stateDir: serverConfig.stateDir,
+            driverKind: ProviderDriverKind.make(source),
+            instanceId,
+            environment: instance.environment ?? [],
+          }),
+          hostEnvironment,
+        );
+        const environmentHome = stampedEnvironment[homeVariable]?.trim() || undefined;
+        // Codex keeps its stamp in config, not the environment: a non-empty
+        // CODEX_HOME row means the driver skips the profile stamp, and a
+        // non-default instance otherwise gets its own profile dir ahead of
+        // any host-wide CODEX_HOME.
+        const explicitCodeHome =
+          instance.environment?.findLast(
+            (variable) => variable.name === "CODEX_HOME" && variable.value.trim(),
+          )?.value ?? "";
+        const profileHome =
+          source === "codex" && explicitCodeHome
+            ? ""
+            : (resolveInstanceProfileDir(
+                serverConfig.stateDir,
+                ProviderDriverKind.make(source),
+                instanceId,
+              ) ?? "");
         let homePath: string;
         if (source === "claudeAgent") {
           const config = decodeClaudeSettings(instance.config ?? {});
@@ -1138,11 +1169,13 @@ export const make = Effect.gen(function* () {
         } else {
           const config = decodeCodexSettings(instance.config ?? {});
           if (Option.isNone(config)) continue;
+          const inferredHome =
+            explicitCodeHome || profileHome || hostEnvironment["CODEX_HOME"]?.trim() || "";
           const codexSettings =
             config.value.homePath.trim().length === 0 &&
             config.value.shadowHomePath.trim().length === 0 &&
-            environmentHome?.trim()
-              ? { ...config.value, homePath: environmentHome }
+            inferredHome
+              ? { ...config.value, homePath: inferredHome }
               : config.value;
           const layout = yield* resolveCodexHomeLayout(codexSettings).pipe(
             Effect.provideService(Path.Path, path),

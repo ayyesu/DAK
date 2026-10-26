@@ -83,6 +83,8 @@ const setup = Effect.gen(function* () {
 
 const layerService = (input: {
   readonly prefix: string;
+  /** Explicit base dir; defaults to a scoped temp dir named after `prefix`. */
+  readonly baseDir?: string;
   readonly home: string;
   readonly settings: Parameters<typeof ServerSettings.layerTest>[0];
   readonly onRatesFetch?: () => void;
@@ -91,7 +93,7 @@ const layerService = (input: {
   readonly environment?: NodeJS.ProcessEnv;
   readonly platform?: NodeJS.Platform;
 }) =>
-  ServerConfig.layerTest(process.cwd(), { prefix: input.prefix }).pipe(
+  ServerConfig.layerTest(process.cwd(), input.baseDir ?? { prefix: input.prefix }).pipe(
     Layer.provideMerge(NodeServices.layer),
     Layer.provideMerge(CursorUsageReader.layer),
     Layer.provideMerge(Layer.succeed(HostProcessPlatform, input.platform ?? "linux")),
@@ -726,6 +728,130 @@ describe("UsageService", () => {
         sourcesFor("antigravity")[0]?.fingerprint.resolvedHomePath,
         yield* Effect.promise(() => NodeFSP.realpath(conversations)),
       );
+    }).pipe(Effect.scoped),
+  );
+
+  it.live("scans an isolated OpenCode instance's data dir alongside the host one", () =>
+    Effect.gen(function* () {
+      const { settings, home } = yield* setup;
+      const hostRoot = NodePath.join(home, "opencode");
+      const instanceDataHome = NodePath.join(home, "opencode-work");
+      const instanceRoot = NodePath.join(instanceDataHome, "opencode");
+      // An instance with no stored rows still gets its isolated profile at
+      // driver create, so the scanner must re-derive the same stamp.
+      const stateDir = NodePath.join(home, "dak", "userdata");
+      const implicitRoot = NodePath.join(
+        stateDir,
+        "providers",
+        "opencode",
+        "opencode_implicit",
+        "opencode",
+      );
+      const claudeProfile = NodePath.join(stateDir, "providers", "claudeAgent", "claude_work");
+      const messageFor = (sessionId: string, outputTokens: number) =>
+        encodeUnknownJson({
+          id: `msg_${sessionId}`,
+          sessionID: sessionId,
+          role: "assistant",
+          modelID: "example-model",
+          time: { created: Date.parse("2026-08-01T10:00:00Z") },
+          tokens: { input: 10, output: outputTokens, reasoning: 0, cache: { read: 0, write: 0 } },
+        });
+      const hostMessage = yield* messageFor("host-session", 5);
+      const instanceMessage = yield* messageFor("instance-session", 7);
+      const implicitMessage = yield* messageFor("implicit-session", 9);
+      const claudeTranscript = claudeLine(1, 11);
+      yield* Effect.promise(async () => {
+        const hostDirectory = NodePath.join(hostRoot, "storage", "message", "host-session");
+        await NodeFSP.mkdir(hostDirectory, { recursive: true });
+        await NodeFSP.writeFile(NodePath.join(hostDirectory, "msg_host-session.json"), hostMessage);
+        const instanceDirectory = NodePath.join(
+          instanceRoot,
+          "storage",
+          "message",
+          "instance-session",
+        );
+        await NodeFSP.mkdir(instanceDirectory, { recursive: true });
+        await NodeFSP.writeFile(
+          NodePath.join(instanceDirectory, "msg_instance-session.json"),
+          instanceMessage,
+        );
+        const implicitDirectory = NodePath.join(
+          implicitRoot,
+          "storage",
+          "message",
+          "implicit-session",
+        );
+        await NodeFSP.mkdir(implicitDirectory, { recursive: true });
+        await NodeFSP.writeFile(
+          NodePath.join(implicitDirectory, "msg_implicit-session.json"),
+          implicitMessage,
+        );
+        const claudeDirectory = NodePath.join(claudeProfile, "projects");
+        await NodeFSP.mkdir(claudeDirectory, { recursive: true });
+        await NodeFSP.writeFile(NodePath.join(claudeDirectory, "session.jsonl"), claudeTranscript);
+      });
+      const service = yield* UsageService.make.pipe(
+        Effect.provide(
+          layerService({
+            prefix: "usage-service-opencode-instance",
+            baseDir: NodePath.join(home, "dak"),
+            home,
+            // Clearing OPENCODE_DATA_DIR and pointing XDG_DATA_HOME at the
+            // test home matches a host that lets instances resolve through
+            // the XDG default.
+            environment: { OPENCODE_DATA_DIR: "", XDG_DATA_HOME: home },
+            settings: {
+              ...settings,
+              providerInstances: {
+                [ProviderInstanceId.make("opencode")]: {
+                  driver: ProviderDriverKind.make("opencode"),
+                },
+                [ProviderInstanceId.make("opencode_work")]: {
+                  driver: ProviderDriverKind.make("opencode"),
+                  environment: [
+                    { name: "XDG_DATA_HOME", value: instanceDataHome, sensitive: false },
+                  ],
+                },
+                [ProviderInstanceId.make("opencode_implicit")]: {
+                  driver: ProviderDriverKind.make("opencode"),
+                },
+                [ProviderInstanceId.make("claude_work")]: {
+                  driver: ProviderDriverKind.make("claudeAgent"),
+                },
+              },
+            },
+          }),
+        ),
+      );
+      const summary = yield* service.readSummary(WINDOW);
+      const opencodeSources = summary.sources.filter(
+        (source) => source.fingerprint.provider === "opencode",
+      );
+      // Each account counts once: the default instance dedupes onto the host
+      // root, the isolated instance resolves its stored row, and the implicit
+      // instance re-derives its profile stamp.
+      assert.strictEqual(opencodeSources.length, 3);
+      const expectedRoots = yield* Effect.promise(() =>
+        Promise.all([hostRoot, instanceRoot, implicitRoot].map((dir) => NodeFSP.realpath(dir))),
+      );
+      assert.deepStrictEqual(
+        opencodeSources.map((source) => source.fingerprint.resolvedHomePath).sort(),
+        expectedRoots.sort(),
+      );
+      const claudeSources = summary.sources.filter(
+        (source) => source.fingerprint.provider === "claude",
+      );
+      // The default slot still resolves to the legacy home; the profile dir
+      // must appear alongside it.
+      assert.strictEqual(claudeSources.length, 2);
+      assert.ok(
+        claudeSources.some(
+          (source) =>
+            source.fingerprint.resolvedHomePath === NodePath.join(claudeProfile, "projects"),
+        ),
+      );
+      assert.strictEqual(totalOutputTokens(summary), 32);
     }).pipe(Effect.scoped),
   );
 
