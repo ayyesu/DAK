@@ -165,10 +165,13 @@ mise through mise. Cursor and Antigravity update with DAK. Homebrew installs
 compare against the version Homebrew offers, which can trail the npm release by
 a few hours.
 
-Add another provider instance for a separate account or configuration. Each
-instance can have its own environment variables, such as API keys or a custom
-base URL. Mark secret values as sensitive; after saving, DAK does not display
-their original values.
+Each provider's default instance keeps the machine's existing login. Add another
+instance of a provider for a separate account: it gets its own credential profile
+in DAK's data directory, so signing in on one never touches another. OpenCode and
+Muse offer a per-instance sign-in button. Other providers pick up whatever
+credentials the instance's environment variables point at, such as API keys or a
+custom base URL; mark secret values as sensitive, and after saving DAK does not
+display their original values. Usage and rate-limit pools follow these accounts.
 
 For provider-specific setup and accounts, see [Codex](./providers-codex.md),
 [Claude](./providers-claude.md), [OpenCode](./providers-opencode.md),

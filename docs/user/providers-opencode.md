@@ -37,6 +37,15 @@ fail, check the URL, credentials, and OpenCode version, then refresh provider st
 After a lost connection, send another prompt to reconnect to the same OpenCode
 session.
 
+## Second account
+
+Add another OpenCode instance for a separate account. Each instance beyond the
+default gets its own credential profile, so its **Sign in** button runs
+`opencode auth login` inside that profile and the account never touches the
+host's login or another instance's. OpenCode's own sign-out opens an account
+picker, so DAK does not offer a sign-out button for OpenCode. Usage scans
+each instance's data directory, so token counts follow the accounts.
+
 ## Approvals
 
 OpenCode follows the shared [permission modes](./permission-modes.md). **Auto** has

@@ -32,7 +32,9 @@ Usage includes each configured account's history, including disabled accounts. C
 the account's home setting or its `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, or `GROK_HOME` environment
 variable. Use absolute paths or `~/` paths in the account's environment settings; relative
 environment paths depend on each project's working directory and cannot be reliably discovered
-by Usage. Accounts sharing a history directory count once.
+by Usage. Accounts sharing a history directory count once. Each extra instance of a provider
+counts its own credential profile's history too, and OpenCode accounts count the data directory
+their instance resolves to.
 
 When your app and server support different providers, usage totals may cover only the providers
 your app understands. Update the app to include newly supported providers.

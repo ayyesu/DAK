@@ -62,7 +62,10 @@ store, configure file storage for this setup. See
 
 Use a completely separate **CODEX_HOME path**, with no shadow home, when you want
 separate Codex sessions and configuration. That instance cannot continue threads
-from the other home.
+from the other home. Without any custom path, each extra instance starts in its
+own empty credential profile inside DAK's data directory, isolated from the host
+login; sign in there by running `codex login` with the profile's `CODEX_HOME`, or
+set a hand-picked path as above.
 
 ## Switch accounts in an existing thread
 

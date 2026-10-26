@@ -24,6 +24,12 @@ Add another Claude instance in **Settings > Providers**:
 | Claude Work     | `claude`    | Leave empty            |
 | Claude Personal | `claude`    | `~/.claude_personal`   |
 
+Without a custom setting, each extra instance starts in its own empty
+credential profile inside DAK's data directory, isolated from the host login.
+To sign in there, run the login command on the host with the profile's
+`CLAUDE_CONFIG_DIR`, or point the instance at a directory you prepared, as in
+the table.
+
 An empty config-directory setting uses Claude Code's normal configuration. The
 custom setting changes `CLAUDE_CONFIG_DIR`, leaving `HOME` and the system keychain
 location intact. Use the same variable for the login command. Setting `HOME`

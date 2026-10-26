@@ -16,6 +16,13 @@ directory, endpoint, or model configuration. `--provider` must be paired with `-
 rejects launch arguments that change Pi's execution mode or select a session because DAK owns those
 parts of the process lifecycle.
 
+## Second Account
+
+Add another Pi instance in **Settings > Providers** for a separate account. Each
+instance beyond the default gets its own credential profile, so sign in by running
+Pi once on the host with that profile's `PI_CODING_AGENT_DIR` set, or point the
+instance's environment variables at a directory you already signed into.
+
 ## What Carries Over
 
 DAK discovers the models reported by Pi and exposes their supported thinking levels. The

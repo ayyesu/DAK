@@ -27,9 +27,13 @@ Muse uses the selected environment's files and login; connecting devices do not
 need Muse installed. Install and sign in separately on each host where you want
 Muse to run.
 
-Add a provider instance for a separate configuration. Instances on the same host
-share its Muse login; give an instance its own `META_API_KEY` to bill it
-separately. Existing conversations retain their instance when its model catalog
+Add a provider instance for a separate account. Each instance beyond the
+default gets its own credential profile, so its **Sign in** button runs
+`muse login` inside that profile and the account never touches the host's
+saved login or another instance's. Sign out works the same way, per
+instance. To bill an instance with an API key instead, give it its own
+`META_API_KEY`; Muse gives that key priority over the profile's saved
+login. Existing conversations retain their instance when its model catalog
 becomes unavailable.
 
 ## Models
