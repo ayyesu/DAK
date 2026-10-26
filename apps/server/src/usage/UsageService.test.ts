@@ -729,6 +729,83 @@ describe("UsageService", () => {
     }).pipe(Effect.scoped),
   );
 
+  it.live("scans an isolated OpenCode instance's data dir alongside the host one", () =>
+    Effect.gen(function* () {
+      const { settings, home } = yield* setup;
+      const hostRoot = NodePath.join(home, "opencode");
+      const instanceDataHome = NodePath.join(home, "opencode-work");
+      const instanceRoot = NodePath.join(instanceDataHome, "opencode");
+      const messageFor = (sessionId: string, outputTokens: number) =>
+        encodeUnknownJson({
+          id: `msg_${sessionId}`,
+          sessionID: sessionId,
+          role: "assistant",
+          modelID: "example-model",
+          time: { created: Date.parse("2026-08-01T10:00:00Z") },
+          tokens: { input: 10, output: outputTokens, reasoning: 0, cache: { read: 0, write: 0 } },
+        });
+      const hostMessage = yield* messageFor("host-session", 5);
+      const instanceMessage = yield* messageFor("instance-session", 7);
+      yield* Effect.promise(async () => {
+        const hostDirectory = NodePath.join(hostRoot, "storage", "message", "host-session");
+        await NodeFSP.mkdir(hostDirectory, { recursive: true });
+        await NodeFSP.writeFile(NodePath.join(hostDirectory, "msg_host-session.json"), hostMessage);
+        const instanceDirectory = NodePath.join(
+          instanceRoot,
+          "storage",
+          "message",
+          "instance-session",
+        );
+        await NodeFSP.mkdir(instanceDirectory, { recursive: true });
+        await NodeFSP.writeFile(
+          NodePath.join(instanceDirectory, "msg_instance-session.json"),
+          instanceMessage,
+        );
+      });
+      const service = yield* UsageService.make.pipe(
+        Effect.provide(
+          layerService({
+            prefix: "usage-service-opencode-instance",
+            home,
+            // Clearing OPENCODE_DATA_DIR and pointing XDG_DATA_HOME at the
+            // test home matches a host that lets instances resolve through
+            // the XDG default.
+            environment: { OPENCODE_DATA_DIR: "", XDG_DATA_HOME: home },
+            settings: {
+              ...settings,
+              providerInstances: {
+                [ProviderInstanceId.make("opencode")]: {
+                  driver: ProviderDriverKind.make("opencode"),
+                },
+                [ProviderInstanceId.make("opencode_work")]: {
+                  driver: ProviderDriverKind.make("opencode"),
+                  environment: [
+                    { name: "XDG_DATA_HOME", value: instanceDataHome, sensitive: false },
+                  ],
+                },
+              },
+            },
+          }),
+        ),
+      );
+      const summary = yield* service.readSummary(WINDOW);
+      const opencodeSources = summary.sources.filter(
+        (source) => source.fingerprint.provider === "opencode",
+      );
+      // Both accounts count once each: the default instance dedupes onto the
+      // host root, while the isolated instance adds its own profile dir.
+      assert.strictEqual(opencodeSources.length, 2);
+      const expectedRoots = yield* Effect.promise(() =>
+        Promise.all([hostRoot, instanceRoot].map((dir) => NodeFSP.realpath(dir))),
+      );
+      assert.deepStrictEqual(
+        opencodeSources.map((source) => source.fingerprint.resolvedHomePath).sort(),
+        expectedRoots.sort(),
+      );
+      assert.strictEqual(totalOutputTokens(summary), 12);
+    }).pipe(Effect.scoped),
+  );
+
   it.live("reads configured and disabled accounts once across shared and aliased homes", () =>
     Effect.gen(function* () {
       const { transcript, settings, home } = yield* setup;

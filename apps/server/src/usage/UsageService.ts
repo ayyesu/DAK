@@ -828,8 +828,12 @@ export const make = Effect.gen(function* () {
     );
 
     const home = NodeOS.homedir();
-    const envRoots = Effect.fnUntraced(function* (key: string, defaults: readonly string[]) {
-      const roots = hostEnvironment[key]
+    const envRoots = Effect.fnUntraced(function* (
+      env: NodeJS.ProcessEnv,
+      key: string,
+      defaults: readonly string[],
+    ) {
+      const roots = env[key]
         ?.split(",")
         .map((value) => value.trim())
         .filter(Boolean);
@@ -845,14 +849,37 @@ export const make = Effect.gen(function* () {
     const dataHome = hostEnvironment["XDG_DATA_HOME"]?.trim();
 
     const openCode = Effect.gen(function* () {
-      const roots = yield* envRoots("OPENCODE_DATA_DIR", [
-        path.join(
-          dataHome && path.isAbsolute(dataHome) ? dataHome : path.join(home, ".local", "share"),
-          "opencode",
-        ),
-      ]);
+      // Host roots keep covering the history the machine's own OpenCode wrote.
+      // Each managed instance adds the data dir its isolated environment
+      // resolves to, so a second account's history is counted on its own.
+      const roots = [
+        ...(yield* envRoots(hostEnvironment, "OPENCODE_DATA_DIR", [
+          path.join(
+            dataHome && path.isAbsolute(dataHome) ? dataHome : path.join(home, ".local", "share"),
+            "opencode",
+          ),
+        ])),
+      ];
+      for (const [, instance] of Object.entries(settings.providerInstances)) {
+        if (instance.driver !== "opencode") continue;
+        const environment = mergeProviderInstanceEnvironment(instance.environment, hostEnvironment);
+        const instanceDataHome = environment["XDG_DATA_HOME"]?.trim();
+        roots.push(
+          ...(yield* envRoots(environment, "OPENCODE_DATA_DIR", [
+            path.join(
+              instanceDataHome && path.isAbsolute(instanceDataHome)
+                ? instanceDataHome
+                : path.join(home, ".local", "share"),
+              "opencode",
+            ),
+          ])),
+        );
+      }
+      // envRoots returns canonical paths, so a set dedupes a default instance
+      // that keeps the host data dir.
+      const canonicalRoots = [...new Set(roots)];
       return yield* Effect.forEach(
-        roots,
+        canonicalRoots,
         (dir) =>
           Effect.gen(function* () {
             const result = yield* Effect.promise(() => readOpenCodeUsage(dir, windowStartMs));
@@ -870,7 +897,7 @@ export const make = Effect.gen(function* () {
     });
 
     const antigravity = Effect.gen(function* () {
-      const antigravityRoots = yield* envRoots("ANTIGRAVITY_DATA_DIR", [
+      const antigravityRoots = yield* envRoots(hostEnvironment, "ANTIGRAVITY_DATA_DIR", [
         ...["antigravity", "antigravity-cli", "antigravity-ide", "antigravity-backup"].map((name) =>
           path.join(home, ".gemini", name),
         ),
