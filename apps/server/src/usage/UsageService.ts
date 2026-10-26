@@ -24,6 +24,7 @@ import {
   ClaudeSettings,
   CodexSettings,
   type ProviderInstanceConfig,
+  ProviderDriverKind,
   ProviderInstanceId,
   USAGE_CONTRACT_VERSION,
   type ServerSettings as ServerSettingsValue,
@@ -58,6 +59,10 @@ import { expandHomePath } from "../pathExpansion.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
 import { resolveAntigravityInstanceDirectories } from "../provider/antigravityAuthSupport.ts";
+import {
+  instanceProfileEnvironment,
+  resolveInstanceProfileDir,
+} from "../provider/InstanceProfile.ts";
 import { mergeProviderInstanceEnvironment } from "../provider/ProviderInstanceEnvironment.ts";
 import { readOpenCodeUsage } from "./opencodeUsageReader.ts";
 import { makeAntigravityUsageCache, readAntigravityUsage } from "./antigravityUsageReader.ts";
@@ -365,14 +370,42 @@ export const make = Effect.gen(function* () {
         });
       }
       for (const instance of instances) {
-        const environment = mergeProviderInstanceEnvironment(instance.environment, hostEnvironment);
+        // The profile stamp is computed at driver create and never stored, so
+        // the child's effective home must be re-derived here exactly as the
+        // driver derives it, or a secondary account's history is missed.
+        const environment = mergeProviderInstanceEnvironment(
+          instanceProfileEnvironment({
+            stateDir: config.stateDir,
+            driverKind: ProviderDriverKind.make(driver),
+            instanceId: instance.instanceId,
+            environment: instance.environment ?? [],
+          }),
+          hostEnvironment,
+        );
         const provider = driver === "claudeAgent" ? "claude" : driver;
         let home: string;
         if (driver === "codex") {
           const decoded = decodeCodexSettings(instance.config ?? {});
           if (Option.isNone(decoded)) continue;
           const codexConfig = decoded.value;
-          const environmentHome = environment.CODEX_HOME?.trim();
+          // The driver treats a non-empty CODEX_HOME row as the chosen home
+          // and skips its profile stamp in that case; a non-default instance
+          // otherwise gets its own profile dir ahead of any host-wide
+          // CODEX_HOME.
+          const explicitCodeHome =
+            instance.environment?.findLast(
+              (variable) => variable.name === "CODEX_HOME" && variable.value.trim(),
+            )?.value ?? "";
+          const environmentHome =
+            explicitCodeHome ||
+            (resolveInstanceProfileDir(
+              config.stateDir,
+              ProviderDriverKind.make(driver),
+              instance.instanceId,
+            ) ??
+              "") ||
+            environment.CODEX_HOME?.trim() ||
+            "";
           const layout = yield* resolveCodexHomeLayout(
             codexConfig.setupMode !== "managed" &&
               !codexConfig.homePath.trim() &&
@@ -828,8 +861,12 @@ export const make = Effect.gen(function* () {
     );
 
     const home = NodeOS.homedir();
-    const envRoots = Effect.fnUntraced(function* (key: string, defaults: readonly string[]) {
-      const roots = hostEnvironment[key]
+    const envRoots = Effect.fnUntraced(function* (
+      env: NodeJS.ProcessEnv,
+      key: string,
+      defaults: readonly string[],
+    ) {
+      const roots = env[key]
         ?.split(",")
         .map((value) => value.trim())
         .filter(Boolean);
@@ -845,14 +882,47 @@ export const make = Effect.gen(function* () {
     const dataHome = hostEnvironment["XDG_DATA_HOME"]?.trim();
 
     const openCode = Effect.gen(function* () {
-      const roots = yield* envRoots("OPENCODE_DATA_DIR", [
-        path.join(
-          dataHome && path.isAbsolute(dataHome) ? dataHome : path.join(home, ".local", "share"),
-          "opencode",
-        ),
-      ]);
+      // Host roots keep covering the history the machine's own OpenCode wrote.
+      // Each managed instance adds the data dir its isolated environment
+      // resolves to, so a second account's history is counted on its own.
+      const roots = [
+        ...(yield* envRoots(hostEnvironment, "OPENCODE_DATA_DIR", [
+          path.join(
+            dataHome && path.isAbsolute(dataHome) ? dataHome : path.join(home, ".local", "share"),
+            "opencode",
+          ),
+        ])),
+      ];
+      for (const [id, instance] of Object.entries(settings.providerInstances)) {
+        if (instance.driver !== "opencode") continue;
+        // Same stamping the driver applies at create, so an instance with no
+        // stored rows still resolves to its isolated profile dir.
+        const environment = mergeProviderInstanceEnvironment(
+          instanceProfileEnvironment({
+            stateDir: config.stateDir,
+            driverKind: ProviderDriverKind.make("opencode"),
+            instanceId: ProviderInstanceId.make(id),
+            environment: instance.environment ?? [],
+          }),
+          hostEnvironment,
+        );
+        const instanceDataHome = environment["XDG_DATA_HOME"]?.trim();
+        roots.push(
+          ...(yield* envRoots(environment, "OPENCODE_DATA_DIR", [
+            path.join(
+              instanceDataHome && path.isAbsolute(instanceDataHome)
+                ? instanceDataHome
+                : path.join(home, ".local", "share"),
+              "opencode",
+            ),
+          ])),
+        );
+      }
+      // envRoots returns canonical paths, so a set dedupes a default instance
+      // that keeps the host data dir.
+      const canonicalRoots = [...new Set(roots)];
       return yield* Effect.forEach(
-        roots,
+        canonicalRoots,
         (dir) =>
           Effect.gen(function* () {
             const result = yield* Effect.promise(() => readOpenCodeUsage(dir, windowStartMs));
@@ -870,7 +940,7 @@ export const make = Effect.gen(function* () {
     });
 
     const antigravity = Effect.gen(function* () {
-      const antigravityRoots = yield* envRoots("ANTIGRAVITY_DATA_DIR", [
+      const antigravityRoots = yield* envRoots(hostEnvironment, "ANTIGRAVITY_DATA_DIR", [
         ...["antigravity", "antigravity-cli", "antigravity-ide", "antigravity-backup"].map((name) =>
           path.join(home, ".gemini", name),
         ),

@@ -505,6 +505,12 @@ export const AcpRegistryDriver: ProviderDriver<AcpRegistrySettings, AcpRegistryD
         continuationKey: continuationIdentity.continuationKey,
       };
       const effectiveConfig = { ...config, enabled } satisfies AcpRegistrySettings;
+      // No automatic per-instance credential root here. Registry agents are
+      // arbitrary binaries, each with its own state directory and its own
+      // override variable, so there is no single home DAK could point at a
+      // profile. Multi-account still works: instance environment rows win over
+      // the host below, so setting the agent's own override (or using its
+      // advertised sign-in method) keeps accounts apart.
       const processEnvironment = mergeProviderInstanceEnvironment(environment, hostEnvironment);
       const orchestrationAdapter = yield* AcpRegistryAdapterV2Driver.create({
         instanceId,

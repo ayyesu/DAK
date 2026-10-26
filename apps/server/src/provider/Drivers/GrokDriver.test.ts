@@ -84,6 +84,37 @@ it.layer(layerTest)("GrokDriver", (it) => {
     ),
   );
 
+  it.effect.skipIf(windowsHost)("gives a second account its own GROK_HOME", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const { stateDir } = yield* ServerConfig.ServerConfig;
+      const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "dak-grok-second-" });
+      const binaryPath = path.join(tempDir, "bin", "grok");
+      yield* fs.makeDirectory(path.dirname(binaryPath), { recursive: true });
+      yield* fs.writeFileString(binaryPath, "#!/bin/sh\n");
+      yield* fs.chmod(binaryPath, 0o755);
+
+      const instance = yield* GrokDriver.create({
+        instanceId: ProviderInstanceId.make("grok-second"),
+        displayName: "Grok second",
+        enabled: false,
+        environment: [],
+        config: { ...GrokDriver.defaultConfig(), binaryPath },
+      });
+
+      const capabilities = yield* instance.snapshot.resolveMaintenance();
+      // A second account signs into its own profile directory, not the login
+      // the machine's primary account keeps using.
+      expect(capabilities.update?.env?.GROK_HOME).toBe(
+        path.join(stateDir, "providers", "grok", "grok-second"),
+      );
+    }).pipe(
+      Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawner),
+      Effect.scoped,
+    ),
+  );
+
   it.effect("stays manual-only when the configured executable does not exist", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;

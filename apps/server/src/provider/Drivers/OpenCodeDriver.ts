@@ -12,7 +12,7 @@
  *
  * @module provider/Drivers/OpenCodeDriver
  */
-import { OpenCodeSettings, ProviderDriverKind } from "@dak/contracts";
+import { OpenCodeSettings, ProviderDriverKind, type ServerProvider } from "@dak/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -47,6 +47,7 @@ import {
 } from "../OpenCodeProvider.ts";
 import { makeManagedServerProvider } from "../makeManagedServerProvider.ts";
 import * as OpenCodeRuntime from "../opencodeRuntime.ts";
+import { makeTerminalAuth } from "../TerminalAuth.ts";
 import {
   makeOpenCodeRuntimeProbe,
   probeOpenCodeRuntime,
@@ -62,6 +63,7 @@ import {
 } from "../ProviderDriver.ts";
 import { withInstanceIdentity } from "./instanceIdentity.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
+import { instanceProfileEnvironment } from "../InstanceProfile.ts";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   makeCachedProviderMaintenanceResolution,
@@ -201,7 +203,13 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
       const httpClient = yield* HttpClient.HttpClient;
       const crypto = yield* Crypto.Crypto;
       const serverSettings = yield* ServerSettings.ServerSettingsService;
-      const processEnv = mergeProviderInstanceEnvironment(environment);
+      const instanceEnvironment = instanceProfileEnvironment({
+        stateDir: serverConfig.stateDir,
+        driverKind: DRIVER_KIND,
+        instanceId,
+        environment,
+      });
+      const processEnv = mergeProviderInstanceEnvironment(instanceEnvironment);
       const continuationIdentity = defaultProviderContinuationIdentity({
         driverKind: DRIVER_KIND,
         instanceId,
@@ -212,6 +220,15 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         displayName,
         accentColor,
         continuationGroupKey: continuationIdentity.continuationKey,
+      });
+      // Advertise the terminal sign-in this driver wires to every instance, so
+      // account surfaces show its sign-in once the CLI is present. DAK does
+      // not install OpenCode itself, and its bare logout opens an interactive
+      // account picker, so no sign-out is offered until that flow is modeled.
+      const stampAuthSetup = (snapshot: ServerProvider) => ({
+        ...snapshot,
+        setup: { canAuthenticate: snapshot.installed, canInstall: false },
+        auth: { ...snapshot.auth, canLogout: false },
       });
       const effectiveConfig = { ...config, enabled } satisfies OpenCodeSettings;
       const runtimeProbe = yield* makeOpenCodeRuntimeProbe(
@@ -262,7 +279,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         instanceId,
         displayName,
         accentColor,
-        environment,
+        environment: instanceEnvironment,
         enabled,
         config,
       }).pipe(
@@ -386,6 +403,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
       ).pipe(
         Effect.map(({ provider, usageLimits }) => ({ ...provider, usageLimits })),
         Effect.map(stampIdentity),
+        Effect.map(stampAuthSetup),
         Effect.provideService(FileSystem.FileSystem, fileSystem),
         Effect.provideService(Path.Path, pathService),
         Effect.provideService(HttpClient.HttpClient, httpClient),
@@ -459,7 +477,10 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
           checkProviderOnSettingsChange: () => false,
           refreshOnInterval: false,
           initialSnapshot: (settings) =>
-            makePendingOpenCodeProvider(settings.provider).pipe(Effect.map(stampIdentity)),
+            makePendingOpenCodeProvider(settings.provider).pipe(
+              Effect.map(stampIdentity),
+              Effect.map(stampAuthSetup),
+            ),
           checkProvider,
           enrichSnapshot: ({ settings, snapshot, publishSnapshot }) =>
             resolveMaintenance().pipe(
@@ -484,6 +505,28 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         ),
       );
 
+      // Terminal sign-in runs `opencode auth login` inside this instance's
+      // profile, so a second account never touches the host credentials.
+      const auth = yield* makeTerminalAuth({
+        instanceId,
+        displayName: displayName ?? "OpenCode",
+        enabled: effectiveConfig.enabled,
+        credentialBinding: { owner: "provider", key: `opencode:${instanceId}` },
+        command: effectiveConfig.binaryPath,
+        environment: processEnv,
+        cwd: serverConfig.cwd,
+        methods: [
+          {
+            id: "terminal",
+            name: "Sign in with OpenCode",
+            description:
+              "Runs `opencode auth login` for this instance. The new account's credentials land in its own profile.",
+            args: ["auth", "login"],
+          },
+        ],
+        onChanged: () => snapshot.refresh.pipe(Effect.asVoid),
+      });
+
       return {
         instanceId,
         driverKind: DRIVER_KIND,
@@ -492,6 +535,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         accentColor,
         enabled,
         snapshot,
+        auth,
         snapshotForCwd: (cwd) =>
           !effectiveConfig.enabled
             ? snapshot.getSnapshot

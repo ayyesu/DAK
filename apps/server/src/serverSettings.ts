@@ -62,6 +62,7 @@ import {
   isModelSelectionProviderEnabled,
 } from "@dak/shared/serverSettings";
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
+import { instanceProfileEnvironment } from "./provider/InstanceProfile.ts";
 
 export { resolveSourceControlWriterModelSelection } from "@dak/shared/serverSettings";
 
@@ -221,14 +222,48 @@ export function redactServerSettingsForClient(settings: ServerSettings): ServerS
 export function applyProviderInstanceMutation(
   settings: ServerSettings,
   mutation: ProviderInstanceMutation,
+  options?: { readonly profileStateDir?: string },
 ): ServerSettings {
   const providerInstances = { ...settings.providerInstances };
   if (mutation.operation === "upsert" || mutation.operation === "create") {
-    providerInstances[mutation.instanceId] = mutation.instance;
+    // A freshly created instance is stamped with its computed profile rows so
+    // the rows persist: scanners see them, and instances that existed before
+    // isolation shipped keep their host paths (they may share the host login).
+    // Upserts of an existing instance stay untouched, so deleting a row stays
+    // an escape hatch.
+    providerInstances[mutation.instanceId] =
+      options?.profileStateDir === undefined || providerInstances[mutation.instanceId] !== undefined
+        ? mutation.instance
+        : stampNewInstanceProfile({
+            stateDir: options.profileStateDir,
+            instanceId: mutation.instanceId,
+            instance: mutation.instance,
+          });
   } else {
     delete providerInstances[mutation.instanceId];
   }
   return { ...settings, providerInstances };
+}
+
+function stampNewInstanceProfile({
+  stateDir,
+  instanceId,
+  instance,
+}: {
+  readonly stateDir: string;
+  readonly instanceId: ProviderInstanceId;
+  readonly instance: ProviderInstanceConfig;
+}): ProviderInstanceConfig {
+  const environment = instance.environment ?? [];
+  return {
+    ...instance,
+    environment: instanceProfileEnvironment({
+      stateDir,
+      driverKind: instance.driver,
+      instanceId,
+      environment,
+    }),
+  };
 }
 
 function ensureProviderInstanceMutationAllowed(
@@ -630,7 +665,7 @@ function foldLegacyProjectSettings(
 }
 
 const make = Effect.gen(function* () {
-  const { settingsPath } = yield* ServerConfig.ServerConfig;
+  const { settingsPath, stateDir } = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
   const pathService = yield* Path.Path;
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
@@ -1378,7 +1413,9 @@ const make = Effect.gen(function* () {
         Effect.gen(function* () {
           yield* ensureProviderInstanceMutationAllowed(current, mutation, settingsPath);
           const patched = applyServerSettingsPatch(current, patch);
-          return applyProviderInstanceMutation(patched, mutation);
+          return applyProviderInstanceMutation(patched, mutation, {
+            profileStateDir: stateDir,
+          });
         }),
       ),
     withSettingsSnapshot,

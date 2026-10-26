@@ -141,6 +141,41 @@ describe("mobile model options", () => {
     ]);
   });
 
+  it("names an unnamed second instance after its slug instead of the brand label", () => {
+    const config = {
+      providers: [
+        {
+          instanceId: "opencode_2",
+          driver: "opencode",
+          enabled: true,
+          installed: true,
+          auth: { status: "authenticated" },
+          models: [
+            {
+              slug: "anthropic/claude-fable-5",
+              name: "Claude Fable 5",
+              subProvider: "Anthropic",
+              isCustom: false,
+              capabilities: null,
+            },
+          ],
+        },
+      ],
+    } as unknown as ServerConfig;
+
+    const options = buildModelOptions(config, null);
+
+    expect(groupByProvider(options)).toEqual([
+      {
+        providerKey: "opencode_2",
+        // The old brand-label fallback collapsed this account into the default
+        // instance's label; the slug keeps the two accounts distinct.
+        providerLabel: "Opencode 2",
+        models: options,
+      },
+    ]);
+  });
+
   it("does not materialize catalog defaults for missing stored options", () => {
     const config = {
       providers: [
