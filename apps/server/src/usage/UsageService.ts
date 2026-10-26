@@ -24,6 +24,7 @@ import {
   ClaudeSettings,
   CodexSettings,
   type ProviderInstanceConfig,
+  ProviderDriverKind,
   ProviderInstanceId,
   USAGE_CONTRACT_VERSION,
   type ServerSettings as ServerSettingsValue,
@@ -58,6 +59,10 @@ import { expandHomePath } from "../pathExpansion.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
 import { resolveAntigravityInstanceDirectories } from "../provider/antigravityAuthSupport.ts";
+import {
+  instanceProfileEnvironment,
+  resolveInstanceProfileDir,
+} from "../provider/InstanceProfile.ts";
 import { mergeProviderInstanceEnvironment } from "../provider/ProviderInstanceEnvironment.ts";
 import { readOpenCodeUsage } from "./opencodeUsageReader.ts";
 import { makeAntigravityUsageCache, readAntigravityUsage } from "./antigravityUsageReader.ts";
@@ -365,14 +370,42 @@ export const make = Effect.gen(function* () {
         });
       }
       for (const instance of instances) {
-        const environment = mergeProviderInstanceEnvironment(instance.environment, hostEnvironment);
+        // The profile stamp is computed at driver create and never stored, so
+        // the child's effective home must be re-derived here exactly as the
+        // driver derives it, or a secondary account's history is missed.
+        const environment = mergeProviderInstanceEnvironment(
+          instanceProfileEnvironment({
+            stateDir: config.stateDir,
+            driverKind: ProviderDriverKind.make(driver),
+            instanceId: instance.instanceId,
+            environment: instance.environment ?? [],
+          }),
+          hostEnvironment,
+        );
         const provider = driver === "claudeAgent" ? "claude" : driver;
         let home: string;
         if (driver === "codex") {
           const decoded = decodeCodexSettings(instance.config ?? {});
           if (Option.isNone(decoded)) continue;
           const codexConfig = decoded.value;
-          const environmentHome = environment.CODEX_HOME?.trim();
+          // The driver treats a non-empty CODEX_HOME row as the chosen home
+          // and skips its profile stamp in that case; a non-default instance
+          // otherwise gets its own profile dir ahead of any host-wide
+          // CODEX_HOME.
+          const explicitCodeHome =
+            instance.environment?.findLast(
+              (variable) => variable.name === "CODEX_HOME" && variable.value.trim(),
+            )?.value ?? "";
+          const environmentHome =
+            explicitCodeHome ||
+            (resolveInstanceProfileDir(
+              config.stateDir,
+              ProviderDriverKind.make(driver),
+              instance.instanceId,
+            ) ??
+              "") ||
+            environment.CODEX_HOME?.trim() ||
+            "";
           const layout = yield* resolveCodexHomeLayout(
             codexConfig.setupMode !== "managed" &&
               !codexConfig.homePath.trim() &&
@@ -860,9 +893,19 @@ export const make = Effect.gen(function* () {
           ),
         ])),
       ];
-      for (const [, instance] of Object.entries(settings.providerInstances)) {
+      for (const [id, instance] of Object.entries(settings.providerInstances)) {
         if (instance.driver !== "opencode") continue;
-        const environment = mergeProviderInstanceEnvironment(instance.environment, hostEnvironment);
+        // Same stamping the driver applies at create, so an instance with no
+        // stored rows still resolves to its isolated profile dir.
+        const environment = mergeProviderInstanceEnvironment(
+          instanceProfileEnvironment({
+            stateDir: config.stateDir,
+            driverKind: ProviderDriverKind.make("opencode"),
+            instanceId: ProviderInstanceId.make(id),
+            environment: instance.environment ?? [],
+          }),
+          hostEnvironment,
+        );
         const instanceDataHome = environment["XDG_DATA_HOME"]?.trim();
         roots.push(
           ...(yield* envRoots(environment, "OPENCODE_DATA_DIR", [

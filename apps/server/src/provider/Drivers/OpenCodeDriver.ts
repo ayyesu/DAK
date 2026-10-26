@@ -223,10 +223,12 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
       });
       // Advertise the terminal sign-in this driver wires to every instance, so
       // account surfaces show its sign-in once the CLI is present. DAK does
-      // not install OpenCode itself.
+      // not install OpenCode itself, and its bare logout opens an interactive
+      // account picker, so no sign-out is offered until that flow is modeled.
       const stampAuthSetup = (snapshot: ServerProvider) => ({
         ...snapshot,
         setup: { canAuthenticate: snapshot.installed, canInstall: false },
+        auth: { ...snapshot.auth, canLogout: false },
       });
       const effectiveConfig = { ...config, enabled } satisfies OpenCodeSettings;
       const runtimeProbe = yield* makeOpenCodeRuntimeProbe(

@@ -146,10 +146,11 @@ export const makeTerminalAuth = Effect.fnUntraced(function* (options: TerminalAu
                   if (response.size) process.resize(response.size.cols, response.size.rows);
                   if (response.data) process.write(response.data);
                 },
-                catch: () =>
+                catch: (cause) =>
                   failure(
                     "respond",
                     `The ${options.displayName} sign-in terminal is no longer available.`,
+                    cause,
                   ),
               })
             : Effect.void,
@@ -220,6 +221,9 @@ export const makeTerminalAuth = Effect.fnUntraced(function* (options: TerminalAu
           const detachExit = process.onExit(({ exitCode }) => {
             Deferred.doneUnsafe(exited, Effect.succeed(exitCode));
           });
+          // Discard output so a chatty logout cannot fill the PTY pipe and
+          // block the process before it exits.
+          const detachOutput = process.onData(() => {});
           const exitCode = yield* Deferred.await(exited).pipe(
             Effect.timeoutOrElse({
               duration: "60 seconds",
@@ -227,6 +231,7 @@ export const makeTerminalAuth = Effect.fnUntraced(function* (options: TerminalAu
             }),
           );
           detachExit();
+          detachOutput();
           try {
             process.kill();
           } catch {

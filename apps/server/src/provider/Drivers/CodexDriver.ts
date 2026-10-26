@@ -154,9 +154,12 @@ export const CodexDriver: ProviderDriver<CodexSettings, CodexDriverEnv> = {
       const { stateDir } = yield* ServerConfig.ServerConfig;
       // Codex resolves its home from config rather than from the environment,
       // so an account beyond the primary gets a private one here. Any home the
-      // user already chose, including a shadow home, stays as configured.
+      // user already chose, including a shadow home or a CODEX_HOME row, stays
+      // as configured.
       const profileHomePath =
-        config.homePath.trim() || config.shadowHomePath.trim()
+        config.homePath.trim() ||
+        config.shadowHomePath.trim() ||
+        environment.some((variable) => variable.name === "CODEX_HOME" && variable.value.trim())
           ? ""
           : (resolveInstanceProfileDir(stateDir, DRIVER_KIND, instanceId) ?? "");
       const effectiveCodexConfig: CodexSettings =
