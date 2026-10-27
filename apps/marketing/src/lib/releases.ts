@@ -69,14 +69,14 @@ function readCache(key: string, maxAgeMs: number): Release | undefined {
   }
 }
 
-async function fetchRelease(url: string): Promise<Release> {
+async function fetchRelease<T = Release>(url: string): Promise<T> {
   // A rate-limited response still parses as JSON, but it is an error payload,
   // never a release. Reject it so callers fall back and nothing gets cached.
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`GitHub releases responded ${response.status}`);
   }
-  return (await response.json()) as Release;
+  return (await response.json()) as T;
 }
 
 async function fetchStable(): Promise<Release> {
@@ -84,7 +84,7 @@ async function fetchStable(): Promise<Release> {
 }
 
 async function fetchNightly(): Promise<Release> {
-  const list: Release[] = await fetchRelease(LIST_API_URL);
+  const list = await fetchRelease<Release[]>(LIST_API_URL);
   const nightly = Array.isArray(list)
     ? list.find((release) => release.tag_name?.includes("-nightly."))
     : undefined;
