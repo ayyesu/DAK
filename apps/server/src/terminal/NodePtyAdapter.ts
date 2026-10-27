@@ -10,6 +10,7 @@ import * as Schema from "effect/Schema";
 import { HostProcessArchitecture, HostProcessPlatform } from "@dak/shared/hostProcess";
 
 import * as PtyAdapter from "./PtyAdapter.ts";
+import { SpawnExecutableResolution } from "@dak/shared/shell";
 
 export class NodePtyModuleLoadError extends Schema.TaggedError<NodePtyModuleLoadError>()(
   "NodePtyModuleLoadError",
@@ -269,9 +270,20 @@ export const make = Effect.fn("NodePtyAdapter.make")(function* () {
         platform === "win32" && input.env["TERM"] === undefined
           ? { ...input.env, TERM: "xterm-256color" }
           : input.env;
+      // node-pty's Windows spawn requires an explicit path: it does not search
+      // PATH itself, and handing its native startProcess a bare extensionless
+      // command name that still manages to launch corrupts the host heap
+      // (observed as a silent 0xC0000374 that kills the whole server). Resolve
+      // against the spawn env's PATH first; a miss keeps the original shell so
+      // node-pty's own "File not found" turns into the usual clean
+      // PtySpawnError.
+      const shell =
+        platform === "win32"
+          ? ((yield* SpawnExecutableResolution)(input.shell, platform, env) ?? input.shell)
+          : input.shell;
       const ptyProcess = yield* Effect.try({
         try: () => {
-          const nativeProcess = nodePty.spawn(input.shell, input.args ?? [], {
+          const nativeProcess = nodePty.spawn(shell, input.args ?? [], {
             cwd: input.cwd,
             cols: input.cols,
             rows: input.rows,
