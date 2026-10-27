@@ -338,6 +338,10 @@ const checkProvider = Effect.fn("checkProvider")(function* (
     ReadonlyArray<OpenCode2Model>,
     OpenCodeRuntime.OpenCodeRuntimeError
   > = Effect.succeed([]),
+  openCode2Credentials: Effect.Effect<
+    ReadonlyArray<{ readonly label: string; readonly active: boolean }> | null,
+    never
+  > = Effect.succeed(null),
 ) {
   return yield* Effect.scoped(
     Effect.gen(function* () {
@@ -351,9 +355,13 @@ const checkProvider = Effect.fn("checkProvider")(function* (
         Effect.provideService(HttpClient.HttpClient, server),
         Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, OpenCodeRuntimeTestDouble),
       );
-      return yield* checkOpenCodeProviderStatus(settings, cwd, probe, openCode2Models).pipe(
-        Effect.provideService(OpenCodeServerOwner.OpenCodeServerOwner, serverOwner),
-      );
+      return yield* checkOpenCodeProviderStatus(
+        settings,
+        cwd,
+        probe,
+        openCode2Models,
+        openCode2Credentials,
+      ).pipe(Effect.provideService(OpenCodeServerOwner.OpenCodeServerOwner, serverOwner));
     }),
   );
 });
@@ -584,6 +592,68 @@ it.layer(layerTest)("checkOpenCodeProviderStatus", (it) => {
         ["low", "medium", "high"],
       );
       NodeAssert.equal(runtimeMock.state.sdkClientInputs.length, 0);
+    }),
+  );
+
+  it.effect("reports a fresh OpenCode 2 instance with no credentials as unauthenticated", () =>
+    Effect.gen(function* () {
+      runtimeMock.state.versionStdout = "opencode v2.1.3\n";
+      const snapshot = yield* checkProvider(
+        makeOpenCodeSettings(),
+        process.cwd(),
+        undefined,
+        undefined,
+        Effect.succeed([
+          { providerID: "opencode", id: "big-pickle", name: "Big Pickle", variants: [] },
+        ]),
+        Effect.succeed([]),
+      );
+
+      // Models load without an account; the credential store decides the
+      // sign-in state, so a second instance never inherits the host account.
+      NodeAssert.equal(snapshot.auth.status, "unauthenticated");
+      NodeAssert.equal(snapshot.status, "ready");
+    }),
+  );
+
+  it.effect("reports OpenCode 2 sign-in from the active credential's label", () =>
+    Effect.gen(function* () {
+      runtimeMock.state.versionStdout = "opencode v2.1.3\n";
+      const snapshot = yield* checkProvider(
+        makeOpenCodeSettings(),
+        process.cwd(),
+        undefined,
+        undefined,
+        Effect.succeed([
+          { providerID: "opencode", id: "big-pickle", name: "Big Pickle", variants: [] },
+        ]),
+        Effect.succeed([
+          { label: "anthropic", active: false },
+          { label: "Work account", active: true },
+        ]),
+      );
+
+      NodeAssert.equal(snapshot.auth.status, "authenticated");
+      NodeAssert.equal(snapshot.auth.label, "Work account");
+    }),
+  );
+
+  it.effect("reads a failed OpenCode 2 credential probe as unknown, never signed in", () =>
+    Effect.gen(function* () {
+      runtimeMock.state.versionStdout = "opencode v2.1.3\n";
+      const snapshot = yield* checkProvider(
+        makeOpenCodeSettings(),
+        process.cwd(),
+        undefined,
+        undefined,
+        Effect.succeed([
+          { providerID: "opencode", id: "big-pickle", name: "Big Pickle", variants: [] },
+        ]),
+        // The driver maps its own failures to null before the status check.
+        Effect.succeed(null),
+      );
+
+      NodeAssert.equal(snapshot.auth.status, "unknown");
     }),
   );
 

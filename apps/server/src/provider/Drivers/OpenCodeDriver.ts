@@ -331,6 +331,21 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
           ),
         ),
       );
+      // A 2.x server lists models with or without an account, so the real
+      // sign-in state is its credential store. A failed read (for example an
+      // external server too old for the endpoint) becomes null and the status
+      // check reports "unknown" instead of guessing.
+      const loadOpenCode2Credentials = openCode2Server
+        .withConnection((connection) =>
+          connection.client.credential
+            .list()
+            .pipe(
+              Effect.map((entries) =>
+                entries.map((entry) => ({ label: entry.label, active: entry.active })),
+              ),
+            ),
+        )
+        .pipe(Effect.orElseSucceed(() => null));
       // A 2.x server lists skills and commands per directory, so one server
       // answers every workspace. Its event stream says when a directory it had
       // not served yet finished scanning.
@@ -392,6 +407,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
             serverConfig.cwd,
             runtimeProbe.refresh,
             loadOpenCode2Models,
+            loadOpenCode2Credentials,
           ),
           usageLimits: readOpenCodeGoUsageLimits({
             enabled: effectiveConfig.enabled,
@@ -507,6 +523,9 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
 
       // Terminal sign-in runs `opencode auth login` inside this instance's
       // profile, so a second account never touches the host credentials.
+      // `--standalone` matters: without it the CLI hands the new credentials
+      // to the machine-wide background service instead of this profile's
+      // database, and the host login changes under every account.
       const auth = yield* makeTerminalAuth({
         instanceId,
         displayName: displayName ?? "OpenCode",
@@ -521,7 +540,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
             name: "Sign in with OpenCode",
             description:
               "Runs `opencode auth login` for this instance. The new account's credentials land in its own profile.",
-            args: ["auth", "login"],
+            args: ["auth", "login", "--standalone"],
           },
         ],
         onChanged: () => snapshot.refresh.pipe(Effect.asVoid),

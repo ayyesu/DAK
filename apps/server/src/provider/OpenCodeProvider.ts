@@ -513,13 +513,35 @@ const checkOpenCode2 = Effect.fn("checkOpenCode2")(function* (
   version: string,
   checkedAt: string,
   loadModels: Effect.Effect<ReadonlyArray<OpenCode2Model>, OpenCodeRuntime.OpenCodeRuntimeError>,
+  loadCredentials: Effect.Effect<
+    ReadonlyArray<{ readonly label: string; readonly active: boolean }> | null,
+    never
+  >,
 ) {
   const result = yield* Effect.exit(loadModels);
+  // A 2.x server lists models whether or not an account exists, so the real
+  // sign-in state comes from the server's credential store. A failed probe
+  // (older external server without the endpoint) reads as "unknown" rather
+  // than claiming a sign-in that was never checked.
+  const credentials = yield* loadCredentials;
+  const auth =
+    credentials === null
+      ? { status: "unknown" as const }
+      : credentials.length > 0
+        ? (() => {
+            const active = credentials.find((entry) => entry.active) ?? credentials[0];
+            const label = active?.label;
+            return {
+              status: "authenticated" as const,
+              ...(label !== undefined && label.length > 0 ? { label } : {}),
+            };
+          })()
+        : { status: "unauthenticated" as const };
   const probe = (status: "ready" | "warning" | "error", message: string) => ({
     installed: true,
     version,
     status,
-    auth: { status: status === "ready" ? ("authenticated" as const) : ("unknown" as const) },
+    auth,
     message,
   });
   if (result._tag === "Failure") {
@@ -536,7 +558,14 @@ const checkOpenCode2 = Effect.fn("checkOpenCode2")(function* (
       ),
       // Compaction does not depend on the model catalog.
       slashCommands: [COMPACT_SLASH_COMMAND],
-      probe: probe("error", "OpenCode could not load its model list."),
+      // A broken server leaves the sign-in state unchecked too.
+      probe: {
+        installed: true,
+        version,
+        status: "error",
+        auth: { status: "unknown" },
+        message: "OpenCode could not load its model list.",
+      },
     });
   }
   const models = providerModelsFromSettings(
@@ -580,6 +609,10 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
   loadOpenCode2Models: Effect.Effect<
     ReadonlyArray<OpenCode2Model>,
     OpenCodeRuntime.OpenCodeRuntimeError
+  >,
+  loadOpenCode2Credentials: Effect.Effect<
+    ReadonlyArray<{ readonly label: string; readonly active: boolean }> | null,
+    never
   >,
 ): Effect.fn.Return<
   ServerProviderDraft,
@@ -650,7 +683,13 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
   if (probedExit._tag === "Failure") return fallback(Cause.squash(probedExit.cause));
   const probed = probedExit.value;
   if (probed.generation === "v2") {
-    return yield* checkOpenCode2(openCodeSettings, probed.version, checkedAt, loadOpenCode2Models);
+    return yield* checkOpenCode2(
+      openCodeSettings,
+      probed.version,
+      checkedAt,
+      loadOpenCode2Models,
+      loadOpenCode2Credentials,
+    );
   }
   let version: string | null = probed.version;
   if (compareSemverVersions(probed.version, OpenCodeRuntime.MINIMUM_OPENCODE_VERSION) < 0) {
