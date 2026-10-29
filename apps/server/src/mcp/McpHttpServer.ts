@@ -20,6 +20,7 @@ import * as ServerConfig from "../config.ts";
 import * as DeviceService from "../device/DeviceService.ts";
 import * as HtmlRender from "../htmlRender/HtmlRender.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
+import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as McpToolAccess from "./McpToolAccess.ts";
 import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
@@ -470,7 +471,7 @@ const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot
     tool: new McpSchema.Tool({
       name: tool.name,
       description: Tool.getDescription(tool),
-      inputSchema: Tool.getJsonSchema(tool),
+      inputSchema: advertisedJsonSchema(tool),
       annotations: {
         ...Context.getOption(tool.annotations, Tool.Title).pipe(
           Option.map((title) => ({ title })),
@@ -680,7 +681,7 @@ const registerImageTool = <T extends Tool.Any, E, R>(
       tool: new McpSchema.Tool({
         name: tool.name,
         description: Tool.getDescription(tool),
-        inputSchema: Tool.getJsonSchema(tool),
+        inputSchema: advertisedJsonSchema(tool),
         annotations: {
           ...Context.getOption(tool.annotations, Tool.Title).pipe(
             Option.map((title) => ({ title })),
@@ -870,13 +871,48 @@ const registerHtmlPreview = Effect.fn("McpHttpServer.registerHtmlPreview")(funct
 });
 
 /**
+ * `McpServer.registerToolkit` advertises the full codec schema; agents get the compact one.
+ * Only the advertisement changes, so decoding still accepts every value the codec does.
+ */
+const withAdvertisedInputSchemas = <Tools extends Record<string, Tool.Any>, A, E, R>(
+  toolkit: Toolkit.Toolkit<Tools>,
+  registration: Effect.Effect<A, E, R>,
+) =>
+  Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const tools: Record<string, Tool.Any> = toolkit.tools;
+    const advertising = McpServer.McpServer.of({
+      ...server,
+      addTool: (options) => {
+        const tool = tools[options.tool.name];
+        return server.addTool(
+          tool === undefined
+            ? options
+            : {
+                ...options,
+                tool: new McpSchema.Tool({
+                  ...options.tool,
+                  inputSchema: advertisedJsonSchema(tool),
+                }),
+              },
+        );
+      },
+    });
+    return yield* registration.pipe(Effect.provideService(McpServer.McpServer, advertising));
+  });
+
+/**
  * `McpServer.toolkit` for handlers that declared their access (see
  * `McpToolAccess`). Every toolkit on `/mcp` registers through this.
  */
 export const toolkitRegistration = <Tools extends Record<string, Tool.Any>, EX, RX>(
   toolkit: Toolkit.Toolkit<Tools>,
   handlers: McpToolAccess.HandlersLayer<Tools, EX, RX>,
-) => McpServer.toolkit(toolkit).pipe(Layer.provide(McpToolAccess.HandlersLayer.layer(handlers)));
+) =>
+  Layer.effectDiscard(withAdvertisedInputSchemas(toolkit, McpServer.registerToolkit(toolkit))).pipe(
+    Layer.provide(McpServer.McpServer.layer),
+    Layer.provide(McpToolAccess.HandlersLayer.layer(handlers)),
+  );
 
 /** A hand-registered tool, also only with handlers that declared their access. */
 const imageToolRegistration = <Tools extends Record<string, Tool.Any>, A, E, R, EX, RX>(
@@ -971,7 +1007,11 @@ export const layerMcpTransport = McpServer.layerHttp({
   protocols: [McpProtocol.v2025_06_18],
 }).pipe(Layer.provide(layerMcpAuthMiddleware));
 
-export const layer = Layer.mergeAll(
+/**
+ * Every toolkit registered on `/mcp`, without a transport. Production adds `layerMcpTransport`;
+ * tests build this to read the advertised tool surface without serving HTTP.
+ */
+export const layerTools = Layer.mergeAll(
   layerPreviewToolkit,
   layerOrchestratorToolkit,
   layerThreadToolkit,
@@ -984,4 +1024,6 @@ export const layer = Layer.mergeAll(
   layerPullRequestsToolkit,
   layerDeviceToolkit,
   layerHtmlToolkit,
-).pipe(Layer.provideMerge(layerMcpTransport));
+);
+
+export const layer = layerTools.pipe(Layer.provideMerge(layerMcpTransport));
