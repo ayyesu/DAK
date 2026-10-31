@@ -2,7 +2,7 @@
 import { getImage } from "astro:assets";
 import socialCard from "../assets/social-card.webp";
 import bricolageLatinUrl from "../assets/fonts/bricolage-grotesque-latin.woff2?url";
-import { GITHUB_REPOSITORY_URL } from "../lib/site";
+import { CONTRIBUTING_URL, GITHUB_ISSUES_URL, GITHUB_REPOSITORY_URL } from "../lib/site";
 import "../styles/fonts.css";
 
 interface Props {
@@ -80,8 +80,9 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
             <span class="nav-brand-name">DAK</span>
           </a>
           <div class="nav-right">
-            <a class="nav-link" href="/#rack">Threads</a>
-            <a class="nav-link" href="/#agents">Agents</a>
+            <a class="nav-link" href="/#features">Features</a>
+            <a class="nav-link" href="/#providers">Providers</a>
+            <a class="nav-link" href="/#open-source">Open source</a>
             <a class="nav-link" href="/#install">Install</a>
             <a class="btn btn-primary" href="/download">Download</a>
           </div>
@@ -107,6 +108,8 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
           </div>
           <div class="footer-links">
             <a href={GITHUB_REPOSITORY_URL} target="_blank" rel="noreferrer">GitHub</a>
+            <a href={GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">Issues</a>
+            <a href={CONTRIBUTING_URL} target="_blank" rel="noreferrer">Contribute</a>
             <a href="/download">Download</a>
             <a href="/legal">Legal</a>
           </div>
@@ -370,7 +373,9 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     color: #fff;
   }
 
-  .nav-brand-mark { border-radius: 6px; }`n`n  .nav-brand-name {
+  .nav-brand-mark { border-radius: 6px; }
+
+  .nav-brand-name {
     font-size: 16px;
     font-weight: 650;
     letter-spacing: -0.025em;

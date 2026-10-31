@@ -48,7 +48,10 @@ const sections = [
       If you believe you have found a security vulnerability affecting DAK or DAK-operated
       infrastructure, email{" "}<a href="mailto:security@ping.gg">security@ping.gg</a>. Please do not
       disclose the issue publicly until we have had a reasonable opportunity to investigate and
-      remediate it.
+      remediate it. The repository also publishes this process in{" "}<a
+        href="https://github.com/ayyesu/DAK/blob/main/.github/SECURITY.md"
+        >.github/SECURITY.md</a
+      >.
     </p>
     <p>Please include, when available:</p>
     <ul>
@@ -82,7 +85,7 @@ const sections = [
       <li>Access only the minimum information needed to demonstrate the issue;</li>
       <li>Avoid disrupting availability, degrading performance, or damaging or deleting data;</li>
       <li>Not use social engineering, phishing, physical attacks, or denial-of-service testing;</li>
-      <li>Not test third-party services or infrastructure outside DAK’ control; and</li>
+      <li>Not test third-party services or infrastructure outside DAK’s control; and</li>
       <li>Give us reasonable time to address the issue before public disclosure.</li>
     </ul>
     <p>
@@ -114,6 +117,10 @@ const sections = [
         <strong>Credential protection.</strong> DAK uses platform-provided protected storage for
         credentials and session tokens where supported. We design operational logging to avoid
         collecting secrets that are not needed to operate or troubleshoot the Services.
+      </li>
+      <li>
+        <strong>Public source.</strong> The server, clients, and provider adapters are in one public
+        repository, so you can review how DAK handles credentials, sessions, and provider output.
       </li>
       <li>
         <strong>Access controls.</strong> Access to production systems and operational data is limited

@@ -2,51 +2,106 @@
 import { Image } from "astro:assets";
 import Layout from "../layouts/Layout.astro";
 import { RELEASES_URL } from "../lib/releases";
-import { GITHUB_REPOSITORY_URL, MARKETING_STATS } from "../lib/site";
+import {
+  CONTRIBUTING_URL,
+  GITHUB_ISSUES_URL,
+  GITHUB_NEW_ISSUE_URL,
+  GITHUB_REPOSITORY_URL,
+  LICENSE_URL,
+  PROVIDER_SETUP_URL,
+} from "../lib/site";
 import dakApp from "../assets/dak-app.png";
 
 const providers = [
-  { name: "Codex", by: "OpenAI" },
-  { name: "Claude Code", by: "Anthropic" },
-  { name: "Cursor", by: "Anysphere" },
-  { name: "Grok", by: "xAI" },
-  { name: "OpenCode", by: "Open source" },
-  { name: "Antigravity", by: "Google" },
+  { name: "Codex", by: "OpenAI", logo: "/harnesses/openai_dark.svg" },
+  { name: "Claude Code", by: "Anthropic", logo: "/harnesses/claude-ai-icon.svg" },
+  { name: "Cursor", by: "Anysphere", logo: "/harnesses/cursor_light.svg" },
+  { name: "Grok", by: "xAI", logo: "/harnesses/grok-dark.svg" },
+  { name: "OpenCode", by: "SST", logo: "/harnesses/opencode-dark.svg" },
+  { name: "Antigravity", by: "Google", logo: "/harnesses/antigravity.svg" },
 ];
 
-const panes = [
+const facts = [
+  { value: "MIT", label: "open source license" },
+  { value: "6", label: "agent providers" },
+  { value: "Free", label: "to download" },
+];
+
+const features = [
   {
-    id: "threads",
-    title: "Threads",
-    body: "One list, every agent. Codex can be refactoring while Claude reviews and Grok reads a thread you left overnight. Switch between them without switching apps.",
+    index: "01",
+    title: "Threads, not tabs",
+    body: "Keep one thread list per project. Run Codex, Claude, and Cursor at the same time and switch without losing context.",
   },
   {
-    id: "canvas",
-    title: "Canvas",
-    body: "A surface inside the same window. Draw the shape you want, then hand the frame to a thread and let an agent build it.",
+    index: "02",
+    title: "A worktree per thread",
+    body: "Give parallel agents their own git worktree, so two turns do not edit the same files.",
   },
   {
-    id: "review",
-    title: "Review",
-    body: "Every turn ends in a checkpoint: a hidden git ref. Read the diff, keep the change, or restore the branch and go again.",
+    index: "03",
+    title: "A checkpoint every turn",
+    body: "Each turn ends in a hidden git ref. Read the diff, keep the change, or restore the branch.",
+  },
+  {
+    index: "04",
+    title: "Review before you apply",
+    body: "See file changes and command output in the thread. Permission modes control what runs without asking.",
+  },
+  {
+    index: "05",
+    title: "A terminal in the same window",
+    body: "Run the project scripts next to the agent that changed them.",
+  },
+  {
+    index: "06",
+    title: "Remote when you leave",
+    body: "Open the same environment from the web app or the iOS and Android apps. Agents keep running on your computer.",
   },
 ];
 
 const steps = [
-  { title: "Install", body: "The desktop app, or straight from the terminal." },
-  { title: "Connect", body: "Point DAK at the agents already on your machine." },
-  { title: "Work", body: "Threads, checkpoints and a canvas, reachable from any device." },
+  { title: "Install", body: "Use the desktop build for macOS, Windows, or Linux, or run the server from a terminal." },
+  { title: "Connect", body: "Sign in to the agent providers you already use. DAK lists them when you start a thread." },
+  { title: "Work", body: "Open a project, start a thread, and review the checkpoint when the turn ends." },
+];
+
+const contribute = [
+  {
+    title: "Read the source",
+    body: "Browse the server, web, desktop, and mobile apps in one repository.",
+    href: GITHUB_REPOSITORY_URL,
+  },
+  {
+    title: "Report a bug",
+    body: "Open an issue with reproduction steps and the environment you used.",
+    href: GITHUB_NEW_ISSUE_URL,
+  },
+  {
+    title: "Propose a change",
+    body: "Large changes need an agreed direction first. Read the approval rules in the contributing guide.",
+    href: `${CONTRIBUTING_URL}#establish-the-problem-and-scope-first`,
+  },
+  {
+    title: "Contributing guide",
+    body: "Read the scope, approval, and verification rules before you open a pull request.",
+    href: CONTRIBUTING_URL,
+  },
 ];
 ---
 
-<Layout pageClass="page--app">
+<Layout
+  pageClass="page--app"
+  title="DAK · One window for every coding agent"
+  description="DAK is a free, open source desktop app for running Codex, Claude Code, Cursor, Grok, OpenCode, and Antigravity in one window."
+>
   <div class="app">
     <header class="topbar">
       <span class="topbar-name">DAK</span>
       <nav class="topnav" aria-label="Sections">
-        <a class="topnav-link is-active" href="#overview">Overview</a>
-        <a class="topnav-link" href="#agents">Agents</a>
-        <a class="topnav-link" href="#canvas">Canvas</a>
+        <a class="topnav-link" href="#features">Features</a>
+        <a class="topnav-link" href="#providers">Providers</a>
+        <a class="topnav-link" href="#open-source">Open source</a>
         <a class="topnav-link" href="#install">Install</a>
       </nav>
       <a class="btn btn--sm" href="/download">Get DAK</a>
@@ -55,12 +110,14 @@ const steps = [
     <main class="pane">
       <!-- Hero -->
       <section class="hero" id="overview">
-        <h2 class="display" data-in>
+        <p class="eyebrow" data-in>Open source · MIT licensed</p>
+        <h1 class="display" data-in style="--d:40ms">
           One window for<br />every agent.
-        </h2>
-        <p class="lead" data-in style="--d:70ms">
-          Bring your own subscriptions. DAK hosts the coding agents you already pay
-          for, side by side, with threads, checkpoints and a canvas in the same place.
+        </h1>
+        <p class="lead" data-in style="--d:90ms">
+          DAK is a free, open source desktop app that runs the coding agents you
+          already use. Keep your subscriptions. Get threads, worktrees,
+          checkpoints, and a canvas in one place.
         </p>
 
         <div class="actions" data-in style="--d:140ms">
@@ -68,13 +125,24 @@ const steps = [
             <span id="download-label">Get DAK</span>
           </a>
           <button class="copy" id="copy-btn" type="button">
-            <code id="install-cmd">npx dak@latest</code>
+            <code id="install-cmd">curl -fsSL https://dak.codes/install.sh | sh</code>
             <span class="copy-label" id="copy-label">Copy</span>
           </button>
         </div>
 
+        <ul class="facts" data-in style="--d:190ms" aria-label="DAK at a glance">
+          {
+            facts.map((fact) => (
+              <li>
+                <b>{fact.value}</b>
+                <span>{fact.label}</span>
+              </li>
+            ))
+          }
+        </ul>
+
         <!-- A turn, drawn left to right so it reads as a pipeline -->
-        <div class="run" data-in style="--d:210ms" aria-hidden="true">
+        <div class="run" data-in style="--d:240ms" aria-hidden="true">
           <p class="run-head">
             <span class="run-live"></span>
             <span>Working</span>
@@ -91,7 +159,7 @@ const steps = [
           </div>
         </div>
 
-        <figure class="shot" data-in style="--d:280ms">
+        <figure class="shot" data-in style="--d:300ms">
           <Image
             src={dakApp}
             alt="DAK: a thread with an agent on the left and the design canvas on the right, in one window"
@@ -102,62 +170,99 @@ const steps = [
         </figure>
       </section>
 
-      <!-- Agents -->
-      <section class="sec" id="agents">
+      <!-- What ships today -->
+      <section class="sec" id="features">
         <div class="sec-head">
-          <h3 class="sec-title" data-in>Runs the agents you already pay for</h3>
+          <h2 class="sec-title" data-in>Built for work you can review.</h2>
           <p class="sec-lead" data-in style="--d:60ms">
-            No key to paste, nothing re-billed. Point DAK at the CLIs on your machine
-            and they show up as threads.
+            Every feature below ships in the app today. The source is public,
+            so you can check for yourself.
           </p>
         </div>
-        <ul class="tiles" data-in style="--d:120ms">
+
+        <ul class="features" data-in style="--d:120ms">
           {
-            providers.map((p) => (
-              <li class="tile">
-                <span class="tile-mark" aria-hidden="true">{p.name.charAt(0)}</span>
-                <span class="tile-name">{p.name}</span>
-                <span class="tile-by">{p.by}</span>
+            features.map((feature) => (
+              <li class="feature">
+                <span class="feature-index">{feature.index}</span>
+                <h3>{feature.title}</h3>
+                <p>{feature.body}</p>
               </li>
             ))
           }
         </ul>
-      </section>
 
-      <!-- Canvas, on a dark band -->
-      <section class="sec" id="canvas">
-        <div class="band" data-in>
-          <div class="band-inner">
-            <h3 class="band-title" data-in>What is in the window</h3>
-            <div class="seg" data-seg data-in style="--d:60ms">
-              <span class="seg-thumb" aria-hidden="true"></span>
-              {
-                panes.map((p, i) => (
-                  <button class="seg-btn" type="button" data-pane={p.id} aria-selected={i === 0 ? "true" : "false"}>
-                    {p.title}
-                  </button>
-                ))
-              }
-            </div>
-            <div class="pane-body" data-in style="--d:120ms">
-              {
-                panes.map((p, i) => (
-                  <p class="pane-text" data-pane-body={p.id} hidden={i !== 0}>
-                    {p.body}
-                  </p>
-                ))
-              }
+        <div class="canvas-card" data-in style="--d:180ms">
+          <div class="canvas-copy">
+            <span class="feature-index">07</span>
+            <h3>Canvas</h3>
+            <p>
+              Agents put pages and mockups on a canvas as frames. Pan, zoom, and
+              read the design beside the thread that made it.
+            </p>
+          </div>
+          <div class="canvas-mock" aria-hidden="true">
+            <div class="canvas-toolbar"><span></span><span></span><span></span></div>
+            <div class="canvas-stage">
+              <span class="canvas-frame"><span>Frame 01</span></span>
+              <span class="canvas-cursor"></span>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Providers -->
+      <section class="sec" id="providers">
+        <div class="band band--providers" data-in>
+          <div class="band-head">
+            <h2 class="band-title">Bring the agents you already use.</h2>
+            <p class="band-lead">
+              DAK does not resell models or keys. It connects to the agent tools
+              you already use, under your existing subscriptions.
+            </p>
+          </div>
+
+          <ul class="provider-grid">
+            {
+              providers.map((provider) => (
+                <li class="provider">
+                  <span class="provider-logo">
+                    <img
+                      src={provider.logo}
+                      alt=""
+                      width="28"
+                      height="28"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </span>
+                  <span class="provider-copy">
+                    <b>{provider.name}</b>
+                    <span>{provider.by}</span>
+                  </span>
+                </li>
+              ))
+            }
+          </ul>
+
+          <p class="band-note">
+            Install and sign in to at least one provider before you start.
+            Settings also lists Muse Code, Pi, and the ACP Registry for adding
+            other agents.{" "}
+            <a href={PROVIDER_SETUP_URL} target="_blank" rel="noreferrer">
+              Provider setup
+            </a>
+          </p>
         </div>
       </section>
 
       <!-- Install -->
       <section class="sec" id="install">
         <div class="sec-head sec-head--center">
-          <h3 class="sec-title" data-in>One command</h3>
+          <h2 class="sec-title" data-in>Three steps, no account required.</h2>
           <p class="sec-lead" data-in style="--d:60ms">
-            No account, no key exchange. The terminal is the whole onboarding.
+            Local use does not need a DAK account. Install the app or run the
+            server from a terminal.
           </p>
         </div>
 
@@ -171,29 +276,106 @@ const steps = [
           </p>
         </div>
 
+        <p class="term-note" data-in style="--d:140ms">
+          On Windows, run <code>irm https://dak.codes/install.ps1 | iex</code> in PowerShell.
+        </p>
+
         <ol class="steps" data-in style="--d:180ms">
           {
-            steps.map((s) => (
+            steps.map((step) => (
               <li class="step">
-                <b>{s.title}</b>
-                <span>{s.body}</span>
+                <b>{step.title}</b>
+                <span>{step.body}</span>
               </li>
             ))
           }
         </ol>
       </section>
 
+      <!-- Open source -->
+      <section class="sec" id="open-source">
+        <div class="band band--source" data-in>
+          <div class="source-head">
+            <span class="source-badge">MIT</span>
+            <h2 class="band-title">Open source, all the way down.</h2>
+            <p class="band-lead">
+              The server, clients, and provider adapters are in one public
+              repository. Read the code before you trust it.
+            </p>
+            <a class="source-license" href={LICENSE_URL} target="_blank" rel="noreferrer">
+              Read the license <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+
+          <ul class="source-links">
+            {
+              contribute.map((item) => (
+                <li>
+                  <a href={item.href} target="_blank" rel="noreferrer">
+                    <span class="source-link-title">{item.title}</span>
+                    <span class="source-link-body">{item.body}</span>
+                    <span class="source-arrow" aria-hidden="true">↗</span>
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+
+          <p class="band-note">
+            Focused bug fixes, reliability fixes, and performance work are the
+            most likely to be accepted. A new feature needs an agreed direction
+            before the work starts.{" "}
+            <a href={GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">
+              Browse open issues
+            </a>
+          </p>
+        </div>
+      </section>
+
+      <!-- Download -->
+      <section class="sec" id="download">
+        <div class="sec-head">
+          <h2 class="sec-title" data-in>Get DAK.</h2>
+          <p class="sec-lead" data-in style="--d:60ms">
+            Free to download. Your provider subscriptions stay yours.
+          </p>
+        </div>
+
+        <div class="platforms" data-in style="--d:120ms">
+          <a class="platform" href="/download">
+            <span class="platform-os">macOS</span>
+            <span class="platform-detail">Apple Silicon and Intel</span>
+            <span class="platform-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="platform" href="/download">
+            <span class="platform-os">Windows</span>
+            <span class="platform-detail">Windows 10 and 11, x64</span>
+            <span class="platform-arrow" aria-hidden="true">→</span>
+          </a>
+          <a class="platform" href="/download">
+            <span class="platform-os">Linux</span>
+            <span class="platform-detail">Debian, Ubuntu, AppImage</span>
+            <span class="platform-arrow" aria-hidden="true">→</span>
+          </a>
+        </div>
+
+        <p class="platform-note" data-in style="--d:160ms">
+          Prefer a terminal? <code>curl -fsSL https://dak.codes/install.sh | sh</code> or{" "}
+          <a href="/download">see every install option</a>.
+        </p>
+      </section>
+
       <!-- Close -->
       <section class="close">
         <p class="close-line" data-in>
-          Open source. Your agents. One window.
+          Your agents. Your machine. Your window.
         </p>
         <div class="actions" data-in style="--d:80ms">
           <a id="download-btn-2" href={RELEASES_URL} class="btn btn--lg">
             <span id="download-label-2">Get DAK</span>
           </a>
           <a class="quiet" href={GITHUB_REPOSITORY_URL} target="_blank" rel="noreferrer">
-            {MARKETING_STATS.users} people already use it
+            Read the source
           </a>
         </div>
       </section>
@@ -202,6 +384,8 @@ const steps = [
         <span>&copy; {new Date().getFullYear()} DAK</span>
         <span class="foot-links">
           <a href={GITHUB_REPOSITORY_URL} target="_blank" rel="noreferrer">GitHub</a>
+          <a href={GITHUB_ISSUES_URL} target="_blank" rel="noreferrer">Issues</a>
+          <a href={CONTRIBUTING_URL} target="_blank" rel="noreferrer">Contribute</a>
           <a href="/download">Download</a>
           <a href="/legal">Legal</a>
         </span>
@@ -274,10 +458,10 @@ const steps = [
   if (copyBtn && cmdEl && copyLabel) {
     copyBtn.addEventListener("click", async () => {
       try {
-        await navigator.clipboard.writeText(cmdEl.textContent?.trim() ?? "npx dak@latest");
+        await navigator.clipboard.writeText(cmdEl.textContent?.trim() ?? "");
         copyLabel.textContent = "Copied";
       } catch {
-        copyLabel.textContent = "Press Cmd+C";
+        copyLabel.textContent = navigator.userAgent.includes("Mac") ? "Press Cmd+C" : "Press Ctrl+C";
       }
       setTimeout(() => {
         copyLabel.textContent = "Copy";
@@ -348,34 +532,10 @@ const steps = [
     }, 2400);
   }
 
-  // The segmented control slides its thumb and swaps the pane.
-  const seg = document.querySelector<HTMLElement>("[data-seg]");
-  if (seg) {
-    const thumb = seg.querySelector<HTMLElement>(".seg-thumb");
-    const buttons = Array.from(seg.querySelectorAll<HTMLButtonElement>(".seg-btn"));
-    const bodies = Array.from(document.querySelectorAll<HTMLElement>("[data-pane-body]"));
-    const select = (btn: HTMLElement) => {
-      buttons.forEach((b) => b.setAttribute("aria-selected", String(b === btn)));
-      bodies.forEach((b) => {
-        b.hidden = b.dataset.paneBody !== btn.dataset.pane;
-      });
-      if (thumb) {
-        thumb.style.width = `${btn.offsetWidth}px`;
-        thumb.style.transform = `translateX(${btn.offsetLeft}px)`;
-      }
-    };
-    buttons.forEach((btn) => btn.addEventListener("click", () => select(btn)));
-    requestAnimationFrame(() => select(buttons[0]));
-    window.addEventListener("resize", () => {
-      const active = buttons.find((b) => b.getAttribute("aria-selected") === "true");
-      if (active) select(active);
-    });
-  }
-
   // The terminal types the install command once, when it comes into view.
   const typed = document.getElementById("typed");
   if (typed) {
-    const command = "npx dak@latest";
+    const command = "curl -fsSL https://dak.codes/install.sh | sh";
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) {
       typed.textContent = command;
@@ -512,17 +672,17 @@ const steps = [
   }
 
   .display {
+    margin: 18px auto 0;
     font-family: var(--font-sans);
     font-size: clamp(44px, 7.4vw, 96px);
     font-weight: 600;
     letter-spacing: -0.05em;
     line-height: 0.92;
-    margin: 0 auto;
   }
 
   .lead {
     margin: 22px auto 0;
-    max-width: 47ch;
+    max-width: 50ch;
     font-size: clamp(16px, 1.5vw, 20px);
     line-height: 1.5;
     color: var(--ink-2);
@@ -583,6 +743,37 @@ const steps = [
   .copy-label {
     font-size: 13px;
     font-weight: 500;
+    color: var(--ink-3);
+  }
+
+  /* ── Static facts ─────────────────────────────────────── */
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 28px;
+    margin: 30px auto 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .facts li {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 7px;
+  }
+
+  .facts b {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+
+  .facts span {
+    font-size: 13px;
     color: var(--ink-3);
   }
 
@@ -753,21 +944,21 @@ const steps = [
 
   .sec-head--center .sec-lead { margin-top: 14px; }
 
-  /* ── Provider tiles ───────────────────────────────────── */
-  .tiles {
+  /* ── Feature grid ─────────────────────────────────────── */
+  .features {
     margin-top: clamp(26px, 3vw, 40px);
+    padding: 0;
     list-style: none;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
   }
 
-  .tile {
+  .feature {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    padding: 22px 22px 24px;
+    gap: 8px;
+    padding: 24px 22px 26px;
     border-radius: 14px;
     background: var(--card);
     box-shadow: inset 0 0 0 1px var(--line);
@@ -776,51 +967,152 @@ const steps = [
       box-shadow 0.3s ease;
   }
 
-  .tile:hover {
+  .feature:hover {
     transform: translateY(-4px);
     box-shadow: inset 0 0 0 1px var(--line), 0 18px 34px -22px rgb(12 30 62 / 40%);
   }
 
-  .tile-mark {
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    margin-bottom: 16px;
-    border-radius: 9px;
-    background: rgb(11 99 214 / 11%);
+  .feature-index {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
     color: var(--blue);
-    font-family: var(--font-sans);
-    font-size: 16px;
-    font-weight: 600;
   }
 
-  .tile-name {
+  .feature h3,
+  .canvas-copy h3 {
     font-family: var(--font-sans);
-    font-size: clamp(20px, 1.9vw, 24px);
+    font-size: 20px;
     font-weight: 600;
     letter-spacing: -0.03em;
-    line-height: 1.1;
+    line-height: 1.15;
   }
 
-  .tile-by { font-size: 13px; color: var(--ink-3); }
+  .feature p,
+  .canvas-copy p {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-2);
+  }
 
-  /* ── Dark band ────────────────────────────────────────── */
+  /* ── Canvas card ──────────────────────────────────────── */
+  .canvas-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: clamp(20px, 4vw, 44px);
+    align-items: center;
+    margin-top: 12px;
+    padding: clamp(24px, 3vw, 34px);
+    border-radius: 14px;
+    background: var(--card);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+
+  .canvas-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .canvas-mock {
+    border-radius: 10px;
+    background: var(--night);
+    overflow: hidden;
+    box-shadow: 0 22px 44px -30px rgb(8 20 44 / 60%);
+  }
+
+  .canvas-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    background: rgb(255 255 255 / 5%);
+    box-shadow: inset 0 -1px 0 rgb(255 255 255 / 7%);
+  }
+
+  .canvas-toolbar span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 22%);
+  }
+
+  .canvas-stage {
+    position: relative;
+    height: 190px;
+    background-image: radial-gradient(rgb(255 255 255 / 16%) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+
+  .canvas-frame {
+    position: absolute;
+    top: 38px;
+    left: 12%;
+    width: 58%;
+    height: 112px;
+    border: 1.5px solid #6ea8ff;
+    border-radius: 4px;
+    background: rgb(110 168 255 / 8%);
+  }
+
+  .canvas-frame span {
+    position: absolute;
+    top: -24px;
+    left: -1.5px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: #8fb9ff;
+    white-space: nowrap;
+  }
+
+  .canvas-frame::before,
+  .canvas-frame::after {
+    content: "";
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border: 1.5px solid #6ea8ff;
+    background: var(--night);
+    border-radius: 1px;
+  }
+
+  .canvas-frame::before { top: -4px; left: -4px; }
+  .canvas-frame::after { right: -4px; bottom: -4px; }
+
+  .canvas-cursor {
+    position: absolute;
+    right: 20%;
+    bottom: 34px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 4px rgb(110 168 255 / 22%);
+  }
+
+  /* ── Dark bands ───────────────────────────────────────── */
   .band {
-    margin-top: clamp(24px, 3vw, 36px);
     border-radius: 22px;
     background: var(--night);
-    background-image: radial-gradient(760px 380px at 78% -20%, rgb(11 99 214 / 34%), transparent 70%);
     padding: clamp(30px, 5vw, 62px);
     color: #dfe6ef;
     box-shadow: 0 40px 80px -44px rgb(8 20 44 / 70%);
     scroll-margin-top: 72px;
   }
 
-  .band-inner {
-    max-width: 760px;
-    margin: 0 auto;
-    text-align: center;
+  .band--providers {
+    background-image: radial-gradient(760px 380px at 78% -20%, rgb(11 99 214 / 34%), transparent 70%);
+  }
+
+  .band--source {
+    background-image: radial-gradient(700px 360px at 12% -10%, rgb(11 99 214 / 30%), transparent 72%);
+  }
+
+  .band-head {
+    max-width: 720px;
   }
 
   .band-title {
@@ -833,55 +1125,91 @@ const steps = [
     margin: 0;
   }
 
-  .seg {
-    position: relative;
-    display: inline-flex;
-    gap: 2px;
-    margin-top: 26px;
-    padding: 3px;
-    border-radius: 10px;
-    background: rgb(255 255 255 / 7%);
-  }
-
-  .seg-thumb {
-    position: absolute;
-    top: 3px;
-    left: 0;
-    height: calc(100% - 6px);
-    border-radius: 8px;
-    background: rgb(255 255 255 / 15%);
-    transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1), width 0.34s cubic-bezier(0.32, 0.72, 0, 1);
-  }
-
-  .seg-btn {
-    position: relative;
-    z-index: 1;
-    height: 30px;
-    padding: 0 18px;
-    border-radius: 8px;
-    font-family: var(--ui);
-    font-size: 13px;
-    font-weight: 500;
-    color: #98a3b3;
-    transition: color 0.2s ease;
-  }
-
-  .seg-btn[aria-selected="true"] { color: #fff; }
-
-  .pane-body { margin-top: 24px; min-height: 5em; }
-
-  .pane-text {
-    max-width: 52ch;
-    margin: 0 auto;
+  .band-lead {
+    max-width: 58ch;
+    margin-top: 16px;
     font-size: 16px;
     line-height: 1.6;
     color: #b9c3d1;
-    animation: swap 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
   }
 
-  @keyframes swap {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: none; }
+  .band-note {
+    margin-top: 26px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #8d99a9;
+  }
+
+  .band-note a {
+    color: #dfe6ef;
+    text-decoration: underline;
+    text-decoration-color: rgb(223 230 239 / 35%);
+    text-underline-offset: 3px;
+    transition: text-decoration-color 0.18s ease;
+  }
+
+  .band-note a:hover { text-decoration-color: #dfe6ef; }
+
+  /* ── Provider grid ────────────────────────────────────── */
+  .provider-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: clamp(26px, 3vw, 38px);
+    padding: 0;
+    list-style: none;
+  }
+
+  .provider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px;
+    border-radius: 10px;
+    background: rgb(255 255 255 / 5%);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .provider:hover {
+    background: rgb(255 255 255 / 8%);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 14%);
+  }
+
+  .provider-logo {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    flex: none;
+    border-radius: 9px;
+    background: rgb(255 255 255 / 6%);
+  }
+
+  .provider-logo img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+  }
+
+  .provider-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .provider-copy b {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #fff;
+  }
+
+  .provider-copy span {
+    font-size: 12px;
+    color: #8d99a9;
   }
 
   /* ── Install ──────────────────────────────────────────── */
@@ -923,6 +1251,24 @@ const steps = [
   }
 
   .term-prompt { color: #6ee08a; }
+
+  .term-note {
+    margin: 14px auto 0;
+    max-width: 560px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink-3);
+  }
+
+  .term-note code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgb(21 32 51 / 6%);
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
 
   .caret {
     display: inline-block;
@@ -977,6 +1323,174 @@ const steps = [
 
   .step span { font-size: 16px; line-height: 1.5; color: var(--ink-2); }
 
+  /* ── Open source ──────────────────────────────────────── */
+  .source-head {
+    max-width: 640px;
+  }
+
+  .source-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    margin-bottom: 18px;
+    padding: 0 9px;
+    border-radius: 5px;
+    background: rgb(110 224 138 / 12%);
+    color: #6ee08a;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+  }
+
+  .source-license {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 18px;
+    font-size: 13px;
+    color: #dfe6ef;
+    text-decoration: underline;
+    text-decoration-color: rgb(223 230 239 / 35%);
+    text-underline-offset: 3px;
+  }
+
+  .source-license:hover { text-decoration-color: #dfe6ef; }
+
+  .source-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: clamp(28px, 4vw, 42px);
+    padding: 0;
+    list-style: none;
+  }
+
+  .source-links a {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    height: 100%;
+    padding: 18px 44px 20px 18px;
+    border-radius: 10px;
+    background: rgb(255 255 255 / 5%);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .source-links a:hover {
+    background: rgb(255 255 255 / 8%);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 14%);
+  }
+
+  .source-link-title {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #fff;
+  }
+
+  .source-link-body {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #8d99a9;
+  }
+
+  .source-arrow {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-size: 14px;
+    color: #8d99a9;
+    transition: color 0.2s ease, transform 0.2s ease;
+  }
+
+  .source-links a:hover .source-arrow {
+    color: #fff;
+    transform: translate(2px, -2px);
+  }
+
+  /* ── Download ─────────────────────────────────────────── */
+  .platforms {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: clamp(26px, 3vw, 40px);
+  }
+
+  .platform {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    align-items: center;
+    padding: 20px 22px;
+    border-radius: 14px;
+    background: var(--card);
+    box-shadow: inset 0 0 0 1px var(--line);
+    transition:
+      transform 0.3s cubic-bezier(0.32, 0.72, 0, 1),
+      box-shadow 0.3s ease;
+  }
+
+  .platform:hover {
+    transform: translateY(-4px);
+    box-shadow: inset 0 0 0 1px var(--line), 0 18px 34px -22px rgb(12 30 62 / 40%);
+  }
+
+  .platform-os {
+    font-family: var(--font-sans);
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+
+  .platform-detail {
+    grid-column: 1;
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+
+  .platform-arrow {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    font-size: 16px;
+    color: var(--ink-3);
+    transition: color 0.2s ease, transform 0.2s ease;
+  }
+
+  .platform:hover .platform-arrow {
+    color: var(--blue);
+    transform: translateX(3px);
+  }
+
+  .platform-note {
+    margin-top: 20px;
+    font-size: 14px;
+    color: var(--ink-3);
+  }
+
+  .platform-note code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgb(21 32 51 / 6%);
+    color: var(--ink);
+  }
+
+  .platform-note a {
+    color: var(--ink-2);
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 3px;
+    transition: color 0.18s ease;
+  }
+
+  .platform-note a:hover { color: var(--ink); }
+
   /* ── Close ────────────────────────────────────────────── */
   .close {
     padding: clamp(90px, 16vh, 180px) 0 0;
@@ -1016,7 +1530,7 @@ const steps = [
     text-align: left;
   }
 
-  .foot-links { display: inline-flex; gap: 18px; }
+  .foot-links { display: inline-flex; flex-wrap: wrap; gap: 18px; }
 
   .foot-links a { transition: color 0.15s ease; }
   .foot-links a:hover { color: var(--ink); }
@@ -1045,15 +1559,18 @@ const steps = [
 
     .caret { animation: none; }
     .run-live { animation: none; }
-    .seg-thumb { transition: none; }
-    .tile, .step { transition: none; }
+    .feature, .platform { transition: none; }
   }
 
   /* ── Narrow ───────────────────────────────────────────── */
   @media (max-width: 900px) {
     .topnav { display: none; }
 
-    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .provider-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .platforms { grid-template-columns: minmax(0, 1fr); }
 
     .sec-head {
       grid-template-columns: minmax(0, 1fr);
@@ -1062,6 +1579,10 @@ const steps = [
     }
 
     .steps { grid-template-columns: minmax(0, 1fr); }
+
+    .canvas-card { grid-template-columns: minmax(0, 1fr); }
+
+    .source-links { grid-template-columns: minmax(0, 1fr); }
   }
 
   @media (max-width: 640px) {
@@ -1087,9 +1608,26 @@ const steps = [
       margin-left: 4.5px;
     }
 
-    .tiles { grid-template-columns: minmax(0, 1fr); }
+    .facts { gap: 8px 18px; }
 
-    .copy code { font-size: 13px; }
+    .features { grid-template-columns: minmax(0, 1fr); }
+
+    .provider-grid { grid-template-columns: minmax(0, 1fr); }
+
+    .copy {
+      width: 100%;
+      height: auto;
+      min-height: 42px;
+      justify-content: space-between;
+      padding: 9px 14px;
+    }
+
+    .copy code {
+      font-size: 12px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      text-align: left;
+    }
 
     .foot { flex-direction: column; align-items: flex-start; }
   }

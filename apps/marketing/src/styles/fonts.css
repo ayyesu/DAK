@@ -1,7 +1,7 @@
 /*! Bricolage Grotesque (variable) and JetBrains Mono. Licenses:
     /fonts/bricolage-grotesque-OFL.txt and /fonts/jetbrains-mono-OFL.txt. */
 /* Keep subset bytes out of the stylesheet so unused glyph ranges do not add transfer size. */
-/* Bricolage Grotesque: variable weight 400–700, width 75–100. latin-ext */
+/* Bricolage Grotesque: variable weight 400-700, width 75-100. latin-ext */
 @font-face {
   font-family: "Bricolage Grotesque";
   font-style: normal;

@@ -2,7 +2,7 @@
 import type { ComponentProps } from "astro/types";
 import { Image } from "astro:assets";
 import Layout from "../layouts/Layout.astro";
-import { RELEASES_URL } from "../lib/releases";
+import { NIGHTLY_RELEASES_URL, RELEASES_URL } from "../lib/releases";
 
 const imageProps = {
   alt: "",
@@ -14,16 +14,17 @@ const imageProps = {
 ---
 
 <Layout title="Download · DAK" description="Download DAK for macOS, Windows, or Linux.">
-  <div class="download-page" id="download-page" data-channel="stable">
-    <!-- The sky lives behind the header and fades to the page. It only shows on the nightly channel. -->
+  <div class="download-page" id="download-page">
     <header class="download-head">
       <div class="head-inner" data-rise>
         <span class="head-icon">
-          <Image class="head-icon--stable" src="/apple-touch-icon.png" width={64} height={64} loading="eager" {...imageProps} />
-          <Image class="head-icon--nightly" src="/apple-touch-icon.png" width={64} height={64} loading="eager" {...imageProps} />
+          <Image src="/apple-touch-icon.png" width={64} height={64} loading="eager" {...imageProps} />
         </span>
         <h1 class="heading">Download DAK</h1>
       </div>
+      <p class="head-lede" data-rise style="--d:120ms">
+        Free and open source. Pick a platform, or run the server from a terminal.
+      </p>
       <p class="head-meta" data-rise style="--d:180ms">
         <a id="changelog-link" class="changelog-link" href={RELEASES_URL} target="_blank" rel="noopener noreferrer">
           <span id="version-label">&nbsp;</span><span aria-hidden="true"> &#8599;</span>
@@ -41,8 +42,7 @@ const imageProps = {
         <div class="download-cards">
           <a class="download-card" data-asset="arm64.dmg" href={RELEASES_URL}>
             <span class="card-icon">
-              <Image class="card-icon--stable" src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
-              <Image class="card-icon--nightly" src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
+              <Image src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
             </span>
             <span class="card-text">
               <span class="card-arch">Apple Silicon (arm64)</span>
@@ -64,8 +64,7 @@ const imageProps = {
         <div class="download-cards">
           <a class="download-card" data-asset="x64.exe" href={RELEASES_URL}>
             <span class="card-icon">
-              <Image class="card-icon--stable" src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
-              <Image class="card-icon--nightly" src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
+              <Image src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
             </span>
             <span class="card-text">
               <span class="card-arch">Windows 10, 11</span>
@@ -84,8 +83,7 @@ const imageProps = {
         <div class="download-cards">
           <a class="download-card" data-asset="amd64.deb" href={RELEASES_URL}>
             <span class="card-icon">
-              <Image class="card-icon--stable" src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
-              <Image class="card-icon--nightly" src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
+              <Image src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
             </span>
             <span class="card-text">
               <span class="card-arch">Debian, Ubuntu</span>
@@ -94,8 +92,7 @@ const imageProps = {
           </a>
           <a class="download-card" data-asset="x86_64.AppImage" href={RELEASES_URL}>
             <span class="card-icon">
-              <Image class="card-icon--stable" src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
-              <Image class="card-icon--nightly" src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
+              <Image src="/apple-touch-icon.png" width={28} height={28} loading="lazy" {...imageProps} />
             </span>
             <span class="card-text">
               <span class="card-arch">x86_64</span>
@@ -114,21 +111,43 @@ const imageProps = {
           <svg class="platform-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7l5 5-5 5M12 17h7"/></svg>
           <h2 class="platform-name">Terminal</h2>
         </div>
-        <code class="cli-line cli-line--stable">curl -fsSL https://dak.codes/install.sh | sh</code>
-        <code class="cli-line cli-line--stable">irm https://dak.codes/install.ps1 | iex</code>
-        <code class="cli-line cli-line--nightly">curl -fsSL https://dak.codes/install.sh | DAK_CHANNEL=nightly sh</code>
-        <code class="cli-line cli-line--nightly">$env:DAK_CHANNEL="nightly"; irm https://dak.codes/install.ps1 | iex</code>
-        <p class="cli-note">Or try it once without installing:</p>
-        <code class="cli-line cli-line--stable">npx dak@latest</code>
-        <code class="cli-line cli-line--nightly">npx dak@nightly</code>
+        <code class="cli-line">curl -fsSL https://dak.codes/install.sh | sh</code>
+        <code class="cli-line">irm https://dak.codes/install.ps1 | iex</code>
+        <p class="cli-note">The first command is for macOS and Linux shells. The second is for PowerShell.</p>
+      </section>
+
+      <section class="platform-section platform-section--packages" data-rise style="--d:460ms">
+        <div class="platform-header">
+          <svg class="platform-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8"/></svg>
+          <h2 class="platform-name">Package managers</h2>
+        </div>
+        <div class="package-grid">
+          <div class="package">
+            <span class="package-name">Windows</span>
+            <code class="cli-line">winget install DAK.DAK</code>
+          </div>
+          <div class="package">
+            <span class="package-name">macOS</span>
+            <code class="cli-line">brew install --cask dak</code>
+          </div>
+          <div class="package">
+            <span class="package-name">Arch Linux</span>
+            <code class="cli-line">yay -S dak-bin</code>
+          </div>
+        </div>
       </section>
     </div>
 
-    <p class="releases-link" data-rise style="--d:480ms">
+    <p class="releases-link" data-rise style="--d:500ms">
       All builds are on the{" "}
       <a id="releases-page-link" href={RELEASES_URL} target="_blank" rel="noopener noreferrer">
         GitHub releases page<span aria-hidden="true"> &#8599;</span>
       </a>
+      . Nightly previews are on the{" "}
+      <a href={NIGHTLY_RELEASES_URL} target="_blank" rel="noopener noreferrer">
+        nightly releases page<span aria-hidden="true"> &#8599;</span>
+      </a>
+      .
     </p>
   </div>
 </Layout>
@@ -142,7 +161,6 @@ const imageProps = {
   const cards = page.querySelectorAll<HTMLAnchorElement>("a[data-asset]");
 
   async function load() {
-    page.dataset.channel = "stable";
     changelogLink.href = RELEASES_URL;
     versionLabel.textContent = "\u00a0";
     cards.forEach((card) => { card.href = RELEASES_URL; });
@@ -184,30 +202,6 @@ const imageProps = {
     margin-bottom: 2rem;
   }
 
-  /* Sky: the nightly DMG backdrop, masked so it dissolves into the page instead of ending at a line. */
-  .sky {
-    position: absolute;
-    top: -80px;
-    bottom: 0;
-    /* Break out of the page padding so the sky spans the full viewport width. */
-    left: 50%;
-    width: 100vw;
-    margin-left: -50vw;
-    z-index: -1;
-    background: url("/nightly-sky.svg") center / cover no-repeat;
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%);
-    mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%);
-    opacity: 0;
-    transform: scale(1.04);
-    transition: opacity 0.9s ease, transform 1.4s cubic-bezier(0.2, 0.7, 0.2, 1);
-    pointer-events: none;
-  }
-
-  .download-page[data-channel="nightly"] .sky {
-    opacity: 1;
-    transform: none;
-  }
-
   .head-inner {
     display: flex;
     align-items: center;
@@ -221,29 +215,12 @@ const imageProps = {
     flex-shrink: 0;
   }
 
-  /* Both channel icons stay mounted and cross-fade, so the title never moves. */
   .head-icon img,
   .card-icon img {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
-    transition: opacity 0.45s ease;
-  }
-
-  .head-icon--nightly,
-  .card-icon--nightly {
-    opacity: 0;
-  }
-
-  .download-page[data-channel="nightly"] .head-icon--stable,
-  .download-page[data-channel="nightly"] .card-icon--stable {
-    opacity: 0;
-  }
-
-  .download-page[data-channel="nightly"] .head-icon--nightly,
-  .download-page[data-channel="nightly"] .card-icon--nightly {
-    opacity: 1;
   }
 
   .heading {
@@ -253,62 +230,13 @@ const imageProps = {
     line-height: 1.15;
   }
 
-  /* ── Channel toggle ── */
-
-  .channel-toggle {
-    position: relative;
-    display: inline-flex;
-    margin-top: 1.5rem;
-    padding: 3px;
-    border: 1px solid var(--border-strong);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.03);
-    transition: border-color 0.45s ease, background 0.45s ease;
-  }
-
-  .download-page[data-channel="nightly"] .channel-toggle {
-    border-color: rgba(255, 255, 255, 0.22);
-    background: rgba(7, 21, 47, 0.5);
-  }
-
-  /* The thumb slides between the two tabs; both tabs are the same width. */
-  .channel-thumb {
-    position: absolute;
-    top: 3px;
-    bottom: 3px;
-    left: 3px;
-    width: calc(50% - 3px);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.12);
-    transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), background 0.45s ease;
-  }
-
-  .download-page[data-channel="nightly"] .channel-thumb {
-    transform: translateX(100%);
-    background: rgba(255, 255, 255, 0.16);
-  }
-
-  .channel-toggle button {
-    position: relative;
-    width: 5.5rem;
-    padding: 7px 0;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
+  .head-lede {
+    max-width: 46ch;
+    margin-top: 0.9rem;
+    text-align: center;
+    font-size: 0.95rem;
+    line-height: 1.6;
     color: var(--fg-muted);
-    font: inherit;
-    font-size: 13px;
-    cursor: pointer;
-    transition: color 0.25s ease;
-  }
-
-  .channel-toggle button:hover,
-  .channel-toggle button[aria-selected="true"] {
-    color: var(--fg);
-  }
-
-  .channel-toggle button[aria-selected="true"] {
-    font-weight: 500;
   }
 
   .head-meta {
@@ -330,10 +258,6 @@ const imageProps = {
     text-decoration-color: var(--fg);
   }
 
-  .download-page[data-channel="nightly"] .changelog-link {
-    color: #b9bdff;
-  }
-
   /* ── Platforms ── */
 
   .platforms {
@@ -348,16 +272,6 @@ const imageProps = {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-  }
-
-  /* The CLI ships on both trains; only the install command differs. */
-  .cli-line--nightly,
-  .download-page[data-channel="nightly"] .cli-line--stable {
-    display: none;
-  }
-
-  .download-page[data-channel="nightly"] .cli-line--nightly {
-    display: block;
   }
 
   .platform-header {
@@ -389,13 +303,41 @@ const imageProps = {
 
   .cli-line {
     align-self: flex-start;
+    max-width: 100%;
     font-family: var(--font-mono);
     font-size: 0.85rem;
     padding: 0.6rem 0.9rem;
     border-radius: 10px;
-    border: 1px solid rgba(105, 111, 234, 0.35);
-    background: rgba(21, 20, 67, 0.3);
-    color: var(--fg);
+    border: 1px solid var(--stage-line);
+    background: var(--stage);
+    color: var(--stage-ink);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .package-grid {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .package {
+    display: grid;
+    grid-template-columns: 8.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .package-name {
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+  }
+
+  .package .cli-line {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    white-space: nowrap;
   }
 
   /* ── Download cards ── */
@@ -413,27 +355,18 @@ const imageProps = {
     padding: 0.85rem 1rem;
     border-radius: 10px;
     border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-card);
     transition: background 0.45s ease, border-color 0.45s ease, transform 0.2s ease;
   }
 
   .download-card:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: var(--bg-elev);
+    border-color: var(--border-strong);
     transform: translateY(-1px);
   }
 
   .download-card:active {
     transform: translateY(0);
-  }
-
-  .download-page[data-channel="nightly"] .download-card[data-asset] {
-    border-color: rgba(105, 111, 234, 0.4);
-    background: linear-gradient(135deg, rgba(81, 101, 216, 0.1), rgba(168, 91, 234, 0.06));
-  }
-
-  .download-page[data-channel="nightly"] .download-card[data-asset]:hover {
-    border-color: rgba(105, 111, 234, 0.7);
   }
 
   .card-icon {
@@ -460,10 +393,6 @@ const imageProps = {
     transition: color 0.45s ease;
   }
 
-  .download-page[data-channel="nightly"] .card-format {
-    color: #b6b0ff;
-  }
-
   .intel-note {
     font-size: 0.8rem;
     color: var(--fg-dim);
@@ -473,7 +402,7 @@ const imageProps = {
   .releases-link a {
     color: var(--fg-muted);
     text-decoration: underline;
-    text-decoration-color: rgba(161, 161, 170, 0.4);
+    text-decoration-color: var(--border-strong);
     text-underline-offset: 3px;
     transition: color 0.3s ease, text-decoration-color 0.3s ease;
   }
@@ -495,11 +424,6 @@ const imageProps = {
   /* ── Motion ── */
 
   @media (prefers-reduced-motion: reduce) {
-    .sky,
-    .head-icon img,
-    .card-icon img,
-    .channel-thumb,
-    .channel-toggle,
     .download-card {
       transition: none;
     }
@@ -527,6 +451,11 @@ const imageProps = {
 
     .download-cards {
       grid-template-columns: 1fr;
+    }
+
+    .package {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.35rem;
     }
   }
 </style>

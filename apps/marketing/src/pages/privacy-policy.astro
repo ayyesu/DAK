@@ -29,7 +29,7 @@ const sections = [
           <p class="section-number">01</p>
           <h2>Introduction</h2>
           <p>
-            This Privacy Policy (the “Policy”) describes how DAK (the “Company,” “DAK,” “we,” or “us”) collects, uses, and shares personal information when you use the DAK desktop and mobile applications, the hosted DAK web application located at
+            This Privacy Policy (the “Policy”) describes how DAK (“DAK,” “we,” or “us”) collects, uses, and shares personal information when you use the DAK desktop and mobile applications, the hosted DAK web application located at
             {" "}<a href="https://app.dak.codes">https://app.dak.codes</a>, or the optional DAK Connect
             service (together, the “Services”), or visit the DAK marketing website located at
             {" "}<a href="https://dak.codes">https://dak.codes</a> (the “Site”). This Policy applies to
@@ -80,10 +80,13 @@ const sections = [
               headline.
             </li>
             <li>
-              <strong>Product usage data.</strong> By default, DAK sends us anonymous usage
-              data, such as which provider and model a turn used, whether it succeeded, and your app
-              version and operating system. We use it to improve the product. You can turn this off
-              at any time; see “Product Usage Data” under Your Choices below.
+              <strong>Product usage data.</strong> By default, DAK sends product usage events to
+              PostHog, associated with a hashed account or installation identifier. Events include
+              the provider, model, reasoning effort, permission mode, turn result, duration, and
+              main-agent token totals when available. Events do not include prompts, responses, file
+              contents, authentication tokens, conversation IDs, raw provider events, or child-agent
+              output. You can turn this off at any time; see “Product Usage Data” under Your Choices
+              below.
             </li>
             <li>
               <strong>Information you provide to us.</strong> We collect information that you choose
@@ -344,7 +347,7 @@ const sections = [
           <p>
             To stop sending product usage data, set the environment variable{" "}
             <code>DAK_TELEMETRY_ENABLED=false</code>{" "}where DAK runs, for example in your
-            shell profile, and restart DAK.
+            shell profile, and restart DAK. This stops product events from being recorded or sent.
           </p>
 
           <h3>Cookies and Local Data</h3>
@@ -361,9 +364,9 @@ const sections = [
             We retain account, environment-link, device-registration, notification, and security
             information while your account or the relevant feature is active and for as long as
             reasonably necessary to provide the Services, protect them from abuse, comply with law,
-            and resolve disputes. Operational diagnostic traces are configured to expire after 30
-            days. Some records may remain longer in backups or where retention is required for
-            security, fraud prevention, or legal compliance.
+            and resolve disputes. Operational diagnostic traces are retained for a limited period for
+            troubleshooting and security review. Some records may remain longer in backups or where
+            retention is required for security, fraud prevention, or legal compliance.
           </p>
           <p>
             To request deletion of your DAK account and associated DAK Connect data, email{" "}<a
@@ -455,9 +458,7 @@ const sections = [
           </p>
           <address>
             <strong>DAK</strong><br />
-            2261 Market Street #5309<br />
-            San Francisco, CA 94114<br />
-            United States
+            Public repository: <a href="https://github.com/ayyesu/DAK">github.com/ayyesu/DAK</a>
           </address>
           <a class="contact-link" href="mailto:privacy@t3.tools">privacy@t3.tools</a>
   </section>
