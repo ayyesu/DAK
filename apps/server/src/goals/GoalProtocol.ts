@@ -377,20 +377,6 @@ export function applyGoalReport(input: {
   };
 }
 
-export function goalProgress(tasks: ReadonlyArray<GoalTask>): {
-  readonly completed: number;
-  readonly total: number;
-  readonly percent: number;
-} {
-  const total = tasks.length;
-  const completed = tasks.filter((task) => task.status === "completed").length;
-  return {
-    completed,
-    total,
-    percent: total === 0 ? 0 : Math.round((completed / total) * 100),
-  };
-}
-
 const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input","summary":"one sentence about what you actually did","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"completed|in_progress|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptanceCriteria":["condition that must hold to call the goal complete"],"question":"only when status is needs_input"}}`;
 
 function criteriaSection(goal: Goal): string {

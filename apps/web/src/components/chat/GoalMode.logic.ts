@@ -1,7 +1,7 @@
 import type { Goal, GoalStatus, GoalTask, GoalTaskStatus, ThreadId } from "@dak/contracts";
 
 /** Statuses where the server is still working or waiting to work. */
-export const GOAL_ACTIVE_STATUSES: ReadonlyArray<GoalStatus> = [
+const GOAL_ACTIVE_STATUSES: ReadonlyArray<GoalStatus> = [
   "planning",
   "running",
   "verifying",
