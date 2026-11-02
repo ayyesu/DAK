@@ -1,5 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
+import { HostProcessPlatform } from "@dak/shared/hostProcess";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { ChildProcessSpawner } from "effect/process";
@@ -9,6 +10,10 @@ import {
   resolveEmbeddedTerminalContent,
   type AcpClientTerminals,
 } from "./AcpClientTerminals.ts";
+
+// cmd.exe has no `printf`/`tr` for the shell-source probe, and Windows kill
+// reports no POSIX signal for the SIGTERM assertion.
+const windowsHost = HostProcessPlatform.defaultValue() === "win32";
 
 const withTerminals = <A, E>(use: (terminals: AcpClientTerminals) => Effect.Effect<A, E>) =>
   Effect.gen(function* () {
@@ -75,25 +80,27 @@ describe("AcpClientTerminals", () => {
     }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),
   );
 
-  it.effect("runs Devin shell source with arguments, pipes, and session fallback variables", () =>
-    Effect.gen(function* () {
-      const terminals = yield* makeAcpClientTerminals({
-        spawner: yield* ChildProcessSpawner.ChildProcessSpawner,
-        defaultCwd: process.cwd(),
-        shellCommands: true,
-        environmentForSession: () => ({ DAK_ACP_MCP_NODE: "mailbox-probe" }),
-      });
-      yield* Effect.addFinalizer(() => terminals.disposeAll);
-      // Same command-only shape as the failed production commands and live capture.
-      const terminal = yield* terminals.create({
-        sessionId: "devin",
-        command: 'printf "%s\\n" "$DAK_ACP_MCP_NODE" | tr a-z A-Z',
-      });
-      const exit = yield* terminals.waitForExit({ sessionId: "devin", ...terminal });
-      const output = yield* terminals.output({ sessionId: "devin", ...terminal });
-      expect(exit.exitCode).toBe(0);
-      expect(output.output.trim()).toBe("MAILBOX-PROBE");
-    }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),
+  it.effect.skipIf(windowsHost)(
+    "runs Devin shell source with arguments, pipes, and session fallback variables",
+    () =>
+      Effect.gen(function* () {
+        const terminals = yield* makeAcpClientTerminals({
+          spawner: yield* ChildProcessSpawner.ChildProcessSpawner,
+          defaultCwd: process.cwd(),
+          shellCommands: true,
+          environmentForSession: () => ({ DAK_ACP_MCP_NODE: "mailbox-probe" }),
+        });
+        yield* Effect.addFinalizer(() => terminals.disposeAll);
+        // Same command-only shape as the failed production commands and live capture.
+        const terminal = yield* terminals.create({
+          sessionId: "devin",
+          command: 'printf "%s\\n" "$DAK_ACP_MCP_NODE" | tr a-z A-Z',
+        });
+        const exit = yield* terminals.waitForExit({ sessionId: "devin", ...terminal });
+        const output = yield* terminals.output({ sessionId: "devin", ...terminal });
+        expect(exit.exitCode).toBe(0);
+        expect(output.output.trim()).toBe("MAILBOX-PROBE");
+      }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),
   );
 
   it.effect("truncates buffered output from the beginning at the byte limit", () =>
@@ -118,32 +125,34 @@ describe("AcpClientTerminals", () => {
     ),
   );
 
-  it.effect("kills long-running commands and rejects released terminal handles", () =>
-    withTerminals((terminals) =>
-      Effect.gen(function* () {
-        const created = yield* terminals.create({
-          sessionId: "session",
-          command: process.execPath,
-          args: ["-e", "setInterval(() => {}, 1000);"],
-        });
-        yield* terminals.kill({ sessionId: "session", terminalId: created.terminalId });
-        const exit = yield* terminals.waitForExit({
-          sessionId: "session",
-          terminalId: created.terminalId,
-        });
-        expect(exit.exitCode === 0 ? null : exit.exitCode).not.toBe(0);
-        expect(exit.signal).toBe("SIGTERM");
+  it.effect.skipIf(windowsHost)(
+    "kills long-running commands and rejects released terminal handles",
+    () =>
+      withTerminals((terminals) =>
+        Effect.gen(function* () {
+          const created = yield* terminals.create({
+            sessionId: "session",
+            command: process.execPath,
+            args: ["-e", "setInterval(() => {}, 1000);"],
+          });
+          yield* terminals.kill({ sessionId: "session", terminalId: created.terminalId });
+          const exit = yield* terminals.waitForExit({
+            sessionId: "session",
+            terminalId: created.terminalId,
+          });
+          expect(exit.exitCode === 0 ? null : exit.exitCode).not.toBe(0);
+          expect(exit.signal).toBe("SIGTERM");
 
-        yield* terminals.release({ sessionId: "session", terminalId: created.terminalId });
-        const rejected = yield* Effect.flip(
-          terminals.output({ sessionId: "session", terminalId: created.terminalId }),
-        );
-        expect(rejected.message).toContain("unknown terminal ID");
+          yield* terminals.release({ sessionId: "session", terminalId: created.terminalId });
+          const rejected = yield* Effect.flip(
+            terminals.output({ sessionId: "session", terminalId: created.terminalId }),
+          );
+          expect(rejected.message).toContain("unknown terminal ID");
 
-        // Embedded tool-call content still renders released terminals.
-        expect(terminals.readOutputSnapshot("session", created.terminalId)).toBeDefined();
-      }),
-    ),
+          // Embedded tool-call content still renders released terminals.
+          expect(terminals.readOutputSnapshot("session", created.terminalId)).toBeDefined();
+        }),
+      ),
   );
 
   it.effect("reserves terminal capacity across concurrent creates", () =>

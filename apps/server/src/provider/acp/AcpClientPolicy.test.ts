@@ -7,6 +7,8 @@ import * as Path from "effect/Path";
 import type * as EffectAcpSchema from "effect-acp/compat";
 import * as NodePath from "node:path";
 
+import { isHostWindows } from "@dak/shared/hostProcess";
+
 import {
   acpClientExecuteDisposition,
   acpMcpToolApprovalElicitationDisposition,
@@ -164,14 +166,20 @@ describe("acpPermissionDisposition", () => {
         "deny",
         "a missing leaf below an escaping directory symlink must not be auto-approved",
       );
-      assert.equal(
-        acpPermissionDisposition(
-          realPolicy,
-          permissionRequest("edit", [{ path: "linked-directory/../escaped-file.ts" }]),
-        ),
-        "deny",
-        "physical symlink traversal must be resolved before parent segments",
-      );
+      // Windows normalizes `..` lexically before touching the filesystem, so
+      // `linked-directory/../file` lands back inside the workspace there — the
+      // write itself would too. Only the POSIX kernel resolves the symlink
+      // first, which is the ordering this assertion pins down.
+      if (!(yield* isHostWindows)) {
+        assert.equal(
+          acpPermissionDisposition(
+            realPolicy,
+            permissionRequest("edit", [{ path: "linked-directory/../escaped-file.ts" }]),
+          ),
+          "deny",
+          "physical symlink traversal must be resolved before parent segments",
+        );
+      }
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 

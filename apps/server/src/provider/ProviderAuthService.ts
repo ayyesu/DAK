@@ -2,6 +2,8 @@ import {
   ProviderSetupError,
   type ChatGptReconnectProfile,
   type ChatGptTransferredProfile,
+  type OpenCodeAccount,
+  type OpenCodeAccountsState,
   type ProviderAuthRespondInput,
   type ProviderAuthStartInput,
   type ProviderAuthState,
@@ -62,6 +64,12 @@ export interface ProviderAuthController {
   readonly logout: (
     stopSessions: Effect.Effect<void, ProviderSetupError>,
   ) => Effect.Effect<ProviderAuthState, ProviderSetupError>;
+  /** Instances whose credential store holds several accounts can switch in place. */
+  readonly listAccounts?: () => Effect.Effect<ReadonlyArray<OpenCodeAccount>, ProviderSetupError>;
+  readonly switchAccount?: (
+    credentialId: string,
+    stopSessions: Effect.Effect<void, ProviderSetupError>,
+  ) => Effect.Effect<ReadonlyArray<OpenCodeAccount>, ProviderSetupError>;
   readonly subscribe: (ownerSessionId: string) => Stream.Stream<ProviderAuthState>;
   readonly isLogoutPrompt?: (text: string, hasAttachments: boolean) => boolean;
 }
@@ -98,6 +106,12 @@ export class ProviderAuthService extends Context.Service<
     readonly logout: (
       input: ProviderAuthTarget,
     ) => Effect.Effect<ProviderAuthState, ProviderSetupError>;
+    readonly listAccounts: (
+      input: ProviderAuthTarget,
+    ) => Effect.Effect<OpenCodeAccountsState, ProviderSetupError>;
+    readonly switchAccount: (
+      input: ProviderAuthTarget & { readonly credentialId: string },
+    ) => Effect.Effect<OpenCodeAccountsState, ProviderSetupError>;
     readonly subscribe: (
       input: ProviderAuthTarget,
       ownerSessionId: string,
@@ -216,7 +230,7 @@ export const makeProviderAuthService = Effect.gen(function* () {
 
   const checkSharedBinding = Effect.fnUntraced(function* (
     instanceId: ProviderInstanceId,
-    operation: "start" | "logout",
+    operation: string,
     auth: ProviderAuthController,
   ) {
     const binding = auth.credentialBinding;
@@ -308,6 +322,40 @@ export const makeProviderAuthService = Effect.gen(function* () {
           const auth = yield* getController(input.instanceId, "logout");
           yield* checkSharedBinding(input.instanceId, "logout", auth);
           return yield* auth.logout(stopSessions(input.instanceId, auth.credentialBinding));
+        }),
+      );
+    }),
+    listAccounts: Effect.fn("ProviderAuthService.listAccounts")(function* (input) {
+      const auth = yield* getController(input.instanceId, "listAccounts");
+      if (!auth.listAccounts) {
+        return yield* new ProviderSetupError({
+          instanceId: input.instanceId,
+          operation: "listAccounts",
+          detail:
+            "This provider keeps one account per instance; add another instance to use a second account.",
+        });
+      }
+      const accounts = yield* auth.listAccounts();
+      return { instanceId: input.instanceId, accounts };
+    }),
+    switchAccount: Effect.fn("ProviderAuthService.switchAccount")(function* (input) {
+      return yield* credentialChanges.withPermit(
+        Effect.gen(function* () {
+          const auth = yield* getController(input.instanceId, "switchAccount");
+          if (!auth.switchAccount) {
+            return yield* new ProviderSetupError({
+              instanceId: input.instanceId,
+              operation: "switchAccount",
+              detail:
+                "This provider keeps one account per instance; add another instance to use a second account.",
+            });
+          }
+          yield* checkSharedBinding(input.instanceId, "switchAccount", auth);
+          const accounts = yield* auth.switchAccount(
+            input.credentialId,
+            stopSessions(input.instanceId, auth.credentialBinding),
+          );
+          return { instanceId: input.instanceId, accounts };
         }),
       );
     }),

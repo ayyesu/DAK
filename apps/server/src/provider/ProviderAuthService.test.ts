@@ -135,6 +135,7 @@ const makeHarness = Effect.fn("ProviderAuthService.test.makeHarness")(function* 
     sharedBusy?: boolean;
     sharedBusyEffect?: Effect.Effect<boolean>;
     responds?: boolean;
+    accounts?: ReadonlyArray<{ credentialId: string; label: string; active: boolean }>;
     beforeLogout?: Effect.Effect<void>;
     beforeStop?: Effect.Effect<void>;
     beforeListSessions?: Effect.Effect<void>;
@@ -168,9 +169,25 @@ const makeHarness = Effect.fn("ProviderAuthService.test.makeHarness")(function* 
     }
   });
 
+  const accounts = input.accounts;
   const auth: ProviderAuthService.ProviderAuthController = {
     ...(input.sharedCredentials
       ? { credentialBinding: { owner: "provider" as const, key: "shared" } }
+      : {}),
+    ...(accounts
+      ? {
+          listAccounts: () => Effect.sync(() => accounts),
+          switchAccount: Effect.fn(function* (credentialId, stopSessions) {
+            gateClosed = true;
+            actions.push("close-gate");
+            yield* stopSessions;
+            actions.push(`switch:${credentialId}`);
+            return accounts.map((account) => ({
+              ...account,
+              active: account.credentialId === credentialId,
+            }));
+          }),
+        }
       : {}),
     ...(input.responds
       ? {
@@ -669,6 +686,55 @@ describe("ProviderAuthService", () => {
         "native-logout",
       ]);
       assert.deepStrictEqual(released, ["running-session", "starting-session", "idle-session"]);
+    }),
+  );
+
+  it.effect("switches stored accounts after stopping this instance's sessions", () =>
+    Effect.gen(function* () {
+      const accounts = [
+        { credentialId: "cred-1", label: "one@example.com", active: true },
+        { credentialId: "cred-2", label: "two@example.com", active: false },
+      ];
+      const { service, actions } = yield* makeHarness({
+        accounts,
+        threads: [makeThread("running")],
+        sessions: new Map([
+          [ThreadId.make("running"), [makeSession("running-session", "running")]],
+        ]),
+      });
+
+      const listed = yield* service.listAccounts({ instanceId });
+      assert.deepStrictEqual(listed, { instanceId, accounts });
+
+      const switched = yield* service.switchAccount({ instanceId, credentialId: "cred-2" });
+      assert.deepStrictEqual(
+        switched.accounts.map((account) => [account.credentialId, account.active]),
+        [
+          ["cred-1", false],
+          ["cred-2", true],
+        ],
+      );
+      assert.deepStrictEqual(actions, [
+        "close-gate",
+        "list-threads",
+        "sessions:running",
+        "stop:running-session",
+        "switch:cred-2",
+      ]);
+    }),
+  );
+
+  it.effect("refuses account switching for providers that store one account", () =>
+    Effect.gen(function* () {
+      const { service } = yield* makeHarness();
+
+      const listed = yield* service.listAccounts({ instanceId }).pipe(Effect.flip);
+      assert.match(listed.detail, /one account per instance/);
+
+      const switched = yield* service
+        .switchAccount({ instanceId, credentialId: "cred-1" })
+        .pipe(Effect.flip);
+      assert.match(switched.detail, /one account per instance/);
     }),
   );
 

@@ -46,6 +46,19 @@ host's login or another instance's. OpenCode's own sign-out opens an account
 picker, so DAK does not offer a sign-out button for OpenCode. Usage scans
 each instance's data directory, so token counts follow the accounts.
 
+Separate instances are what separate accounts. Signing in again on the same
+instance adds a second account to that instance's profile rather than replacing
+the first, and both then share one quota — only the active one is used. When a
+profile holds more than one account, its provider status says how many are
+stored and which one is active.
+
+When a profile holds two or more accounts, **Switch account** appears with the
+provider's status in **Settings > Providers** and on the mobile provider
+accounts screen. Pick another stored account to make it active without signing
+in again. Switching stops this instance's running sessions. A local server
+reloads the account immediately; an external server follows its own reload
+behavior described above.
+
 ## Approvals
 
 OpenCode follows the shared [permission modes](./permission-modes.md). **Auto** has
@@ -60,15 +73,14 @@ does not stop the whole turn.
 
 ## Refresh models, commands, and skills
 
-After changing an OpenCode login or configuration, use **Refresh provider status**
-in **Settings > Providers** for that environment. On mobile, use **Refresh models**
+After changing OpenCode configuration, use **Refresh provider status** in
+**Settings > Providers** for that environment. On mobile, use **Refresh models**
 in the thread settings. Reconnecting also refreshes the catalog; periodic provider
 health checks do not.
 
-Credential changes are read on refresh. Native OpenCode configuration can remain
-cached while the local helper is running. Let it sit for 30 seconds without model
-refreshes or text-generation work, then refresh again to reload the files. Repeated
-refreshes keep the helper alive. An external server may need its own reload or
+Signing in from DAK reloads the account immediately, so no refresh is needed to
+start using it. A configuration change made outside DAK may need **Refresh
+provider status** to take effect. An external server needs its own reload or
 restart before DAK can see configuration changes.
 
 Existing threads keep their selected model and options even when it disappears

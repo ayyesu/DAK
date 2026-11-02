@@ -524,25 +524,42 @@ const checkOpenCode2 = Effect.fn("checkOpenCode2")(function* (
   // (older external server without the endpoint) reads as "unknown" rather
   // than claiming a sign-in that was never checked.
   const credentials = yield* loadCredentials;
-  const auth =
-    credentials === null
-      ? { status: "unknown" as const }
-      : credentials.length > 0
-        ? (() => {
-            const active = credentials.find((entry) => entry.active) ?? credentials[0];
-            const label = active?.label;
-            return {
-              status: "authenticated" as const,
-              ...(label !== undefined && label.length > 0 ? { label } : {}),
-            };
-          })()
+  const active = credentials?.find((entry) => entry.active);
+  const signedIn =
+    active !== undefined
+      ? {
+          status: "authenticated" as const,
+          ...(active.label.length > 0 ? { label: active.label } : {}),
+        }
+      : // Either the store could not be read, or it holds accounts with none
+        // selected. Neither answers which account a turn would use, and
+        // naming one anyway is what makes a switched account look unchanged.
+        credentials === null || credentials.length > 0
+        ? { status: "unknown" as const }
         : { status: "unauthenticated" as const };
+  // Several stored accounts can be switched in place; the settings card
+  // offers the switcher only when there is actually a choice to make.
+  const auth =
+    credentials !== null && credentials.length > 1
+      ? { ...signedIn, canSwitchAccount: true }
+      : signedIn;
+  // One profile can hold several sign-ins. Saying so is what tells a user that
+  // signing in again on the same instance stacks accounts rather than
+  // replacing one — separate instances, not extra sign-ins, isolate accounts.
+  const credentialsNote =
+    credentials === null || credentials.length === 0
+      ? null
+      : active === undefined
+        ? `This profile stores ${credentials.length} account${credentials.length === 1 ? "" : "s"}, but none is active.`
+        : credentials.length > 1
+          ? `${credentials.length} accounts stored; using ${active.label.length > 0 ? active.label : "the active one"}.`
+          : null;
   const probe = (status: "ready" | "warning" | "error", message: string) => ({
     installed: true,
     version,
     status,
     auth,
-    message,
+    message: credentialsNote === null ? message : `${message} ${credentialsNote}`,
   });
   if (result._tag === "Failure") {
     // The detail can carry a response body; it stays in the log, not the status.

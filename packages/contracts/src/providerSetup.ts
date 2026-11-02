@@ -14,6 +14,26 @@ export const ProviderSetupInput = Schema.Struct({
 });
 export type ProviderSetupInput = typeof ProviderSetupInput.Type;
 
+/** One account stored by an OpenCode 2 instance's credential store. */
+export const OpenCodeAccount = Schema.Struct({
+  credentialId: Schema.String,
+  label: Schema.String,
+  active: Schema.Boolean,
+});
+export type OpenCodeAccount = typeof OpenCodeAccount.Type;
+
+export const OpenCodeAccountsState = Schema.Struct({
+  instanceId: ProviderInstanceId,
+  accounts: Schema.Array(OpenCodeAccount),
+});
+export type OpenCodeAccountsState = typeof OpenCodeAccountsState.Type;
+
+export const OpenCodeAccountSwitchInput = Schema.Struct({
+  instanceId: ProviderInstanceId,
+  credentialId: TrimmedNonEmptyString,
+});
+export type OpenCodeAccountSwitchInput = typeof OpenCodeAccountSwitchInput.Type;
+
 export const CodexAuthCallbackInput = Schema.Struct({
   authorizationUrl: Schema.String.check(Schema.isMaxLength(16_384)),
   returnUrl: Schema.String.check(Schema.isMaxLength(4_096)),

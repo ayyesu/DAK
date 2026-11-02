@@ -51,6 +51,7 @@ import { deriveProviderSettingsFields, ProviderSettingsForm } from "./ProviderSe
 import { ProviderModelsSection } from "./ProviderModelsSection";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import { ProviderAccentColorPicker } from "./ProviderAccentColorPicker";
+import { OpenCodeAccountSwitcher } from "./OpenCodeAccountSwitcher";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { AcpSessionManagementSection } from "./AcpSessionManagementSection";
@@ -1038,6 +1039,15 @@ export function ProviderInstanceCard({
                   {editorStatusNode}
                 </div>
               </ProviderStatusDiagnostic>
+              {liveProvider?.auth.canSwitchAccount && environmentId ? (
+                <div className="pt-1">
+                  <OpenCodeAccountSwitcher
+                    environmentId={environmentId}
+                    instanceId={instanceId}
+                    readOnly={readOnly}
+                  />
+                </div>
+              ) : null}
               {urlAuthAction && onAcceptUrlAuth ? (
                 <div className="grid max-w-xl gap-1.5 pt-1 text-xs">
                   <p>{urlAuthAction.message}</p>

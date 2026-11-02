@@ -5,6 +5,8 @@ import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
+import { SpawnExecutableResolution } from "@dak/shared/shell";
+
 import { checkPiProviderStatus, MINIMUM_PI_VERSION } from "./PiProvider.ts";
 
 const encoder = new TextEncoder();
@@ -56,6 +58,9 @@ describe("PiProvider", () => {
     Effect.gen(function* () {
       const snapshot = yield* checkPiProviderStatus(settings).pipe(
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, piProbeSpawner("0.80.3")),
+        // Keep `pi` unresolvable so a real host install never turns the probe
+        // into a shell-mode spawn with escaped args; the mock owns every command.
+        Effect.provideService(SpawnExecutableResolution, () => undefined),
       );
       assert.equal(snapshot.status, "error");
       assert.equal(snapshot.version, "0.80.3");
@@ -67,6 +72,9 @@ describe("PiProvider", () => {
     Effect.gen(function* () {
       const snapshot = yield* checkPiProviderStatus(settings).pipe(
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, piProbeSpawner("0.84.3")),
+        // Keep `pi` unresolvable so a real host install never turns the probe
+        // into a shell-mode spawn with escaped args; the mock owns every command.
+        Effect.provideService(SpawnExecutableResolution, () => undefined),
       );
       assert.equal(snapshot.status, "ready");
       assert.equal(snapshot.auth.status, "unknown");

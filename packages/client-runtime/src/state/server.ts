@@ -1036,6 +1036,18 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:provider:auth-logout",
       tag: WS_METHODS.providerAuthLogout,
     }),
+    listOpenCodeAccounts: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:provider:opencode-accounts-list",
+      tag: WS_METHODS.providerOpenCodeAccountsList,
+    }),
+    switchOpenCodeAccount: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:provider:opencode-account-switch",
+      tag: WS_METHODS.providerOpenCodeAccountSwitch,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) => `${environmentId}:${input.instanceId}`,
+      },
+    }),
     providerInstallState: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
       label: "environment-data:provider:install-state",
       tag: WS_METHODS.providerInstallSubscribe,
@@ -1088,6 +1100,63 @@ export function createServerEnvironmentAtoms<R, E>(
     scheduledTasksLive: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
       label: "environment-data:server:scheduled-tasks:live",
       tag: WS_METHODS.scheduledTasksSubscribe,
+    }),
+    /** Live goal list: snapshot on subscribe, fresh list after every change the server makes. */
+    goalsLive: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+      label: "environment-data:server:goals:live",
+      tag: WS_METHODS.goalsSubscribe,
+    }),
+    createGoal: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:goal:create",
+      tag: WS_METHODS.goalsCreate,
+    }),
+    updateGoal: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:goal:update",
+      tag: WS_METHODS.goalsUpdate,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) => `${environmentId}:${input.id}`,
+      },
+    }),
+    pauseGoal: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:goal:pause",
+      tag: WS_METHODS.goalsPause,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) => `${environmentId}:${input.id}`,
+      },
+    }),
+    resumeGoal: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:goal:resume",
+      tag: WS_METHODS.goalsResume,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) => `${environmentId}:${input.id}`,
+      },
+    }),
+    cancelGoal: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:goal:cancel",
+      tag: WS_METHODS.goalsCancel,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) => `${environmentId}:${input.id}`,
+      },
+    }),
+    answerGoal: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:goal:answer",
+      tag: WS_METHODS.goalsAnswer,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) => `${environmentId}:${input.id}`,
+      },
+    }),
+    retryGoalTask: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:goal:retry-task",
+      tag: WS_METHODS.goalsRetryTask,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) => `${environmentId}:${input.id}`,
+      },
     }),
     // A cold transcript scan is measured in seconds, so keep the result around
     // long enough that switching windows or re-rendering does not rescan.

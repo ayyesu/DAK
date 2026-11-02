@@ -12,7 +12,14 @@
  *
  * @module provider/Drivers/OpenCodeDriver
  */
-import { OpenCodeSettings, ProviderDriverKind, type ServerProvider } from "@dak/contracts";
+import {
+  OpenCodeSettings,
+  ProviderDriverKind,
+  ProviderInstanceId,
+  ProviderSetupError,
+  type ServerProvider,
+} from "@dak/contracts";
+import type { Credential } from "@opencode/client/effect";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -63,7 +70,11 @@ import {
 } from "../ProviderDriver.ts";
 import { withInstanceIdentity } from "./instanceIdentity.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
-import { instanceProfileEnvironment } from "../InstanceProfile.ts";
+import {
+  findOpenCodeProfileCollisions,
+  instanceProfileEnvironment,
+  resolveInstanceProfileDir,
+} from "../InstanceProfile.ts";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   makeCachedProviderMaintenanceResolution,
@@ -346,6 +357,47 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
             ),
         )
         .pipe(Effect.orElseSucceed(() => null));
+      // Go usage limits need the account's API key. OpenCode 2 stores it in
+      // the instance's credential database, not the 1.x auth.json, so the
+      // instance's own server is the only honest source. An OAuth sign-in has
+      // no API key to read; the caller falls back to OPENCODE_API_KEY.
+      const loadOpenCode2ApiKey = openCode2Server
+        .withConnection((connection) =>
+          connection.client.credential.list().pipe(
+            Effect.map((entries) => {
+              const active = entries.find((entry) => entry.active);
+              if (active === undefined || active.value.type !== "key") return null;
+              return active.value.key.trim() || null;
+            }),
+          ),
+        )
+        .pipe(Effect.orElseSucceed(() => null));
+      // Every stored sign-in on this instance, for the in-place account
+      // switcher. It reads through the instance's own connection, never the
+      // host profile.
+      const listOpenCode2Accounts = openCode2Server
+        .withConnection((connection) =>
+          connection.client.credential.list().pipe(
+            Effect.map((entries) =>
+              entries.map((entry) => ({
+                credentialId: entry.id,
+                label: entry.label,
+                active: entry.active,
+              })),
+            ),
+          ),
+        )
+        .pipe(
+          Effect.mapError(
+            (cause) =>
+              new ProviderSetupError({
+                instanceId,
+                operation: "opencode.accounts.list",
+                detail: "This instance's OpenCode server did not list its stored accounts.",
+                cause,
+              }),
+          ),
+        );
       // A 2.x server lists skills and commands per directory, so one server
       // answers every workspace. Its event stream says when a directory it had
       // not served yet finished scanning.
@@ -413,6 +465,7 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
             enabled: effectiveConfig.enabled,
             serverUrl: effectiveConfig.serverUrl,
             environment: processEnv,
+            storedApiKey: loadOpenCode2ApiKey,
           }),
         },
         { concurrency: "unbounded" },
@@ -484,6 +537,59 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
             );
 
       const snapshotSettings = makeProviderSnapshotSettingsSource(effectiveConfig, serverSettings);
+      // Profile isolation is what makes separate accounts possible, so both
+      // ways it can fail belong on the card: the primary instance keeps the
+      // machine's login by design, and an instance that points `XDG_DATA_HOME`
+      // somewhere else can end up sharing one credential store with another
+      // instance, which is why switching accounts appears to do nothing.
+      const stampProfileIsolation = (snapshot: ServerProvider) =>
+        serverSettings.getSettings.pipe(
+          Effect.map((settings) => {
+            const profileDir = resolveInstanceProfileDir(
+              serverConfig.stateDir,
+              DRIVER_KIND,
+              instanceId,
+            );
+            const collision =
+              profileDir === null
+                ? undefined
+                : findOpenCodeProfileCollisions({
+                    stateDir: serverConfig.stateDir,
+                    instances: Object.entries(settings.providerInstances)
+                      .filter(([, config]) => config.driver === DRIVER_KIND)
+                      .map(([id, config]) => ({
+                        instanceId: ProviderInstanceId.make(id),
+                        enabled: config.enabled !== false,
+                        environment: config.environment,
+                      })),
+                  }).find((entry) => entry.instanceId === instanceId);
+            const notes: Array<string> = [];
+            if (collision !== undefined) {
+              notes.push(
+                `Shares one credential profile with ${collision.sharedWith.join(", ")}, so those instances use the same account.`,
+              );
+            } else if (profileDir === null) {
+              // Informational: the primary instance works exactly as designed.
+              notes.push("Uses this machine's OpenCode login.");
+            }
+            if (notes.length === 0) return snapshot;
+            return {
+              ...snapshot,
+              // Only a real collision is a problem, and only an otherwise
+              // healthy card should be escalated to it.
+              status:
+                collision !== undefined && snapshot.status === "ready"
+                  ? ("warning" as const)
+                  : snapshot.status,
+              message: [snapshot.message, ...notes]
+                .filter((part): part is string => part !== undefined && part.length > 0)
+                .join(" "),
+            };
+          }),
+          // The note is advisory, so a settings read failure must never hold
+          // up the snapshot it decorates.
+          Effect.orElseSucceed(() => snapshot),
+        );
       const snapshot = yield* makeManagedServerProvider<ProviderSnapshotSettings<OpenCodeSettings>>(
         {
           resolveMaintenance,
@@ -506,7 +612,8 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
                 }),
               ),
               Effect.provideService(HttpClient.HttpClient, httpClient),
-              Effect.flatMap((enrichedSnapshot) => publishSnapshot(enrichedSnapshot)),
+              Effect.flatMap(stampProfileIsolation),
+              Effect.flatMap(publishSnapshot),
             ),
         },
       ).pipe(
@@ -526,7 +633,16 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
       // `--standalone` matters: without it the CLI hands the new credentials
       // to the machine-wide background service instead of this profile's
       // database, and the host login changes under every account.
-      const auth = yield* makeTerminalAuth({
+      // The login wrote new credentials while the servers below were already
+      // running, and `opencode serve` keeps serving the account it verified
+      // at startup. Retire both local servers *before* refreshing, because
+      // the refresh borrows them and every borrow cancels the idle close —
+      // so refreshing first would pin the old process for another session.
+      const credentialsChanged = () =>
+        Effect.all([openCode2Server.invalidate, serverOwner.invalidate], {
+          concurrency: "unbounded",
+        }).pipe(Effect.andThen(snapshot.refresh), Effect.asVoid);
+      const terminalAuth = yield* makeTerminalAuth({
         instanceId,
         displayName: displayName ?? "OpenCode",
         enabled: effectiveConfig.enabled,
@@ -543,8 +659,44 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
             args: ["auth", "login", "--standalone"],
           },
         ],
-        onChanged: () => snapshot.refresh.pipe(Effect.asVoid),
+        onChanged: credentialsChanged,
       });
+      // Switching accounts is a credential change like a login: the running
+      // server verified its account at startup, so both local servers retire
+      // and the snapshot refreshes on the new active credential.
+      const switchOpenCode2Account = (
+        credentialId: string,
+        stopSessions: Effect.Effect<void, ProviderSetupError>,
+      ) =>
+        Effect.gen(function* () {
+          // Admission closes before sessions stop (the logout contract), so
+          // no new turn joins the account being switched away from. The
+          // retire in `credentialsChanged` catches any server a waiting
+          // borrower spawned mid-switch.
+          yield* Effect.all([openCode2Server.invalidate, serverOwner.invalidate], {
+            concurrency: "unbounded",
+          });
+          yield* stopSessions;
+          yield* openCode2Server
+            .withConnection((connection) =>
+              connection.client.credential.activate({
+                credentialID: credentialId as Credential.ID,
+              }),
+            )
+            .pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProviderSetupError({
+                    instanceId,
+                    operation: "opencode.accounts.switch",
+                    detail: "This instance's OpenCode server did not switch accounts.",
+                    cause,
+                  }),
+              ),
+            );
+          yield* credentialsChanged();
+          return yield* listOpenCode2Accounts;
+        });
 
       return {
         instanceId,
@@ -554,7 +706,11 @@ export const OpenCodeDriver: ProviderDriver<OpenCodeSettings, OpenCodeDriverEnv>
         accentColor,
         enabled,
         snapshot,
-        auth,
+        auth: {
+          ...terminalAuth,
+          listAccounts: () => listOpenCode2Accounts,
+          switchAccount: switchOpenCode2Account,
+        },
         snapshotForCwd: (cwd) =>
           !effectiveConfig.enabled
             ? snapshot.getSnapshot

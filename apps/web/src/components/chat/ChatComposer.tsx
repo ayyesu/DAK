@@ -1089,6 +1089,7 @@ import {
   PencilRulerIcon,
   PlayIcon,
   ShieldIcon,
+  TargetIcon,
   XIcon,
 } from "lucide-react";
 import { proposedPlanTitle } from "../../proposedPlan";
@@ -1247,6 +1248,9 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
   runtimeModeOptions: ReadonlyArray<RuntimeModeOption>;
   size?: "sm" | "xs";
   hidden?: boolean;
+  showGoalModeToggle: boolean;
+  goalModeOpen: boolean;
+  onToggleGoalMode: () => void;
   onToggleInteractionMode: () => void;
   onRuntimeModeChange: (mode: RuntimeMode) => void;
 }) {
@@ -1300,8 +1304,41 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
     </>
   ) : null;
 
+  const goalModeToggle = props.showGoalModeToggle ? (
+    <>
+      <ComposerControlSeparator size={size} />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <ComposerControl
+              size={size}
+              className="shrink-0 whitespace-nowrap"
+              aria-pressed={props.goalModeOpen}
+              type="button"
+              onClick={props.onToggleGoalMode}
+              aria-label="Goal mode"
+            />
+          }
+        >
+          <ComposerControlIcon
+            icon={TargetIcon}
+            size={size}
+            className={props.goalModeOpen ? "text-current opacity-100" : undefined}
+          />
+          <span data-composer-control-label className="sr-only sm:not-sr-only">
+            Goal
+          </span>
+        </TooltipTrigger>
+        <TooltipPopup side="top">
+          Goal mode gives the agent an outcome to plan, execute and verify
+        </TooltipPopup>
+      </Tooltip>
+    </>
+  ) : null;
+
   return (
     <>
+      {goalModeToggle}
       <ComposerControlSeparator size={size} />
 
       <Tooltip>
@@ -1600,6 +1637,9 @@ export interface ChatComposerProps {
   // Mode
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
+  /** Goal Mode's start form is open above the composer. */
+  goalModeOpen: boolean;
+  onToggleGoalMode: () => void;
 
   // Provider / model
   lockedProvider: ProviderDriverKind | null;
@@ -5517,6 +5557,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               runtimeMode={compatibleRuntimeMode}
               runtimeModeOptions={compatibleRuntimeModeOptions}
               size="sm"
+              showGoalModeToggle={props.canOperateThread}
+              goalModeOpen={props.goalModeOpen}
+              onToggleGoalMode={props.onToggleGoalMode}
               onToggleInteractionMode={toggleInteractionMode}
               onRuntimeModeChange={handleRuntimeModeChange}
             />

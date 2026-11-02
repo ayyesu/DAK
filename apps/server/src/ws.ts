@@ -129,6 +129,7 @@ import * as ThreadLaunchService from "./orchestration-v2/ThreadLaunchService.ts"
 import * as ThreadMessageIntake from "./orchestration-v2/ThreadMessageIntake.ts";
 import * as IdAllocator from "./orchestration-v2/IdAllocator.ts";
 import * as ScheduledTasks from "./scheduledTasks/ScheduledTaskService.ts";
+import * as Goals from "./goals/GoalService.ts";
 import * as SecretRequests from "./secrets/SecretRequests.ts";
 import {
   archivedShellStreamItemFromThreadShell,
@@ -1228,6 +1229,7 @@ const layerWsRpc = (
       const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
       const providerSessionManager = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const scheduledTasks = yield* ScheduledTasks.ScheduledTaskService;
+      const goals = yield* Goals.GoalService;
       const secretRequests = yield* SecretRequests.SecretRequests;
       const pullRequests = yield* PullRequestService.PullRequestService;
       const pullRequestSync = yield* PullRequestSyncReactor.PullRequestSyncReactor;
@@ -2033,6 +2035,16 @@ const layerWsRpc = (
               Effect.andThen(subscribeOrchestrationV2Thread(input)),
             ),
           ),
+        [WS_METHODS.goalsList]: (input) => goals.list(input),
+        [WS_METHODS.goalsSubscribe]: (input) => goals.subscribeList(input),
+        [WS_METHODS.goalsGet]: (input) => goals.get(input),
+        [WS_METHODS.goalsCreate]: (input) => goals.create(input),
+        [WS_METHODS.goalsUpdate]: (input) => goals.update(input),
+        [WS_METHODS.goalsPause]: (input) => goals.pause(input),
+        [WS_METHODS.goalsResume]: (input) => goals.resume(input),
+        [WS_METHODS.goalsCancel]: (input) => goals.cancel(input),
+        [WS_METHODS.goalsAnswer]: (input) => goals.answer(input),
+        [WS_METHODS.goalsRetryTask]: (input) => goals.retryTask(input),
         [WS_METHODS.scheduledTasksList]: (_input) =>
           scheduledTasks.list().pipe(Effect.map(withVisibleWebhookUrls)),
         [WS_METHODS.scheduledTasksSubscribe]: (_input) =>
@@ -2344,6 +2356,8 @@ const layerWsRpc = (
         [WS_METHODS.providerAuthLogout]: (input) => providerAuth.logout(input),
         [WS_METHODS.providerAuthSubscribe]: (input) =>
           providerAuth.subscribe(input, currentSessionId),
+        [WS_METHODS.providerOpenCodeAccountsList]: (input) => providerAuth.listAccounts(input),
+        [WS_METHODS.providerOpenCodeAccountSwitch]: (input) => providerAuth.switchAccount(input),
         [WS_METHODS.providerInstallStart]: (input) => providerInstallation.start(input),
         [WS_METHODS.providerInstallCancel]: (input) => providerInstallation.cancel(input),
         [WS_METHODS.providerInstallSubscribe]: (input) => providerInstallation.subscribe(input),
