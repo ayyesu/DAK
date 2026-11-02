@@ -34,31 +34,43 @@ export const readOpenCodeGoUsageLimits = Effect.fn("readOpenCodeGoUsageLimits")(
   readonly enabled: boolean;
   readonly serverUrl: string;
   readonly environment: NodeJS.ProcessEnv;
+  /**
+   * The instance resolves its own API key. OpenCode 2 keeps credentials in
+   * the instance's database, so the 1.x auth.json on this machine never
+   * holds its account.
+   */
+  readonly storedApiKey?: Effect.Effect<string | null>;
 }) {
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const unsupported = makeUnavailableUsageLimits({ checkedAt, reason: "unsupported" });
   if (!input.enabled || input.serverUrl.trim()) return unsupported;
 
   return yield* Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-    const env = input.environment;
-    const dataHome =
-      env.XDG_DATA_HOME ||
-      path.join(env.HOME || env.USERPROFILE || NodeOS.homedir(), ".local", "share");
-    const authPath = path.join(dataHome, "opencode", "auth.json");
-    const contents =
-      env.OPENCODE_AUTH_CONTENT ||
-      (yield* fs.readFileString(authPath).pipe(
-        Effect.catchTags({
-          PlatformError: (error) =>
-            error.reason._tag === "NotFound" ? Effect.succeed("{}") : Effect.fail(error),
-        }),
-      ));
-    const auth = yield* decodeAuthFile(contents);
-    const apiAuth = decodeApiAuth(auth["opencode-go"]);
-    // OpenCode overlays stored API credentials after environment credentials.
-    const apiKey = (Option.isSome(apiAuth) ? apiAuth.value.key : env.OPENCODE_API_KEY)?.trim();
+    const storedKey = ((yield* input.storedApiKey ?? Effect.succeed(null)) ?? "").trim();
+    const hostKey = storedKey
+      ? Effect.succeed(storedKey)
+      : Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const env = input.environment;
+          const dataHome =
+            env.XDG_DATA_HOME ||
+            path.join(env.HOME || env.USERPROFILE || NodeOS.homedir(), ".local", "share");
+          const authPath = path.join(dataHome, "opencode", "auth.json");
+          const contents =
+            env.OPENCODE_AUTH_CONTENT ||
+            (yield* fs.readFileString(authPath).pipe(
+              Effect.catchTags({
+                PlatformError: (error) =>
+                  error.reason._tag === "NotFound" ? Effect.succeed("{}") : Effect.fail(error),
+              }),
+            ));
+          const auth = yield* decodeAuthFile(contents);
+          const apiAuth = decodeApiAuth(auth["opencode-go"]);
+          // OpenCode overlays stored API credentials after environment credentials.
+          return (Option.isSome(apiAuth) ? apiAuth.value.key : env.OPENCODE_API_KEY)?.trim() ?? "";
+        });
+    const apiKey = yield* hostKey;
     if (!apiKey) return unsupported;
 
     const client = yield* HttpClient.HttpClient;

@@ -250,6 +250,8 @@ export const replayServer = (
                   borrowers.current -= 1;
                 }),
             ),
+      // The replay server has no process to retire; only the real one does.
+      invalidate: Effect.void,
     });
   });
 

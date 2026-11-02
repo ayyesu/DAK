@@ -36,6 +36,8 @@ import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import {
   CodexAuthCallbackInput,
   CodexAuthCallbackState,
+  OpenCodeAccountSwitchInput,
+  OpenCodeAccountsState,
   ProviderAuthCancelInput,
   ProviderAuthCompleteInput,
   ProviderAuthState,
@@ -341,6 +343,20 @@ import {
   ScheduledTaskUpsertInput,
   ScheduledTaskMutationResult,
 } from "./scheduledTask.ts";
+import {
+  GoalAnswerInput,
+  GoalCancelInput,
+  GoalCreateInput,
+  GoalError,
+  GoalGetInput,
+  GoalListInput,
+  GoalListResult,
+  GoalMutationResult,
+  GoalPauseInput,
+  GoalResumeInput,
+  GoalRetryTaskInput,
+  GoalUpdateInput,
+} from "./goals.ts";
 import { SecretRequestAnswerInput, SecretRequestError } from "./secretRequest.ts";
 import {
   ProjectCloneActionInput,
@@ -415,6 +431,8 @@ export const WS_METHODS = {
   providerAuthCancel: "provider.auth.cancel",
   providerAuthLogout: "provider.auth.logout",
   providerAuthSubscribe: "provider.auth.subscribe",
+  providerOpenCodeAccountsList: "provider.opencode.accounts.list",
+  providerOpenCodeAccountSwitch: "provider.opencode.accounts.switch",
   providerInstallStart: "provider.install.start",
   providerInstallCancel: "provider.install.cancel",
   providerInstallSubscribe: "provider.install.subscribe",
@@ -518,6 +536,18 @@ export const WS_METHODS = {
   secretsAnswerRequest: "secrets.answerRequest",
   scheduledTasksListWebhookDeliveries: "scheduledTasks.listWebhookDeliveries",
   scheduledTasksGetWebhookDelivery: "scheduledTasks.getWebhookDelivery",
+
+  // Goals
+  goalsList: "goals.list",
+  goalsSubscribe: "goals.subscribe",
+  goalsGet: "goals.get",
+  goalsCreate: "goals.create",
+  goalsUpdate: "goals.update",
+  goalsPause: "goals.pause",
+  goalsResume: "goals.resume",
+  goalsCancel: "goals.cancel",
+  goalsAnswer: "goals.answer",
+  goalsRetryTask: "goals.retryTask",
 
   // Cloud environment methods
   cloudGetRelayClientStatus: "cloud.getRelayClientStatus",
@@ -688,6 +718,18 @@ const WsProviderAuthCancelRpc = Rpc.make(WS_METHODS.providerAuthCancel, {
 const WsProviderAuthLogoutRpc = Rpc.make(WS_METHODS.providerAuthLogout, {
   payload: ProviderSetupInput,
   success: ProviderAuthState,
+  error: ProviderSetupRpcError,
+});
+
+const WsProviderOpenCodeAccountsListRpc = Rpc.make(WS_METHODS.providerOpenCodeAccountsList, {
+  payload: ProviderSetupInput,
+  success: OpenCodeAccountsState,
+  error: ProviderSetupRpcError,
+});
+
+const WsProviderOpenCodeAccountSwitchRpc = Rpc.make(WS_METHODS.providerOpenCodeAccountSwitch, {
+  payload: OpenCodeAccountSwitchInput,
+  success: OpenCodeAccountsState,
   error: ProviderSetupRpcError,
 });
 
@@ -1787,6 +1829,68 @@ const WsScheduledTasksRotateWebhookTokenRpc = Rpc.make(
   },
 );
 
+const WsGoalsListRpc = Rpc.make(WS_METHODS.goalsList, {
+  payload: GoalListInput,
+  success: GoalListResult,
+  error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
+});
+
+/** Streams the full goal list: one snapshot on subscribe, then a fresh list after every change. */
+const WsGoalsSubscribeRpc = Rpc.make(WS_METHODS.goalsSubscribe, {
+  payload: GoalListInput,
+  success: GoalListResult,
+  error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
+const WsGoalsGetRpc = Rpc.make(WS_METHODS.goalsGet, {
+  payload: GoalGetInput,
+  success: GoalMutationResult,
+  error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
+});
+
+const WsGoalsCreateRpc = Rpc.make(WS_METHODS.goalsCreate, {
+  payload: GoalCreateInput,
+  success: GoalMutationResult,
+  error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
+});
+
+const WsGoalsUpdateRpc = Rpc.make(WS_METHODS.goalsUpdate, {
+  payload: GoalUpdateInput,
+  success: GoalMutationResult,
+  error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
+});
+
+const WsGoalsPauseRpc = Rpc.make(WS_METHODS.goalsPause, {
+  payload: GoalPauseInput,
+  success: GoalMutationResult,
+  error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
+});
+
+const WsGoalsResumeRpc = Rpc.make(WS_METHODS.goalsResume, {
+  payload: GoalResumeInput,
+  success: GoalMutationResult,
+  error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
+});
+
+const WsGoalsCancelRpc = Rpc.make(WS_METHODS.goalsCancel, {
+  payload: GoalCancelInput,
+  success: GoalMutationResult,
+  error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
+});
+
+const WsGoalsAnswerRpc = Rpc.make(WS_METHODS.goalsAnswer, {
+  payload: GoalAnswerInput,
+  success: GoalMutationResult,
+  error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
+});
+
+const WsGoalsRetryTaskRpc = Rpc.make(WS_METHODS.goalsRetryTask, {
+  payload: GoalRetryTaskInput,
+  success: GoalMutationResult,
+  error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
+});
+
 const WsSecretsAnswerRequestRpc = Rpc.make(WS_METHODS.secretsAnswerRequest, {
   payload: SecretRequestAnswerInput,
   error: Schema.Union([SecretRequestError, EnvironmentAuthorizationError]),
@@ -1857,6 +1961,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsProviderAuthCancelRpc,
   WsProviderAuthLogoutRpc,
   WsProviderAuthSubscribeRpc,
+  WsProviderOpenCodeAccountsListRpc,
+  WsProviderOpenCodeAccountSwitchRpc,
   WsProviderInstallStartRpc,
   WsProviderInstallCancelRpc,
   WsProviderInstallSubscribeRpc,
@@ -1889,6 +1995,16 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerGetUsageSummaryRpc,
   WsServerRefreshUsageRatesRpc,
   WsServerSignalProcessRpc,
+  WsGoalsListRpc,
+  WsGoalsSubscribeRpc,
+  WsGoalsGetRpc,
+  WsGoalsCreateRpc,
+  WsGoalsUpdateRpc,
+  WsGoalsPauseRpc,
+  WsGoalsResumeRpc,
+  WsGoalsCancelRpc,
+  WsGoalsAnswerRpc,
+  WsGoalsRetryTaskRpc,
   WsScheduledTasksListRpc,
   WsScheduledTasksSubscribeRpc,
   WsScheduledTasksUpsertRpc,

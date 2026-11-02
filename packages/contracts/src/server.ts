@@ -67,6 +67,8 @@ export const ServerProviderAuth = Schema.Struct({
   email: Schema.optional(TrimmedNonEmptyString),
   action: Schema.optional(AcpRegistryUrlAuthAction),
   canLogout: Schema.optional(Schema.Boolean),
+  /** The instance stores several accounts and can switch between them in place. */
+  canSwitchAccount: Schema.optional(Schema.Boolean),
   subscriptionSharing: Schema.optional(Schema.Boolean),
   profileId: Schema.optional(TrimmedNonEmptyString),
 });

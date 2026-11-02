@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off
+import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import { describe, expect, it } from "@effect/vitest";
@@ -9,7 +10,11 @@ import {
   type ProviderInstanceEnvironment,
 } from "@dak/contracts";
 
-import { instanceProfileEnvironment, resolveInstanceProfileDir } from "./InstanceProfile.ts";
+import {
+  findOpenCodeProfileCollisions,
+  instanceProfileEnvironment,
+  resolveInstanceProfileDir,
+} from "./InstanceProfile.ts";
 
 const stateDir = NodePath.join("dak-home", "userdata");
 const driver = (kind: string) => ProviderDriverKind.make(kind);
@@ -166,5 +171,122 @@ describe("instanceProfileEnvironment", () => {
 
     expect(resolved.map((entry) => entry.name)).toEqual(["GROK_HOME", "XAI_API_KEY"]);
     expect(resolved[1]?.value).toBe("xai-test");
+  });
+});
+
+describe("findOpenCodeProfileCollisions", () => {
+  const hostDataHome = NodePath.join(NodeOS.homedir(), ".local", "share", "opencode");
+
+  it("finds no collision between instances DAK isolated itself", () => {
+    const collisions = findOpenCodeProfileCollisions({
+      stateDir,
+      instances: [
+        { instanceId: instance("opencode"), enabled: true },
+        { instanceId: instance("opencode_work"), enabled: true },
+        { instanceId: instance("opencode_personal"), enabled: true },
+      ],
+    });
+
+    expect(collisions).toEqual([]);
+  });
+
+  it("does not treat the primary instance as colliding on its own login", () => {
+    // The primary instance keeps the machine login while every other instance
+    // keeps a DAK directory, which is the separation the docs promise.
+    expect(
+      findOpenCodeProfileCollisions({
+        stateDir,
+        instances: [
+          { instanceId: instance("opencode"), enabled: true },
+          {
+            instanceId: instance("opencode_work"),
+            enabled: true,
+            environment: [
+              {
+                name: "XDG_DATA_HOME",
+                value: NodePath.join(stateDir, "providers", "opencode", "opencode_work"),
+                sensitive: false,
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it("names both instances when an override points back at the machine login", () => {
+    const collisions = findOpenCodeProfileCollisions({
+      stateDir,
+      instances: [
+        { instanceId: instance("opencode"), enabled: true },
+        {
+          instanceId: instance("opencode_work"),
+          enabled: true,
+          environment: [{ name: "XDG_DATA_HOME", value: hostDataHome, sensitive: false }],
+        },
+      ],
+    });
+
+    expect(collisions).toEqual([
+      { instanceId: instance("opencode"), sharedWith: [instance("opencode_work")] },
+      { instanceId: instance("opencode_work"), sharedWith: [instance("opencode")] },
+    ]);
+  });
+
+  it("names both instances when two overrides share one directory", () => {
+    const shared = NodePath.join(stateDir, "shared-opencode");
+    const environment: ProviderInstanceEnvironment = [
+      { name: "XDG_DATA_HOME", value: shared, sensitive: false },
+    ];
+
+    const collisions = findOpenCodeProfileCollisions({
+      stateDir,
+      instances: [
+        { instanceId: instance("opencode_a"), enabled: true, environment },
+        {
+          instanceId: instance("opencode_b"),
+          enabled: true,
+          environment: [{ name: "XDG_DATA_HOME", value: shared + NodePath.sep, sensitive: false }],
+        },
+      ],
+    });
+
+    expect(collisions).toEqual([
+      { instanceId: instance("opencode_a"), sharedWith: [instance("opencode_b")] },
+      { instanceId: instance("opencode_b"), sharedWith: [instance("opencode_a")] },
+    ]);
+  });
+
+  it("ignores a disabled instance and an override that stays unique", () => {
+    expect(
+      findOpenCodeProfileCollisions({
+        stateDir,
+        instances: [
+          { instanceId: instance("opencode_work"), enabled: true },
+          {
+            instanceId: instance("opencode_personal"),
+            enabled: true,
+            environment: [
+              {
+                name: "XDG_DATA_HOME",
+                value: NodePath.join(stateDir, "personal"),
+                sensitive: false,
+              },
+            ],
+          },
+          {
+            instanceId: instance("opencode_off"),
+            enabled: false,
+            environment: [
+              {
+                name: "XDG_DATA_HOME",
+                value: NodePath.join(stateDir, "personal"),
+                sensitive: false,
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([]);
   });
 });

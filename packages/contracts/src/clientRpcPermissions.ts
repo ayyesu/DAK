@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema";
 import { GitPreparePullRequestThreadInput } from "./git.ts";
 import {
   AuthOrchestrationOperateScope,
+  AuthProvidersManageScope,
   AuthSourceControlWriteScope,
   type AuthEnvironmentScope,
 } from "./auth.ts";
@@ -39,6 +40,16 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.scheduledTasksDelete]: AuthOrchestrationOperateScope,
   [WS_METHODS.scheduledTasksRunNow]: AuthOrchestrationOperateScope,
   [WS_METHODS.scheduledTasksRotateWebhookToken]: AuthOrchestrationOperateScope,
+
+  [WS_METHODS.goalsCreate]: AuthOrchestrationOperateScope,
+  [WS_METHODS.goalsUpdate]: AuthOrchestrationOperateScope,
+  [WS_METHODS.goalsPause]: AuthOrchestrationOperateScope,
+  [WS_METHODS.goalsResume]: AuthOrchestrationOperateScope,
+  [WS_METHODS.goalsCancel]: AuthOrchestrationOperateScope,
+  [WS_METHODS.goalsAnswer]: AuthOrchestrationOperateScope,
+  [WS_METHODS.goalsRetryTask]: AuthOrchestrationOperateScope,
+
+  [WS_METHODS.providerOpenCodeAccountSwitch]: AuthProvidersManageScope,
 } as const;
 export type ClientGuardedRpcTag = keyof typeof CLIENT_GUARDED_RPC_SCOPES;
 

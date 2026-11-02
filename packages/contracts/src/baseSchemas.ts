@@ -385,6 +385,9 @@ export type RuntimeRequestId = typeof RuntimeRequestId.Type;
 export const RuntimeTaskId = makeEntityId("RuntimeTaskId");
 export type RuntimeTaskId = typeof RuntimeTaskId.Type;
 export const ScheduledTaskId = makeEntityId("ScheduledTaskId");
+/** A durable objective the server drives in execution cycles. */
+export const GoalId = makeEntityId("GoalId");
+export type GoalId = typeof GoalId.Type;
 /** A one-use handle to a secret the user entered for an agent; the agent never sees the value. */
 export const SecretRef = makeEntityId("SecretRef");
 export type SecretRef = typeof SecretRef.Type;

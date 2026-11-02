@@ -287,3 +287,91 @@ it.effect("releases an interrupted borrower and closes after the idle TTL", () =
     ).pipe(Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, testRuntime.runtime));
   }).pipe(Effect.provide(TestClock.layer())),
 );
+
+it.effect("recycles an idle process on invalidate so the next borrower gets a fresh one", () =>
+  Effect.gen(function* () {
+    const testRuntime = yield* makeRuntime;
+    yield* Effect.scoped(
+      Effect.gen(function* () {
+        const owner = yield* OpenCodeServerOwner.make({
+          binaryPath: "opencode",
+          directory: "/project",
+        });
+        expect(yield* owner.withServer((server) => Effect.succeed(server.url))).toBe(
+          "http://127.0.0.1:1",
+        );
+        // Nothing is borrowing it, so the credential change can retire it now
+        // rather than waiting out an idle TTL that keeps the old account live.
+        yield* owner.invalidate;
+        expect(yield* Ref.get(testRuntime.closes)).toBe(1);
+        expect(yield* owner.withServer((server) => Effect.succeed(server.url))).toBe(
+          "http://127.0.0.1:2",
+        );
+        expect(yield* Ref.get(testRuntime.starts)).toBe(2);
+      }),
+    ).pipe(Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, testRuntime.runtime));
+  }).pipe(Effect.provide(TestClock.layer())),
+);
+
+it.effect("does not lend a process being invalidated to a borrower that arrives mid-recycle", () =>
+  Effect.gen(function* () {
+    const starts = yield* Ref.make(0);
+    const closes = yield* Ref.make(0);
+    const secondRan = yield* Ref.make(false);
+    const releaseFirst = yield* Deferred.make<void>();
+    const runtime: OpenCodeRuntime.OpenCodeRuntimeShape = {
+      startOpenCodeServerProcess: () =>
+        Effect.gen(function* () {
+          const index = yield* Ref.updateAndGet(starts, (count) => count + 1);
+          yield* Effect.addFinalizer(() => Ref.update(closes, (count) => count + 1));
+          return {
+            url: `http://127.0.0.1:${index}`,
+            version: "1.14.19",
+            isRunning: Effect.succeed(true),
+            exitCode: Effect.never,
+          };
+        }),
+      connectToOpenCodeServer: unusedRuntimeMethod,
+      runOpenCodeCommand: unusedRuntimeMethod,
+      createOpenCodeSdkClient: () => ({}) as never,
+      loadOpenCodeInventory: unusedRuntimeMethod,
+      loadOpenCodeSkills: unusedRuntimeMethod,
+      loadInventoryFromCli: unusedRuntimeMethod,
+      loadSkillsFromCli: unusedRuntimeMethod,
+    };
+
+    yield* Effect.scoped(
+      Effect.gen(function* () {
+        const owner = yield* OpenCodeServerOwner.make({
+          binaryPath: "opencode",
+          directory: "/project",
+        });
+        const first = yield* owner
+          .withServer(() => Deferred.await(releaseFirst).pipe(Effect.as("first")))
+          .pipe(Effect.forkChild);
+        yield* Effect.yieldNow;
+        expect(yield* owner.withServer((server) => Effect.succeed(server.url))).toBe(
+          "http://127.0.0.1:1",
+        );
+        yield* owner.invalidate;
+
+        // The recycle cannot kill work already inside the old process, so this
+        // borrower must wait for the drain rather than join it and inherit the
+        // previous account.
+        const second = yield* owner
+          .withServer((server) => Ref.set(secondRan, true).pipe(Effect.as(server.url)))
+          .pipe(Effect.forkChild);
+        yield* Effect.yieldNow;
+        expect(yield* Ref.get(secondRan)).toBe(false);
+
+        yield* Deferred.succeed(releaseFirst, undefined);
+        expect(yield* Fiber.join(first)).toBe("first");
+        // Served by a fresh process, never the one that was being retired.
+        expect(yield* Fiber.join(second)).toBe("http://127.0.0.1:2");
+        expect(yield* Ref.get(secondRan)).toBe(true);
+        expect(yield* Ref.get(starts)).toBe(2);
+        expect(yield* Ref.get(closes)).toBe(1);
+      }),
+    ).pipe(Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, runtime));
+  }),
+);

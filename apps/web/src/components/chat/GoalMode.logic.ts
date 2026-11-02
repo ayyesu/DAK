@@ -1,0 +1,172 @@
+import type { Goal, GoalStatus, GoalTask, GoalTaskStatus, ThreadId } from "@dak/contracts";
+
+/** Statuses where the server is still working or waiting to work. */
+export const GOAL_ACTIVE_STATUSES: ReadonlyArray<GoalStatus> = [
+  "planning",
+  "running",
+  "verifying",
+  "paused",
+  "needs_input",
+  "blocked",
+];
+
+export function isGoalActive(status: GoalStatus): boolean {
+  return GOAL_ACTIVE_STATUSES.includes(status);
+}
+
+export function goalNeedsAttention(status: GoalStatus): boolean {
+  return (
+    status === "needs_input" || status === "blocked" || status === "paused" || status === "failed"
+  );
+}
+
+/** Completed tasks over the plan; a goal with no plan yet reads as 0%. */
+export function goalProgress(goal: Pick<Goal, "tasks">): {
+  readonly completed: number;
+  readonly total: number;
+  readonly percent: number;
+} {
+  const total = goal.tasks.length;
+  const completed = goal.tasks.filter((task) => task.status === "completed").length;
+  return { completed, total, percent: total === 0 ? 0 : Math.round((completed / total) * 100) };
+}
+
+/**
+ * The goal the panel should show: this thread's goal first, then the project's
+ * most recently updated active goal, so an agent working elsewhere is still
+ * visible without opening another thread.
+ */
+export function selectGoalForThread(
+  goals: ReadonlyArray<Goal>,
+  threadId: ThreadId | null,
+): Goal | null {
+  const byUpdate = goals.toSorted(
+    (left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt),
+  );
+  const threadGoals =
+    threadId === null ? [] : byUpdate.filter((goal) => goal.threadId === threadId);
+  const activeThreadGoal = threadGoals.find((goal) => isGoalActive(goal.status));
+  if (activeThreadGoal !== undefined) return activeThreadGoal;
+  if (threadGoals.length > 0) return threadGoals[0]!;
+  return byUpdate.find((goal) => isGoalActive(goal.status)) ?? byUpdate[0] ?? null;
+}
+
+export function goalStatusLabel(status: GoalStatus): string {
+  switch (status) {
+    case "draft":
+      return "Draft";
+    case "planning":
+      return "Planning";
+    case "running":
+      return "Working";
+    case "paused":
+      return "Paused";
+    case "needs_input":
+      return "Needs input";
+    case "blocked":
+      return "Blocked";
+    case "verifying":
+      return "Verifying";
+    case "completed":
+      return "Completed";
+    case "failed":
+      return "Failed";
+    case "cancelled":
+      return "Cancelled";
+  }
+}
+
+export type GoalTone = "active" | "attention" | "success" | "danger" | "muted";
+
+export function goalStatusTone(status: GoalStatus): GoalTone {
+  switch (status) {
+    case "planning":
+    case "running":
+    case "verifying":
+      return "active";
+    case "paused":
+    case "needs_input":
+    case "blocked":
+      return "attention";
+    case "completed":
+      return "success";
+    case "failed":
+      return "danger";
+    case "draft":
+    case "cancelled":
+      return "muted";
+  }
+}
+
+/** One line that answers "what is happening right now?" for the collapsed card. */
+export function goalHeadline(
+  goal: Pick<Goal, "status" | "tasks" | "currentTaskId" | "blockedReason">,
+): string {
+  switch (goal.status) {
+    case "draft":
+      return "Draft";
+    case "planning":
+      return "Planning the work";
+    case "running": {
+      const current =
+        goal.tasks.find((task) => task.id === goal.currentTaskId) ??
+        goal.tasks.find((task) => task.status === "in_progress");
+      return current === undefined ? "Working" : `Working on: ${current.title}`;
+    }
+    case "paused":
+      return "Paused";
+    case "needs_input":
+      return "Waiting for your answer";
+    case "blocked":
+      return goal.blockedReason ?? "Blocked";
+    case "verifying":
+      return "Verifying the result";
+    case "completed":
+      return "Completed and verified";
+    case "failed":
+      return "Stopped after an error";
+    case "cancelled":
+      return "Cancelled";
+  }
+}
+
+export function goalTaskStatusLabel(status: GoalTaskStatus): string {
+  switch (status) {
+    case "pending":
+      return "Pending";
+    case "in_progress":
+      return "Currently executing";
+    case "completed":
+      return "Completed";
+    case "blocked":
+      return "Blocked";
+    case "failed":
+      return "Failed";
+  }
+}
+
+/** Compact relative time for "last activity"; no Intl formatting per row. */
+export function formatGoalActivityTime(iso: string, nowMs: number): string {
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return "";
+  const seconds = Math.max(0, Math.round((nowMs - then) / 1_000));
+  if (seconds < 45) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.round(days / 7);
+  return `${weeks}w ago`;
+}
+
+/** The task a progress row should mark as current. */
+export function currentGoalTask(
+  goal: Pick<Goal, "tasks" | "currentTaskId" | "status">,
+): GoalTask | null {
+  const active = goal.tasks.find((task) => task.status === "in_progress");
+  if (active !== undefined) return active;
+  if (goal.currentTaskId === null) return null;
+  return goal.tasks.find((task) => task.id === goal.currentTaskId) ?? null;
+}

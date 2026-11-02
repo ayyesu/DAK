@@ -71,6 +71,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.providerAuthCancel]: AuthProvidersManageScope,
   [WS_METHODS.providerAuthLogout]: AuthProvidersManageScope,
   [WS_METHODS.providerAuthSubscribe]: AuthProvidersManageScope,
+  [WS_METHODS.providerOpenCodeAccountsList]: AuthProvidersManageScope,
   [WS_METHODS.providerInstallStart]: AuthProvidersManageScope,
   [WS_METHODS.providerInstallCancel]: AuthProvidersManageScope,
   [WS_METHODS.providerInstallSubscribe]: AuthOrchestrationReadScope,
@@ -110,6 +111,11 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.serverGetBackgroundPolicy]: AuthOrchestrationReadScope,
   [WS_METHODS.scheduledTasksList]: AuthOrchestrationReadScope,
   [WS_METHODS.scheduledTasksSubscribe]: AuthOrchestrationReadScope,
+  // Goal progress is thread work, so reading it needs the thread scope and
+  // every control that changes execution needs the operate scope.
+  [WS_METHODS.goalsList]: AuthOrchestrationReadScope,
+  [WS_METHODS.goalsSubscribe]: AuthOrchestrationReadScope,
+  [WS_METHODS.goalsGet]: AuthOrchestrationReadScope,
   [WS_METHODS.secretsAnswerRequest]: AuthOrchestrationOperateScope,
   // Delivery logs hold request bodies, so they need the same scope as the URL.
   [WS_METHODS.scheduledTasksListWebhookDeliveries]: AuthOrchestrationOperateScope,

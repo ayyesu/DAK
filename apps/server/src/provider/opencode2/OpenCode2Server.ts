@@ -34,6 +34,13 @@ export class OpenCode2Server extends Context.Service<
     readonly withConnection: <A, E, R>(
       use: (connection: OpenCode2Connection) => Effect.Effect<A, E, R>,
     ) => Effect.Effect<A, E | OpenCodeRuntimeError, R>;
+    /**
+     * Drops the live server because this instance's credentials changed. A
+     * DAK-owned server is retired so the next connection reads the account
+     * that just signed in; an external server is not DAK's to restart, so
+     * only its cached connection is discarded.
+     */
+    readonly invalidate: Effect.Effect<void>;
   }
 >()("dak/provider/opencode2/OpenCode2Server") {}
 
@@ -172,6 +179,12 @@ export const make = Effect.fn("OpenCode2Server.make")(function* (input: {
         Effect.suspend(() => (latest === undefined ? connect : Effect.succeed(latest))).pipe(
           Effect.flatMap(use),
         ),
+      // DAK cannot restart a server it does not own; forcing the next
+      // connection through `connect` at least re-verifies it and re-reads
+      // whatever the external server now reports.
+      invalidate: Effect.sync(() => {
+        latest = undefined;
+      }),
     });
   }
 
@@ -190,6 +203,7 @@ export const make = Effect.fn("OpenCode2Server.make")(function* (input: {
           ? use(latest)
           : Effect.die(new Error("OpenCode 2 server was lent before verification.")),
       ),
+    invalidate: owner.invalidate,
   });
 });
 

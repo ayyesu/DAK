@@ -1,9 +1,10 @@
 // @effect-diagnostics nodeBuiltinImport:off
+import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import {
+  ProviderDriverKind,
   defaultInstanceIdForDriver,
-  type ProviderDriverKind,
   type ProviderInstanceEnvironment,
   type ProviderInstanceId,
 } from "@dak/contracts";
@@ -15,8 +16,8 @@ import {
  * profile without DAK copying anything:
  *
  * - `CLAUDE_CONFIG_DIR` and `GROK_HOME` are documented overrides.
- * - `XDG_DATA_HOME` relocates OpenCode's `auth.json`, and `PI_CODING_AGENT_DIR`
- *   relocates `~/.pi/agent`.
+ * - `XDG_DATA_HOME` relocates OpenCode's credential store (`opencode.db`), and
+ *   `PI_CODING_AGENT_DIR` relocates `~/.pi/agent`.
  * - Muse resolves its config roots through the XDG base directories, so its
  *   credentials (`auth.json`) and session state both live under those homes.
  *   Both must follow the profile or `muse login` would write into the host's
@@ -91,4 +92,75 @@ export function instanceProfileEnvironment(
     .map((name) => ({ name, value: profileDir, sensitive: false }));
   if (profile.length === 0) return input.environment;
   return [...profile, ...input.environment];
+}
+
+/**
+ * OpenCode's credential store when nothing relocates it. OpenCode resolves the
+ * XDG data home the same way on every platform, so this is where the primary
+ * instance reads the login that was already on the machine.
+ */
+const OPENCODE_HOST_DATA_HOME = NodePath.join(NodeOS.homedir(), ".local", "share", "opencode");
+
+/** Compare paths the way the filesystem holding them does. */
+const profilePathKey = (value: string): string => {
+  const normalized = NodePath.normalize(value.trim());
+  // `normalize` keeps a trailing separator, which would otherwise make two
+  // spellings of one directory compare unequal.
+  const untrailed = normalized.replace(/[\\/]+$/, "");
+  const canonical = untrailed.length > 0 ? untrailed : normalized;
+  return NodePath.sep === "\\" ? canonical.toLowerCase() : canonical;
+};
+
+export interface OpenCodeProfileCollision {
+  readonly instanceId: ProviderInstanceId;
+  readonly sharedWith: ReadonlyArray<ProviderInstanceId>;
+}
+
+/**
+ * Enabled OpenCode instances that resolve to the same credential store.
+ *
+ * DAK's own profile paths embed the instance id, so two of them can never
+ * collide — a shared store only happens when a user-authored `XDG_DATA_HOME`
+ * replaces the row DAK stamps. `instanceProfileEnvironment` leaves that row
+ * alone on purpose, so the override is never re-pointed; naming the collision
+ * instead is what makes it visible when instances stop switching accounts.
+ *
+ * A disabled instance is ignored because it never runs, and an authored row
+ * wins over the DAK profile exactly as it does at spawn time.
+ */
+export function findOpenCodeProfileCollisions(input: {
+  readonly stateDir: string;
+  readonly instances: ReadonlyArray<{
+    readonly instanceId: ProviderInstanceId;
+    readonly enabled: boolean;
+    readonly environment?: ProviderInstanceEnvironment | undefined;
+  }>;
+}): ReadonlyArray<OpenCodeProfileCollision> {
+  const byHome = new Map<string, Array<ProviderInstanceId>>();
+  for (const instance of input.instances) {
+    if (!instance.enabled) continue;
+    const authored = instance.environment?.find((entry) => entry.name === "XDG_DATA_HOME");
+    const profileDir = resolveInstanceProfileDir(
+      input.stateDir,
+      ProviderDriverKind.make("opencode"),
+      instance.instanceId,
+    );
+    const home =
+      authored !== undefined && authored.value.trim().length > 0
+        ? authored.value
+        : (profileDir ?? OPENCODE_HOST_DATA_HOME);
+    const key = profilePathKey(home);
+    byHome.set(key, [...(byHome.get(key) ?? []), instance.instanceId]);
+  }
+  const collisions: Array<OpenCodeProfileCollision> = [];
+  for (const instanceIds of byHome.values()) {
+    if (instanceIds.length < 2) continue;
+    for (const instanceId of instanceIds) {
+      collisions.push({
+        instanceId,
+        sharedWith: instanceIds.filter((other) => other !== instanceId),
+      });
+    }
+  }
+  return collisions;
 }

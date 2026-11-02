@@ -3,7 +3,8 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@dak/client-runtime/state/runtime";
-import type { ProviderAuthResponse, ServerProvider } from "@dak/contracts";
+import type { OpenCodeAccount, ProviderAuthResponse, ServerProvider } from "@dak/contracts";
+import { useAtomValue } from "@effect/atom-react";
 import { useRef, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -88,8 +89,16 @@ function ProviderAccount({
   const complete = useAtomCommand(serverEnvironment.completeProviderAuth, options);
   const cancel = useAtomCommand(serverEnvironment.cancelProviderAuth, options);
   const logout = useAtomCommand(serverEnvironment.logoutProviderAuth, options);
+  const listAccounts = useAtomCommand(serverEnvironment.listOpenCodeAccounts, options);
+  const switchAccount = useAtomCommand(serverEnvironment.switchOpenCodeAccount, options);
+  const canSwitchAccount = useAtomValue(
+    serverEnvironment.switchOpenCodeAccount.permissionAtom(environmentId),
+  );
   const [pending, setPending] = useState(false);
   const [choosingMethod, setChoosingMethod] = useState(false);
+  const [choosingAccount, setChoosingAccount] = useState(false);
+  const [accounts, setAccounts] = useState<readonly OpenCodeAccount[] | null>(null);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
   const pendingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState({ id: "", values: {} as Record<string, string> });
@@ -137,6 +146,40 @@ function ProviderAccount({
     pendingRef.current = false;
     setPending(false);
     return succeeded;
+  }
+  async function loadAccounts() {
+    try {
+      const result = await listAccounts(target);
+      if (result._tag === "Success") setAccounts(result.value.accounts);
+      else if (!isAtomCommandInterrupted(result)) {
+        const failure = squashAtomCommandFailure(result);
+        setError(failure instanceof Error ? failure.message : "Could not list accounts.");
+        setChoosingAccount(false);
+      }
+    } catch {
+      setError("Could not list accounts.");
+      setChoosingAccount(false);
+    }
+  }
+  async function pickAccount(credentialId: string) {
+    if (switchingId !== null) return;
+    setSwitchingId(credentialId);
+    setError(null);
+    try {
+      const result = await switchAccount({
+        environmentId,
+        input: { instanceId, credentialId },
+      });
+      if (result._tag === "Success") setAccounts(result.value.accounts);
+      else if (!isAtomCommandInterrupted(result)) {
+        const failure = squashAtomCommandFailure(result);
+        setError(failure instanceof Error ? failure.message : "Could not switch accounts.");
+      }
+    } catch {
+      setError("Could not switch accounts.");
+    } finally {
+      setSwitchingId(null);
+    }
   }
   function send(response: ProviderAuthResponse) {
     if (!state?.flowId || !interaction) return Promise.resolve(false);
@@ -325,6 +368,48 @@ function ProviderAccount({
           loading={pending}
           onPress={chooseMethod}
         />
+      ) : null}
+      {!active && signedIn && canSwitchAccount ? (
+        choosingAccount ? (
+          <View>
+            {accounts === null ? (
+              <SettingsActionRow
+                icon="person.crop.circle"
+                label="Loading accounts…"
+                disabled
+                loading
+                onPress={() => {}}
+              />
+            ) : (
+              accounts.map((account) => (
+                <SettingsActionRow
+                  key={account.credentialId}
+                  icon={account.active ? "checkmark.circle" : "person.crop.circle"}
+                  label={account.label.trim() || "Account"}
+                  disabled={switchingId !== null || account.active}
+                  loading={switchingId === account.credentialId}
+                  onPress={() => void pickAccount(account.credentialId)}
+                />
+              ))
+            )}
+            <SettingsActionRow
+              icon="xmark"
+              label="Cancel"
+              disabled={switchingId !== null}
+              onPress={() => setChoosingAccount(false)}
+            />
+          </View>
+        ) : (
+          <SettingsActionRow
+            icon="person.crop.circle"
+            label="Switch account"
+            disabled={disabled || state === null}
+            onPress={() => {
+              setChoosingAccount(true);
+              void loadAccounts();
+            }}
+          />
+        )
       ) : null}
       {!active && signedIn && (provider.auth.canLogout ?? provider.setup?.canAuthenticate) ? (
         <SettingsActionRow

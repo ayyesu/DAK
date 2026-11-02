@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
 import { HttpClient, HttpClientResponse } from "effect/http";
@@ -40,6 +41,7 @@ const DEFAULT_VERSION_STDOUT = "opencode 1.14.19\n";
 it.effect("reads Go limits with the instance's XDG credentials and preserves reset times", () =>
   Effect.gen(function* () {
     const resetsAt = "2026-09-17T12:00:00.000Z";
+    const pathService = yield* Path.Path.pipe(Effect.provide(NodeServices.layer));
     const limits = yield* readOpenCodeGoUsageLimits({
       enabled: true,
       serverUrl: "",
@@ -48,8 +50,8 @@ it.effect("reads Go limits with the instance's XDG credentials and preserves res
       Effect.provideService(
         FileSystem.FileSystem,
         FileSystem.makeNoop({
-          readFileString: (path) => {
-            NodeAssert.equal(path, "/instance/data/opencode/auth.json");
+          readFileString: (filePath) => {
+            NodeAssert.equal(filePath, pathService.join("/instance/data", "opencode", "auth.json"));
             return Effect.succeed(
               JSON.stringify({ "opencode-go": { type: "api", key: "instance-key" } }),
             );
@@ -95,6 +97,84 @@ it.effect("reads Go limits with the instance's XDG credentials and preserves res
         { kind: "monthly", usedPercent: 100, reset: resetsAt },
       ],
     );
+  }),
+);
+
+it.effect("prefers the instance's stored API key and skips the host credential files", () =>
+  Effect.gen(function* () {
+    const limits = yield* readOpenCodeGoUsageLimits({
+      enabled: true,
+      serverUrl: "",
+      environment: { OPENCODE_API_KEY: "env-key" },
+      storedApiKey: Effect.succeed("stored-key"),
+    }).pipe(
+      Effect.provideService(
+        FileSystem.FileSystem,
+        FileSystem.makeNoop({
+          readFileString: () => Effect.die("unexpected credential read"),
+        }),
+      ),
+      Effect.provideService(
+        HttpClient.HttpClient,
+        HttpClient.make((request) => {
+          NodeAssert.equal(request.headers.authorization, "Bearer stored-key");
+          return Effect.succeed(
+            HttpClientResponse.fromWeb(
+              request,
+              Response.json({
+                usage: {
+                  rolling: { percent: 0, resetsAt: "2026-09-17T12:00:00.000Z" },
+                  weekly: { percent: 0, resetsAt: "2026-09-17T12:00:00.000Z" },
+                  monthly: { percent: 0, resetsAt: "2026-09-17T12:00:00.000Z" },
+                },
+              }),
+            ),
+          );
+        }),
+      ),
+      Effect.provide(NodeServices.layer),
+    );
+    NodeAssert.equal(limits.unavailable, undefined);
+  }),
+);
+
+it.effect("falls back to the environment key when the instance has no stored API key", () =>
+  Effect.gen(function* () {
+    // An OAuth sign-in stores no API key, so the headless fallback applies.
+    const limits = yield* readOpenCodeGoUsageLimits({
+      enabled: true,
+      serverUrl: "",
+      environment: { OPENCODE_API_KEY: "env-key" },
+      storedApiKey: Effect.succeed(null),
+    }).pipe(
+      Effect.provideService(
+        FileSystem.FileSystem,
+        FileSystem.makeNoop({
+          // The host profile's 1.x auth.json does not exist here.
+          readFileString: () => Effect.succeed("{}"),
+        }),
+      ),
+      Effect.provideService(
+        HttpClient.HttpClient,
+        HttpClient.make((request) => {
+          NodeAssert.equal(request.headers.authorization, "Bearer env-key");
+          return Effect.succeed(
+            HttpClientResponse.fromWeb(
+              request,
+              Response.json({
+                usage: {
+                  rolling: { percent: 0, resetsAt: "2026-09-17T12:00:00.000Z" },
+                  weekly: { percent: 0, resetsAt: "2026-09-17T12:00:00.000Z" },
+                  monthly: { percent: 0, resetsAt: "2026-09-17T12:00:00.000Z" },
+                },
+              }),
+            ),
+          );
+        }),
+      ),
+      Effect.provide(NodeServices.layer),
+    );
+    NodeAssert.equal(limits.unavailable, undefined);
   }),
 );
 
@@ -638,6 +718,58 @@ it.layer(layerTest)("checkOpenCodeProviderStatus", (it) => {
     }),
   );
 
+  it.effect("does not claim a sign-in when a stored credential is not the active one", () =>
+    Effect.gen(function* () {
+      runtimeMock.state.versionStdout = "opencode v2.1.3\n";
+      const snapshot = yield* checkProvider(
+        makeOpenCodeSettings(),
+        process.cwd(),
+        undefined,
+        undefined,
+        Effect.succeed([
+          { providerID: "opencode", id: "big-pickle", name: "Big Pickle", variants: [] },
+        ]),
+        // Every entry inactive means no account is actually serving, so naming
+        // the first one would report the account the user just switched away
+        // from as the one in use.
+        Effect.succeed([
+          { label: "anthropic", active: false },
+          { label: "Work account", active: false },
+        ]),
+      );
+
+      NodeAssert.equal(snapshot.auth.status, "unknown");
+      NodeAssert.equal(snapshot.auth.label, undefined);
+      NodeAssert.match(snapshot.message ?? "", /2 accounts, but none is active/);
+    }),
+  );
+
+  it.effect("names the active account and counts the others stored in the profile", () =>
+    Effect.gen(function* () {
+      runtimeMock.state.versionStdout = "opencode v2.1.3\n";
+      const snapshot = yield* checkProvider(
+        makeOpenCodeSettings(),
+        process.cwd(),
+        undefined,
+        undefined,
+        Effect.succeed([
+          { providerID: "opencode", id: "big-pickle", name: "Big Pickle", variants: [] },
+        ]),
+        Effect.succeed([
+          { label: "personal", active: false },
+          { label: "Work account", active: true },
+          { label: "client", active: false },
+        ]),
+      );
+
+      NodeAssert.equal(snapshot.auth.status, "authenticated");
+      NodeAssert.equal(snapshot.auth.label, "Work account");
+      // Stacked sign-ins on one profile share one account; saying so is what
+      // tells a user to add an instance instead of signing in again.
+      NodeAssert.match(snapshot.message ?? "", /3 accounts stored; using Work account\./);
+    }),
+  );
+
   it.effect("reads a failed OpenCode 2 credential probe as unknown, never signed in", () =>
     Effect.gen(function* () {
       runtimeMock.state.versionStdout = "opencode v2.1.3\n";
@@ -768,6 +900,41 @@ it.layer(layerTest)("checkOpenCodeProviderStatus with configured server URL", (i
         "full-access",
       ]);
       NodeAssert.equal(runtimeMock.state.sdkClientInputs.length, 0);
+    }),
+  );
+
+  it.effect("offers account switching only when the profile stores several accounts", () =>
+    Effect.gen(function* () {
+      const settings = makeOpenCodeSettings({
+        serverUrl: "http://127.0.0.1:9999",
+        serverPassword: "secret-password",
+      });
+      const server = replayOpenCodeServer(OPENCODE_2_RESPONSES, "secret-password");
+      const single = yield* checkProvider(
+        settings,
+        process.cwd(),
+        undefined,
+        server,
+        Effect.succeed([]),
+        Effect.succeed([{ label: "one@example.com", active: true }]),
+      );
+
+      NodeAssert.equal(single.auth.canSwitchAccount, undefined);
+
+      const stacked = yield* checkProvider(
+        settings,
+        process.cwd(),
+        undefined,
+        server,
+        Effect.succeed([]),
+        Effect.succeed([
+          { label: "one@example.com", active: true },
+          { label: "two@example.com", active: false },
+        ]),
+      );
+
+      NodeAssert.equal(stacked.auth.canSwitchAccount, true);
+      NodeAssert.match(stacked.message ?? "", /2 accounts stored; using one@example\.com/);
     }),
   );
 

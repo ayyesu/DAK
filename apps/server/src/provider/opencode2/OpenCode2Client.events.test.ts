@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off - resolves the recorded transcript relative to this test file.
+import * as NodeURL from "node:url";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -16,6 +18,7 @@ const RECORDING = new URL(
   "../../orchestration-v2/testkit/fixtures/opencode2_simple/opencode_transcript.ndjson",
   import.meta.url,
 );
+const recordingPath = NodeURL.fileURLToPath(RECORDING);
 const Entry = Schema.Struct({ type: Schema.String, frame: Schema.optional(Schema.Unknown) });
 const decodeEntry = Schema.decodeUnknownSync(Schema.fromJsonString(Entry));
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
@@ -23,7 +26,7 @@ const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 /** The recorded `simple` turn's events, as a newer server would send them. */
 const newerServerStream = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
-  const recorded = (yield* fs.readFileString(RECORDING.pathname))
+  const recorded = (yield* fs.readFileString(recordingPath))
     .split("\n")
     .filter((line) => line.length > 0)
     .map((line) => decodeEntry(line))

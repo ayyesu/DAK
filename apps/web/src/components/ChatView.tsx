@@ -435,6 +435,7 @@ import {
 } from "../state/entities";
 import { environmentShell } from "../state/shell";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
+import { GoalModePanel } from "./chat/GoalModePanel";
 import { createPageScrollController, type PageScrollKey } from "./chat/pageScrollController";
 import { isTimelineScrollTarget } from "./chat/timelineScrollTarget";
 import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
@@ -1984,6 +1985,9 @@ export default function ChatView(props: ChatViewProps) {
   // composer is expanded and holds that height while it rests, so the resting
   // composer never exposes rows that its expansion will cover.
   const [composerTimelineInset, setComposerTimelineInset] = useState(0);
+  // Goal Mode's start form sits above the composer; an existing goal shows
+  // its progress there whether or not the form is open.
+  const [goalComposerOpen, setGoalComposerOpen] = useState(false);
   const composerTimelineInsetRef = useRef(0);
   const composerRestingRef = useRef(false);
   // False while a status bar stands in for the composer (a native subagent).
@@ -11626,6 +11630,26 @@ export default function ChatView(props: ChatViewProps) {
                       </div>
                     </div>
                   ) : null}
+                  <GoalModePanel
+                    environmentId={environmentId}
+                    projectId={
+                      isServerThread
+                        ? (activeThread?.projectId ?? null)
+                        : (activeProject?.id ?? null)
+                    }
+                    threadId={isServerThread ? (activeThreadId ?? null) : null}
+                    modelSelection={
+                      reportedModelSelection ??
+                      activeThread?.modelSelection ??
+                      activeProjectDefaultModelSelection ??
+                      null
+                    }
+                    runtimeMode={runtimeMode}
+                    interactionMode={interactionMode}
+                    canOperate={canOperateThread}
+                    composerOpen={goalComposerOpen}
+                    onComposerOpenChange={setGoalComposerOpen}
+                  />
                   <div
                     ref={draftHeroTransition.composerAnchorRef}
                     className="relative z-10"
@@ -11771,6 +11795,8 @@ export default function ChatView(props: ChatViewProps) {
                               }
                               runtimeMode={runtimeMode}
                               interactionMode={interactionMode}
+                              goalModeOpen={goalComposerOpen}
+                              onToggleGoalMode={() => setGoalComposerOpen((open) => !open)}
                               lockedProvider={modelPickerLockedProvider}
                               providerStatuses={providerStatuses as ServerProvider[]}
                               providerCatalogKnown={serverConfig !== null}

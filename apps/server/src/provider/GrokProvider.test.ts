@@ -9,6 +9,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Schema from "effect/Schema";
 import { HttpClient, HttpClientResponse } from "effect/http";
 import { GrokSettings } from "@dak/contracts";
+import { HostProcessPlatform } from "@dak/shared/hostProcess";
 
 import {
   buildGrokModelCapabilities,
@@ -23,6 +24,9 @@ import { grokUsageResponseToLimits, readGrokAccount } from "./grokUsageLimits.ts
 
 const decodeGrokSettings = Schema.decodeSync(GrokSettings);
 const __dirname = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
+// The mock agent's lifecycle runs through the `.cmd` shim, whose cmd.exe
+// wrapper cannot be torn down cleanly on Windows.
+const windowsHost = HostProcessPlatform.defaultValue() === "win32";
 
 const LOGGED_IN_MODELS_OUTPUT = [
   "You are logged in with grok.com.",
@@ -426,7 +430,7 @@ it.layer(NodeServices.layer)("checkGrokProviderStatus", (it) => {
       });
     });
 
-  it.effect("reports ready with ACP-discovered models when logged in", () =>
+  it.effect.skipIf(windowsHost)("reports ready with ACP-discovered models when logged in", () =>
     Effect.gen(function* () {
       const snapshot = yield* Effect.scoped(
         Effect.gen(function* () {
@@ -457,26 +461,28 @@ it.layer(NodeServices.layer)("checkGrokProviderStatus", (it) => {
     }),
   );
 
-  it.effect("reports unauthenticated from `grok models` without starting a session", () =>
-    Effect.gen(function* () {
-      const snapshot = yield* Effect.scoped(
-        Effect.gen(function* () {
-          const grokPath = yield* writeFakeGrokCli({
-            modelsOutput: LOGGED_OUT_MODELS_OUTPUT,
-            acp: true,
-          });
-          return yield* checkGrokProviderStatus(
-            decodeGrokSettings({ enabled: true, binaryPath: grokPath }),
-            { ...process.env, XAI_API_KEY: "" },
-          );
-        }),
-      );
+  it.effect.skipIf(windowsHost)(
+    "reports unauthenticated from `grok models` without starting a session",
+    () =>
+      Effect.gen(function* () {
+        const snapshot = yield* Effect.scoped(
+          Effect.gen(function* () {
+            const grokPath = yield* writeFakeGrokCli({
+              modelsOutput: LOGGED_OUT_MODELS_OUTPUT,
+              acp: true,
+            });
+            return yield* checkGrokProviderStatus(
+              decodeGrokSettings({ enabled: true, binaryPath: grokPath }),
+              { ...process.env, XAI_API_KEY: "" },
+            );
+          }),
+        );
 
-      expect(snapshot.status).toBe("error");
-      expect(snapshot.auth.status).toBe("unauthenticated");
-      expect(snapshot.message).toContain("grok login");
-      expect(snapshot.models.map((model) => model.slug)).toEqual(["grok-4.6", "grok-mock-alt"]);
-    }),
+        expect(snapshot.status).toBe("error");
+        expect(snapshot.auth.status).toBe("unauthenticated");
+        expect(snapshot.message).toContain("grok login");
+        expect(snapshot.models.map((model) => model.slug)).toEqual(["grok-4.6", "grok-mock-alt"]);
+      }),
   );
 
   it.effect("falls back to CLI-listed models with a warning when ACP initialize fails", () =>

@@ -310,6 +310,8 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
     }),
   );
 
+  // The default validation handshake unpacks and drives a POSIX-shaped ACP
+  // runtime through the mocked spawner; that flow cannot start on Windows.
   it.effect.each([
     {
       name: "the expected release with protocol 1",
@@ -341,6 +343,7 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
     },
   ])("validates $name with initialize only and removes the disposable profile", (testCase) =>
     Effect.gen(function* () {
+      if (HostProcessPlatform.defaultValue() === "win32") return;
       const fs = yield* FileSystem.FileSystem;
       const encoder = new TextEncoder();
       const decodeRequest = Schema.decodeUnknownEffect(
