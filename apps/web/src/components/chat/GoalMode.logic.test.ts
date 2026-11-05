@@ -2,14 +2,23 @@ import { GoalId, ThreadId, type Goal, type GoalTask } from "@dak/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  canCancelGoal,
+  canEditGoal,
+  canPauseGoal,
+  canResumeGoal,
+  canRetryGoal,
   currentGoalTask,
   formatGoalActivityTime,
+  goalCriterionStates,
   goalHeadline,
   goalNeedsAttention,
   goalProgress,
   goalStatusLabel,
   goalStatusTone,
+  goalVerificationStatusLabel,
+  isGoalEnded,
   selectGoalForThread,
+  splitCriteriaLines,
 } from "./GoalMode.logic";
 
 function task(overrides: Partial<GoalTask> & Pick<GoalTask, "id" | "title">): GoalTask {
@@ -202,5 +211,128 @@ describe("formatGoalActivityTime", () => {
 
   it("ignores an unparseable timestamp", () => {
     expect(formatGoalActivityTime("not a date", now)).toBe("");
+  });
+});
+
+describe("goal control matrix", () => {
+  it("pauses only the statuses the server's driver is working on", () => {
+    expect(canPauseGoal("planning")).toBe(true);
+    expect(canPauseGoal("running")).toBe(true);
+    expect(canPauseGoal("verifying")).toBe(true);
+    expect(canPauseGoal("paused")).toBe(false);
+    expect(canPauseGoal("needs_input")).toBe(false);
+    expect(canPauseGoal("blocked")).toBe(false);
+    expect(canPauseGoal("completed")).toBe(false);
+  });
+
+  it("resumes every recoverable state, including failed and blocked", () => {
+    expect(canResumeGoal("paused")).toBe(true);
+    expect(canResumeGoal("blocked")).toBe(true);
+    expect(canResumeGoal("failed")).toBe(true);
+    expect(canResumeGoal("draft")).toBe(true);
+    expect(canResumeGoal("running")).toBe(false);
+    expect(canResumeGoal("completed")).toBe(false);
+    expect(canResumeGoal("cancelled")).toBe(false);
+  });
+
+  it("gates edit, cancel and retry on the goal not having ended", () => {
+    for (const status of ["planning", "running", "paused", "failed", "blocked", "draft"] as const) {
+      expect(canEditGoal(status)).toBe(true);
+      expect(canCancelGoal(status)).toBe(true);
+      expect(canRetryGoal(status)).toBe(true);
+      expect(isGoalEnded(status)).toBe(false);
+    }
+    for (const status of ["completed", "cancelled"] as const) {
+      expect(canEditGoal(status)).toBe(false);
+      expect(canCancelGoal(status)).toBe(false);
+      expect(canRetryGoal(status)).toBe(false);
+      expect(isGoalEnded(status)).toBe(true);
+    }
+  });
+});
+
+describe("splitCriteriaLines", () => {
+  it("trims lines and drops the blank ones", () => {
+    expect(splitCriteriaLines("  Ships on mobile  \n\n\nPersists after reload\n")).toEqual([
+      "Ships on mobile",
+      "Persists after reload",
+    ]);
+  });
+
+  it("caps each criterion at the schema's length limit", () => {
+    const [criterion] = splitCriteriaLines("x".repeat(600));
+    expect(criterion).toHaveLength(500);
+  });
+
+  it("keeps at most twenty criteria", () => {
+    const lines = Array.from({ length: 25 }, (_, index) => `criterion ${index}`);
+    expect(splitCriteriaLines(lines.join("\n"))).toHaveLength(20);
+  });
+});
+
+describe("goalVerificationStatusLabel", () => {
+  it("reads as a sentence rather than the raw enum", () => {
+    expect(goalVerificationStatusLabel("pending")).toBe("Not checked yet");
+    expect(goalVerificationStatusLabel("passed")).toBe("Verified");
+    expect(goalVerificationStatusLabel("failed")).toBe("Did not pass");
+  });
+});
+
+describe("goalCriterionStates", () => {
+  it("stays unchecked while no verification pass has judged the criteria", () => {
+    const states = goalCriterionStates(
+      goal({
+        id: "g",
+        status: "running",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        acceptanceCriteria: ["Persists after reload"],
+      }),
+    );
+    expect(states).toEqual([{ criterion: "Persists after reload", met: null }]);
+  });
+
+  it("maps verification verdicts back onto the acceptance criteria", () => {
+    const states = goalCriterionStates(
+      goal({
+        id: "g",
+        status: "completed",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        acceptanceCriteria: ["Persists after reload", "Loads under a second"],
+        verification: {
+          status: "failed",
+          summary: "One criterion missed",
+          checkedAt: "2026-01-01T00:00:00.000Z",
+          criteria: [
+            { criterion: "Persists after reload", met: true },
+            { criterion: "Loads under a second", met: false },
+          ],
+        },
+      }),
+    );
+    expect(states).toEqual([
+      { criterion: "Persists after reload", met: true },
+      { criterion: "Loads under a second", met: false },
+    ]);
+  });
+
+  it("leaves criteria the check never mentioned as unchecked", () => {
+    const states = goalCriterionStates(
+      goal({
+        id: "g",
+        status: "completed",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        acceptanceCriteria: ["Checked", "Never judged"],
+        verification: {
+          status: "passed",
+          summary: null,
+          checkedAt: "2026-01-01T00:00:00.000Z",
+          criteria: [{ criterion: "Checked", met: true }],
+        },
+      }),
+    );
+    expect(states).toEqual([
+      { criterion: "Checked", met: true },
+      { criterion: "Never judged", met: null },
+    ]);
   });
 });

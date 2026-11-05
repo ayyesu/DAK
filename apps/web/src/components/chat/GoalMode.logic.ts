@@ -14,6 +14,35 @@ export function isGoalActive(status: GoalStatus): boolean {
   return GOAL_ACTIVE_STATUSES.includes(status);
 }
 
+/** Statuses that ended the goal for good; resume, edit, cancel and retry refuse them. */
+const ENDED_GOAL_STATUSES: ReadonlyArray<GoalStatus> = ["completed", "cancelled"];
+
+export function isGoalEnded(status: GoalStatus): boolean {
+  return ENDED_GOAL_STATUSES.includes(status);
+}
+
+/** The server only pauses a goal its driver is actively working on. */
+export function canPauseGoal(status: GoalStatus): boolean {
+  return status === "planning" || status === "running" || status === "verifying";
+}
+
+/** Recoverable states; `failed` and `blocked` resume rather than restart. */
+export function canResumeGoal(status: GoalStatus): boolean {
+  return status === "paused" || status === "blocked" || status === "failed" || status === "draft";
+}
+
+export function canEditGoal(status: GoalStatus): boolean {
+  return !isGoalEnded(status);
+}
+
+export function canCancelGoal(status: GoalStatus): boolean {
+  return !isGoalEnded(status);
+}
+
+export function canRetryGoal(status: GoalStatus): boolean {
+  return !isGoalEnded(status);
+}
+
 export function goalNeedsAttention(status: GoalStatus): boolean {
   return (
     status === "needs_input" || status === "blocked" || status === "paused" || status === "failed"
@@ -169,4 +198,48 @@ export function currentGoalTask(
   if (active !== undefined) return active;
   if (goal.currentTaskId === null) return null;
   return goal.tasks.find((task) => task.id === goal.currentTaskId) ?? null;
+}
+
+/** Mirrors the server's acceptance-criteria bounds so input never trips the schema. */
+const GOAL_CRITERIA_MAX_LINES = 20;
+const GOAL_CRITERIA_MAX_LENGTH = 500;
+
+/** One criterion per line; blank lines dropped, length and count capped. */
+export function splitCriteriaLines(text: string): Array<string> {
+  return text
+    .split("\n")
+    .map((line) => line.trim().slice(0, GOAL_CRITERIA_MAX_LENGTH))
+    .filter((line) => line !== "")
+    .slice(0, GOAL_CRITERIA_MAX_LINES);
+}
+
+export function goalVerificationStatusLabel(status: Goal["verification"]["status"]): string {
+  switch (status) {
+    case "pending":
+      return "Not checked yet";
+    case "passed":
+      return "Verified";
+    case "failed":
+      return "Did not pass";
+  }
+}
+
+export interface GoalCriterionState {
+  readonly criterion: string;
+  /** `null` until a verification pass has judged the criterion. */
+  readonly met: boolean | null;
+}
+
+/**
+ * Acceptance criteria with their verification verdict, newest check wins:
+ * `met` stays null while the goal has never been verified.
+ */
+export function goalCriterionStates(
+  goal: Pick<Goal, "acceptanceCriteria" | "verification">,
+): ReadonlyArray<GoalCriterionState> {
+  const results = goal.verification.criteria ?? [];
+  return goal.acceptanceCriteria.map((criterion) => ({
+    criterion,
+    met: results.find((result) => result.criterion === criterion)?.met ?? null,
+  }));
 }

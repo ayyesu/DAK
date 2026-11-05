@@ -7993,6 +7993,8 @@ export default function ChatView(props: ChatViewProps) {
   useEffect(() => {
     setPendingServerThreadEnvMode(null);
     setPendingServerThreadBranch(undefined);
+    // The goal form belongs to one thread; a fresh thread starts without it.
+    setGoalComposerOpen(false);
   }, [activeThread?.id]);
 
   useEffect(() => {

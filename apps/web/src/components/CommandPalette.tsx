@@ -66,6 +66,7 @@ import {
   SettingsIcon,
   SquarePenIcon,
   SunIcon,
+  TargetIcon,
   TextSearchIcon,
 } from "lucide-react";
 import {
@@ -129,6 +130,7 @@ import {
   resolveProjectPathForDispatch,
 } from "../lib/projectPaths";
 import { onOpenCommandPalette } from "../commandPaletteBus";
+import { openGoalComposer } from "../goalModeBus";
 import { isPreviewFocused } from "../lib/previewFocus";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import {
@@ -1926,6 +1928,21 @@ function OpenCommandPaletteDialog(props: {
       icon: <MessageSquareDashedIcon className={ITEM_ICON_CLASS} />,
       shortcutCommand: "chat.newWithoutProject",
       run: () => startScratchThread(scratchTargetEnvironmentId),
+    });
+  }
+
+  // The goal form lives in the chat view; the palette only asks for it.
+  if (currentProjectId !== null) {
+    actionItems.push({
+      kind: "action",
+      value: "action:new-goal",
+      searchTerms: ["new goal", "goal", "objective", "plan", "target"],
+      title: "New goal",
+      icon: <TargetIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "chat.goal",
+      run: async () => {
+        openGoalComposer();
+      },
     });
   }
 
