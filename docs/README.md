@@ -4,6 +4,7 @@
 
 - [Install DAK](./user/install.md)
 - [Messages and context](./user/composer.md)
+- [Goal mode](./user/goal-mode.md)
 - [Working with threads](./user/thread-sidebar.md)
 - [Permission modes](./user/permission-modes.md)
 - [Terminal history](./user/terminal.md)

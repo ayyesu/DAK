@@ -82,10 +82,19 @@ export type GoalActivity = typeof GoalActivity.Type;
 export const GoalVerificationStatus = Schema.Literals(["pending", "passed", "failed"]);
 export type GoalVerificationStatus = typeof GoalVerificationStatus.Type;
 
+/** One acceptance criterion's result from the last verification pass. */
+export const GoalVerificationCriterion = Schema.Struct({
+  criterion: Schema.String,
+  met: Schema.Boolean,
+});
+export type GoalVerificationCriterion = typeof GoalVerificationCriterion.Type;
+
 export const GoalVerification = Schema.Struct({
   status: GoalVerificationStatus,
   summary: Schema.NullOr(Schema.String),
   checkedAt: Schema.NullOr(IsoDateTime),
+  /** Absent until a verification pass ran under a schema that recorded it. */
+  criteria: Schema.optional(Schema.Array(GoalVerificationCriterion)),
 });
 export type GoalVerification = typeof GoalVerification.Type;
 

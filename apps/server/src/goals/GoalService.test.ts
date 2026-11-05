@@ -1,9 +1,20 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import { assert, expect, it } from "@effect/vitest";
-import type { GoalCreateInput, ModelSelection, ProjectId } from "@dak/contracts";
+import type {
+  Goal,
+  GoalCreateInput,
+  GoalListResult,
+  ModelSelection,
+  OrchestrationV2ThreadProjection,
+  ProjectId,
+  RunId,
+} from "@dak/contracts";
+import { GoalError, ThreadId } from "@dak/contracts";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Result from "effect/Result";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
@@ -39,6 +50,293 @@ const createInput = (overrides: Partial<GoalCreateInput> = {}): GoalCreateInput 
   interactionMode: "default",
   ...overrides,
 });
+
+// --- Scripted turn harness -------------------------------------------------
+//
+// Each dispatched run consumes one scripted step: what `waitForThread` reports
+// and which assistant text the projection carries. A gate holds one wait so a
+// test can mutate the goal while a turn is provably in flight.
+
+interface Gate {
+  readonly reached: Promise<void>;
+  readonly open: Promise<void>;
+  readonly signal: () => void;
+  readonly release: () => void;
+}
+
+function makeGate(): Gate {
+  let signal!: () => void;
+  let release!: () => void;
+  const reached = new Promise<void>((resolve) => {
+    signal = resolve;
+  });
+  const open = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { reached, open, signal, release };
+}
+
+type TurnStep =
+  | { readonly kind: "completed"; readonly reply: string | null }
+  | {
+      readonly kind: "run";
+      readonly status: "interrupted" | "failed" | "cancelled" | "rolled_back";
+    }
+  | { readonly kind: "timeout" }
+  | { readonly kind: "waitError"; readonly error: "thread" | "run" | "archived" };
+
+interface ScriptOptions {
+  readonly steps?: ReadonlyArray<TurnStep>;
+  readonly holdWaitAt?: number;
+  readonly gate?: Gate;
+  readonly launchMode?: "script" | "never" | "noRun";
+  readonly launchGate?: { readonly at: number; readonly gate: Gate };
+  readonly failNextSendWith?: "thread" | "archived";
+}
+
+interface GoalScript {
+  readonly steps: Array<TurnStep>;
+  readonly stepsByRun: Map<string, TurnStep>;
+  readonly sentTexts: Array<string>;
+  readonly messages: Array<{
+    readonly role: string;
+    readonly runId: string;
+    readonly text: string;
+    readonly createdAt: DateTime.DateTime;
+  }>;
+  readonly holdWaitAt: number | null;
+  readonly gate: Gate | null;
+  readonly launchMode: "script" | "never" | "noRun";
+  readonly launchGate: { readonly at: number; readonly gate: Gate } | null;
+  failNextSendWith: "thread" | "archived" | null;
+  waitCount: number;
+  launchCount: number;
+  runSeq: number;
+  nextRunId: () => RunId;
+  assign: (runId: string, step: TurnStep) => void;
+}
+
+function makeScript(options: ScriptOptions = {}): GoalScript {
+  const script: GoalScript = {
+    steps: [...(options.steps ?? [])],
+    stepsByRun: new Map(),
+    sentTexts: [],
+    messages: [],
+    holdWaitAt: options.holdWaitAt ?? null,
+    gate: options.gate ?? null,
+    launchMode: options.launchMode ?? "script",
+    launchGate: options.launchGate ?? null,
+    failNextSendWith: options.failNextSendWith ?? null,
+    waitCount: 0,
+    launchCount: 0,
+    runSeq: 0,
+    nextRunId: () => {
+      script.runSeq += 1;
+      return `run:${script.runSeq}` as RunId;
+    },
+    assign: (runId, step) => {
+      script.stepsByRun.set(runId, step);
+      if (step.kind === "completed" && step.reply !== null) {
+        script.messages.push({
+          role: "assistant",
+          runId,
+          text: step.reply,
+          createdAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
+        });
+      }
+    },
+  };
+  return script;
+}
+
+const report = (body: Record<string, unknown>): string =>
+  `\`\`\`goal\n${JSON.stringify({ goal_report: body })}\n\`\`\``;
+
+const planReport = report({
+  status: "running",
+  summary: "Planned one step",
+  plan: [{ title: "Do the thing", detail: null }],
+});
+const needsInputReport = report({
+  status: "needs_input",
+  summary: "Need one detail",
+  question: "Which provider should it use?",
+});
+const taskDoneReport = report({
+  status: "completed",
+  summary: "Finished the step",
+  tasks: [{ title: "Do the thing", status: "completed", evidence: "tests passed" }],
+});
+const verifyReport = report({
+  status: "completed",
+  verified: true,
+  summary: "All criteria met",
+  acceptance: [
+    {
+      criterion: "Each channel persists after reload",
+      met: true,
+      evidence: "reload test passed",
+    },
+  ],
+});
+
+const takeStep = (script: GoalScript, where: string): TurnStep => {
+  const step = script.steps.shift();
+  if (step === undefined) {
+    throw new Error(`Goal test script ran out of steps at ${where}`);
+  }
+  return step;
+};
+
+const scriptedDependencies = (script: GoalScript) =>
+  Layer.mergeAll(
+    NodeCrypto.layer,
+    Layer.mock(ThreadLaunchService.ThreadLaunchService)({
+      launch: (input) =>
+        Effect.gen(function* () {
+          script.sentTexts.push(input.initialMessage?.text ?? "");
+          script.launchCount += 1;
+          if (script.launchGate !== null && script.launchCount === script.launchGate.at) {
+            script.launchGate.gate.signal();
+          }
+          const threadId = ThreadId.make(`thread:${script.launchCount}`);
+          if (script.launchMode === "never") return yield* Effect.never;
+          if (script.launchMode === "noRun") {
+            return {
+              threadId,
+              projection: { runs: [] },
+              resumed: false,
+            } as unknown as ThreadLaunchService.ThreadLaunchResult;
+          }
+          const step = takeStep(script, "launch");
+          const runId = script.nextRunId();
+          script.assign(runId, step);
+          return {
+            threadId,
+            projection: { runs: [{ id: runId, ordinal: 1, status: "running" }] },
+            resumed: false,
+          } as unknown as ThreadLaunchService.ThreadLaunchResult;
+        }),
+    }),
+    Layer.mock(ThreadManagementService.ThreadManagementService)({
+      sendToThread: (input) =>
+        Effect.gen(function* () {
+          script.sentTexts.push(input.text);
+          if (script.failNextSendWith !== null) {
+            const failure = script.failNextSendWith;
+            script.failNextSendWith = null;
+            if (failure === "thread") {
+              return yield* Effect.fail(
+                new ThreadManagementService.ThreadManagementThreadNotFoundError({
+                  projectId: input.projectId,
+                  threadId: input.threadId,
+                }),
+              );
+            }
+            return yield* Effect.fail(
+              new ThreadManagementService.ThreadManagementThreadArchivedError({
+                threadId: input.threadId,
+              }),
+            );
+          }
+          const step = takeStep(script, "send");
+          const runId = script.nextRunId();
+          script.assign(runId, step);
+          return {
+            run: { id: runId, ordinal: 1, status: "running" },
+          } as unknown as ThreadManagementService.ThreadManagementSendResult;
+        }),
+      waitForThread: (input) =>
+        Effect.gen(function* () {
+          const index = script.waitCount;
+          script.waitCount += 1;
+          if (script.holdWaitAt === index && script.gate !== null) {
+            script.gate.signal();
+            yield* Effect.promise(() => script.gate?.open ?? Promise.resolve());
+          }
+          const runId = String(input.runId);
+          const step = script.stepsByRun.get(runId);
+          if (step === undefined) {
+            throw new Error(`Goal test script has no step for ${runId}`);
+          }
+          if (step.kind === "waitError") {
+            if (step.error === "thread") {
+              return yield* Effect.fail(
+                new ThreadManagementService.ThreadManagementThreadNotFoundError({
+                  projectId: input.projectId,
+                  threadId: input.threadId,
+                }),
+              );
+            }
+            if (step.error === "run") {
+              return yield* Effect.fail(
+                new ThreadManagementService.ThreadManagementRunNotFoundError({
+                  threadId: input.threadId,
+                  runId: input.runId ?? ("run:missing" as RunId),
+                }),
+              );
+            }
+            return yield* Effect.fail(
+              new ThreadManagementService.ThreadManagementThreadArchivedError({
+                threadId: input.threadId,
+              }),
+            );
+          }
+          if (step.kind === "timeout") {
+            return {
+              threadId: input.threadId,
+              run: { id: runId, status: "running" },
+              timedOut: true,
+            } as unknown as ThreadManagementService.ThreadManagementWaitResult;
+          }
+          const status = step.kind === "completed" ? "completed" : step.status;
+          return {
+            threadId: input.threadId,
+            run: { id: runId, status },
+            timedOut: false,
+          } as unknown as ThreadManagementService.ThreadManagementWaitResult;
+        }),
+      getThreadProjection: () =>
+        Effect.succeed({
+          messages: script.messages,
+        } as unknown as OrchestrationV2ThreadProjection),
+      interruptThread: () => Effect.succeed({ type: "no_active_run" as const }),
+    }),
+  );
+
+const scriptedLayer = (script: GoalScript) =>
+  Layer.provideMerge(
+    GoalService.layer.pipe(Layer.provide(scriptedDependencies(script))),
+    SqlitePersistence.layerMemory,
+  );
+
+/**
+ * Resolves with the goal's first list emission where the predicate holds.
+ * Event-driven: it waits on the goal subscription, never on a clock.
+ */
+const awaitGoalState = (
+  stream: Stream.Stream<GoalListResult, GoalError>,
+  goalId: Goal["id"],
+  predicate: (goal: Goal) => boolean,
+): Effect.Effect<Goal, GoalError> =>
+  stream
+    .pipe(
+      Stream.filterMap((list) => {
+        const goal = list.goals.find((candidate) => candidate.id === goalId);
+        return goal !== undefined && predicate(goal) ? Result.succeed(goal) : Result.failVoid;
+      }),
+      Stream.runHead,
+    )
+    .pipe(
+      Effect.map(Option.getOrNull),
+      Effect.flatMap((goal) =>
+        goal === null
+          ? Effect.fail(new GoalError({ message: "Goal never reached the awaited state." }))
+          : Effect.succeed(goal),
+      ),
+    );
+
+// --- Plain state-machine tests --------------------------------------------
 
 it.effect("creates a goal in planning and lists it by project", () =>
   Effect.gen(function* () {
@@ -99,7 +397,9 @@ it.effect("editing a goal bumps the revision and appends extra requirements", ()
     });
     expect(updated.goal.revision).toBe(2);
     expect(updated.goal.objective).toContain("Keep the existing email preference untouched.");
-    expect(updated.goal.status).toBe("running");
+    // No plan yet, so the edit keeps the goal in planning instead of shoving a
+    // task-less goal into running, where the loop would block on the empty plan.
+    expect(updated.goal.status).toBe("planning");
     expect(updated.goal.activities.map((activity) => activity.kind)).toContain("user");
 
     const replaced = yield* service.update({
@@ -185,3 +485,299 @@ it.effect("keeps multiple goals and updates the newest first", () =>
     expect(afterPause.goals[0]?.id).toBe(first.goal.id);
   }).pipe(Effect.provide(layer)),
 );
+
+// --- Turn-loop behavior ----------------------------------------------------
+
+it.effect("an edit during planning keeps the goal in planning, not running", () =>
+  Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+    // The driver is parked in its first launch; the edit must not depend on a
+    // turn having produced anything.
+    const updated = yield* service.update({
+      id: created.goal.id,
+      objective: "Ship a per-channel notification page",
+    });
+    expect(updated.goal.status).toBe("planning");
+    expect(updated.goal.revision).toBe(2);
+  }).pipe(Effect.provide(layer)),
+);
+
+it.effect("an edit that interrupts a running turn re-dispatches as an edit turn", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "run", status: "interrupted" },
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: needsInputReport },
+    ],
+    holdWaitAt: 0,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    // The first turn is now provably in flight; edit the goal underneath it.
+    yield* Effect.promise(() => gate.reached);
+    const updated = yield* service.update({
+      id: created.goal.id,
+      objective: "Ship it faster",
+    });
+    expect(updated.goal.revision).toBe(2);
+    gate.release();
+
+    const final = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    expect(final.revision).toBe(2);
+    expect(final.tasks).toHaveLength(1);
+    expect(final.blockedReason).toBe("Which provider should it use?");
+    // Plan prompt, then the edit prompt with the new objective, then the task.
+    expect(script.sentTexts).toHaveLength(3);
+    expect(script.sentTexts[1]).toContain("Ship it faster");
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a thread deleted mid-wait relaunches instead of failing the goal", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "waitError", error: "run" },
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: needsInputReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    const final = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    expect(final.threadId).toBe(ThreadId.make("thread:2"));
+    expect(final.activities.map((activity) => activity.summary)).toContain(
+      "The goal's run was lost; starting a new thread",
+    );
+    expect(script.sentTexts).toHaveLength(3);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a thread deleted at dispatch relaunches instead of stalling the goal", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: needsInputReport },
+    ],
+    failNextSendWith: "thread",
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    const final = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    // The failed send cleared the dead thread; the retry launched a new one.
+    expect(final.threadId).toBe(ThreadId.make("thread:2"));
+    expect(final.activities.map((activity) => activity.summary)).toContain(
+      "The goal's thread was deleted; starting a new one",
+    );
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("an archived thread blocks the goal with an actionable reason", () => {
+  const script = makeScript({
+    steps: [{ kind: "waitError", error: "archived" }],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    const final = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "blocked",
+    );
+    expect(final.threadId).toBeNull();
+    expect(final.blockedReason).toContain("archived");
+    expect(final.activities.map((activity) => activity.summary)).toContain(
+      "The goal's thread is archived",
+    );
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a failed run marks the goal failed, and resume recovers it", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "run", status: "failed" },
+      { kind: "completed", reply: needsInputReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    const failed = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "failed",
+    );
+    expect(failed.failureReason).toBe("The provider turn failed.");
+
+    const resumed = yield* service.resume({ id: created.goal.id });
+    expect(resumed.goal.status).toBe("running");
+    expect(resumed.goal.failureReason).toBeNull();
+
+    const final = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    expect(final.failureReason).toBeNull();
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a launch without a run still records the thread it created", () => {
+  const script = makeScript({ launchMode: "noRun" });
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    const blocked = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "blocked",
+    );
+    expect(blocked.blockedReason).toBe("The thread launched without a run. Resume to try again.");
+    // Without the thread recorded, Resume would launch a second thread and
+    // abandon the one that already holds the goal's first turn.
+    expect(blocked.threadId).toBe(ThreadId.make("thread:1"));
+    const rows = yield* sql<{ thread_id: string | null }>`
+      SELECT thread_id FROM goals WHERE goal_id = ${created.goal.id}
+    `;
+    expect(rows[0]?.thread_id).toBe("thread:1");
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a pause during an answer turn keeps the answer until the turn completes", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: needsInputReport },
+      { kind: "run", status: "interrupted" },
+      { kind: "completed", reply: needsInputReport },
+    ],
+    holdWaitAt: 2,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    // Drive to needs_input: plan, then a task turn that asks a question.
+    yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    yield* service.answer({ id: created.goal.id, text: "Use the email provider." });
+
+    // The answer turn is in flight; pause must not swallow the answer.
+    yield* Effect.promise(() => gate.reached);
+    yield* service.pause({ id: created.goal.id });
+    const held = yield* sql<{ pending_answer: string | null }>`
+      SELECT pending_answer FROM goals WHERE goal_id = ${created.goal.id}
+    `;
+    expect(held[0]?.pending_answer).toBe("Use the email provider.");
+    gate.release();
+
+    yield* service.resume({ id: created.goal.id });
+    const final = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    // The resumed answer turn received the stored answer, then consumed it.
+    expect(script.sentTexts[3]).toContain("The user answered: Use the email provider.");
+    const consumed = yield* sql<{ pending_answer: string | null }>`
+      SELECT pending_answer FROM goals WHERE goal_id = ${created.goal.id}
+    `;
+    expect(consumed[0]?.pending_answer).toBeNull();
+    expect(final.blockedReason).toBe("Which provider should it use?");
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("verification records per-criterion results on the goal", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(
+      createInput({ acceptanceCriteria: ["Each channel persists after reload"] }),
+    );
+
+    const final = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "completed",
+    );
+    expect(final.verification.status).toBe("passed");
+    expect(final.verification.criteria).toEqual([
+      { criterion: "Each channel persists after reload", met: true },
+    ]);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("restart recovery resumes the 20 most recently updated goals", () => {
+  const launchGate = { at: 20, gate: makeGate() };
+  const script = makeScript({ launchMode: "never", launchGate });
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    const seeded: Array<{ readonly goalId: string; readonly updatedAt: string }> = [];
+    for (let index = 0; index < 25; index += 1) {
+      const goalId = `goal:seed-${index}`;
+      const updatedAt = `2026-01-01T00:00:${String(index).padStart(2, "0")}.000Z`;
+      seeded.push({ goalId, updatedAt });
+      yield* sql`
+        INSERT INTO goals (
+          goal_id, project_id, thread_id, title, objective, acceptance_criteria_json, status,
+          current_task_id, model_selection_json, runtime_mode, interaction_mode,
+          workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
+          failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
+          creation_source, created_at, updated_at, started_at, completed_at, last_activity_at
+        ) VALUES (
+          ${goalId}, ${projectId}, NULL, 'Seeded goal', 'Objective', '[]', 'planning',
+          NULL, ${JSON.stringify(modelSelection)}, 'auto', 'default',
+          '{"type":"root"}', 1, 0, '{"status":"pending","summary":null,"checkedAt":null}',
+          NULL, NULL, 0, NULL, 0, 'user', 'web', ${updatedAt}, ${updatedAt}, ${updatedAt},
+          NULL, ${updatedAt}
+        )
+      `;
+    }
+
+    // The recovery pass sleeps on the test clock; waking it starts drivers.
+    yield* TestClock.adjust("15 seconds");
+    yield* Effect.promise(() => launchGate.gate.reached);
+
+    const resumed = yield* sql<{ goal_id: string }>`
+      SELECT goal_id FROM goal_activities
+      WHERE summary = 'Resumed after a server restart'
+    `;
+    const expectedNewest = seeded
+      .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .slice(0, 20);
+    expect(new Set(resumed.map((row) => row.goal_id))).toEqual(
+      new Set(expectedNewest.map((seed) => seed.goalId)),
+    );
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});

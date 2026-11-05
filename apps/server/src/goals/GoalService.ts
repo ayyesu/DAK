@@ -67,7 +67,8 @@ const GOAL_RECOVERY_DELAY = Duration.seconds(15);
 const ACTIVITY_DETAIL_LIMIT = 2_000;
 
 const DRIVEN_STATUSES: ReadonlySet<Goal["status"]> = new Set(["planning", "running", "verifying"]);
-const ENDED_STATUSES: ReadonlySet<Goal["status"]> = new Set(["completed", "failed", "cancelled"]);
+/** Terminal states. `failed` is deliberately absent: resume or edit recovers it. */
+const ENDED_STATUSES: ReadonlySet<Goal["status"]> = new Set(["completed", "cancelled"]);
 
 type TurnPhase = "plan" | "task" | "verify" | "repair" | "answer" | "edit";
 
@@ -509,11 +510,10 @@ export const layer = Layer.effect(
             );
 
     const assistantTextForRun = Effect.fn("GoalService.assistantTextForRun")(function* (input: {
-      readonly goal: Goal;
+      readonly threadId: ThreadId;
       readonly runId: string;
     }) {
-      if (input.goal.threadId === null) return "";
-      const projection = yield* threads.getThreadProjection(input.goal.threadId);
+      const projection = yield* threads.getThreadProjection(input.threadId);
       return projection.messages
         .filter((message) => message.role === "assistant" && message.runId === input.runId)
         .toSorted(
@@ -525,8 +525,13 @@ export const layer = Layer.effect(
     });
 
     /**
-     * Cancels the turn if the user has since paused or cancelled the goal.
-     * A report from a turn that overlapped a pause must not advance the plan.
+     * One dispatched turn, from writing the cycle through reading its report.
+     *
+     * Besides `report`/`no_report`/`stopped`, the outcome can be `interrupted`
+     * (the run ended while the goal is still driven) or `relaunch` (the thread
+     * vanished); the drive loop continues on both instead of blocking. Pause
+     * and cancel set the goal's status before they end the run, so they are
+     * filtered by the authoritative read and surface as `stopped`.
      */
     const runTurn = (
       record: GoalRecord,
@@ -553,118 +558,237 @@ export const layer = Layer.effect(
         const messageId = MessageId.make(`goal-message:${goal.id}:${cycle}:${phase}`);
         const text = prompt;
 
-        const dispatched: { readonly threadId: ThreadId; readonly runId: RunId | null } | null =
-          yield* Effect.gen(function* () {
-            if (started.goal.threadId === null) {
-              const result = yield* threadLaunch.launch({
-                commandId,
-                projectId: started.goal.projectId,
-                title: started.goal.title,
-                modelSelection: started.goal.modelSelection,
-                runtimeMode: started.goal.runtimeMode,
-                interactionMode: started.goal.interactionMode,
-                workspaceStrategy: started.workspaceStrategy,
-                initialMessage: { messageId, text, attachments: [] },
-                createdBy: "system",
-                creationSource: "server",
-              });
-              const latest = result.projection.runs.toSorted(
-                (left, right) => right.ordinal - left.ordinal,
-              )[0];
-              return {
-                threadId: result.threadId,
-                runId: latest?.id ?? null,
-              } as const;
-            }
-            const sent = yield* threads.sendToThread({
-              projectId: started.goal.projectId,
+        const dispatched:
+          | { readonly threadId: ThreadId; readonly runId: RunId | null }
+          | null
+          | "archived" = yield* Effect.gen(function* () {
+          if (started.goal.threadId === null) {
+            const result = yield* threadLaunch.launch({
               commandId,
-              threadId: started.goal.threadId,
-              messageId,
-              text,
-              attachments: [],
+              projectId: started.goal.projectId,
+              title: started.goal.title,
               modelSelection: started.goal.modelSelection,
-              // A goal turn must never interrupt tools still running in its thread.
-              mode: "queue",
+              runtimeMode: started.goal.runtimeMode,
+              interactionMode: started.goal.interactionMode,
+              workspaceStrategy: started.workspaceStrategy,
+              initialMessage: { messageId, text, attachments: [] },
               createdBy: "system",
               creationSource: "server",
             });
-            return { threadId: started.goal.threadId, runId: sent.run.id } as const;
-          }).pipe(
-            Effect.catchTags({
-              ThreadManagementThreadNotFoundError: () =>
-                Effect.gen(function* () {
-                  // The bound thread was deleted under us; forget it so the next
-                  // cycle launches a fresh one instead of failing forever.
-                  yield* commit(
-                    { ...started, goal: { ...started.goal, threadId: null } },
-                    {
-                      kind: "error",
-                      summary: "The goal's thread was deleted; starting a new one",
-                      detail: null,
-                    },
-                  );
-                  return null;
-                }),
-            }),
-          );
-
-        if (dispatched === null) {
-          return { kind: "stopped", record: yield* readRecordOrFail(goal.id), report: null };
-        }
-
-        if (started.goal.threadId === null && dispatched.runId !== null) {
-          // Record the thread the launch created before waiting on it, so a
-          // restart resumes the same thread rather than creating another.
-          yield* writeRecord({
-            ...started,
-            goal: { ...started.goal, threadId: dispatched.threadId },
+            const latest = result.projection.runs.toSorted(
+              (left, right) => right.ordinal - left.ordinal,
+            )[0];
+            return {
+              threadId: result.threadId,
+              runId: latest?.id ?? null,
+            } as const;
+          }
+          const sent = yield* threads.sendToThread({
+            projectId: started.goal.projectId,
+            commandId,
+            threadId: started.goal.threadId,
+            messageId,
+            text,
+            attachments: [],
+            modelSelection: started.goal.modelSelection,
+            // A goal turn must never interrupt tools still running in its thread.
+            mode: "queue",
+            createdBy: "system",
+            creationSource: "server",
           });
+          return { threadId: started.goal.threadId, runId: sent.run.id } as const;
+        }).pipe(
+          Effect.catchTags({
+            ThreadManagementThreadNotFoundError: () =>
+              Effect.gen(function* () {
+                // The bound thread was deleted under us; forget it so the next
+                // cycle launches a fresh one instead of failing forever.
+                yield* commit(
+                  { ...started, goal: { ...started.goal, threadId: null } },
+                  {
+                    kind: "error",
+                    summary: "The goal's thread was deleted; starting a new one",
+                    detail: null,
+                  },
+                );
+                return null;
+              }),
+            ThreadManagementThreadArchivedError: () =>
+              Effect.gen(function* () {
+                // An archived thread cannot receive turns; drop the binding so
+                // Resume continues in a fresh thread rather than re-hitting this.
+                yield* commit(
+                  { ...started, goal: { ...started.goal, threadId: null } },
+                  { kind: "error", summary: "The goal's thread was archived", detail: null },
+                );
+                return "archived" as const;
+              }),
+          }),
+        );
+
+        if (dispatched === "archived") {
+          const blocked = yield* setStatus(
+            yield* readRecordOrFail(goal.id),
+            "blocked",
+            "The goal's thread is archived",
+            {
+              blockedReason:
+                "The goal's thread was archived and cannot receive messages. Resume to continue in a new thread.",
+            },
+          );
+          return { kind: "stopped", record: blocked, report: null };
+        }
+        if (dispatched === null) {
+          // The thread is gone; the drive loop dispatches again and launches
+          // a replacement instead of parking on a dead goal.
+          return { kind: "relaunch", record: yield* readRecordOrFail(goal.id), report: null };
         }
 
-        if (dispatched.runId === null) {
-          const blocked = yield* setStatus(started, "blocked", "The agent turn did not start", {
+        const launched =
+          started.goal.threadId === null
+            ? {
+                ...started,
+                goal: { ...started.goal, threadId: dispatched.threadId },
+              }
+            : started;
+        if (launched !== started) {
+          // Record the thread the launch created before waiting on it, so a
+          // restart resumes the same thread rather than creating another —
+          // even when the launch reported no run to wait on.
+          yield* writeRecord(launched);
+        }
+        // A local binding keeps the non-null run id visible inside the
+        // closures below; property narrowing does not survive them.
+        const runId = dispatched.runId;
+
+        if (runId === null) {
+          // setStatus writes the record it is given, so it must carry the
+          // launched thread or the blocked goal would forget it.
+          const blocked = yield* setStatus(launched, "blocked", "The agent turn did not start", {
             blockedReason: "The thread launched without a run. Resume to try again.",
           });
           return { kind: "stopped", record: blocked, report: null };
         }
 
-        const waited = yield* threads.waitForThread({
-          projectId: started.goal.projectId,
-          threadId: dispatched.threadId,
-          runId: dispatched.runId,
-          timeoutMs: GOAL_TURN_TIMEOUT_MS,
-        });
-        const afterWait = yield* readRecordOrFail(goal.id);
-        if (!isDriven(afterWait.goal.status)) {
-          return { kind: "stopped", record: afterWait, report: null };
-        }
-
-        if (waited.timedOut) {
-          const blocked = yield* setStatus(afterWait, "blocked", "The agent turn ran too long", {
-            blockedReason: `No turn result after ${Math.round(GOAL_TURN_TIMEOUT_MS / 60_000)} minutes. Resume when the thread is idle.`,
+        const forgetThreadDuringTurn = (summary: string) =>
+          Effect.gen(function* () {
+            const current = yield* readRecordOrFail(goal.id);
+            if (!isDriven(current.goal.status)) {
+              return { kind: "stopped", record: current, report: null };
+            }
+            const forgot = yield* commit(
+              { ...current, goal: { ...current.goal, threadId: null } },
+              { kind: "error", summary, detail: null },
+            );
+            return { kind: "relaunch", record: forgot, report: null };
           });
-          return { kind: "stopped", record: blocked, report: null };
-        }
-        if (waited.run?.status !== "completed") {
-          const status = waited.run?.status ?? "interrupted";
-          const blocked = yield* setStatus(
-            afterWait,
-            status === "failed" ? "failed" : "blocked",
-            `The agent turn ended as ${status}`,
-            {
-              blockedReason: `The last turn ended as ${status}. Resume to continue from here.`,
-              failureReason: status === "failed" ? `The provider turn failed.` : null,
-            },
-          );
-          return { kind: "stopped", record: blocked, report: null };
-        }
 
-        const reply = yield* assistantTextForRun({ goal: afterWait.goal, runId: dispatched.runId });
-        const report = parseGoalReport(reply);
-        return report === null
-          ? { kind: "no_report", record: afterWait, report: null }
-          : { kind: "report", report, record: afterWait };
+        return yield* Effect.gen(function* () {
+          const waited = yield* threads.waitForThread({
+            projectId: started.goal.projectId,
+            threadId: dispatched.threadId,
+            runId,
+            timeoutMs: GOAL_TURN_TIMEOUT_MS,
+          });
+
+          if (waited.timedOut) {
+            const timedOutRecord = yield* readRecordOrFail(goal.id);
+            if (!isDriven(timedOutRecord.goal.status)) {
+              return { kind: "stopped", record: timedOutRecord, report: null };
+            }
+            const blocked = yield* setStatus(
+              timedOutRecord,
+              "blocked",
+              "The agent turn ran too long",
+              {
+                blockedReason: `No turn result after ${Math.round(GOAL_TURN_TIMEOUT_MS / 60_000)} minutes. Resume when the thread is idle.`,
+              },
+            );
+            return { kind: "stopped", record: blocked, report: null };
+          }
+
+          const completed = waited.run?.status === "completed";
+          // Only a completed turn produced text worth reading.
+          const reply = completed
+            ? yield* assistantTextForRun({
+                threadId: dispatched.threadId,
+                runId,
+              })
+            : "";
+
+          // The authoritative read, after the turn's only I/O: a pause or
+          // cancel that landed while the turn ended is visible here, because
+          // both set the status before ending the run. A mutation landing in
+          // the µs window between this read and the caller's write can still
+          // be clobbered; closing that needs a version column we do not carry.
+          const afterWait = yield* readRecordOrFail(goal.id);
+          if (!isDriven(afterWait.goal.status)) {
+            return { kind: "stopped", record: afterWait, report: null };
+          }
+
+          if (!completed) {
+            const runStatus = waited.run?.status ?? null;
+            if (runStatus === "failed") {
+              const failed = yield* setStatus(
+                afterWait,
+                "failed",
+                "The agent turn ended as failed",
+                { failureReason: "The provider turn failed." },
+              );
+              return { kind: "stopped", record: failed, report: null };
+            }
+            if (
+              runStatus === "interrupted" ||
+              runStatus === "cancelled" ||
+              runStatus === "rolled_back"
+            ) {
+              // Still driven, so whoever ended the turn (an update interrupting
+              // for a new edit, or a stop in the thread) is answered by
+              // re-dispatching on the next cycle rather than blocking.
+              return { kind: "interrupted", record: afterWait, report: null };
+            }
+            const blocked = yield* setStatus(
+              afterWait,
+              "blocked",
+              `The agent turn ended as ${runStatus ?? "no run"}`,
+              {
+                blockedReason: `The last turn ended as ${runStatus ?? "no run"}. Resume to continue from here.`,
+              },
+            );
+            return { kind: "stopped", record: blocked, report: null };
+          }
+
+          const report = parseGoalReport(reply);
+          return report === null
+            ? { kind: "no_report", record: afterWait, report: null }
+            : { kind: "report", report, record: afterWait };
+        }).pipe(
+          Effect.catchTags({
+            ThreadManagementThreadNotFoundError: () =>
+              forgetThreadDuringTurn("The goal's thread was deleted; starting a new one"),
+            ThreadManagementRunNotFoundError: () =>
+              forgetThreadDuringTurn("The goal's run was lost; starting a new thread"),
+            ThreadManagementThreadArchivedError: () =>
+              Effect.gen(function* () {
+                const current = yield* readRecordOrFail(goal.id);
+                if (!isDriven(current.goal.status)) {
+                  return { kind: "stopped", record: current, report: null };
+                }
+                // Drop the binding so Resume continues in a new thread instead
+                // of re-hitting the archive on every attempt.
+                const blocked = yield* setStatus(
+                  { ...current, goal: { ...current.goal, threadId: null } },
+                  "blocked",
+                  "The goal's thread is archived",
+                  {
+                    blockedReason:
+                      "The goal's thread was archived mid-turn. Resume to continue in a new thread.",
+                  },
+                );
+                return { kind: "stopped", record: blocked, report: null };
+              }),
+          }),
+        );
       }).pipe(
         Effect.mapError((cause) => toGoalError(cause)),
         Effect.withSpan("GoalService.runTurn"),
@@ -701,7 +825,10 @@ export const layer = Layer.effect(
         tasks: [...applied.tasks],
         acceptanceCriteria: [...applied.acceptanceCriteria],
         currentTaskId: applied.currentTaskId,
-        status: applied.status,
+        // A turn that reports no work yet leaves a task-less goal in planning
+        // so the loop re-plans instead of blocking on an empty plan.
+        status:
+          applied.status === "running" && applied.tasks.length === 0 ? "planning" : applied.status,
         verification,
         blockedReason:
           applied.status === "blocked"
@@ -735,7 +862,7 @@ export const layer = Layer.effect(
         });
       }
       yield* notifyChanged;
-      return { record: next, allCompleted, status: applied.status };
+      return { record: next, allCompleted, status: goal.status };
     });
 
     const verifyCompletion = Effect.fn("GoalService.verifyCompletion")(function* (
@@ -757,6 +884,11 @@ export const layer = Layer.effect(
         unmet.length === 0 &&
         allTasksCompleted &&
         (goal.acceptanceCriteria.length === 0 || report.acceptance.length > 0);
+      // Per-criterion results for the UI, whatever the pass decided.
+      const criterionResults = goal.acceptanceCriteria.map((criterion) => ({
+        criterion,
+        met: !unmet.some((entry) => normalizedCriterion(entry) === normalizedCriterion(criterion)),
+      }));
       const at = yield* nowIso;
       if (verified) {
         const completed = yield* commit(
@@ -771,6 +903,7 @@ export const layer = Layer.effect(
                 status: "passed",
                 summary: report.summary ?? "Every acceptance criterion was verified.",
                 checkedAt: at,
+                criteria: criterionResults,
               },
             },
           },
@@ -797,7 +930,12 @@ export const layer = Layer.effect(
             goal: {
               ...goal,
               status: "blocked",
-              verification: { status: "failed", summary, checkedAt: at },
+              verification: {
+                status: "failed",
+                summary,
+                checkedAt: at,
+                criteria: criterionResults,
+              },
               blockedReason: `Verification did not pass: ${summary}`,
             },
           },
@@ -813,7 +951,7 @@ export const layer = Layer.effect(
           goal: {
             ...goal,
             status: "running",
-            verification: { status: "failed", summary, checkedAt: at },
+            verification: { status: "failed", summary, checkedAt: at, criteria: criterionResults },
           },
         },
         { kind: "verification", summary: "Verification found work to fix", detail: summary },
@@ -838,13 +976,16 @@ export const layer = Layer.effect(
 
           if (record.pendingAnswer !== null) {
             const question = goal.blockedReason ?? "You asked the user for clarification.";
+            // The answer stays stored until its turn completes, so a pause or
+            // an interrupted turn cannot swallow the user's reply.
             const outcome = yield* runTurn(
-              { ...record, pendingAnswer: null, verifyRounds: 0 },
+              { ...record, verifyRounds: 0 },
               buildGoalAnswerPrompt({ goal, question, answer: record.pendingAnswer }),
               "answer",
             );
             if (outcome.kind === "stopped") return;
-            yield* commit(
+            if (outcome.kind === "interrupted" || outcome.kind === "relaunch") continue;
+            const cleared = yield* commit(
               {
                 ...outcome.record,
                 pendingAnswer: null,
@@ -856,7 +997,7 @@ export const layer = Layer.effect(
               idleCycles += 1;
               continue;
             }
-            const applied = yield* applyReport(outcome.record, outcome.report, {
+            const applied = yield* applyReport(cleared, outcome.report, {
               planHandling: "ignore",
             });
             if (applied.status === "needs_input" || applied.status === "blocked") return;
@@ -864,15 +1005,24 @@ export const layer = Layer.effect(
           }
 
           if (record.pendingEdit) {
-            const cleared = yield* commit({ ...record, pendingEdit: false }, null);
-            const outcome = yield* runTurn(cleared, buildGoalEditPrompt(goal), "edit");
+            const dispatchedRevision = record.goal.revision;
+            const outcome = yield* runTurn(record, buildGoalEditPrompt(goal), "edit");
             if (outcome.kind === "stopped") return;
+            if (outcome.kind === "interrupted" || outcome.kind === "relaunch") continue;
+            // The turn consumed this edit. A newer edit that landed mid-turn
+            // keeps its flag and revision for the next cycle; only a mutation
+            // in the µs window between this read and write can lose one.
+            const fresh = yield* readRecordOrFail(goal.id);
+            const cleared =
+              fresh.goal.revision === dispatchedRevision
+                ? yield* commit({ ...fresh, pendingEdit: false }, null)
+                : fresh;
             if (outcome.report === null) {
               idleCycles += 1;
               continue;
             }
             idleCycles = 0;
-            const applied = yield* applyReport(outcome.record, outcome.report, {
+            const applied = yield* applyReport(cleared, outcome.report, {
               planHandling: "extend",
             });
             if (applied.status === "needs_input" || applied.status === "blocked") return;
@@ -882,6 +1032,7 @@ export const layer = Layer.effect(
           if (goal.status === "planning" && goal.tasks.length === 0) {
             const outcome = yield* runTurn(record, buildGoalPlanningPrompt(goal), "plan");
             if (outcome.kind === "stopped") return;
+            if (outcome.kind === "interrupted" || outcome.kind === "relaunch") continue;
             if (outcome.report === null) {
               idleCycles += 1;
               if (idleCycles >= GOAL_MAX_IDLE_CYCLES) {
@@ -908,6 +1059,7 @@ export const layer = Layer.effect(
           if (goal.status === "verifying") {
             const outcome = yield* runTurn(record, buildGoalVerificationPrompt(goal), "verify");
             if (outcome.kind === "stopped") return;
+            if (outcome.kind === "interrupted" || outcome.kind === "relaunch") continue;
             if (outcome.report === null) {
               idleCycles += 1;
               if (idleCycles >= GOAL_MAX_IDLE_CYCLES) {
@@ -937,6 +1089,7 @@ export const layer = Layer.effect(
             if (goal.verification.status === "failed") {
               const outcome = yield* runTurn(record, buildGoalRepairPrompt(goal), "repair");
               if (outcome.kind === "stopped") return;
+              if (outcome.kind === "interrupted" || outcome.kind === "relaunch") continue;
               if (outcome.report === null) {
                 idleCycles += 1;
                 if (idleCycles >= GOAL_MAX_IDLE_CYCLES) {
@@ -1009,6 +1162,7 @@ export const layer = Layer.effect(
             { taskId: nextTask.id },
           );
           if (outcome.kind === "stopped") return;
+          if (outcome.kind === "interrupted" || outcome.kind === "relaunch") continue;
           if (outcome.report === null) {
             idleCycles += 1;
             if (idleCycles >= GOAL_MAX_IDLE_CYCLES) {
@@ -1203,7 +1357,10 @@ export const layer = Layer.effect(
               title: input.objective === undefined ? record.goal.title : deriveTitle(objective),
               objective,
               acceptanceCriteria: [...criteria],
-              status: "running",
+              // Without a plan yet the goal keeps planning: an edit must not
+              // shove a task-less goal into running, where the loop would
+              // block on the empty plan instead of re-planning.
+              status: record.goal.tasks.length === 0 ? "planning" : "running",
               revision: record.goal.revision + 1,
               blockedReason: null,
               failureReason: null,
@@ -1359,7 +1516,7 @@ export const layer = Layer.effect(
       const interrupted = yield* sql<{ goal_id: string }>`
         SELECT goal_id FROM goals
         WHERE status IN ('planning', 'running', 'verifying')
-        ORDER BY updated_at ASC
+        ORDER BY updated_at DESC
         LIMIT 20
       `;
       yield* Effect.forEach(
