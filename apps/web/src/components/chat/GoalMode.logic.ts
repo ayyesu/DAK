@@ -201,8 +201,8 @@ export function currentGoalTask(
 }
 
 /** Mirrors the server's acceptance-criteria bounds so input never trips the schema. */
-export const GOAL_CRITERIA_MAX_LINES = 20;
-export const GOAL_CRITERIA_MAX_LENGTH = 500;
+const GOAL_CRITERIA_MAX_LINES = 20;
+const GOAL_CRITERIA_MAX_LENGTH = 500;
 
 /** One criterion per line; blank lines dropped, length and count capped. */
 export function splitCriteriaLines(text: string): Array<string> {
