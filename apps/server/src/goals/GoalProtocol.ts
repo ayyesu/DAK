@@ -377,7 +377,7 @@ export function applyGoalReport(input: {
   };
 }
 
-const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input","summary":"one sentence about what you actually did","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"completed|in_progress|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptanceCriteria":["condition that must hold to call the goal complete"],"question":"only when status is needs_input"}}`;
+const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"completed|in_progress|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptanceCriteria":["condition that must hold to call the goal complete"],"question":"only when status is needs_input"}}`;
 
 function criteriaSection(goal: Goal): string {
   if (goal.acceptanceCriteria.length === 0) {
@@ -397,6 +397,7 @@ function progressSection(goal: Goal): string {
 
 const RULES = `Rules:
 - Do the work in this workspace with your tools. Do not only describe what you would do.
+- Keep the chat update short: one plain sentence about what you changed and what happens next, no headings or bullet lists unless the task itself needs them. Put proof in the report evidence, not in prose.
 - Never report a task completed unless it is actually done, and never invent test results, file changes, or command output.
 - Report real evidence: the files you changed, the commands you ran, and what they printed.
 - Ask for clarification only when you cannot proceed without information only the user has; then set status "needs_input" with a single question.

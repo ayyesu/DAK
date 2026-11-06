@@ -328,21 +328,14 @@ function GoalCard(props: {
         </div>
       </div>
 
-      <div className="px-3.5 pt-2.5">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="text-xl font-semibold tabular-nums leading-6">{progress.percent}%</span>
-          <span className="text-2xs text-muted-foreground">
-            {progress.completed} of {progress.total} {progress.total === 1 ? "task" : "tasks"}{" "}
-            completed
-          </span>
-        </div>
+      <div className="px-3.5 pt-2">
         <div
           role="progressbar"
           aria-label="Goal progress"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress.percent}
-          className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"
+          className="h-1 overflow-hidden rounded-full bg-muted"
         >
           {/* scaleX keeps the growth on the compositor instead of
               re-laying out the row on every percent step. */}
@@ -354,6 +347,17 @@ function GoalCard(props: {
             style={{ transform: `scaleX(${progress.percent / 100})` }}
           />
         </div>
+        {collapsed ? null : (
+          <div className="flex items-baseline justify-between gap-2 pt-2">
+            <span className="text-xl font-semibold tabular-nums leading-6">
+              {progress.percent}%
+            </span>
+            <span className="text-2xs text-muted-foreground">
+              {progress.completed} of {progress.total}{" "}
+              {progress.total === 1 ? "task" : "tasks"} completed
+            </span>
+          </div>
+        )}
       </div>
 
       {reasonBox === null ? null : (
@@ -373,7 +377,9 @@ function GoalCard(props: {
               reasonBox.tone === "danger" ? "text-destructive" : "text-warning",
             )}
           />
-          <p className="min-w-0 text-xs leading-5 text-foreground">{reasonBox.text}</p>
+          <p className="line-clamp-3 min-w-0 text-xs leading-5 text-foreground">
+            {reasonBox.text}
+          </p>
         </div>
       )}
 
@@ -654,7 +660,7 @@ function GoalCard(props: {
                         {formatGoalActivityTime(activity.at, now)}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-2xs text-foreground/90">{activity.summary}</p>
+                        <p className="line-clamp-2 text-2xs text-foreground/90">{activity.summary}</p>
                         {activity.detail === null ? null : (
                           <p className="line-clamp-2 text-3xs text-muted-foreground">
                             {activity.detail}
@@ -815,6 +821,12 @@ export function GoalModePanel(props: {
     );
   };
 
+  const closeGoalForm = () => {
+    setObjective("");
+    setCriteriaText("");
+    props.onComposerOpenChange(false);
+  };
+
   return (
     <div
       data-goal-mode-panel="true"
@@ -840,7 +852,7 @@ export function GoalModePanel(props: {
                 variant="ghost"
                 aria-label="Close the goal form"
                 className="ml-auto"
-                onClick={() => props.onComposerOpenChange(false)}
+                onClick={closeGoalForm}
               >
                 <XIcon aria-hidden className="size-3.5" />
               </Button>
@@ -862,6 +874,9 @@ export function GoalModePanel(props: {
               if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault();
                 startGoal();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                closeGoalForm();
               }
             }}
           />
@@ -876,6 +891,9 @@ export function GoalModePanel(props: {
               if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault();
                 startGoal();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                closeGoalForm();
               }
             }}
           />
