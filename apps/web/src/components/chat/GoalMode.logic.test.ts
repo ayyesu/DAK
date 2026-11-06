@@ -131,13 +131,22 @@ describe("selectGoalForThread", () => {
       status: "completed",
       updatedAt: "2026-01-05T00:00:00.000Z",
     });
-    expect(selectGoalForThread([completed, paused], threadId)?.id).toBe("paused");
+    expect(selectGoalForThread([completed, paused], threadId)).toBeNull();
   });
 
-  it("returns the latest goal when everything has ended", () => {
+  it("never shows a goal without a thread in a threadless view", () => {
+    const running = goal({
+      id: "running",
+      status: "running",
+      updatedAt: "2026-01-05T00:00:00.000Z",
+    });
+    expect(selectGoalForThread([running], null)).toBeNull();
+  });
+
+  it("returns null in a threadless view even when goals exist", () => {
     const older = goal({ id: "older", status: "completed", updatedAt: "2026-01-04T00:00:00.000Z" });
     const newer = goal({ id: "newer", status: "cancelled", updatedAt: "2026-01-05T00:00:00.000Z" });
-    expect(selectGoalForThread([older, newer], null)?.id).toBe("newer");
+    expect(selectGoalForThread([older, newer], null)).toBeNull();
   });
 
   it("returns null with no goals", () => {
@@ -170,6 +179,29 @@ describe("goal status presentation", () => {
       tasks: [task({ id: "t1", title: "Build the API", status: "in_progress" })],
     });
     expect(goalHeadline(running)).toBe("Working on: Build the API");
+  });
+
+  it("appends task progress on the headline once there is a plan", () => {
+    const running = goal({
+      id: "g",
+      status: "running",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      tasks: [
+        task({ id: "t1", title: "one", status: "completed" }),
+        task({ id: "t2", title: "two", status: "in_progress" }),
+      ],
+    });
+    expect(goalHeadline(running)).toBe("Working on: two · 1 of 2 tasks done");
+  });
+
+  it("omits the progress suffix for a single-task goal", () => {
+    const running = goal({
+      id: "g",
+      status: "running",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      tasks: [task({ id: "t1", title: "only", status: "in_progress" })],
+    });
+    expect(goalHeadline(running)).toBe("Working on: only");
   });
 
   it("surfaces the blocking reason", () => {

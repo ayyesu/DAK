@@ -61,23 +61,22 @@ export function goalProgress(goal: Pick<Goal, "tasks">): {
 }
 
 /**
- * The goal the panel should show: this thread's goal first, then the project's
- * most recently updated active goal, so an agent working elsewhere is still
- * visible without opening another thread.
+ * The goal the panel should show, Codex-style: a goal belongs to the thread
+ * that owns it, so another thread's goal never appears here. A selection the
+ * user already made (the other-goals menu) wins over the thread default.
  */
 export function selectGoalForThread(
   goals: ReadonlyArray<Goal>,
   threadId: ThreadId | null,
 ): Goal | null {
+  if (threadId === null) return null;
   const byUpdate = goals.toSorted(
     (left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt),
   );
-  const threadGoals =
-    threadId === null ? [] : byUpdate.filter((goal) => goal.threadId === threadId);
+  const threadGoals = byUpdate.filter((goal) => goal.threadId === threadId);
   const activeThreadGoal = threadGoals.find((goal) => isGoalActive(goal.status));
   if (activeThreadGoal !== undefined) return activeThreadGoal;
-  if (threadGoals.length > 0) return threadGoals[0]!;
-  return byUpdate.find((goal) => isGoalActive(goal.status)) ?? byUpdate[0] ?? null;
+  return threadGoals[0] ?? null;
 }
 
 export function goalStatusLabel(status: GoalStatus): string {
@@ -140,7 +139,12 @@ export function goalHeadline(
       const current =
         goal.tasks.find((task) => task.id === goal.currentTaskId) ??
         goal.tasks.find((task) => task.status === "in_progress");
-      return current === undefined ? "Working" : `Working on: ${current.title}`;
+      const done = goal.tasks.filter((task) => task.status === "completed").length;
+      const progressSuffix =
+        goal.tasks.length > 1 ? ` · ${done} of ${goal.tasks.length} tasks done` : "";
+      return current === undefined
+        ? `Working${progressSuffix}`
+        : `Working on: ${current.title}${progressSuffix}`;
     }
     case "paused":
       return "Paused";
