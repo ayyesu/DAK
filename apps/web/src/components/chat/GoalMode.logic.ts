@@ -217,21 +217,34 @@ export function splitCriteriaLines(text: string): Array<string> {
     .slice(0, GOAL_CRITERIA_MAX_LINES);
 }
 
+const GOAL_SLASH_PROMPT = /^\s*\/goal\s+/i;
+
+/** Reserved subcommands: they must run as commands, never become an objective. */
+const GOAL_SLASH_RESERVED = new Set(["clear", "pause", "resume", "status"]);
+
+/** `/goal clear` and friends; matched exactly against the trimmed remainder. */
+export function isGoalSlashCommand(prompt: string): boolean {
+  const match = GOAL_SLASH_PROMPT.exec(prompt);
+  if (match === null) return false;
+  return GOAL_SLASH_RESERVED.has(prompt.slice(match[0].length).trim().toLowerCase());
+}
+
 /** Typing `/goal ` at the start of the composer turns the same input into DAK goal mode. */
 export function isGoalSlashPrompt(prompt: string): boolean {
-  return /^\s*\/goal\s+/i.test(prompt);
+  return GOAL_SLASH_PROMPT.test(prompt) && !isGoalSlashCommand(prompt);
 }
 
 /** The objective is everything after the `/goal ` prefix, trimmed. */
 export function getGoalSlashObjective(prompt: string): string {
-  const match = /^\s*\/goal\s+/i.exec(prompt);
-  if (match === null) return prompt.trim();
+  const match = GOAL_SLASH_PROMPT.exec(prompt);
+  if (match === null || isGoalSlashCommand(prompt)) return prompt.trim();
   return prompt.slice(match[0].length).trim();
 }
 
 /** Length of the leading `/goal ` prefix (including leading whitespace), 0 when absent. */
 export function goalSlashPrefixLength(prompt: string): number {
-  const match = /^\s*\/goal\s+/i.exec(prompt);
+  if (isGoalSlashCommand(prompt)) return 0;
+  const match = GOAL_SLASH_PROMPT.exec(prompt);
   return match === null ? 0 : match[0].length;
 }
 

@@ -31,6 +31,11 @@ one — the **Other goals** menu lists them. To leave goal mode, delete the
 leading `/goal ` (or press the hint bar’s ✕), which turns the composer back
 into a normal message box.
 
+Reserved commands after the space, such as `/goal clear` or `/goal pause`,
+send as normal messages for the provider to run instead of starting a goal.
+To make one the objective, write a longer sentence such as `/goal clear the
+backlog`.
+
 ## What you see
 
 A goal card sits above the composer for as long as the goal matters. The
@@ -51,10 +56,12 @@ goal keeps running.
 
 ## Controlling a goal
 
-- **Pause** stops after the current turn; **Resume** continues from the same
-  plan.
+- **Pause** interrupts right away, even mid-turn; **Resume** continues from
+  the same plan.
 - **Edit** changes the objective or adds requirements. Finished work is kept
-  and only the remaining plan changes.
+  and only the remaining plan changes. An edit keeps the goal's current
+  status: a paused goal stays paused until you resume it, and the edit dialog
+  offers **Save & resume** to save and restart in one click.
 - **Cancel** stops the goal for good. It asks first, and a cancelled goal never
   resumes.
 - A failed or blocked task can be retried on its own, without restarting the
@@ -65,7 +72,7 @@ goal keeps running.
 The agent stops for you only when it cannot decide on its own. A question shows
 as **Needs input** with an answer box in the card. A goal that cannot continue
 shows **Blocked** (or **Failed**) with the reason in the card, so you can
-remove the obstacle, retry, edit the goal, or cancel it.
+remove the obstacle and resume, edit the goal, retry, or cancel it.
 
 ## Verification
 

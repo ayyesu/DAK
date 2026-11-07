@@ -439,6 +439,7 @@ import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { GoalModePanel } from "./chat/GoalModePanel";
 import {
   getGoalSlashObjective,
+  isGoalSlashCommand,
   isGoalSlashPrompt,
   selectGoalModelSelection,
   splitCriteriaLines,
@@ -9139,7 +9140,9 @@ export default function ChatView(props: ChatViewProps) {
     const slashGoalObjective = isGoalSlashPrompt(promptForSend)
       ? getGoalSlashObjective(promptForSend)
       : null;
-    if (goalComposerOpen || slashGoalObjective !== null) {
+    // A reserved `/goal clear`-style command sends as a message even while the
+    // goal composer is open; it must never become the objective.
+    if ((goalComposerOpen || slashGoalObjective !== null) && !isGoalSlashCommand(promptForSend)) {
       const objective = slashGoalObjective ?? promptForSend.trim();
       if (objective === "") return;
       if (!canOperateGoal) {
