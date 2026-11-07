@@ -22,6 +22,7 @@ import {
   isGoalSlashPrompt,
   isUsableGoalModelSelection,
   selectGoalForThread,
+  selectGoalModelSelection,
   splitCriteriaLines,
 } from "./GoalMode.logic";
 
@@ -309,6 +310,15 @@ describe("goal slash command parsing", () => {
     expect(isUsableGoalModelSelection({ model: "gpt-5" })).toBe(true);
     expect(isUsableGoalModelSelection(null)).toBe(false);
     expect(isUsableGoalModelSelection(undefined)).toBe(false);
+  });
+
+  it("prefers the composer selection over the thread placeholder", () => {
+    const composer = { instanceId: "opencode", model: "crouton-alpha-free" };
+    const placeholder = { instanceId: "dak_no_provider", model: "" };
+    const projectDefault = { instanceId: "opencode", model: "default-model" };
+    expect(selectGoalModelSelection([composer, null, placeholder, projectDefault])).toBe(composer);
+    expect(selectGoalModelSelection([placeholder, null, projectDefault])).toBe(projectDefault);
+    expect(selectGoalModelSelection([placeholder, null])).toBeNull();
   });
 });
 
