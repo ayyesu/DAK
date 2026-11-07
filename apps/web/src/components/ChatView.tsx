@@ -436,6 +436,11 @@ import {
 import { environmentShell } from "../state/shell";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { GoalModePanel } from "./chat/GoalModePanel";
+import {
+  getGoalSlashObjective,
+  isGoalSlashPrompt,
+  splitCriteriaLines,
+} from "./chat/GoalMode.logic";
 import { createPageScrollController, type PageScrollKey } from "./chat/pageScrollController";
 import { isTimelineScrollTarget } from "./chat/timelineScrollTarget";
 import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
@@ -1621,6 +1626,8 @@ export default function ChatView(props: ChatViewProps) {
   const removeKeybinding = useAtomCommand(serverEnvironment.removeKeybinding, {
     reportFailure: false,
   });
+  const createGoal = useAtomCommand(serverEnvironment.createGoal, { label: "start goal" });
+  const canOperateGoal = useAtomValue(serverEnvironment.createGoal.permissionAtom(environmentId));
   const openTerminal = useAtomCommand(terminalEnvironment.open, "terminal open");
   const writeTerminal = useAtomCommand(terminalEnvironment.write, "terminal write");
   const closeTerminalMutation = useAtomCommand(terminalEnvironment.close, "terminal close");
@@ -1985,9 +1992,12 @@ export default function ChatView(props: ChatViewProps) {
   // composer is expanded and holds that height while it rests, so the resting
   // composer never exposes rows that its expansion will cover.
   const [composerTimelineInset, setComposerTimelineInset] = useState(0);
-  // Goal Mode's start form sits above the composer; an existing goal shows
-  // its progress there whether or not the form is open.
+  // Goal Mode turns the composer below into the goal's input; an existing
+  // goal shows its progress in the panel above whether or not it is open.
   const [goalComposerOpen, setGoalComposerOpen] = useState(false);
+  const [goalCriteriaText, setGoalCriteriaText] = useState("");
+  const [focusGoalId, setFocusGoalId] = useState<string | null>(null);
+  const [isStartingGoal, setIsStartingGoal] = useState(false);
   const composerTimelineInsetRef = useRef(0);
   const composerRestingRef = useRef(false);
   // False while a status bar stands in for the composer (a native subagent).
@@ -7993,9 +8003,18 @@ export default function ChatView(props: ChatViewProps) {
   useEffect(() => {
     setPendingServerThreadEnvMode(null);
     setPendingServerThreadBranch(undefined);
-    // The goal form belongs to one thread; a fresh thread starts without it.
+    // Goal Mode belongs to one thread; a fresh thread starts without it.
     setGoalComposerOpen(false);
+    setGoalCriteriaText("");
+    setFocusGoalId(null);
   }, [activeThread?.id]);
+
+  // Opening Goal Mode means the goal is about to be written; put the caret in
+  // the composer so typing and Cmd/Ctrl+Enter work immediately.
+  useEffect(() => {
+    if (!goalComposerOpen) return;
+    focusComposer();
+  }, [goalComposerOpen, focusComposer]);
 
   useEffect(() => {
     if (canOverrideServerThreadEnvMode) {
@@ -9098,6 +9117,89 @@ export default function ChatView(props: ChatViewProps) {
       } finally {
         queuedEditSaveInFlightRef.current = false;
         setIsSavingQueuedEdit(false);
+      }
+      return;
+    }
+    // Goal Mode repurposes the composer's send: the prompt is the objective,
+    // the criteria field supplies the checklist, and no turn is dispatched.
+    // Usage limits, guards, pending questions, and queued edits above keep
+    // their own meaning and win over goal mode. `/goal ` at the start of the
+    // prompt enters goal mode from this same input.
+    const slashGoalObjective = isGoalSlashPrompt(promptForSend)
+      ? getGoalSlashObjective(promptForSend)
+      : null;
+    if (goalComposerOpen || slashGoalObjective !== null) {
+      const objective = slashGoalObjective ?? promptForSend.trim();
+      if (objective === "") return;
+      if (!canOperateGoal) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "warning",
+            title: "This connection cannot start goals",
+          }),
+        );
+        return;
+      }
+      const goalProjectId = isServerThread
+        ? (activeThread?.projectId ?? null)
+        : (activeProject?.id ?? null);
+      if (goalProjectId === null) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "warning",
+            title: "Choose a project to start a goal",
+            description: "A goal belongs to a project so the agent can work in it.",
+          }),
+        );
+        return;
+      }
+      const goalModelSelection =
+        reportedModelSelection ??
+        activeThread?.modelSelection ??
+        activeProjectDefaultModelSelection ??
+        null;
+      if (goalModelSelection === null) {
+        toastManager.add(
+          stackedThreadToast({ type: "warning", title: "Pick a model to start a goal" }),
+        );
+        return;
+      }
+      sendInFlightRef.current = true;
+      setIsStartingGoal(true);
+      try {
+        const result = await createGoal({
+          environmentId,
+          input: {
+            projectId: goalProjectId,
+            threadId: isServerThread ? (activeThreadId ?? null) : null,
+            objective,
+            acceptanceCriteria: splitCriteriaLines(goalCriteriaText),
+            modelSelection: goalModelSelection,
+            runtimeMode,
+            interactionMode,
+          },
+        });
+        if (result._tag === "Failure") {
+          if (!isAtomCommandInterrupted(result)) {
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Could not start the goal",
+                description: chatActionErrorMessage(squashAtomCommandFailure(result)),
+              }),
+            );
+          }
+          return;
+        }
+        promptRef.current = "";
+        setComposerDraftPrompt(composerDraftTarget, "");
+        composerRef.current?.resetCursorState();
+        setGoalCriteriaText("");
+        setFocusGoalId(result.value.goal.id);
+        setGoalComposerOpen(false);
+      } finally {
+        sendInFlightRef.current = false;
+        setIsStartingGoal(false);
       }
       return;
     }
@@ -11640,17 +11742,10 @@ export default function ChatView(props: ChatViewProps) {
                         : (activeProject?.id ?? null)
                     }
                     threadId={isServerThread ? (activeThreadId ?? null) : null}
-                    modelSelection={
-                      reportedModelSelection ??
-                      activeThread?.modelSelection ??
-                      activeProjectDefaultModelSelection ??
-                      null
-                    }
-                    runtimeMode={runtimeMode}
-                    interactionMode={interactionMode}
                     canOperate={canOperateThread}
-                    composerOpen={goalComposerOpen}
-                    onComposerOpenChange={setGoalComposerOpen}
+                    goalModeOpen={goalComposerOpen}
+                    onGoalModeOpenChange={setGoalComposerOpen}
+                    focusGoalId={focusGoalId}
                   />
                   <div
                     ref={draftHeroTransition.composerAnchorRef}
@@ -11725,7 +11820,9 @@ export default function ChatView(props: ChatViewProps) {
                               phase={phase}
                               canInterrupt={canInterruptRunningThread}
                               isConnecting={isConnecting}
-                              isSendBusy={isSendBusy || isSavingQueuedEdit || isResuming}
+                              isSendBusy={
+                                isSendBusy || isSavingQueuedEdit || isResuming || isStartingGoal
+                              }
                               canResume={resumableRunId !== null || hasHeldQueuedRuns}
                               isRevertingCheckpoint={isRevertingCheckpoint}
                               sendDisabledReason={
@@ -11799,6 +11896,9 @@ export default function ChatView(props: ChatViewProps) {
                               interactionMode={interactionMode}
                               goalModeOpen={goalComposerOpen}
                               onToggleGoalMode={() => setGoalComposerOpen((open) => !open)}
+                              goalCriteriaText={goalCriteriaText}
+                              onGoalCriteriaChange={setGoalCriteriaText}
+                              canOperateGoal={canOperateGoal}
                               lockedProvider={modelPickerLockedProvider}
                               providerStatuses={providerStatuses as ServerProvider[]}
                               providerCatalogKnown={serverConfig !== null}

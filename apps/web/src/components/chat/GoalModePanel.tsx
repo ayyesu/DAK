@@ -3,21 +3,11 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@dak/client-runtime/state/runtime";
-import type {
-  EnvironmentId,
-  Goal,
-  GoalTask,
-  ModelSelection,
-  ProjectId,
-  ProviderInteractionMode,
-  RuntimeMode,
-  ThreadId,
-} from "@dak/contracts";
+import type { EnvironmentId, Goal, GoalTask, ProjectId, ThreadId } from "@dak/contracts";
 import { scopeThreadRef } from "@dak/client-runtime/environment";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  ArrowRightIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
@@ -74,7 +64,6 @@ import {
   goalVerificationStatusLabel,
   isGoalActive,
   selectGoalForThread,
-  splitCriteriaLines,
   type GoalTone,
 } from "./GoalMode.logic";
 
@@ -711,19 +700,19 @@ function GoalCard(props: {
 
 /**
  * Goal Mode lives above the composer: a goal the server is driving stays
- * visible here, and opening the composer's Goal control stacks the "define a
- * goal" form above the compact card of the current goal.
+ * visible here. The composer's Goal control owns writing the next goal; this
+ * panel only shows and manages what exists.
  */
 export function GoalModePanel(props: {
   readonly environmentId: EnvironmentId;
   readonly projectId: ProjectId | null;
   readonly threadId: ThreadId | null;
-  readonly modelSelection: ModelSelection | null;
-  readonly runtimeMode: RuntimeMode;
-  readonly interactionMode: ProviderInteractionMode;
   readonly canOperate: boolean;
-  readonly composerOpen: boolean;
-  readonly onComposerOpenChange: (open: boolean) => void;
+  /** The composer below is in Goal Mode; the card stays compact until it closes. */
+  readonly goalModeOpen: boolean;
+  readonly onGoalModeOpenChange: (open: boolean) => void;
+  /** The goal this panel's thread just started; selects it for display. */
+  readonly focusGoalId: string | null;
 }) {
   const { environmentId, projectId } = props;
   const canOperateGoal = useAtomValue(serverEnvironment.createGoal.permissionAtom(environmentId));
@@ -733,14 +722,11 @@ export function GoalModePanel(props: {
       ? null
       : serverEnvironment.goalsLive({ environmentId, input: { projectId } }),
   );
-  const createGoal = useAtomCommand(serverEnvironment.createGoal, { label: "start goal" });
 
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   // A finished goal stays visible so its result can be read; hiding it is a
   // session choice, not a server change.
   const [hiddenGoalIds, setHiddenGoalIds] = useState<ReadonlySet<string>>(new Set());
-  const [objective, setObjective] = useState("");
-  const [criteriaText, setCriteriaText] = useState("");
   const [busy, setBusy] = useState(false);
 
   // The selection belongs to one thread; switching threads must not keep
@@ -749,11 +735,16 @@ export function GoalModePanel(props: {
     setSelectedGoalId(null);
   }, [props.threadId]);
 
-  // The palette and the chat.key command ask for the form without owning its
+  // Starting a goal happens in the composer; surface the one it just created.
+  useEffect(() => {
+    if (props.focusGoalId !== null) setSelectedGoalId(props.focusGoalId);
+  }, [props.focusGoalId]);
+
+  // The palette and the chat.key command ask for Goal Mode without owning its
   // state; subscribe here, next to the consumer.
   useEffect(
-    () => onOpenGoalComposer(() => props.onComposerOpenChange(true)),
-    [props.onComposerOpenChange],
+    () => onOpenGoalComposer(() => props.onGoalModeOpenChange(true)),
+    [props.onGoalModeOpenChange],
   );
 
   const goals = useMemo(
@@ -769,7 +760,7 @@ export function GoalModePanel(props: {
   const otherGoals = goals.filter((candidate) => candidate.id !== goal?.id);
 
   if (projectId === null) return null;
-  if (goal === null && !props.composerOpen) return null;
+  if (goal === null && goalsQuery.error === null) return null;
 
   const reportFailure = (title: string, error: unknown) => {
     toastManager.add({
@@ -794,39 +785,6 @@ export function GoalModePanel(props: {
     onSuccess?.(result.value);
   };
 
-  const startGoal = () => {
-    const text = objective.trim();
-    if (text === "" || props.modelSelection === null) return;
-    void run(
-      "Could not start the goal",
-      () =>
-        createGoal({
-          environmentId,
-          input: {
-            projectId,
-            threadId: props.threadId,
-            objective: text,
-            acceptanceCriteria: splitCriteriaLines(criteriaText),
-            modelSelection: props.modelSelection as ModelSelection,
-            runtimeMode: props.runtimeMode,
-            interactionMode: props.interactionMode,
-          },
-        }),
-      (created) => {
-        setObjective("");
-        setCriteriaText("");
-        setSelectedGoalId(created.goal.id);
-        props.onComposerOpenChange(false);
-      },
-    );
-  };
-
-  const closeGoalForm = () => {
-    setObjective("");
-    setCriteriaText("");
-    props.onComposerOpenChange(false);
-  };
-
   return (
     <div
       data-goal-mode-panel="true"
@@ -834,93 +792,6 @@ export function GoalModePanel(props: {
       aria-label="Goal mode"
       className="pointer-events-auto mb-2 overflow-hidden rounded-2xl border border-border/60 bg-card/80 text-card-foreground shadow-sm backdrop-blur-xl"
     >
-      {props.composerOpen ? (
-        <div
-          className={cn(
-            "p-3.5",
-            // A goal below the form gets a divider; without one the two
-            // surfaces would run together.
-            goal !== null && "border-b border-border/60",
-          )}
-        >
-          <div className="flex items-center gap-2">
-            <TargetIcon aria-hidden className="size-4 text-muted-foreground" />
-            <span className="text-sm font-semibold">What should I accomplish?</span>
-            {goal === null ? null : (
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Close the goal form"
-                className="ml-auto"
-                onClick={closeGoalForm}
-              >
-                <XIcon aria-hidden className="size-3.5" />
-              </Button>
-            )}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Describe the outcome. The agent plans the steps, does the work, runs checks and keeps
-            going until it can prove the goal is done. You can pause or change it at any time.
-          </p>
-          <Textarea
-            autoFocus
-            aria-label="Goal description"
-            placeholder="Describe your goal…"
-            rows={3}
-            value={objective}
-            className="mt-2.5 min-h-16 resize-none"
-            onChange={(event) => setObjective(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault();
-                startGoal();
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                closeGoalForm();
-              }
-            }}
-          />
-          <Textarea
-            aria-label="Done when criteria, one per line"
-            placeholder="Done when — one criterion per line (optional)…"
-            rows={2}
-            value={criteriaText}
-            className="mt-1.5 min-h-10 resize-none"
-            onChange={(event) => setCriteriaText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault();
-                startGoal();
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                closeGoalForm();
-              }
-            }}
-          />
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="text-2xs text-muted-foreground">
-              {props.modelSelection === null
-                ? "Pick a model to start a goal"
-                : !canOperate
-                  ? "This connection cannot start goals"
-                  : goal === null
-                    ? "Goal mode enabled · plans, executes, verifies"
-                    : "Your current goal keeps running while you write this one"}
-            </span>
-            <Button
-              size="sm"
-              disabled={
-                busy || !canOperate || props.modelSelection === null || objective.trim() === ""
-              }
-              onClick={startGoal}
-            >
-              Start goal
-              <ArrowRightIcon aria-hidden className="size-3.5" />
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
       {goal === null ? null : (
         <GoalCard
           key={goal.id}
@@ -930,19 +801,19 @@ export function GoalModePanel(props: {
           otherGoals={otherGoals}
           canOperate={canOperate}
           busy={busy}
-          compact={props.composerOpen}
+          compact={props.goalModeOpen}
           run={run}
           onHide={() => setHiddenGoalIds((hidden) => new Set([...hidden, goal.id]))}
           onSelectOther={(goalId) => setSelectedGoalId(goalId)}
           onStartAnother={() => {
             setSelectedGoalId(null);
-            props.onComposerOpenChange(true);
+            props.onGoalModeOpenChange(true);
           }}
         />
       )}
 
       {goalsQuery.error !== null ? (
-        <p className="px-3.5 pb-2.5 text-2xs text-destructive">
+        <p className={cn("px-3.5 pb-2.5 text-2xs text-destructive", goal === null && "pt-2.5")}>
           Could not load goals: {goalsQuery.error}
         </p>
       ) : null}
