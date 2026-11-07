@@ -1081,6 +1081,7 @@ import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectValue } from "../ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
+import { Textarea } from "../ui/textarea";
 import {
   FileIcon,
   BotIcon,
@@ -1094,6 +1095,7 @@ import {
 } from "lucide-react";
 import { proposedPlanTitle } from "../../proposedPlan";
 import { hasProviderSetup } from "./ProviderStatusBanner";
+import { getGoalSlashObjective, goalSlashPrefixLength, isGoalSlashPrompt } from "./GoalMode.logic";
 import {
   applyProviderInstanceSettings,
   deriveProviderInstanceEntries,
@@ -1401,6 +1403,8 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
   reserveContextWindowMeter: boolean;
   activeThreadModelDisplayName: string | null;
   isPreparingWorktree: boolean;
+  /** The composer's send starts a goal instead of a turn. */
+  goalModeActive: boolean;
   pendingAction: {
     questionIndex: number;
     isLastQuestion: boolean;
@@ -1462,6 +1466,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         isConnecting={props.isConnecting}
         isEnvironmentUnavailable={props.isEnvironmentUnavailable}
         isPreparingWorktree={props.isPreparingWorktree}
+        goalModeActive={props.goalModeActive}
         hasSendableContent={props.hasSendableContent}
         canResume={props.canResume}
         preserveComposerFocusOnPointerDown={props.preserveComposerFocusOnPointerDown ?? false}
@@ -1637,9 +1642,14 @@ export interface ChatComposerProps {
   // Mode
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
-  /** Goal Mode's start form is open above the composer. */
+  /** The composer is in Goal Mode: its send starts the goal instead of a turn. */
   goalModeOpen: boolean;
   onToggleGoalMode: () => void;
+  /** Goal Mode's acceptance criteria, one per line. */
+  goalCriteriaText: string;
+  onGoalCriteriaChange: (value: string) => void;
+  /** createGoal is allowed for this connection (a scoped grant can deny it). */
+  canOperateGoal: boolean;
 
   // Provider / model
   lockedProvider: ProviderDriverKind | null;
@@ -1797,6 +1807,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeProposedPlan,
     runtimeMode,
     interactionMode: requestedInteractionMode,
+    goalCriteriaText,
+    onGoalCriteriaChange,
+    canOperateGoal,
     lockedProvider,
     providerStatuses,
     providerCatalogKnown,
@@ -2232,8 +2245,39 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     selectedProviderEntry?.snapshot,
     selectedModel,
   );
+  // Goal Mode repurposes the composer's send, but only while the composer
+  // still holds the goal's own text: a pending question, an approval, or a
+  // plan follow-up reuses this input and keeps its send meaning. It is
+  // entered two ways that share this one input: typing `/goal ` at the
+  // start of the prompt, or the palette / chat.goal key command flipping
+  // `goalModeOpen`. The standalone Goal toggle is hidden so there is a
+  // single visible entry point.
+  const slashGoalActive = isGoalSlashPrompt(prompt);
+  const slashGoalObjective = slashGoalActive ? getGoalSlashObjective(prompt) : "";
+  const goalModeActive =
+    (props.goalModeOpen || slashGoalActive) &&
+    activePendingApproval === null &&
+    activePendingProgress === null &&
+    !(showPlanFollowUpPrompt && activeProposedPlan);
+  const goalModeSelection =
+    reportedModelSelection ??
+    activeThreadModelSelection ??
+    activeProjectDefaultModelSelection ??
+    null;
+  const goalModeBlockReason = !goalModeActive
+    ? null
+    : !canOperateGoal
+      ? "This connection cannot start goals"
+      : goalModeSelection === null
+        ? "Pick a model to start a goal"
+        : (slashGoalActive ? slashGoalObjective : prompt.trim()).length === 0
+          ? slashGoalActive
+            ? "Describe your goal after /goal"
+            : "Describe your goal first"
+          : null;
   const sendDisabledReason =
     externalSendDisabledReason ??
+    goalModeBlockReason ??
     (multipleModelSelections?.length === 0 ? "Select at least one model." : null) ??
     (activePendingProgress
       ? attachmentBlockReason
@@ -2780,8 +2824,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           skill.description ??
           (skill.scope ? `${skill.scope} skill` : ""),
       }));
+      // DAK's own `/goal` (typing `/goal ` in the composer) replaces the
+      // provider's native goal command, so the provider's never appears.
       const visibleProviderSlashCommandItems = providerSlashCommandItems.filter(
-        (item) => item.command.name !== "compact" || compactSlashCommandAvailable,
+        (item) =>
+          item.command.name.trim().toLowerCase() !== "goal" &&
+          (item.command.name !== "compact" || compactSlashCommandAvailable),
       );
       const slashCommandItems = slashCommandItemsForPromptPosition(
         [
@@ -3071,11 +3119,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     projectSelectionRequired ||
     environmentUnavailable !== null ||
     (!composerSendState.hasSendableContent && !showResumeAction);
-  const collapsedComposerPrimaryActionLabel = showResumeAction
-    ? "Resume thread"
-    : props.resumeCompactionTokens !== null && !props.keepFullHistory
-      ? "Open composer to compact and send"
-      : "Send message";
+  const collapsedComposerPrimaryActionLabel = goalModeActive
+    ? "Start goal"
+    : showResumeAction
+      ? "Resume thread"
+      : props.resumeCompactionTokens !== null && !props.keepFullHistory
+        ? "Open composer to compact and send"
+        : "Send message";
   const showMobilePendingAnswerActions =
     isMobileViewport && !isComposerCollapsedMobile && pendingPrimaryAction !== null;
 
@@ -5221,6 +5271,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isDragOverComposer ||
     isPreparingWorktree ||
     showProviderUnavailable ||
+    props.goalModeOpen ||
     projectSelectionRequired ||
     environmentUnavailable !== null ||
     composerSubmissionError !== null ||
@@ -5557,8 +5608,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               runtimeMode={compatibleRuntimeMode}
               runtimeModeOptions={compatibleRuntimeModeOptions}
               size="sm"
-              showGoalModeToggle={props.canOperateThread}
-              goalModeOpen={props.goalModeOpen}
+              // Entry to goal mode is typing `/goal ` in the composer; the
+              // toggle is hidden so the composer stays the one input.
+              showGoalModeToggle={false}
+              goalModeOpen={props.goalModeOpen || slashGoalActive}
               onToggleGoalMode={props.onToggleGoalMode}
               onToggleInteractionMode={toggleInteractionMode}
               onRuntimeModeChange={handleRuntimeModeChange}
@@ -6861,7 +6914,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     : prompt.trim() ||
                       (showProviderUnavailable
                         ? "Enable a provider in Settings"
-                        : "Ask anything...")}
+                        : slashGoalActive || props.goalModeOpen
+                          ? "Describe your goal…"
+                          : "Ask anything...")}
                 </button>
                 {collapsedComposerImagePreviews}
                 <button
@@ -7425,7 +7480,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                                 ? "Enable a provider in Settings to send a message"
                                 : phase === "disconnected"
                                   ? DISCONNECTED_COMPOSER_PLACEHOLDER
-                                  : "Ask anything, @tag files/folders, $use skills, or / for commands"
+                                  : slashGoalActive || props.goalModeOpen
+                                    ? "Describe your goal…"
+                                    : "Ask anything, @tag files/folders, $use skills, or / for commands"
                     }
                     disabled={
                       isConnecting ||
@@ -7469,6 +7526,56 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 ) : null}
               </div>
             </div>
+
+            {slashGoalActive ? (
+              <div
+                data-goal-slash-hint="true"
+                role="status"
+                className="mx-3 mb-2 flex items-center gap-2 rounded-xl border border-border/60 bg-muted/40 px-3 py-2 sm:mx-4"
+              >
+                <TargetIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                <span className="shrink-0 rounded-md bg-background px-1.5 py-0.5 font-mono text-2xs font-medium">
+                  /goal
+                </span>
+                <span className="min-w-0 flex-1 text-xs leading-5 text-muted-foreground">
+                  Goal mode — describe the outcome after <code>/goal</code>. The agent plans, does
+                  the work, runs checks, and keeps going until it can prove the goal is done. Add
+                  optional “Done when” criteria below, or just press Enter.
+                </span>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label="Exit goal mode"
+                  onClick={() => {
+                    const prefixLength = goalSlashPrefixLength(promptRef.current);
+                    if (prefixLength > 0) {
+                      applyPromptReplacement(0, prefixLength, "");
+                    }
+                  }}
+                >
+                  <XIcon aria-hidden className="size-3.5" />
+                </Button>
+              </div>
+            ) : null}
+
+            {goalModeActive ? (
+              <div className="px-3 pb-2 sm:px-4">
+                <Textarea
+                  aria-label="Done when criteria, one per line"
+                  placeholder="Done when — one criterion per line (optional)…"
+                  rows={2}
+                  value={goalCriteriaText}
+                  className="min-h-10 resize-none"
+                  onChange={(event) => onGoalCriteriaChange(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                      event.preventDefault();
+                      event.currentTarget.form?.requestSubmit();
+                    }
+                  }}
+                />
+              </div>
+            ) : null}
 
             <ComposerPromptLengthValidation
               message={providerInputSubmissionError ?? composerSubmissionError}
@@ -7584,7 +7691,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       projectSelectionRequired
                     }
                     isPreparingWorktree={isPreparingWorktree}
-                    hasSendableContent={composerSendState.hasSendableContent}
+                    goalModeActive={goalModeActive}
+                    hasSendableContent={
+                      goalModeActive
+                        ? (slashGoalActive ? slashGoalObjective : prompt.trim()).length > 0
+                        : composerSendState.hasSendableContent
+                    }
                     canResume={showResumeAction}
                     preserveComposerFocusOnPointerDown={isMobileViewport || isComposerResting}
                     isEditingQueuedMessage={isEditingQueuedMessage}

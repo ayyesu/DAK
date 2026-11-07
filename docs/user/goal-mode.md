@@ -6,14 +6,16 @@ work, and checks the result before reporting success.
 
 ## Starting a goal
 
-Open the goal form with **Goal** next to the message composer, or run
-**New goal** from the command palette (`Cmd+K`). The palette command has no
-default shortcut; assign one to `chat.goal` in **Settings → Keybindings** if
-you use it often.
+In the message composer, type `/goal` followed by a space, then write the
+outcome — for example `/goal Add per-channel notification settings with tests`.
+After the space, the composer shows a goal-mode hint bar (`/goal` chip +
+“Describe the outcome…”) and a **Done when** criteria field appears below
+the prompt; the send button reads **Start goal**. The same composer is the
+goal input — there is no separate goal form, and the provider’s native
+`/goal` command is not used. **New goal** in the command palette (`Cmd+K`)
+and the `chat.goal` key command open the same composer in goal mode.
 
-Write the outcome in your own words, for example "Add per-channel
-notification settings with tests". Optionally add **Done when** criteria, one
-per line — for example:
+Optionally add **Done when** criteria, one per line — for example:
 
 ```
 Tests pass
@@ -21,11 +23,13 @@ Settings page has a notification section
 Docs mention the new options
 ```
 
-Criteria are the checklist the agent is held to. Then start the goal. It
-runs in the current thread; when there is no thread yet, it starts one and
-runs there. Like a Codex `/goal`, a goal belongs to its thread, so you
-will not see another thread's goal in this one — the **Other goals** menu
-lists them.
+Criteria are the checklist the agent is held to. Press Enter or **Start
+goal** to begin. It runs in the current thread when there is one; otherwise
+it starts a thread of its own in the current project. Like a Codex `/goal`, a
+goal belongs to its thread, so you will not see another thread's goal in this
+one — the **Other goals** menu lists them. To leave goal mode, delete the
+leading `/goal ` (or press the hint bar’s ✕), which turns the composer back
+into a normal message box.
 
 ## What you see
 
@@ -42,7 +46,8 @@ and the goal keeps running while the browser is closed because the
 environment drives it.
 
 **Hide this finished goal** clears a completed goal from the card; **Start
-another goal** opens the form while the current goal keeps running.
+another goal** turns the composer back to the goal input while the current
+goal keeps running.
 
 ## Controlling a goal
 

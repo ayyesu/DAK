@@ -9,14 +9,17 @@ import {
   canRetryGoal,
   currentGoalTask,
   formatGoalActivityTime,
+  getGoalSlashObjective,
   goalCriterionStates,
   goalHeadline,
   goalNeedsAttention,
   goalProgress,
+  goalSlashPrefixLength,
   goalStatusLabel,
   goalStatusTone,
   goalVerificationStatusLabel,
   isGoalEnded,
+  isGoalSlashPrompt,
   selectGoalForThread,
   splitCriteriaLines,
 } from "./GoalMode.logic";
@@ -280,6 +283,23 @@ describe("goal control matrix", () => {
       expect(canRetryGoal(status)).toBe(false);
       expect(isGoalEnded(status)).toBe(true);
     }
+  });
+});
+
+describe("goal slash command parsing", () => {
+  it("enters goal mode only when `/goal ` starts the prompt", () => {
+    expect(isGoalSlashPrompt("/goal Fix failing tests")).toBe(true);
+    expect(isGoalSlashPrompt("/goal ")).toBe(true);
+    expect(isGoalSlashPrompt("/goal")).toBe(false);
+    expect(isGoalSlashPrompt("/Goal fix")).toBe(true);
+    expect(isGoalSlashPrompt("Fix tests")).toBe(false);
+  });
+
+  it("strips the `/goal ` prefix for the objective", () => {
+    expect(getGoalSlashObjective("/goal Fix failing CI checks")).toBe("Fix failing CI checks");
+    expect(getGoalSlashObjective("/goal   ")).toBe("");
+    expect(getGoalSlashObjective("Fix tests")).toBe("Fix tests");
+    expect(goalSlashPrefixLength("/goal ok")).toBe(6);
   });
 });
 

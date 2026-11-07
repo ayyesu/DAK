@@ -42,6 +42,8 @@ interface ComposerPrimaryActionsProps {
   isConnecting: boolean;
   isEnvironmentUnavailable: boolean;
   isPreparingWorktree: boolean;
+  /** The composer's send starts a goal instead of dispatching a turn. */
+  goalModeActive?: boolean;
   hasSendableContent: boolean;
   canResume?: boolean;
   preserveComposerFocusOnPointerDown?: boolean;
@@ -100,6 +102,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   isConnecting,
   isEnvironmentUnavailable,
   isPreparingWorktree,
+  goalModeActive = false,
   hasSendableContent,
   canResume = false,
   preserveComposerFocusOnPointerDown = false,
@@ -269,9 +272,13 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   }
 
   const showResume = canResume && !hasSendableContent && !isEditingQueuedMessage;
+  // In Goal Mode the send starts the goal. Pending questions and plan
+  // follow-up returned above keep their own buttons, and Resume and the
+  // queued-edit save keep theirs below.
+  const startGoalMode = goalModeActive && !showResume && !isEditingQueuedMessage;
 
   const compactTokens =
-    compactBeforeSendTokens !== null && !showResume && !isEditingQueuedMessage
+    compactBeforeSendTokens !== null && !showResume && !isEditingQueuedMessage && !startGoalMode
       ? formatContextWindowTokens(compactBeforeSendTokens)
       : null;
   const compactsBeforeSend = compactTokens !== null && !keepFullHistory;
@@ -280,13 +287,15 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
     ? "Resume thread"
     : isEditingQueuedMessage
       ? "Update queued message"
-      : compactsBeforeSend
-        ? "Compact and send"
-        : isQueuing
-          ? "Queue message"
-          : isRunning
-            ? "Steer message"
-            : "Submit message";
+      : startGoalMode
+        ? "Start goal"
+        : compactsBeforeSend
+          ? "Compact and send"
+          : isQueuing
+            ? "Queue message"
+            : isRunning
+              ? "Steer message"
+              : "Submit message";
   const submitStatus = isEnvironmentUnavailable
     ? "Environment disconnected"
     : (sendDisabledReason ??
@@ -295,19 +304,23 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
         : isPreparingWorktree
           ? "Preparing worktree"
           : isSendBusy
-            ? isEditingQueuedMessage
-              ? "Updating queued message"
-              : "Submitting message"
+            ? startGoalMode
+              ? "Starting goal"
+              : isEditingQueuedMessage
+                ? "Updating queued message"
+                : "Submitting message"
             : null));
   const submitTooltip =
     submitStatus ??
-    (compactsBeforeSend
-      ? `Summarize ${compactTokens} tokens of history, then send`
-      : isRunning && !isEditingQueuedMessage
-        ? `Click to ${followUpBehavior}, Ctrl/⌘-click${alternateShortcutLabel ? ` or ${alternateShortcutLabel}` : ""} to ${alternateAction}`
-        : submitLabel);
+    (startGoalMode
+      ? submitLabel
+      : compactsBeforeSend
+        ? `Summarize ${compactTokens} tokens of history, then send`
+        : isRunning && !isEditingQueuedMessage
+          ? `Click to ${followUpBehavior}, Ctrl/⌘-click${alternateShortcutLabel ? ` or ${alternateShortcutLabel}` : ""} to ${alternateAction}`
+          : submitLabel);
 
-  const sendButton = (
+  const roundSendButton = (
     <button
       type={showResume ? "button" : "submit"}
       className={cn(
@@ -354,6 +367,28 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
         </svg>
       )}
     </button>
+  );
+
+  // Goal Mode gets a labeled pill: "Start goal" must be unmistakable next to
+  // the composer's other controls, where the round icon reads as a plain send.
+  const sendButton = startGoalMode ? (
+    <button
+      type="submit"
+      className={cn(messageActionPillClassName, "h-9 sm:h-8", compact ? "px-3" : "px-4")}
+      {...pointerFocusProps}
+      disabled={
+        isSendBusy ||
+        isSendDisabled ||
+        isConnecting ||
+        isEnvironmentUnavailable ||
+        !hasSendableContent
+      }
+      aria-label={submitStatus ?? submitLabel}
+    >
+      {isConnecting || isSendBusy ? "Starting..." : "Start goal"}
+    </button>
+  ) : (
+    roundSendButton
   );
 
   const submit = (
