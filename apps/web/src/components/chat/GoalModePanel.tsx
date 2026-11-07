@@ -342,8 +342,8 @@ function GoalCard(props: {
               {progress.percent}%
             </span>
             <span className="text-2xs text-muted-foreground">
-              {progress.completed} of {progress.total}{" "}
-              {progress.total === 1 ? "task" : "tasks"} completed
+              {progress.completed} of {progress.total} {progress.total === 1 ? "task" : "tasks"}{" "}
+              completed
             </span>
           </div>
         )}
@@ -366,9 +366,7 @@ function GoalCard(props: {
               reasonBox.tone === "danger" ? "text-destructive" : "text-warning",
             )}
           />
-          <p className="line-clamp-3 min-w-0 text-xs leading-5 text-foreground">
-            {reasonBox.text}
-          </p>
+          <p className="line-clamp-3 min-w-0 text-xs leading-5 text-foreground">{reasonBox.text}</p>
         </div>
       )}
 
@@ -649,7 +647,9 @@ function GoalCard(props: {
                         {formatGoalActivityTime(activity.at, now)}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 text-2xs text-foreground/90">{activity.summary}</p>
+                        <p className="line-clamp-2 text-2xs text-foreground/90">
+                          {activity.summary}
+                        </p>
                         {activity.detail === null ? null : (
                           <p className="line-clamp-2 text-3xs text-muted-foreground">
                             {activity.detail}
