@@ -544,6 +544,31 @@ function GoalCard(props: {
                 <Button size="xs" variant="ghost" onClick={() => setEditText(null)}>
                   Cancel
                 </Button>
+                {!canPauseGoal(goal.status) ? (
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    disabled={!canOperate || busy || editText.trim() === ""}
+                    onClick={() =>
+                      void run(
+                        "Could not update the goal",
+                        () =>
+                          updateGoal({
+                            environmentId,
+                            input: { id: goal.id, objective: editText.trim() },
+                          }),
+                        () => {
+                          setEditText(null);
+                          void run("Could not resume the goal", () =>
+                            resumeGoal({ environmentId, input: { id: goal.id } }),
+                          );
+                        },
+                      )
+                    }
+                  >
+                    Save & resume
+                  </Button>
+                ) : null}
                 <Button
                   size="xs"
                   disabled={!canOperate || busy || editText.trim() === ""}

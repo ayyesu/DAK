@@ -19,6 +19,7 @@ import {
   goalStatusTone,
   goalVerificationStatusLabel,
   isGoalEnded,
+  isGoalSlashCommand,
   isGoalSlashPrompt,
   isUsableGoalModelSelection,
   selectGoalForThread,
@@ -301,6 +302,28 @@ describe("goal slash command parsing", () => {
     expect(getGoalSlashObjective("/goal   ")).toBe("");
     expect(getGoalSlashObjective("Fix tests")).toBe("Fix tests");
     expect(goalSlashPrefixLength("/goal ok")).toBe(6);
+  });
+
+  it("keeps reserved subcommands out of goal mode", () => {
+    for (const command of ["clear", "pause", "resume", "status"] as const) {
+      expect(isGoalSlashCommand(`/goal ${command}`)).toBe(true);
+      expect(isGoalSlashPrompt(`/goal ${command}`)).toBe(false);
+      expect(getGoalSlashObjective(`/goal ${command}`)).toBe(`/goal ${command}`);
+      expect(goalSlashPrefixLength(`/goal ${command}`)).toBe(0);
+      // The commands are case-insensitive and match the trimmed remainder.
+      expect(isGoalSlashCommand(`/Goal   ${command.toUpperCase()}   `)).toBe(true);
+      expect(isGoalSlashPrompt(`/Goal   ${command.toUpperCase()}   `)).toBe(false);
+    }
+  });
+
+  it("treats a longer sentence after a reserved word as an objective", () => {
+    expect(isGoalSlashCommand("/goal clear")).toBe(true);
+    expect(isGoalSlashPrompt("/goal clear the backlog")).toBe(true);
+    expect(getGoalSlashObjective("/goal clear the backlog")).toBe("clear the backlog");
+    expect(goalSlashPrefixLength("/goal clear the backlog")).toBe(6);
+    expect(isGoalSlashCommand("clear")).toBe(false);
+    expect(isGoalSlashCommand("/goal")).toBe(false);
+    expect(isGoalSlashCommand("/goal ")).toBe(false);
   });
 
   it("rejects the no-provider placeholder with an empty model", () => {

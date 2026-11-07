@@ -167,6 +167,10 @@ const taskDoneReport = report({
   summary: "Finished the step",
   tasks: [{ title: "Do the thing", status: "completed", evidence: "tests passed" }],
 });
+const answerProgressReport = report({
+  status: "running",
+  summary: "Used the email provider",
+});
 const verifyReport = report({
   status: "completed",
   verified: true,
@@ -397,9 +401,9 @@ it.effect("editing a goal bumps the revision and appends extra requirements", ()
     });
     expect(updated.goal.revision).toBe(2);
     expect(updated.goal.objective).toContain("Keep the existing email preference untouched.");
-    // No plan yet, so the edit keeps the goal in planning instead of shoving a
-    // task-less goal into running, where the loop would block on the empty plan.
-    expect(updated.goal.status).toBe("planning");
+    // An edit never resumes: the paused status is preserved, and Resume (or
+    // Save & resume) restarts the work deliberately.
+    expect(updated.goal.status).toBe("paused");
     expect(updated.goal.activities.map((activity) => activity.kind)).toContain("user");
 
     const replaced = yield* service.update({
@@ -538,6 +542,47 @@ it.effect("an edit that interrupts a running turn re-dispatches as an edit turn"
     // Plan prompt, then the edit prompt with the new objective, then the task.
     expect(script.sentTexts).toHaveLength(3);
     expect(script.sentTexts[1]).toContain("Ship it faster");
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("editing a paused goal stays paused until the edit is resumed", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "run", status: "interrupted" },
+      { kind: "completed", reply: needsInputReport },
+    ],
+    holdWaitAt: 1,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    // The first task turn is provably in flight, so the pause interrupts it.
+    yield* Effect.promise(() => gate.reached);
+    yield* service.pause({ id: created.goal.id });
+
+    // The edit must keep the paused status instead of dragging the goal back
+    // under the driver.
+    const updated = yield* service.update({
+      id: created.goal.id,
+      objective: "Ship it faster",
+    });
+    expect(updated.goal.status).toBe("paused");
+    expect(updated.goal.revision).toBe(2);
+    gate.release();
+
+    // Resuming runs the pending edit turn before the plan continues.
+    yield* service.resume({ id: created.goal.id });
+    const final = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    expect(final.revision).toBe(2);
+    expect(script.sentTexts).toHaveLength(3);
+    expect(script.sentTexts[2]).toContain("Ship it faster");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("a thread deleted mid-wait relaunches instead of failing the goal", () => {
@@ -710,6 +755,50 @@ it.effect("a pause during an answer turn keeps the answer until the turn complet
     `;
     expect(consumed[0]?.pending_answer).toBeNull();
     expect(final.blockedReason).toBe("Which provider should it use?");
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a report after an answer turn resets the idle counter", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: null },
+      { kind: "completed", reply: answerProgressReport },
+      { kind: "completed", reply: null },
+      { kind: "completed", reply: null },
+    ],
+    holdWaitAt: 1,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    // A reply normally arrives while no driver runs, but it can also race a
+    // turn in flight, and the loop reads pendingAnswer every iteration. Stage
+    // exactly that: a task turn reports nothing, then the answer turns up.
+    yield* Effect.promise(() => gate.reached);
+    yield* sql`
+      UPDATE goals SET pending_answer = 'Use the email provider.'
+      WHERE goal_id = ${created.goal.id}
+    `;
+    gate.release();
+
+    // Fail, then a successful answer, then fail must not block: the report
+    // resets the idle counter, so blocking still needs two no-report turns
+    // after it. A lost reset blocks one turn early, at four sends instead of
+    // the five this run dispatches.
+    const blocked = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "blocked",
+    );
+    expect(blocked.blockedReason).toBe(
+      "Two consecutive turns produced no progress report. Check the thread, then resume or edit the goal.",
+    );
+    expect(script.sentTexts).toHaveLength(5);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("verification records per-criterion results on the goal", () => {
