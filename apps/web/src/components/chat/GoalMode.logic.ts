@@ -218,8 +218,6 @@ export function splitCriteriaLines(text: string): Array<string> {
 }
 
 /** Typing `/goal ` at the start of the composer turns the same input into DAK goal mode. */
-export const GOAL_SLASH_PREFIX = "/goal ";
-
 export function isGoalSlashPrompt(prompt: string): boolean {
   return /^\s*\/goal\s+/i.test(prompt);
 }
