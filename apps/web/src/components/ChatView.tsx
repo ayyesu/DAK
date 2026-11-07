@@ -439,6 +439,7 @@ import { GoalModePanel } from "./chat/GoalModePanel";
 import {
   getGoalSlashObjective,
   isGoalSlashPrompt,
+  isUsableGoalModelSelection,
   splitCriteriaLines,
 } from "./chat/GoalMode.logic";
 import { createPageScrollController, type PageScrollKey } from "./chat/pageScrollController";
@@ -9154,10 +9155,11 @@ export default function ChatView(props: ChatViewProps) {
         return;
       }
       const goalModelSelection =
-        reportedModelSelection ??
-        activeThread?.modelSelection ??
-        activeProjectDefaultModelSelection ??
-        null;
+        [
+          reportedModelSelection,
+          activeThread?.modelSelection,
+          activeProjectDefaultModelSelection,
+        ].find((candidate) => isUsableGoalModelSelection(candidate)) ?? null;
       if (goalModelSelection === null) {
         toastManager.add(
           stackedThreadToast({ type: "warning", title: "Pick a model to start a goal" }),

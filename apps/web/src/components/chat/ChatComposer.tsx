@@ -1095,7 +1095,12 @@ import {
 } from "lucide-react";
 import { proposedPlanTitle } from "../../proposedPlan";
 import { hasProviderSetup } from "./ProviderStatusBanner";
-import { getGoalSlashObjective, goalSlashPrefixLength, isGoalSlashPrompt } from "./GoalMode.logic";
+import {
+  getGoalSlashObjective,
+  goalSlashPrefixLength,
+  isGoalSlashPrompt,
+  isUsableGoalModelSelection,
+} from "./GoalMode.logic";
 import {
   applyProviderInstanceSettings,
   deriveProviderInstanceEntries,
@@ -2260,10 +2265,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activePendingProgress === null &&
     !(showPlanFollowUpPrompt && activeProposedPlan);
   const goalModeSelection =
-    reportedModelSelection ??
-    activeThreadModelSelection ??
-    activeProjectDefaultModelSelection ??
-    null;
+    [reportedModelSelection, activeThreadModelSelection, activeProjectDefaultModelSelection].find(
+      (candidate) => isUsableGoalModelSelection(candidate),
+    ) ?? null;
   const goalModeBlockReason = !goalModeActive
     ? null
     : !canOperateGoal

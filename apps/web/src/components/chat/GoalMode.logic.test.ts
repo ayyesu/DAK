@@ -20,6 +20,7 @@ import {
   goalVerificationStatusLabel,
   isGoalEnded,
   isGoalSlashPrompt,
+  isUsableGoalModelSelection,
   selectGoalForThread,
   splitCriteriaLines,
 } from "./GoalMode.logic";
@@ -300,6 +301,14 @@ describe("goal slash command parsing", () => {
     expect(getGoalSlashObjective("/goal   ")).toBe("");
     expect(getGoalSlashObjective("Fix tests")).toBe("Fix tests");
     expect(goalSlashPrefixLength("/goal ok")).toBe(6);
+  });
+
+  it("rejects the no-provider placeholder with an empty model", () => {
+    expect(isUsableGoalModelSelection({ model: "" })).toBe(false);
+    expect(isUsableGoalModelSelection({ model: "   " })).toBe(false);
+    expect(isUsableGoalModelSelection({ model: "gpt-5" })).toBe(true);
+    expect(isUsableGoalModelSelection(null)).toBe(false);
+    expect(isUsableGoalModelSelection(undefined)).toBe(false);
   });
 });
 
