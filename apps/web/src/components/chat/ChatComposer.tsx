@@ -1099,7 +1099,7 @@ import {
   getGoalSlashObjective,
   goalSlashPrefixLength,
   isGoalSlashPrompt,
-  isUsableGoalModelSelection,
+  selectGoalModelSelection,
 } from "./GoalMode.logic";
 import {
   applyProviderInstanceSettings,
@@ -2264,10 +2264,15 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activePendingApproval === null &&
     activePendingProgress === null &&
     !(showPlanFollowUpPrompt && activeProposedPlan);
-  const goalModeSelection =
-    [reportedModelSelection, activeThreadModelSelection, activeProjectDefaultModelSelection].find(
-      (candidate) => isUsableGoalModelSelection(candidate),
-    ) ?? null;
+  // The composer's own resolved selection is first: picking a model in the
+  // footer updates only the composer draft, so on a draft thread the
+  // thread-level selections stay the no-provider placeholder.
+  const goalModeSelection = selectGoalModelSelection([
+    { instanceId: selectedInstanceId, model: selectedModel },
+    reportedModelSelection,
+    activeThreadModelSelection,
+    activeProjectDefaultModelSelection,
+  ]);
   const goalModeBlockReason = !goalModeActive
     ? null
     : !canOperateGoal

@@ -247,6 +247,18 @@ export function isUsableGoalModelSelection(
   return selection !== null && selection !== undefined && selection.model.trim() !== "";
 }
 
+/**
+ * The first usable candidate wins. Callers put the composer's own resolved
+ * selection first: on a draft thread the footer pick updates only the
+ * composer draft, while thread-level selections stay the no-provider
+ * placeholder, so falling back to them would fail schema validation.
+ */
+export function selectGoalModelSelection<T extends { readonly model: string }>(
+  candidates: ReadonlyArray<T | null | undefined>,
+): T | null {
+  return candidates.find((candidate) => isUsableGoalModelSelection(candidate)) ?? null;
+}
+
 export function goalVerificationStatusLabel(status: Goal["verification"]["status"]): string {
   switch (status) {
     case "pending":

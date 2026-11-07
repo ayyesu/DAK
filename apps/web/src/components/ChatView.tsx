@@ -38,6 +38,7 @@ import {
 import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { usageLimitsBannerItem } from "./chat/ComposerUsageLimits";
 import { getTerminalLabel } from "@dak/shared/terminalLabels";
+import { formatSchemaError } from "@dak/shared/schemaJson";
 import * as Schema from "effect/Schema";
 import {
   questionAttachmentDraftId,
@@ -439,7 +440,7 @@ import { GoalModePanel } from "./chat/GoalModePanel";
 import {
   getGoalSlashObjective,
   isGoalSlashPrompt,
-  isUsableGoalModelSelection,
+  selectGoalModelSelection,
   splitCriteriaLines,
 } from "./chat/GoalMode.logic";
 import { createPageScrollController, type PageScrollKey } from "./chat/pageScrollController";
@@ -1563,6 +1564,15 @@ type LocalThreadErrorEntry = {
 
 function chatActionErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "An error occurred.";
+}
+
+/** A bare schema error hides which field failed; prefer the field path. */
+function goalCreateErrorMessage(result: { readonly cause: Cause.Cause<unknown> }): string {
+  const error = squashAtomCommandFailure(result);
+  if (error instanceof Error && Schema.isSchemaError(error)) {
+    return formatSchemaError(result.cause as Cause.Cause<Schema.SchemaError>);
+  }
+  return chatActionErrorMessage(error);
 }
 
 const ENVIRONMENT_UNAVAILABLE_SEND_TOAST_TRAIL_SIZE = 3;
@@ -9154,12 +9164,15 @@ export default function ChatView(props: ChatViewProps) {
         );
         return;
       }
-      const goalModelSelection =
-        [
-          reportedModelSelection,
-          activeThread?.modelSelection,
-          activeProjectDefaultModelSelection,
-        ].find((candidate) => isUsableGoalModelSelection(candidate)) ?? null;
+      // The composer's own selection is first: on a draft thread, picking a
+      // model in the footer writes only the composer draft, while the thread's
+      // selection stays the no-provider placeholder.
+      const goalModelSelection = selectGoalModelSelection([
+        ctxSelectedModelSelection,
+        reportedModelSelection,
+        activeThread?.modelSelection,
+        activeProjectDefaultModelSelection,
+      ]);
       if (goalModelSelection === null) {
         toastManager.add(
           stackedThreadToast({ type: "warning", title: "Pick a model to start a goal" }),
@@ -9187,7 +9200,7 @@ export default function ChatView(props: ChatViewProps) {
               stackedThreadToast({
                 type: "error",
                 title: "Could not start the goal",
-                description: chatActionErrorMessage(squashAtomCommandFailure(result)),
+                description: goalCreateErrorMessage(result),
               }),
             );
           }
