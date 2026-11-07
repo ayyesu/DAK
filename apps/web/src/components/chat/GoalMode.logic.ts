@@ -235,6 +235,18 @@ export function goalSlashPrefixLength(prompt: string): number {
   return match === null ? 0 : match[0].length;
 }
 
+/**
+ * Whether a model selection can start a goal. The no-provider placeholder
+ * (`NO_PROVIDER_MODEL_SELECTION`) carries an empty model, which the goal
+ * schema rejects — treating it as absent turns the failure into the
+ * "Pick a model to start a goal" message instead of a schema error.
+ */
+export function isUsableGoalModelSelection(
+  selection: { readonly model: string } | null | undefined,
+): boolean {
+  return selection !== null && selection !== undefined && selection.model.trim() !== "";
+}
+
 export function goalVerificationStatusLabel(status: Goal["verification"]["status"]): string {
   switch (status) {
     case "pending":
