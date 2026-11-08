@@ -12,8 +12,10 @@ import type {
 import { GoalError, ThreadId } from "@dak/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Queue from "effect/Queue";
 import * as Result from "effect/Result";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as Stream from "effect/Stream";
@@ -607,6 +609,51 @@ it.effect("a thread deleted mid-wait relaunches instead of failing the goal", ()
       "The goal's run was lost; starting a new thread",
     );
     expect(script.sentTexts).toHaveLength(3);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a turn in flight stamps turnStartedAt and heartbeats subscribers", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: needsInputReport },
+    ],
+    holdWaitAt: 0,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    // Wait until the first turn is provably in flight: the dispatch stamp is
+    // written and the heartbeat fiber is sleeping on the test clock.
+    yield* Effect.promise(() => gate.reached);
+    // Subscribe from here so the snapshot proves the subscription is live
+    // before the clock moves.
+    const queue = yield* Queue.unbounded<GoalListResult>();
+    const collector = yield* Effect.forkChild(
+      service
+        .subscribeList({ projectId })
+        .pipe(Stream.runForEach((list) => Queue.offer(queue, list))),
+    );
+    const snapshot = yield* Queue.take(queue);
+    expect(snapshot.goals[0]?.turnStartedAt).not.toBeNull();
+
+    yield* TestClock.adjust(`${GoalService.GOAL_TURN_HEARTBEAT_MS} millis`);
+    // Nothing writes to the goal while it waits, so this can only be the
+    // heartbeat's re-notification.
+    const heartbeat = yield* Queue.take(queue);
+    expect(heartbeat.goals[0]?.turnStartedAt).not.toBeNull();
+    yield* Fiber.interrupt(collector);
+
+    gate.release();
+    const final = yield* awaitGoalState(
+      service.subscribeList({ projectId }),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    // needs_input has no turn in flight, so the marker left with the status.
+    expect(final.turnStartedAt).toBeNull();
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("a thread deleted at dispatch relaunches instead of stalling the goal", () => {

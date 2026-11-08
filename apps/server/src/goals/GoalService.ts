@@ -34,10 +34,12 @@ import * as DateTime from "effect/DateTime";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
+import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/sql/SqlClient";
@@ -60,6 +62,12 @@ import {
 
 /** One agent turn may take a long time; this is when the server stops waiting. */
 const GOAL_TURN_TIMEOUT_MS = 20 * 60 * 1_000;
+/**
+ * How often a turn in flight re-notifies goal subscribers. The record itself
+ * does not change while a turn runs, so without this a client cannot tell a
+ * live turn from a stalled one. Exported for the heartbeat test.
+ */
+export const GOAL_TURN_HEARTBEAT_MS = 25_000;
 /** Verification passes (each with one repair turn) before a goal is blocked. */
 const GOAL_MAX_VERIFY_ROUNDS = 2;
 /** Boot delay before interrupted goals resume, so provider runtimes are up. */
@@ -98,6 +106,7 @@ interface GoalRow {
   readonly created_at: string;
   readonly updated_at: string;
   readonly started_at: string | null;
+  readonly turn_started_at: string | null;
   readonly completed_at: string | null;
   readonly last_activity_at: string;
 }
@@ -313,6 +322,7 @@ export const layer = Layer.effect(
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         startedAt: row.started_at,
+        turnStartedAt: row.turn_started_at,
         completedAt: row.completed_at,
         lastActivityAt: row.last_activity_at,
         createdBy: Option.getOrElse(decodeActor(row.created_by), () => "system" as const),
@@ -361,7 +371,8 @@ export const layer = Layer.effect(
           current_task_id, model_selection_json, runtime_mode, interaction_mode,
           workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
           failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
-          creation_source, created_at, updated_at, started_at, completed_at, last_activity_at
+          creation_source, created_at, updated_at, started_at, turn_started_at,
+          completed_at, last_activity_at
         ) VALUES (
           ${goal.id}, ${goal.projectId}, ${goal.threadId}, ${goal.title}, ${goal.objective},
           ${encodeCriteria([...goal.acceptanceCriteria])}, ${goal.status}, ${goal.currentTaskId},
@@ -371,7 +382,7 @@ export const layer = Layer.effect(
           ${goal.blockedReason}, ${goal.failureReason}, ${record.pendingEdit ? 1 : 0},
           ${record.pendingAnswer}, ${record.verifyRounds}, ${goal.createdBy},
           ${goal.creationSource}, ${goal.createdAt}, ${goal.updatedAt}, ${goal.startedAt},
-          ${goal.completedAt}, ${goal.lastActivityAt}
+          ${goal.turnStartedAt}, ${goal.completedAt}, ${goal.lastActivityAt}
         )
         ON CONFLICT(goal_id) DO UPDATE SET
           project_id = excluded.project_id,
@@ -396,6 +407,7 @@ export const layer = Layer.effect(
           created_at = excluded.created_at,
           updated_at = excluded.updated_at,
           started_at = excluded.started_at,
+          turn_started_at = excluded.turn_started_at,
           completed_at = excluded.completed_at,
           last_activity_at = excluded.last_activity_at
       `;
@@ -447,7 +459,14 @@ export const layer = Layer.effect(
       activity: GoalActivityInput | null,
     ) {
       const at = yield* nowIso;
-      const goal: Goal = { ...record.goal, updatedAt: at, lastActivityAt: at };
+      const goal: Goal = {
+        ...record.goal,
+        updatedAt: at,
+        lastActivityAt: at,
+        // A goal that stopped being driven has no turn in flight; the dispatch
+        // marker leaves with it so the card never counts a finished turn.
+        turnStartedAt: isDriven(record.goal.status) ? record.goal.turnStartedAt : null,
+      };
       yield* writeRecord({ ...record, goal });
       if (activity === null) {
         yield* notifyChanged;
@@ -542,13 +561,15 @@ export const layer = Layer.effect(
       Effect.gen(function* () {
         const goal = record.goal;
         const cycle = goal.cycleCount + 1;
+        const at = yield* nowIso;
         const started: GoalRecord = {
           ...record,
           goal: {
             ...goal,
             status: options?.status ?? goal.status,
             cycleCount: cycle,
-            startedAt: goal.startedAt ?? (yield* nowIso),
+            startedAt: goal.startedAt ?? at,
+            turnStartedAt: at,
           },
         };
         yield* writeRecord(started);
@@ -684,12 +705,23 @@ export const layer = Layer.effect(
           });
 
         return yield* Effect.gen(function* () {
-          const waited = yield* threads.waitForThread({
-            projectId: started.goal.projectId,
-            threadId: dispatched.threadId,
-            runId,
-            timeoutMs: GOAL_TURN_TIMEOUT_MS,
-          });
+          // A running turn leaves the record untouched; heartbeat pushes keep
+          // every subscriber informed that the goal is still alive while the
+          // wait runs, so a client can tell a live turn from a stalled one.
+          const heartbeat = yield* Effect.forkChild(
+            Effect.sleep(GOAL_TURN_HEARTBEAT_MS).pipe(
+              Effect.andThen(notifyChanged),
+              Effect.repeat(Schedule.spaced(Duration.millis(GOAL_TURN_HEARTBEAT_MS))),
+            ),
+          );
+          const waited = yield* threads
+            .waitForThread({
+              projectId: started.goal.projectId,
+              threadId: dispatched.threadId,
+              runId,
+              timeoutMs: GOAL_TURN_TIMEOUT_MS,
+            })
+            .pipe(Effect.ensuring(Fiber.interrupt(heartbeat)));
 
           if (waited.timedOut) {
             const timedOutRecord = yield* readRecordOrFail(goal.id);
@@ -1299,6 +1331,7 @@ export const layer = Layer.effect(
           createdAt: at,
           updatedAt: at,
           startedAt: at,
+          turnStartedAt: null,
           completedAt: null,
           lastActivityAt: at,
           createdBy: input.createdBy ?? "user",

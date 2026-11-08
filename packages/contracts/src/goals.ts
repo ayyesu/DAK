@@ -126,6 +126,8 @@ export const Goal = Schema.Struct({
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
   startedAt: Schema.NullOr(IsoDateTime),
+  /** When the driver last dispatched a turn; cleared when the goal stops being driven. */
+  turnStartedAt: Schema.NullOr(IsoDateTime),
   completedAt: Schema.NullOr(IsoDateTime),
   lastActivityAt: IsoDateTime,
   createdBy: OrchestrationV2Actor,

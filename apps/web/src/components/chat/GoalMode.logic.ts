@@ -21,9 +21,14 @@ export function isGoalEnded(status: GoalStatus): boolean {
   return ENDED_GOAL_STATUSES.includes(status);
 }
 
+/** Statuses with a driver dispatching turns; the card spins and counts turn age here. */
+export function isGoalDriven(status: GoalStatus): boolean {
+  return status === "planning" || status === "running" || status === "verifying";
+}
+
 /** The server only pauses a goal its driver is actively working on. */
 export function canPauseGoal(status: GoalStatus): boolean {
-  return status === "planning" || status === "running" || status === "verifying";
+  return isGoalDriven(status);
 }
 
 /** Recoverable states; `failed` and `blocked` resume rather than restart. */
@@ -194,6 +199,18 @@ export function formatGoalActivityTime(iso: string, nowMs: number): string {
   return `${weeks}w ago`;
 }
 
+/** Age of the in-flight turn, "45s" / "12m 05s" / "1h 04m"; "" when unparseable. */
+export function formatGoalTurnElapsed(startedAt: string, nowMs: number): string {
+  const started = Date.parse(startedAt);
+  if (Number.isNaN(started)) return "";
+  const totalSeconds = Math.max(0, Math.floor((nowMs - started) / 1_000));
+  const minutes = Math.floor(totalSeconds / 60);
+  if (minutes === 0) return `${totalSeconds}s`;
+  const hours = Math.floor(minutes / 60);
+  if (hours === 0) return `${minutes}m ${String(totalSeconds % 60).padStart(2, "0")}s`;
+  return `${hours}h ${String(minutes % 60).padStart(2, "0")}m`;
+}
+
 /** The task a progress row should mark as current. */
 export function currentGoalTask(
   goal: Pick<Goal, "tasks" | "currentTaskId" | "status">,
@@ -258,6 +275,18 @@ export function isUsableGoalModelSelection(
   selection: { readonly model: string } | null | undefined,
 ): boolean {
   return selection !== null && selection !== undefined && selection.model.trim() !== "";
+}
+
+/**
+ * The first usable candidate wins. Callers put the composer's own resolved
+ * selection first: on a draft thread the footer pick updates only the
+ * composer draft, while thread-level selections stay the no-provider
+ * placeholder, so falling back to them would fail schema validation.
+ */
+export function selectGoalModelSelection<T extends { readonly model: string }>(
+  candidates: ReadonlyArray<T | null | undefined>,
+): T | null {
+  return candidates.find((candidate) => isUsableGoalModelSelection(candidate)) ?? null;
 }
 
 export function goalVerificationStatusLabel(status: Goal["verification"]["status"]): string {
