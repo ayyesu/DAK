@@ -54,6 +54,7 @@ import {
   canRetryGoal,
   currentGoalTask,
   formatGoalActivityTime,
+  formatGoalTurnElapsed,
   goalCriterionStates,
   goalHeadline,
   goalNeedsAttention,
@@ -63,6 +64,7 @@ import {
   goalTaskStatusLabel,
   goalVerificationStatusLabel,
   isGoalActive,
+  isGoalDriven,
   selectGoalForThread,
   type GoalTone,
 } from "./GoalMode.logic";
@@ -135,11 +137,29 @@ function GoalStatusPill({ goal }: { readonly goal: Goal }) {
   return (
     <span
       className={cn(
-        "shrink-0 rounded-full px-1.5 py-0.5 text-3xs font-medium leading-4",
+        "flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-3xs font-medium leading-4",
         TONE_PILL[tone],
       )}
     >
+      {isGoalDriven(goal.status) ? <Spinner aria-hidden size="xs" /> : null}
       {goalStatusLabel(goal.status)}
+    </span>
+  );
+}
+
+/**
+ * Age of the in-flight turn, ticking once a second like GitActionElapsedTime;
+ * only the leaf re-renders, so the card commits nothing per tick.
+ */
+function GoalTurnElapsed({ startedAt }: { readonly startedAt: string }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+  return (
+    <span className="shrink-0 tabular-nums text-2xs text-muted-foreground">
+      {formatGoalTurnElapsed(startedAt, nowMs)}
     </span>
   );
 }
@@ -233,6 +253,9 @@ function GoalCard(props: {
           <div className="flex items-center gap-1.5">
             <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
             <GoalStatusPill goal={goal} />
+            {isGoalDriven(goal.status) && goal.turnStartedAt !== null ? (
+              <GoalTurnElapsed startedAt={goal.turnStartedAt} />
+            ) : null}
           </div>
           {reasonBox === null ? (
             <p
