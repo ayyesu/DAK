@@ -14,7 +14,6 @@ import {
   goalCriterionStates,
   goalHeadline,
   goalNeedsAttention,
-  goalNoticeTitle,
   goalProgress,
   goalSlashPrefixLength,
   goalStatusLabel,
