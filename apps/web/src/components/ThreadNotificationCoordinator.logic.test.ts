@@ -30,8 +30,7 @@ const baseGoal: Omit<Goal, "id" | "status" | "updatedAt"> = {
 };
 
 function goal(
-  overrides: Omit<Partial<Goal>, "id" | "updatedAt"> &
-    Pick<Goal, "status"> & { readonly id: string },
+  overrides: Omit<Partial<Goal>, "id"> & Pick<Goal, "status"> & { readonly id: string },
 ): Goal {
   return {
     ...baseGoal,
