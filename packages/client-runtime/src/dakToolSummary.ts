@@ -407,6 +407,33 @@ export function summarizeDakToolCalls(
     case "capabilities":
       label = phrase("Checked", "check", `orchestration capabilities ${times}`);
       break;
+    case "goal-list":
+      label = phrase("Listed", "list", `goals ${times}`);
+      break;
+    case "goal-read":
+      label = phrase("Read", "read", quantity(selected.length, "goal"));
+      break;
+    case "goal-create":
+      label = phrase("Created", "create", quantity(selected.length, "goal"));
+      break;
+    case "goal-update":
+      label = phrase("Updated", "update", quantity(selected.length, "goal"));
+      break;
+    case "goal-pause":
+      label = phrase("Paused", "pause", quantity(selected.length, "goal"));
+      break;
+    case "goal-resume":
+      label = phrase("Resumed", "resume", quantity(selected.length, "goal"));
+      break;
+    case "goal-cancel":
+      label = phrase("Canceled", "cancel", quantity(selected.length, "goal"));
+      break;
+    case "goal-answer":
+      label = phrase("Answered", "answer", quantity(selected.length, "goal question"));
+      break;
+    case "goal-retry-task":
+      label = phrase("Retried", "retry", quantity(selected.length, "goal task"));
+      break;
     case "canvas-create":
       label = phrase("Created", "create", quantity(selected.length, "design"));
       break;

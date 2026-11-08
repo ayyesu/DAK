@@ -95,3 +95,10 @@ criteria hold or the goal runs out of attempts.
 You can keep talking in the thread while a goal runs. Ask about progress, add
 a constraint, or correct an assumption. Messages you send are delivered in
 order with the goal's own turns.
+
+## Agent tools
+
+Agents can use the `dak_goal_*` MCP tools to list summaries, read full goal
+details, create, update, pause, resume, cancel, answer, or retry a task. List
+first to find a goal's id; use read when you need its full task and activity
+history.
