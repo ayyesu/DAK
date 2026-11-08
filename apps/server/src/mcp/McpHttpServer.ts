@@ -966,7 +966,7 @@ const layerEnvironmentRegistration = toolkitRegistration(
 
 const layerProjectRegistration = toolkitRegistration(ProjectToolkit, ProjectHandlers.layer);
 
-export const layerGoalToolkit = toolkitRegistration(GoalToolkit, GoalHandlers.layer);
+const layerGoalToolkitRegistration = toolkitRegistration(GoalToolkit, GoalHandlers.layer);
 
 /**
  * Canvas designs, registered here like every other toolkit. This one line is what makes the whole
@@ -1021,7 +1021,7 @@ export const layerTools = Layer.mergeAll(
   layerThreadToolkit,
   layerAttachmentRegistration,
   layerProjectRegistration,
-  layerGoalToolkit,
+  layerGoalToolkitRegistration,
   layerCanvasToolkitRegistration,
   layerEnvironmentRegistration,
   layerPreviewControlsRegistration,
