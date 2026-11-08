@@ -4,6 +4,7 @@ import type {
   Goal,
   GoalCreateInput,
   GoalListResult,
+  GoalSummary,
   ModelSelection,
   OrchestrationV2ThreadProjection,
   ProjectId,
@@ -319,8 +320,8 @@ const scriptedLayer = (script: GoalScript) =>
 const awaitGoalState = (
   stream: Stream.Stream<GoalListResult, GoalError>,
   goalId: Goal["id"],
-  predicate: (goal: Goal) => boolean,
-): Effect.Effect<Goal, GoalError> =>
+  predicate: (goal: GoalSummary) => boolean,
+): Effect.Effect<GoalSummary, GoalError> =>
   stream
     .pipe(
       Stream.filterMap((list) => {
@@ -534,8 +535,9 @@ it.effect("an edit that interrupts a running turn re-dispatches as an edit turn"
       created.goal.id,
       (goal) => goal.status === "needs_input",
     );
-    expect(final.revision).toBe(2);
-    expect(final.tasks).toHaveLength(1);
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.revision).toBe(2);
+    expect(full.goal.tasks).toHaveLength(1);
     expect(final.blockedReason).toBe("Which provider should it use?");
     // Plan prompt, then the edit prompt with the new objective, then the task.
     expect(script.sentTexts).toHaveLength(3);
@@ -560,7 +562,8 @@ it.effect("a thread deleted mid-wait relaunches instead of failing the goal", ()
       (goal) => goal.status === "needs_input",
     );
     expect(final.threadId).toBe(ThreadId.make("thread:2"));
-    expect(final.activities.map((activity) => activity.summary)).toContain(
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.activities.map((activity) => activity.summary)).toContain(
       "The goal's run was lost; starting a new thread",
     );
     expect(script.sentTexts).toHaveLength(3);
@@ -636,7 +639,8 @@ it.effect("a thread deleted at dispatch relaunches instead of stalling the goal"
     );
     // The failed send cleared the dead thread; the retry launched a new one.
     expect(final.threadId).toBe(ThreadId.make("thread:2"));
-    expect(final.activities.map((activity) => activity.summary)).toContain(
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.activities.map((activity) => activity.summary)).toContain(
       "The goal's thread was deleted; starting a new one",
     );
   }).pipe(Effect.provide(scriptedLayer(script)));
@@ -656,7 +660,8 @@ it.effect("an archived thread blocks the goal with an actionable reason", () => 
     );
     expect(final.threadId).toBeNull();
     expect(final.blockedReason).toContain("archived");
-    expect(final.activities.map((activity) => activity.summary)).toContain(
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.activities.map((activity) => activity.summary)).toContain(
       "The goal's thread is archived",
     );
   }).pipe(Effect.provide(scriptedLayer(script)));
@@ -779,13 +784,14 @@ it.effect("verification records per-criterion results on the goal", () => {
       createInput({ acceptanceCriteria: ["Each channel persists after reload"] }),
     );
 
-    const final = yield* awaitGoalState(
+    yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
       (goal) => goal.status === "completed",
     );
-    expect(final.verification.status).toBe("passed");
-    expect(final.verification.criteria).toEqual([
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.verification.status).toBe("passed");
+    expect(full.goal.verification.criteria).toEqual([
       { criterion: "Each channel persists after reload", met: true },
     ]);
   }).pipe(Effect.provide(scriptedLayer(script)));
@@ -832,6 +838,36 @@ it.effect("restart recovery resumes the 20 most recently updated goals", () => {
     expect(new Set(resumed.map((row) => row.goal_id))).toEqual(
       new Set(expectedNewest.map((seed) => seed.goalId)),
     );
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("lists lightweight summaries while get returns detail", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: needsInputReport },
+    ],
+    holdWaitAt: 1,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    yield* Effect.promise(() => gate.reached);
+    const listed = yield* service.list({ projectId });
+    const summary = listed.goals.find((goal) => goal.id === created.goal.id);
+    expect(summary?.status).toBe("running");
+    expect(summary?.totalTaskCount).toBeGreaterThan(0);
+    expect(summary?.completedTaskCount).toBe(0);
+    expect(summary?.currentTaskTitle).not.toBeNull();
+    expect(summary).not.toHaveProperty("activities");
+    expect(summary).not.toHaveProperty("tasks");
+    expect(summary).not.toHaveProperty("objective");
+
+    const detail = yield* service.get({ id: created.goal.id });
+    expect(detail.goal.tasks.length).toBeGreaterThan(0);
+    expect(detail.goal.activities.length).toBeGreaterThan(0);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("refuses to pause or resume a goal that is waiting for an answer", () => {

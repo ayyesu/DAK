@@ -1835,7 +1835,7 @@ const WsGoalsListRpc = Rpc.make(WS_METHODS.goalsList, {
   error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
 });
 
-/** Streams the full goal list: one snapshot on subscribe, then a fresh list after every change. */
+/** Streams lightweight goal summaries: one snapshot on subscribe, then a fresh list after every change. */
 const WsGoalsSubscribeRpc = Rpc.make(WS_METHODS.goalsSubscribe, {
   payload: GoalListInput,
   success: GoalListResult,

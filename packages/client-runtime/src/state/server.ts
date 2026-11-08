@@ -1101,10 +1101,16 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:server:scheduled-tasks:live",
       tag: WS_METHODS.scheduledTasksSubscribe,
     }),
-    /** Live goal list: snapshot on subscribe, fresh list after every change the server makes. */
+    /** Live goal summaries: snapshot on subscribe, fresh list after every change the server makes. */
     goalsLive: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
       label: "environment-data:server:goals:live",
       tag: WS_METHODS.goalsSubscribe,
+    }),
+    /** Full goal details for the selected goal; list payloads stay lightweight. */
+    goalDetail: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:server:goal:detail",
+      tag: WS_METHODS.goalsGet,
+      staleTimeMs: 0,
     }),
     createGoal: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:goal:create",

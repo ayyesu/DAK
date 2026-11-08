@@ -147,8 +147,28 @@ export const GoalListInput = Schema.Struct({
 });
 export type GoalListInput = typeof GoalListInput.Type;
 
+/** A goal as listed for selection or notification; details load on demand. */
+export const GoalSummary = Schema.Struct({
+  id: GoalId,
+  projectId: ProjectId,
+  threadId: Schema.NullOr(ThreadId),
+  title: TrimmedNonEmptyString,
+  status: GoalStatus,
+  currentTaskId: Schema.NullOr(Schema.String),
+  currentTaskTitle: Schema.NullOr(Schema.String),
+  completedTaskCount: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  totalTaskCount: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  turnStartedAt: Schema.NullOr(IsoDateTime),
+  blockedReason: Schema.NullOr(Schema.String),
+  failureReason: Schema.NullOr(Schema.String),
+  updatedAt: IsoDateTime,
+  lastActivityAt: IsoDateTime,
+  completedAt: Schema.NullOr(IsoDateTime),
+});
+export type GoalSummary = typeof GoalSummary.Type;
+
 export const GoalListResult = Schema.Struct({
-  goals: Schema.Array(Goal),
+  goals: Schema.Array(GoalSummary),
 });
 export type GoalListResult = typeof GoalListResult.Type;
 

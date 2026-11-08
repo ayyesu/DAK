@@ -3,7 +3,7 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@dak/client-runtime/state/runtime";
-import type { EnvironmentId, Goal, GoalTask, ProjectId, ThreadId } from "@dak/contracts";
+import type { EnvironmentId, GoalSummary, GoalTask, ProjectId, ThreadId } from "@dak/contracts";
 import { scopeThreadRef } from "@dak/client-runtime/environment";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
@@ -56,9 +56,10 @@ import {
   formatGoalActivityTime,
   formatGoalTurnElapsed,
   goalCriterionStates,
-  goalHeadline,
   goalNeedsAttention,
   goalProgress,
+  goalSummaryHeadline,
+  goalSummaryProgress,
   goalStatusLabel,
   goalStatusTone,
   goalTaskStatusLabel,
@@ -132,7 +133,7 @@ function GoalCriterionIcon({ met }: { readonly met: boolean | null }) {
   return <CircleIcon aria-hidden className="size-4 shrink-0 text-muted-foreground/40" />;
 }
 
-function GoalStatusPill({ goal }: { readonly goal: Goal }) {
+function GoalStatusPill({ goal }: { readonly goal: GoalSummary }) {
   const tone = goalStatusTone(goal.status);
   return (
     <span
@@ -171,15 +172,15 @@ function GoalTurnElapsed({ startedAt }: { readonly startedAt: string }) {
 function GoalCard(props: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId | null;
-  readonly goal: Goal;
-  readonly otherGoals: ReadonlyArray<Goal>;
+  readonly goal: GoalSummary;
+  readonly otherGoals: ReadonlyArray<GoalSummary>;
   readonly canOperate: boolean;
   readonly busy: boolean;
   /** The composer above is open; the card stays compact until it closes. */
   readonly compact: boolean;
   readonly run: GoalRun;
   readonly onHide: () => void;
-  readonly onSelectOther: (goalId: Goal["id"]) => void;
+  readonly onSelectOther: (goalId: GoalSummary["id"]) => void;
   readonly onStartAnother: () => void;
 }) {
   const { environmentId, goal, canOperate, busy, compact, run } = props;
@@ -205,21 +206,39 @@ function GoalCard(props: {
   const nowMinute = useNowMinute();
 
   const collapsed = compact || collapsedState;
-  const progress = goalProgress(goal);
+  const expanded = !collapsed;
+  // Details load only for the expanded card; the list keeps collapsed cards
+  // on lightweight summaries.
+  const detailQuery = useEnvironmentQuery(
+    expanded ? serverEnvironment.goalDetail({ environmentId, input: { id: goal.id } }) : null,
+  );
+  const goalDetail = detailQuery.data?.goal ?? null;
+  const detailRefresh = detailQuery.refresh;
+  useEffect(() => {
+    if (expanded) detailRefresh();
+  }, [detailRefresh, expanded, goal.updatedAt]);
+
+  const progress = goalDetail ? goalProgress(goalDetail) : goalSummaryProgress(goal);
   const tone = goalStatusTone(goal.status);
   const attention = goalNeedsAttention(goal.status);
   const active = isGoalActive(goal.status);
-  const current = currentGoalTask(goal);
-  const tasks = goal.tasks;
+  const current = goalDetail ? currentGoalTask(goalDetail) : null;
+  const tasks = goalDetail?.tasks ?? [];
   const hiddenTasks = allTasksOpen ? 0 : Math.max(0, tasks.length - VISIBLE_TASK_LIMIT);
   const shownTasks = allTasksOpen ? tasks : tasks.slice(0, VISIBLE_TASK_LIMIT);
-  const activities = goal.activities.toReversed().slice(0, VISIBLE_ACTIVITY_LIMIT);
-  const criteria = goalCriterionStates(goal);
+  const activities = (goalDetail?.activities ?? []).toReversed().slice(0, VISIBLE_ACTIVITY_LIMIT);
+  const criteria = goalDetail ? goalCriterionStates(goalDetail) : [];
   const shownCriteria = allCriteriaOpen ? criteria : criteria.slice(0, VISIBLE_CRITERIA_LIMIT);
   const hiddenCriteria = allCriteriaOpen
     ? 0
     : Math.max(0, criteria.length - VISIBLE_CRITERIA_LIMIT);
-  const showVerification = goal.verification.status !== "pending" || criteria.length > 0;
+  const verification = goalDetail?.verification ?? {
+    status: "pending" as const,
+    summary: null,
+    checkedAt: null,
+  };
+  const showVerification =
+    goalDetail !== null && (verification.status !== "pending" || criteria.length > 0);
   const now = Date.parse(`${nowMinute}:00.000Z`);
 
   // The full reason replaces the headline: the headline truncates, and the
@@ -265,7 +284,7 @@ function GoalCard(props: {
                 attention ? "text-warning" : "text-muted-foreground",
               )}
             >
-              {goalHeadline(goal)}
+              {goalSummaryHeadline(goal)}
             </p>
           ) : null}
         </div>
@@ -470,19 +489,19 @@ function GoalCard(props: {
             <div className="px-3.5 pb-1 pt-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-2xs font-medium text-muted-foreground">Done when</span>
-                {goal.verification.status === "pending" ? null : (
+                {verification.status === "pending" ? null : (
                   <span
                     className={cn(
                       "text-2xs font-medium",
-                      goal.verification.status === "passed" ? "text-success" : "text-destructive",
+                      verification.status === "passed" ? "text-success" : "text-destructive",
                     )}
                   >
-                    {goalVerificationStatusLabel(goal.verification.status)}
+                    {goalVerificationStatusLabel(verification.status)}
                   </span>
                 )}
               </div>
-              {goal.verification.summary !== null && goal.verification.status !== "pending" ? (
-                <p className="mt-0.5 text-2xs text-muted-foreground">{goal.verification.summary}</p>
+              {verification.summary !== null && verification.status !== "pending" ? (
+                <p className="mt-0.5 text-2xs text-muted-foreground">{verification.summary}</p>
               ) : null}
               {criteria.length > 0 ? (
                 <ul className="mt-1 list-none space-y-1">
@@ -625,7 +644,7 @@ function GoalCard(props: {
                   size="xs"
                   variant="ghost"
                   disabled={!canOperate || busy}
-                  onClick={() => setEditText(goal.objective)}
+                  onClick={() => setEditText(goalDetail?.objective ?? "")}
                 >
                   <PencilIcon aria-hidden className="size-3.5" />
                   Edit

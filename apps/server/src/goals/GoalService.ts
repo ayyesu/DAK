@@ -25,6 +25,7 @@ import {
   type GoalPauseInput,
   type GoalResumeInput,
   type GoalRetryTaskInput,
+  type GoalSummary,
   type GoalTask,
   type GoalUpdateInput,
   type RunId,
@@ -1308,6 +1309,28 @@ export const layer = Layer.effect(
         );
       });
 
+    /** The list payload is only what selection and collapsed cards need. */
+    const toGoalSummary = (goal: Goal): GoalSummary => ({
+      id: goal.id,
+      projectId: goal.projectId,
+      threadId: goal.threadId,
+      title: goal.title,
+      status: goal.status,
+      currentTaskId: goal.currentTaskId,
+      currentTaskTitle:
+        goal.tasks.find((task) => task.id === goal.currentTaskId)?.title ??
+        goal.tasks.find((task) => task.status === "in_progress")?.title ??
+        null,
+      completedTaskCount: goal.tasks.filter((task) => task.status === "completed").length,
+      totalTaskCount: goal.tasks.length,
+      turnStartedAt: goal.turnStartedAt,
+      blockedReason: goal.blockedReason,
+      failureReason: goal.failureReason,
+      updatedAt: goal.updatedAt,
+      lastActivityAt: goal.lastActivityAt,
+      completedAt: goal.completedAt,
+    });
+
     const listRecords = Effect.fn("GoalService.listRecords")(function* (projectId?: string) {
       const rows =
         projectId === undefined
@@ -1326,7 +1349,7 @@ export const layer = Layer.effect(
 
     const list: GoalService["Service"]["list"] = (input) =>
       listRecords(input.projectId).pipe(
-        Effect.map((records) => ({ goals: records.map((record) => record.goal) })),
+        Effect.map((records) => ({ goals: records.map((record) => toGoalSummary(record.goal)) })),
         Effect.mapError((cause) => toGoalError(cause)),
       );
 

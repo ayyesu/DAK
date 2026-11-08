@@ -1,4 +1,4 @@
-import type { Goal } from "@dak/contracts";
+import type { GoalSummary } from "@dak/contracts";
 
 /** What a goal's latest change deserves from the notification system. */
 export type GoalNoticeKind = "attention" | "completion";
@@ -10,19 +10,21 @@ export interface GoalNoticeState {
 }
 
 /** Statuses where the goal is asking the user for something. */
-const GOAL_ATTENTION_STATUSES: ReadonlySet<Goal["status"]> = new Set<Goal["status"]>([
+const GOAL_ATTENTION_STATUSES: ReadonlySet<GoalSummary["status"]> = new Set<GoalSummary["status"]>([
   "needs_input",
   "blocked",
   "failed",
 ]);
 
 /** The current ask, keyed so each distinct question pings once. */
-function goalAttentionKey(goal: Goal): string | null {
+function goalAttentionKey(goal: Pick<GoalSummary, "id" | "status">): string | null {
   return GOAL_ATTENTION_STATUSES.has(goal.status) ? `${goal.id}:${goal.status}` : null;
 }
 
 /** The state to store after scanning this goal; callers decide what fires. */
-export function advanceGoalNotice(goal: Goal): GoalNoticeState {
+export function advanceGoalNotice(
+  goal: Pick<GoalSummary, "id" | "status" | "completedAt" | "updatedAt">,
+): GoalNoticeState {
   const at = Date.parse(goal.completedAt ?? goal.updatedAt);
   return {
     attention: goalAttentionKey(goal),
