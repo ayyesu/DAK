@@ -14,6 +14,7 @@ import {
   goalCriterionStates,
   goalHeadline,
   goalNeedsAttention,
+  goalNoticeTitle,
   goalProgress,
   goalSlashPrefixLength,
   goalStatusLabel,
@@ -177,6 +178,14 @@ describe("goal status presentation", () => {
     expect(goalNeedsAttention("blocked")).toBe(true);
     expect(goalNeedsAttention("running")).toBe(false);
     expect(goalNeedsAttention("completed")).toBe(false);
+  });
+
+  it("names each status a notification can fire for", () => {
+    expect(goalNoticeTitle("needs_input")).toBe("Input needed");
+    expect(goalNoticeTitle("blocked")).toBe("Goal blocked");
+    expect(goalNoticeTitle("failed")).toBe("Goal failed");
+    expect(goalNoticeTitle("completed")).toBe("Goal completed");
+    expect(goalNoticeTitle("running")).toBe("Goal working");
   });
 
   it("names the current task while running", () => {

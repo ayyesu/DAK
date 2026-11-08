@@ -9,7 +9,7 @@ import type {
   ProjectId,
   RunId,
 } from "@dak/contracts";
-import { GoalError, ThreadId } from "@dak/contracts";
+import { GoalError, GoalId, ThreadId } from "@dak/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -599,6 +599,12 @@ it.effect("a turn in flight stamps turnStartedAt and heartbeats subscribers", ()
     // heartbeat's re-notification.
     const heartbeat = yield* Queue.take(queue);
     expect(heartbeat.goals[0]?.turnStartedAt).not.toBeNull();
+
+    // And it repeats on the interval itself: the next push lands one
+    // heartbeat after the first, not two.
+    yield* TestClock.adjust(`${GoalService.GOAL_TURN_HEARTBEAT_MS} millis`);
+    const next = yield* Queue.take(queue);
+    expect(next.goals[0]?.turnStartedAt).not.toBeNull();
     yield* Fiber.interrupt(collector);
 
     gate.release();
@@ -826,5 +832,193 @@ it.effect("restart recovery resumes the 20 most recently updated goals", () => {
     expect(new Set(resumed.map((row) => row.goal_id))).toEqual(
       new Set(expectedNewest.map((seed) => seed.goalId)),
     );
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("refuses to pause or resume a goal that is waiting for an answer", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: needsInputReport },
+      { kind: "completed", reply: needsInputReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+    const asking = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    expect(asking.blockedReason).toBe("Which provider should it use?");
+
+    const pauseFailure = yield* service.pause({ id: created.goal.id }).pipe(Effect.flip);
+    expect(pauseFailure.message).toBe(
+      "This goal is waiting for an answer. Answer the question to continue.",
+    );
+    const resumeFailure = yield* service.resume({ id: created.goal.id }).pipe(Effect.flip);
+    expect(resumeFailure.message).toBe(
+      "This goal is waiting for an answer. Answer the question to continue.",
+    );
+
+    // Both rejections left the question where the agent put it.
+    const unchanged = yield* service.get({ id: created.goal.id });
+    expect(unchanged.goal.status).toBe("needs_input");
+    expect(unchanged.goal.blockedReason).toBe("Which provider should it use?");
+
+    // Answering is still the way out, and the answer turn runs.
+    yield* service.answer({ id: created.goal.id, text: "Use the email provider." });
+    const answered = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    expect(answered.blockedReason).toBe("Which provider should it use?");
+    expect(script.sentTexts).toHaveLength(3);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a queued drive attempt is consumed on exit without a spurious restart", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: needsInputReport },
+      { kind: "completed", reply: needsInputReport },
+    ],
+    holdWaitAt: 1,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    // The plan turn finished; the driver is parked on the question turn, and
+    // it is still the only loop on the goal.
+    yield* Effect.promise(() => gate.reached);
+    expect(script.waitCount).toBe(2);
+
+    // Driven and active, so this drive attempt is queued instead of starting
+    // a second loop over the same goal.
+    const resumed = yield* service.resume({ id: created.goal.id });
+    expect(resumed.goal.status).toBe("running");
+    gate.release();
+
+    // The question applies and the driver exits; the queued attempt must be
+    // consumed there, not spawn a replacement for a goal only waiting on the
+    // user.
+    const asking = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    expect(asking.blockedReason).toBe("Which provider should it use?");
+    expect(script.waitCount).toBe(2);
+    expect(script.sentTexts).toHaveLength(2);
+
+    // Answering starts a fresh loop and the answer turn runs.
+    yield* service.answer({ id: created.goal.id, text: "Use the email provider." });
+    const answered = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    expect(answered.blockedReason).toBe("Which provider should it use?");
+    expect(script.waitCount).toBe(3);
+    expect(script.sentTexts).toHaveLength(3);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("blocks driven goals nobody is driving and leaves the rest alone", () => {
+  const script = makeScript({ launchMode: "never" });
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const service = yield* GoalService.GoalService;
+
+    const seedDriven = (goalId: string, at: string) => sql`
+      INSERT INTO goals (
+        goal_id, project_id, thread_id, title, objective, acceptance_criteria_json, status,
+        current_task_id, model_selection_json, runtime_mode, interaction_mode,
+        workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
+        failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
+        creation_source, created_at, updated_at, started_at, turn_started_at,
+        completed_at, last_activity_at
+      ) VALUES (
+        ${goalId}, ${projectId}, NULL, 'Orphaned goal', 'Objective', '[]', 'running',
+        NULL, ${JSON.stringify(modelSelection)}, 'auto', 'default',
+        '{"type":"root"}', 1, 0, '{"status":"pending","summary":null,"checkedAt":null}',
+        NULL, NULL, 0, NULL, 0, 'user', 'web',
+        ${at}, ${at}, ${at}, ${at}, NULL, ${at}
+      )
+    `;
+
+    // Orphaned before a restart: driven, stale, past recovery's reach.
+    const staleId = GoalId.make("goal:sweep-stale");
+    yield* seedDriven(staleId, "1969-12-31T23:59:00.000Z");
+    const before = yield* service.get({ id: staleId });
+    expect(before.goal.status).toBe("running");
+    expect(before.goal.turnStartedAt).not.toBeNull();
+
+    // A driven goal with a live driver the sweep must not touch: the loop is
+    // parked in its launch, so it holds the goal for the whole test.
+    const created = yield* service.create(createInput());
+
+    yield* TestClock.adjust("10 seconds");
+    // Fresh at the current clock, so it lands on the far side of the cutoff.
+    const freshId = GoalId.make("goal:sweep-fresh");
+    const now = yield* DateTime.now;
+    yield* seedDriven(freshId, DateTime.formatIso(DateTime.toUtc(now)));
+
+    yield* service.sweepStuckGoals();
+
+    const blocked = yield* service.get({ id: staleId });
+    expect(blocked.goal.status).toBe("blocked");
+    expect(blocked.goal.blockedReason).toBe(
+      "The goal stopped making progress. Resume to continue.",
+    );
+    // The dispatch marker leaves with the non-driven status, so the card
+    // cannot count a turn nobody is waiting on.
+    expect(blocked.goal.turnStartedAt).toBeNull();
+    expect(blocked.goal.activities.map((activity) => activity.summary)).toContain(
+      "The goal stopped making progress",
+    );
+
+    const parked = yield* service.get({ id: created.goal.id });
+    expect(parked.goal.status).toBe("planning");
+    expect(parked.goal.blockedReason).toBeNull();
+
+    const fresh = yield* service.get({ id: freshId });
+    expect(fresh.goal.status).toBe("running");
+    expect(fresh.goal.blockedReason).toBeNull();
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a question stays open while restart recovery and the sweep pass", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: needsInputReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+    yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+
+    // Recovery fires at 15s and the sweep at 60s; neither may re-drive a
+    // goal that is only waiting on the user.
+    yield* TestClock.adjust("70 seconds");
+
+    const after = yield* service.get({ id: created.goal.id });
+    expect(after.goal.status).toBe("needs_input");
+    expect(after.goal.blockedReason).toBe("Which provider should it use?");
+    expect(script.waitCount).toBe(2);
+    expect(script.sentTexts).toHaveLength(2);
+    const resumed = yield* sql<{ summary: string }>`
+      SELECT summary FROM goal_activities WHERE goal_id = ${created.goal.id}
+    `;
+    expect(resumed.map((row) => row.summary)).not.toContain("Resumed after a server restart");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });

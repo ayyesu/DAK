@@ -109,6 +109,24 @@ export function goalStatusLabel(status: GoalStatus): string {
   }
 }
 
+/** Headline for a goal's attention or completion notification. */
+export function goalNoticeTitle(status: GoalStatus): string {
+  switch (status) {
+    case "needs_input":
+      return "Input needed";
+    case "blocked":
+      return "Goal blocked";
+    case "failed":
+      return "Goal failed";
+    case "completed":
+      return "Goal completed";
+    default:
+      // Only the statuses above fire notices; fall back to the card label so
+      // a caller bug reads plainly instead of claiming completion.
+      return `Goal ${goalStatusLabel(status).toLowerCase()}`;
+  }
+}
+
 export type GoalTone = "active" | "attention" | "success" | "danger" | "muted";
 
 export function goalStatusTone(status: GoalStatus): GoalTone {

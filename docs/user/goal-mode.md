@@ -53,7 +53,8 @@ goal keeps running.
 ## Controlling a goal
 
 - **Pause** stops after the current turn; **Resume** continues from the same
-  plan.
+  plan. While a goal is waiting for an answer, neither is available: answer it
+  to continue.
 - **Edit** changes the objective or adds requirements. Finished work is kept
   and only the remaining plan changes.
 - **Cancel** stops the goal for good. It asks first, and a cancelled goal never
@@ -67,6 +68,19 @@ The agent stops for you only when it cannot decide on its own. A question shows
 as **Needs input** with an answer box in the card. A goal that cannot continue
 shows **Blocked** (or **Failed**) with the reason in the card, so you can
 remove the obstacle, retry, edit the goal, or cancel it.
+
+If a goal looks active but nothing is driving it, DAK marks it **Blocked** with
+“The goal stopped making progress. Resume to continue.” The check leaves goals
+with an active driver or recent changes alone.
+
+## Notifications
+
+Goals use the same device notification settings as threads in **Settings >
+Behavior**. A goal sends an attention notification when it needs input, becomes
+blocked, or fails; it sends a completion notification when it finishes. While
+the app has focus, in-app toasts open the goal's thread. In the background,
+the same settings decide whether DAK sends a system notification or plays a
+sound instead.
 
 ## Verification
 

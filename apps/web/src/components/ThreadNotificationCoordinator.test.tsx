@@ -108,6 +108,9 @@ vi.mock("../hooks/useSettings", () => ({
 vi.mock("../state/environments", () => ({
   useEnvironmentIds: () => ["env-1"],
 }));
+vi.mock("../state/query", () => ({
+  useEnvironmentQuery: () => ({ data: { goals: [] } }),
+}));
 vi.mock("../state/shell", () => ({
   environmentShell: { stateValueAtom: vi.fn() },
 }));
