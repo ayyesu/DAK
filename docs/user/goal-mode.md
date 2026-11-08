@@ -36,13 +36,14 @@ into a normal message box.
 A goal card sits above the composer for as long as the goal matters. The
 collapsed card is a single status line — its title, status, what is
 happening now, and a slim progress bar — so it never swallows the chat.
-Expand it for the objective, the current step, the full plan with each
-task's status, and the progress percentage. When criteria were given, the
-expanded card also shows **Done when** with each criterion's state and
-the verification result. **View activity** opens the recent history: what
-the agent planned, what it finished, and what it is checking. The card
-stays visible in its thread when you switch threads or reload the page,
-and the goal keeps running while the browser is closed because the
+While a turn is running, the status shows a spinner and counts the current
+turn's age. Expand it for the objective, the current step, the full plan
+with each task's status, and the progress percentage. When criteria were
+given, the expanded card also shows **Done when** with each criterion's
+state and the verification result. **View activity** opens the recent
+history: what the agent planned, what it finished, and what it is checking.
+The card stays visible in its thread when you switch threads or reload the
+page, and the goal keeps running while the browser is closed because the
 environment drives it.
 
 **Hide this finished goal** clears a completed goal from the card; **Start

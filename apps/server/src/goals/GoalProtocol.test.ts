@@ -44,6 +44,7 @@ const baseGoal: Goal = {
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
   startedAt: null,
+  turnStartedAt: null,
   completedAt: null,
   lastActivityAt: "2026-01-01T00:00:00.000Z",
   createdBy: "user",
@@ -81,6 +82,12 @@ describe("parseGoalReport", () => {
     const report = parseGoalReport(message);
     expect(report?.status).toBe("needs_input");
     expect(report?.question).toBe("Which host?");
+  });
+
+  it("accepts planning so the agent can say what it is doing", () => {
+    expect(
+      parseGoalReport(reportFor({ status: "planning", summary: "Reading the code" }))?.status,
+    ).toBe("planning");
   });
 
   it("rejects malformed JSON and empty reports instead of reporting progress", () => {
@@ -127,6 +134,19 @@ describe("applyGoalReport", () => {
     expect(applied.tasks[1]?.detail).toBe("Per channel");
     expect(applied.status).toBe("running");
     expect(applied.changes[0]?.kind).toBe("plan");
+  });
+
+  it("keeps the agent's planning status instead of inferring one", () => {
+    const report = parseGoalReport(reportFor({ status: "planning", summary: "Still planning" }));
+    assert.isNotNull(report);
+    const applied = applyGoalReport({
+      tasks: [task({ id: "t1", title: "Inspect", order: 0, attempts: 1 })],
+      acceptanceCriteria: [],
+      report,
+      makeTaskId,
+      nowIso,
+    });
+    expect(applied.status).toBe("planning");
   });
 
   it("keeps completed work when the user edits the goal and the plan changes", () => {

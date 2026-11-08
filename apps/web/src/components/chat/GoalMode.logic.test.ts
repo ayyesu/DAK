@@ -9,6 +9,7 @@ import {
   canRetryGoal,
   currentGoalTask,
   formatGoalActivityTime,
+  formatGoalTurnElapsed,
   getGoalSlashObjective,
   goalCriterionStates,
   goalHeadline,
@@ -19,6 +20,7 @@ import {
   goalStatusTone,
   goalVerificationStatusLabel,
   isGoalEnded,
+  isGoalDriven,
   isGoalSlashPrompt,
   isUsableGoalModelSelection,
   selectGoalForThread,
@@ -59,6 +61,7 @@ const baseGoal: Omit<Goal, "id" | "status" | "updatedAt"> = {
   createdAt: "2026-01-01T00:00:00.000Z",
   lastActivityAt: "2026-01-01T00:00:00.000Z",
   startedAt: null,
+  turnStartedAt: null,
   completedAt: null,
   createdBy: "user",
   creationSource: "web",
@@ -251,6 +254,21 @@ describe("formatGoalActivityTime", () => {
   });
 });
 
+describe("formatGoalTurnElapsed", () => {
+  const now = Date.parse("2026-01-01T12:00:00.000Z");
+
+  it("counts the in-flight turn's age", () => {
+    expect(formatGoalTurnElapsed("2026-01-01T11:59:15.000Z", now)).toBe("45s");
+    expect(formatGoalTurnElapsed("2026-01-01T11:58:55.000Z", now)).toBe("1m 05s");
+    expect(formatGoalTurnElapsed("2026-01-01T10:56:00.000Z", now)).toBe("1h 04m");
+  });
+
+  it("never goes negative and ignores an unparseable timestamp", () => {
+    expect(formatGoalTurnElapsed("2026-01-01T13:00:00.000Z", now)).toBe("0s");
+    expect(formatGoalTurnElapsed("not a date", now)).toBe("");
+  });
+});
+
 describe("goal control matrix", () => {
   it("pauses only the statuses the server's driver is working on", () => {
     expect(canPauseGoal("planning")).toBe(true);
@@ -260,6 +278,17 @@ describe("goal control matrix", () => {
     expect(canPauseGoal("needs_input")).toBe(false);
     expect(canPauseGoal("blocked")).toBe(false);
     expect(canPauseGoal("completed")).toBe(false);
+  });
+
+  it("marks only driver-owned statuses as driven for the spinner and turn timer", () => {
+    expect(isGoalDriven("planning")).toBe(true);
+    expect(isGoalDriven("running")).toBe(true);
+    expect(isGoalDriven("verifying")).toBe(true);
+    expect(isGoalDriven("paused")).toBe(false);
+    expect(isGoalDriven("needs_input")).toBe(false);
+    expect(isGoalDriven("blocked")).toBe(false);
+    expect(isGoalDriven("draft")).toBe(false);
+    expect(isGoalDriven("completed")).toBe(false);
   });
 
   it("resumes every recoverable state, including failed and blocked", () => {

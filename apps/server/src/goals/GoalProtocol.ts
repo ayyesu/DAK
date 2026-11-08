@@ -17,7 +17,7 @@ import {
 const REPORT_FENCE = /\n?```([A-Za-z0-9_-]*)\s*\n([\s\S]*?)```/g;
 const MAX_REPORT_TEXT = 2_000;
 
-export type GoalReportStatus = "running" | "needs_input" | "blocked" | "completed";
+export type GoalReportStatus = "running" | "needs_input" | "blocked" | "completed" | "planning";
 
 export interface GoalReportPlanItem {
   readonly title: string;
@@ -72,6 +72,7 @@ const REPORT_STATUSES: ReadonlyArray<GoalReportStatus> = [
   "needs_input",
   "blocked",
   "completed",
+  "planning",
 ];
 
 function asTaskStatus(value: unknown): GoalTaskStatus | null {
@@ -363,7 +364,8 @@ export function applyGoalReport(input: {
         : [];
 
   let status: GoalStatus = "running";
-  if (report.status === "needs_input") status = "needs_input";
+  if (report.status === "planning") status = "planning";
+  else if (report.status === "needs_input") status = "needs_input";
   else if (report.status === "blocked") status = "blocked";
   else if (report.status === "completed") status = allCompleted ? "verifying" : "running";
 
@@ -377,7 +379,7 @@ export function applyGoalReport(input: {
   };
 }
 
-const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"completed|in_progress|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptanceCriteria":["condition that must hold to call the goal complete"],"question":"only when status is needs_input"}}`;
+const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input|planning","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"completed|in_progress|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptanceCriteria":["condition that must hold to call the goal complete"],"question":"only when status is needs_input"}}`;
 
 function criteriaSection(goal: Goal): string {
   if (goal.acceptanceCriteria.length === 0) {
@@ -401,6 +403,7 @@ const RULES = `Rules:
 - Never report a task completed unless it is actually done, and never invent test results, file changes, or command output.
 - Report real evidence: the files you changed, the commands you ran, and what they printed.
 - Ask for clarification only when you cannot proceed without information only the user has; then set status "needs_input" with a single question.
+- Set status "planning" only while you are still deciding what to do; use "running" once you are executing the plan, so the card shows what is happening.
 - If you are blocked (missing access, failing dependency, contradictory requirement), set status "blocked" and explain precisely what stopped you. Do not retry the same failing action forever.
 - End your reply with exactly one fenced JSON block tagged goal, in this shape:
 \`\`\`goal
