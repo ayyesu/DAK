@@ -1029,6 +1029,7 @@ export const layer = Layer.effect(
               idleCycles += 1;
               continue;
             }
+            idleCycles = 0;
             const applied = yield* applyReport(cleared, outcome.report, {
               planHandling: "ignore",
             });
@@ -1390,13 +1391,13 @@ export const layer = Layer.effect(
               title: input.objective === undefined ? record.goal.title : deriveTitle(objective),
               objective,
               acceptanceCriteria: [...criteria],
-              // Without a plan yet the goal keeps planning: an edit must not
-              // shove a task-less goal into running, where the loop would
-              // block on the empty plan instead of re-planning.
-              status: record.goal.tasks.length === 0 ? "planning" : "running",
+              // An edit never resumes anything: it keeps the current status
+              // together with the reason that belongs to it, so a paused goal
+              // stays paused and a question behind Needs input survives the
+              // edit. Starting the work again is the user's call through
+              // Resume or Save & resume.
+              status: record.goal.status,
               revision: record.goal.revision + 1,
-              blockedReason: null,
-              failureReason: null,
               verification: { status: "pending", summary: null, checkedAt: null },
             },
           },
