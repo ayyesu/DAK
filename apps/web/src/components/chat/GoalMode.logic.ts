@@ -1,4 +1,11 @@
-import type { Goal, GoalStatus, GoalTask, GoalTaskStatus, ThreadId } from "@dak/contracts";
+import type {
+  Goal,
+  GoalStatus,
+  GoalSummary,
+  GoalTask,
+  GoalTaskStatus,
+  ThreadId,
+} from "@dak/contracts";
 
 /** Statuses where the server is still working or waiting to work. */
 const GOAL_ACTIVE_STATUSES: ReadonlyArray<GoalStatus> = [
@@ -65,15 +72,28 @@ export function goalProgress(goal: Pick<Goal, "tasks">): {
   return { completed, total, percent: total === 0 ? 0 : Math.round((completed / total) * 100) };
 }
 
+/** The same counts without importing the full task list. */
+export function goalSummaryProgress(
+  summary: Pick<GoalSummary, "completedTaskCount" | "totalTaskCount">,
+): {
+  readonly completed: number;
+  readonly total: number;
+  readonly percent: number;
+} {
+  const total = summary.totalTaskCount;
+  const completed = summary.completedTaskCount;
+  return { completed, total, percent: total === 0 ? 0 : Math.round((completed / total) * 100) };
+}
+
 /**
  * The goal the panel should show, Codex-style: a goal belongs to the thread
  * that owns it, so another thread's goal never appears here. A selection the
  * user already made (the other-goals menu) wins over the thread default.
  */
 export function selectGoalForThread(
-  goals: ReadonlyArray<Goal>,
+  goals: ReadonlyArray<GoalSummary>,
   threadId: ThreadId | null,
-): Goal | null {
+): GoalSummary | null {
   if (threadId === null) return null;
   const byUpdate = goals.toSorted(
     (left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt),
@@ -106,6 +126,24 @@ export function goalStatusLabel(status: GoalStatus): string {
       return "Failed";
     case "cancelled":
       return "Cancelled";
+  }
+}
+
+/** Headline for a goal's attention or completion notification. */
+export function goalNoticeTitle(status: GoalStatus): string {
+  switch (status) {
+    case "needs_input":
+      return "Input needed";
+    case "blocked":
+      return "Goal blocked";
+    case "failed":
+      return "Goal failed";
+    case "completed":
+      return "Goal completed";
+    default:
+      // Only the statuses above fire notices; fall back to the card label so
+      // a caller bug reads plainly instead of claiming completion.
+      return `Goal ${goalStatusLabel(status).toLowerCase()}`;
   }
 }
 
@@ -157,6 +195,44 @@ export function goalHeadline(
       return "Waiting for your answer";
     case "blocked":
       return goal.blockedReason ?? "Blocked";
+    case "verifying":
+      return "Verifying the result";
+    case "completed":
+      return "Completed and verified";
+    case "failed":
+      return "Stopped after an error";
+    case "cancelled":
+      return "Cancelled";
+  }
+}
+
+/** The collapsed card's line without importing task or activity detail. */
+export function goalSummaryHeadline(
+  summary: Pick<
+    GoalSummary,
+    "status" | "currentTaskTitle" | "completedTaskCount" | "totalTaskCount" | "blockedReason"
+  >,
+): string {
+  switch (summary.status) {
+    case "draft":
+      return "Draft";
+    case "planning":
+      return "Planning the work";
+    case "running": {
+      const progressSuffix =
+        summary.totalTaskCount > 1
+          ? ` · ${summary.completedTaskCount} of ${summary.totalTaskCount} tasks done`
+          : "";
+      return summary.currentTaskTitle === null
+        ? `Working${progressSuffix}`
+        : `Working on: ${summary.currentTaskTitle}${progressSuffix}`;
+    }
+    case "paused":
+      return "Paused";
+    case "needs_input":
+      return "Waiting for your answer";
+    case "blocked":
+      return summary.blockedReason ?? "Blocked";
     case "verifying":
       return "Verifying the result";
     case "completed":

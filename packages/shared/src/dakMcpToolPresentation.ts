@@ -48,6 +48,15 @@ export type DakMcpToolSummaryAction =
   | "project-update"
   | "project-delete"
   | "project-clone"
+  | "goal-list"
+  | "goal-read"
+  | "goal-create"
+  | "goal-update"
+  | "goal-pause"
+  | "goal-resume"
+  | "goal-cancel"
+  | "goal-answer"
+  | "goal-retry-task"
   | "environment-read"
   | "environment-update"
   | "attachment-prepare"
@@ -321,6 +330,15 @@ const DAK_MCP_TOOLS: Readonly<Record<string, DakMcpToolDefinition>> = {
   dak_project_update: tool(["Update", "Updating", "Updated", "a project"], "project-update"),
   dak_project_delete: tool(["Delete", "Deleting", "Deleted", "a project"], "project-delete"),
   dak_project_clone: tool(["Clone", "Cloning", "Cloned", "a repository"], "project-clone"),
+  dak_goal_list: tool(["List", "Listing", "Listed", "goals"], "goal-list"),
+  dak_goal_read: tool(["Read", "Reading", "Read", "a goal"], "goal-read"),
+  dak_goal_create: tool(["Create", "Creating", "Created", "a goal"], "goal-create"),
+  dak_goal_update: tool(["Update", "Updating", "Updated", "a goal"], "goal-update"),
+  dak_goal_pause: tool(["Pause", "Pausing", "Paused", "a goal"], "goal-pause"),
+  dak_goal_resume: tool(["Resume", "Resuming", "Resumed", "a goal"], "goal-resume"),
+  dak_goal_cancel: tool(["Cancel", "Canceling", "Canceled", "a goal"], "goal-cancel"),
+  dak_goal_answer: tool(["Answer", "Answering", "Answered", "a goal question"], "goal-answer"),
+  dak_goal_retry_task: tool(["Retry", "Retrying", "Retried", "a goal task"], "goal-retry-task"),
   dak_attachment_prepare_upload: tool(
     ["Prepare", "Preparing", "Prepared", "an attachment upload"],
     "attachment-prepare",

@@ -1,4 +1,4 @@
-import { GoalId, ThreadId, type Goal, type GoalTask } from "@dak/contracts";
+import { GoalId, ThreadId, type Goal, type GoalSummary, type GoalTask } from "@dak/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -14,8 +14,11 @@ import {
   goalCriterionStates,
   goalHeadline,
   goalNeedsAttention,
+  goalNoticeTitle,
   goalProgress,
   goalSlashPrefixLength,
+  goalSummaryHeadline,
+  goalSummaryProgress,
   goalStatusLabel,
   goalStatusTone,
   goalVerificationStatusLabel,
@@ -68,12 +71,21 @@ const baseGoal: Omit<Goal, "id" | "status" | "updatedAt"> = {
   creationSource: "web",
 };
 
+const baseSummary: Pick<GoalSummary, "currentTaskTitle" | "completedTaskCount" | "totalTaskCount"> =
+  {
+    currentTaskTitle: null,
+    completedTaskCount: 0,
+    totalTaskCount: 0,
+  };
+
 function goal(
-  overrides: Omit<Partial<Goal>, "id"> &
-    Pick<Goal, "status" | "updatedAt"> & { readonly id: string },
-): Goal {
+  overrides: Omit<Partial<Goal & GoalSummary>, "id"> &
+    Pick<Goal, "status"> & { readonly id: string },
+): Goal & GoalSummary {
   return {
     ...baseGoal,
+    ...baseSummary,
+    updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
     id: GoalId.make(overrides.id),
   };
@@ -163,6 +175,43 @@ describe("selectGoalForThread", () => {
   });
 });
 
+describe("goal summary progress and headline", () => {
+  it("derives progress from summary counts", () => {
+    expect(goalSummaryProgress({ completedTaskCount: 2, totalTaskCount: 5 })).toEqual({
+      completed: 2,
+      total: 5,
+      percent: 40,
+    });
+    expect(goalSummaryProgress({ completedTaskCount: 0, totalTaskCount: 0 })).toEqual({
+      completed: 0,
+      total: 0,
+      percent: 0,
+    });
+  });
+
+  it("names the current task and progress without task detail", () => {
+    const summary = goal({
+      id: "g",
+      status: "running",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      currentTaskTitle: "Build the API",
+      completedTaskCount: 1,
+      totalTaskCount: 3,
+    });
+
+    expect(goalSummaryHeadline(summary)).toBe("Working on: Build the API · 1 of 3 tasks done");
+  });
+
+  it("keeps planning and blocked headlines from the summary", () => {
+    expect(goalSummaryHeadline(goal({ id: "g", status: "planning" }))).toBe("Planning the work");
+    expect(
+      goalSummaryHeadline(
+        goal({ id: "g", status: "blocked", blockedReason: "The database is unreachable." }),
+      ),
+    ).toBe("The database is unreachable.");
+  });
+});
+
 describe("goal status presentation", () => {
   it("labels and tones every status", () => {
     expect(goalStatusLabel("needs_input")).toBe("Needs input");
@@ -178,6 +227,14 @@ describe("goal status presentation", () => {
     expect(goalNeedsAttention("blocked")).toBe(true);
     expect(goalNeedsAttention("running")).toBe(false);
     expect(goalNeedsAttention("completed")).toBe(false);
+  });
+
+  it("names each status a notification can fire for", () => {
+    expect(goalNoticeTitle("needs_input")).toBe("Input needed");
+    expect(goalNoticeTitle("blocked")).toBe("Goal blocked");
+    expect(goalNoticeTitle("failed")).toBe("Goal failed");
+    expect(goalNoticeTitle("completed")).toBe("Goal completed");
+    expect(goalNoticeTitle("running")).toBe("Goal working");
   });
 
   it("names the current task while running", () => {

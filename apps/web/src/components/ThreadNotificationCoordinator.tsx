@@ -1,7 +1,7 @@
 import { presentThreadShell } from "@dak/client-runtime/state/models";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import type { EnvironmentId, OrchestrationV2ThreadShell, ThreadId } from "@dak/contracts";
+import type { EnvironmentId, GoalId, OrchestrationV2ThreadShell, ThreadId } from "@dak/contracts";
 import * as Option from "effect/Option";
 import {
   CircleAlertIcon,
@@ -9,10 +9,12 @@ import {
   MessageCircleQuestionIcon,
   ShieldQuestionIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useRef } from "react";
 
 import { getClientSettings, useClientSettings } from "../hooks/useSettings";
 import { useEnvironmentIds } from "../state/environments";
+import { useEnvironmentQuery } from "../state/query";
+import { serverEnvironment } from "../state/server";
 import { environmentShell } from "../state/shell";
 import {
   hasDesktopNotifications,
@@ -22,6 +24,12 @@ import {
   unlockNotificationAudio,
 } from "../threadNotifications";
 import { resolveSidebarThreadStatus } from "./Sidebar.logic";
+import {
+  advanceGoalNotice,
+  goalNotification,
+  type GoalNoticeState,
+} from "./ThreadNotificationCoordinator.logic";
+import { goalNoticeTitle } from "./chat/GoalMode.logic";
 import { toastManager } from "./ui/toast";
 
 export function ThreadNotificationCoordinator() {
@@ -94,6 +102,19 @@ interface NotificationState {
   readonly completion: number | null;
 }
 
+interface NoticeDelivery {
+  readonly kind: "input" | "completion";
+  readonly toastType: "success" | "error" | "warning";
+  readonly title: string;
+  readonly body: string;
+  readonly tag: string;
+  readonly icon: ReactNode;
+  /** Null when the notice has nowhere to navigate to. */
+  readonly action: { readonly label: string; readonly open: () => void } | null;
+  /** The user is already looking at the target; the toast would only nag. */
+  readonly active: boolean;
+}
+
 function EnvironmentNotifications({
   environmentId,
   onNotification,
@@ -106,6 +127,8 @@ function EnvironmentNotifications({
   // stable, so this only rescans when a thread actually changed.
   const threads =
     shell.status === "live" && Option.isSome(shell.snapshot) ? shell.snapshot.value.threads : null;
+  const goalsQuery = useEnvironmentQuery(serverEnvironment.goalsLive({ environmentId, input: {} }));
+  const goals = goalsQuery.data?.goals ?? null;
   const mode = useClientSettings((settings) => settings.notificationMode);
   const inAppNotificationsEnabled = useClientSettings(
     (settings) => settings.inAppNotificationsEnabled,
@@ -115,13 +138,87 @@ function EnvironmentNotifications({
     strict: false,
   });
   const previous = useRef(new Map<ThreadId, NotificationState>());
+  const previousGoals = useRef(new Map<GoalId, GoalNoticeState>());
+
+  // Sound always plays; then a toast for a visible, focused window looking
+  // somewhere else, otherwise a desktop notification.
+  const deliverNotice = useCallback(
+    (notice: NoticeDelivery) => {
+      if (hasNotificationSound(mode)) {
+        void playNotificationSound(notice.kind, () =>
+          hasNotificationSound(getClientSettings().notificationMode),
+        );
+      }
+      if (
+        inAppNotificationsEnabled &&
+        document.visibilityState === "visible" &&
+        document.hasFocus() &&
+        !notice.active
+      ) {
+        const action = notice.action;
+        const toastId = toastManager.add({
+          type: notice.toastType,
+          title: notice.title,
+          description: notice.body,
+          data: {
+            hideCopyButton: true,
+            leadingIcon: notice.icon,
+          },
+          actionProps:
+            action === null
+              ? undefined
+              : {
+                  children: action.label,
+                  onClick: () => {
+                    toastManager.close(toastId);
+                    action.open();
+                  },
+                },
+        });
+        return;
+      }
+      if (
+        !hasDesktopNotifications(mode) ||
+        (document.visibilityState === "visible" && document.hasFocus()) ||
+        typeof Notification === "undefined" ||
+        Notification.permission !== "granted"
+      )
+        return;
+      try {
+        const notification = new Notification(notice.title, {
+          body: notice.body,
+          tag: notice.tag,
+          silent: true,
+        });
+        onNotification(environmentId, notification);
+        notification.addEventListener("click", () => {
+          notification.close();
+          window.focus();
+          notice.action?.open();
+        });
+      } catch {
+        // Some browsers expose Notification but reject desktop presentation.
+      }
+    },
+    [environmentId, inAppNotificationsEnabled, mode, onNotification],
+  );
 
   useEffect(() => {
     if (threads === null) {
       previous.current.clear();
+      previousGoals.current.clear();
       return;
     }
+    // A goal owns its thread's completion notices; without this, every turn
+    // the goal dispatches would read as a fresh "Thread completed".
+    const goalThreadIds = new Set<ThreadId>();
+    for (const goal of goals ?? []) {
+      if (goal.threadId !== null) goalThreadIds.add(goal.threadId);
+    }
     const next = new Map<ThreadId, NotificationState>();
+    // A thread attention notice and the goal transition behind it describe
+    // one event; that round the thread's notice speaks for the goal.
+    const attentionThreads = new Set<ThreadId>();
     for (const rawThread of threads) {
       if (rawThread.lineage.relationshipToParent === "subagent") continue;
       const prior = previous.current.get(rawThread.id);
@@ -154,6 +251,8 @@ function EnvironmentNotifications({
             ? "completion"
             : null;
       if (!kind) continue;
+      if (kind === "input") attentionThreads.add(thread.id);
+      if (kind === "completion" && goalThreadIds.has(thread.id)) continue;
       const title =
         kind === "completion"
           ? "Thread completed"
@@ -164,84 +263,81 @@ function EnvironmentNotifications({
               : status === "failed"
                 ? "Thread failed"
                 : "Input needed";
-      if (hasNotificationSound(mode)) {
-        void playNotificationSound(kind, () =>
-          hasNotificationSound(getClientSettings().notificationMode),
-        );
-      }
-      if (
-        inAppNotificationsEnabled &&
-        document.visibilityState === "visible" &&
-        document.hasFocus() &&
-        (activeEnvironmentId !== environmentId || activeThreadId !== thread.id)
-      ) {
-        const toastId = toastManager.add({
-          type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
-          title,
-          description: thread.title,
-          data: {
-            hideCopyButton: true,
-            leadingIcon:
-              kind === "completion" ? (
-                <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />
-              ) : status === "approval" ? (
-                <ShieldQuestionIcon aria-hidden className="size-4 text-warning-foreground" />
-              ) : status === "failed" ? (
-                <CircleAlertIcon aria-hidden className="size-4 text-destructive-foreground" />
-              ) : (
-                <MessageCircleQuestionIcon aria-hidden className="size-4 text-info-foreground" />
-              ),
-          },
-          actionProps: {
-            children: "Open thread",
-            onClick: () => {
-              toastManager.close(toastId);
-              void navigate({
-                to: "/$environmentId/$threadId",
-                params: { environmentId, threadId: thread.id },
-              });
-            },
-          },
-        });
-        continue;
-      }
-      if (
-        !hasDesktopNotifications(mode) ||
-        (document.visibilityState === "visible" && document.hasFocus()) ||
-        typeof Notification === "undefined" ||
-        Notification.permission !== "granted"
-      )
-        continue;
-      try {
-        const notification = new Notification(title, {
-          body: thread.title,
-          tag: `${environmentId}:${thread.id}`,
-          silent: true,
-        });
-        onNotification(environmentId, notification);
-        notification.addEventListener("click", () => {
-          notification.close();
-          window.focus();
-          void navigate({
-            to: "/$environmentId/$threadId",
-            params: { environmentId, threadId: thread.id },
-          });
-        });
-      } catch {
-        // Some browsers expose Notification but reject desktop presentation.
-      }
+      deliverNotice({
+        kind,
+        toastType: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
+        title,
+        body: thread.title,
+        tag: `${environmentId}:${thread.id}`,
+        icon:
+          kind === "completion" ? (
+            <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />
+          ) : status === "approval" ? (
+            <ShieldQuestionIcon aria-hidden className="size-4 text-warning-foreground" />
+          ) : status === "failed" ? (
+            <CircleAlertIcon aria-hidden className="size-4 text-destructive-foreground" />
+          ) : (
+            <MessageCircleQuestionIcon aria-hidden className="size-4 text-info-foreground" />
+          ),
+        action: {
+          label: "Open thread",
+          open: () =>
+            void navigate({
+              to: "/$environmentId/$threadId",
+              params: { environmentId, threadId: thread.id },
+            }),
+        },
+        active: activeEnvironmentId === environmentId && activeThreadId === thread.id,
+      });
     }
     previous.current = next;
-  }, [
-    activeEnvironmentId,
-    activeThreadId,
-    environmentId,
-    inAppNotificationsEnabled,
-    mode,
-    navigate,
-    onNotification,
-    threads,
-  ]);
+
+    const nextGoals = new Map<GoalId, GoalNoticeState>();
+    for (const goal of goals ?? []) {
+      const prior = previousGoals.current.get(goal.id) ?? null;
+      const state = advanceGoalNotice(goal);
+      nextGoals.set(goal.id, state);
+      // First sighting records only; loading a page must not ping old goals.
+      if (prior === null) continue;
+      const kind = goalNotification(prior, state);
+      if (kind === null) continue;
+      const threadId = goal.threadId;
+      if (kind === "attention" && threadId !== null && attentionThreads.has(threadId)) continue;
+      deliverNotice({
+        // The sound knows two cues; a goal's ask plays the input one.
+        kind: kind === "completion" ? "completion" : "input",
+        toastType:
+          kind === "completion" ? "success" : goal.status === "failed" ? "error" : "warning",
+        title: goalNoticeTitle(goal.status),
+        body: goal.title,
+        tag: `${environmentId}:goal:${goal.id}`,
+        icon:
+          kind === "completion" ? (
+            <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />
+          ) : goal.status === "failed" ? (
+            <CircleAlertIcon aria-hidden className="size-4 text-destructive-foreground" />
+          ) : goal.status === "blocked" ? (
+            <ShieldQuestionIcon aria-hidden className="size-4 text-warning-foreground" />
+          ) : (
+            <MessageCircleQuestionIcon aria-hidden className="size-4 text-info-foreground" />
+          ),
+        action:
+          threadId === null
+            ? null
+            : {
+                label: "Open goal",
+                open: () =>
+                  void navigate({
+                    to: "/$environmentId/$threadId",
+                    params: { environmentId, threadId },
+                  }),
+              },
+        active:
+          threadId !== null && activeEnvironmentId === environmentId && activeThreadId === threadId,
+      });
+    }
+    previousGoals.current = nextGoals;
+  }, [activeEnvironmentId, activeThreadId, deliverNotice, environmentId, goals, navigate, threads]);
 
   return null;
 }

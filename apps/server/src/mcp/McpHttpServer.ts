@@ -30,6 +30,8 @@ import { EnvironmentToolkit } from "./toolkits/environment/tools.ts";
 import * as EnvironmentHandlers from "./toolkits/environment/handlers.ts";
 import { ProjectToolkit } from "./toolkits/project/tools.ts";
 import * as ProjectHandlers from "./toolkits/project/handlers.ts";
+import { GoalToolkit } from "./toolkits/goal/tools.ts";
+import * as GoalHandlers from "./toolkits/goal/handlers.ts";
 import { AttachmentToolkit } from "./toolkits/attachment/tools.ts";
 import * as AttachmentHandlers from "./toolkits/attachment/handlers.ts";
 import { ThreadToolkit } from "./toolkits/thread/tools.ts";
@@ -964,6 +966,8 @@ const layerEnvironmentRegistration = toolkitRegistration(
 
 const layerProjectRegistration = toolkitRegistration(ProjectToolkit, ProjectHandlers.layer);
 
+const layerGoalToolkitRegistration = toolkitRegistration(GoalToolkit, GoalHandlers.layer);
+
 /**
  * Canvas designs, registered here like every other toolkit. This one line is what makes the whole
  * `dak_canvas_*` surface reachable by an agent — the toolkit and its handlers existed and passed
@@ -1017,6 +1021,7 @@ export const layerTools = Layer.mergeAll(
   layerThreadToolkit,
   layerAttachmentRegistration,
   layerProjectRegistration,
+  layerGoalToolkitRegistration,
   layerCanvasToolkitRegistration,
   layerEnvironmentRegistration,
   layerPreviewControlsRegistration,

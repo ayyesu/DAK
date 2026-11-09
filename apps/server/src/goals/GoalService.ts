@@ -25,6 +25,7 @@ import {
   type GoalPauseInput,
   type GoalResumeInput,
   type GoalRetryTaskInput,
+  type GoalSummary,
   type GoalTask,
   type GoalUpdateInput,
   type RunId,
@@ -72,6 +73,10 @@ export const GOAL_TURN_HEARTBEAT_MS = 25_000;
 const GOAL_MAX_VERIFY_ROUNDS = 2;
 /** Boot delay before interrupted goals resume, so provider runtimes are up. */
 const GOAL_RECOVERY_DELAY = Duration.seconds(15);
+/** A driven goal this old with no driver is stuck, not waiting for a turn. */
+const GOAL_STUCK_THRESHOLD = Duration.seconds(10);
+/** How often the sweep looks for driven goals whose driver died. */
+const GOAL_STUCK_SWEEP_INTERVAL = Duration.seconds(60);
 const ACTIVITY_DETAIL_LIMIT = 2_000;
 
 const DRIVEN_STATUSES: ReadonlySet<Goal["status"]> = new Set(["planning", "running", "verifying"]);
@@ -245,6 +250,11 @@ export class GoalService extends Context.Service<
     readonly cancel: (input: GoalCancelInput) => Effect.Effect<GoalMutationResult, GoalError>;
     readonly answer: (input: GoalAnswerInput) => Effect.Effect<GoalMutationResult, GoalError>;
     readonly retryTask: (input: GoalRetryTaskInput) => Effect.Effect<GoalMutationResult, GoalError>;
+    /**
+     * Blocks driven goals nobody is driving. Runs on a timer; tests call it
+     * directly instead of waiting for the clock.
+     */
+    readonly sweepStuckGoals: () => Effect.Effect<void, GoalError>;
   }
 >()("dak/goals/GoalService") {}
 
@@ -260,6 +270,9 @@ export const layer = Layer.effect(
     // One driver per goal. The ref is the duplicate-execution guard: a second
     // start for a goal already driving is a no-op, not a second loop.
     const drivers = yield* Ref.make<ReadonlySet<string>>(new Set());
+    // Drive attempts that arrive while a driver is already active. Consumed on
+    // driver exit so a driven state committed in that window gets a driver again.
+    const pendingDrives = yield* Ref.make<ReadonlySet<string>>(new Set());
 
     const readTaskRows = (goalId: string) => sql<GoalTaskRow>`
       SELECT * FROM goal_tasks WHERE goal_id = ${goalId} ORDER BY task_order ASC, task_id ASC
@@ -710,8 +723,11 @@ export const layer = Layer.effect(
           // wait runs, so a client can tell a live turn from a stalled one.
           const heartbeat = yield* Effect.forkChild(
             Effect.sleep(GOAL_TURN_HEARTBEAT_MS).pipe(
-              Effect.andThen(notifyChanged),
-              Effect.repeat(Schedule.spaced(Duration.millis(GOAL_TURN_HEARTBEAT_MS))),
+              Effect.andThen(
+                notifyChanged.pipe(
+                  Effect.repeat(Schedule.spaced(Duration.millis(GOAL_TURN_HEARTBEAT_MS))),
+                ),
+              ),
             ),
           );
           const waited = yield* threads
@@ -1243,25 +1259,78 @@ export const layer = Layer.effect(
         Effect.withSpan("GoalService.drive"),
       );
 
-    const startDriver = (goalId: GoalId) =>
+    const startDriver = (goalId: GoalId): Effect.Effect<void> =>
       Effect.gen(function* () {
         const reserved = yield* Ref.modify(drivers, (active) =>
           active.has(goalId)
             ? ([false, active] as const)
             : ([true, new Set([...active, goalId])] as const),
         );
-        if (!reserved) return;
+        if (!reserved) {
+          // Remember the attempt: if this driver exits without picking the
+          // goal up (the answer-committed-mid-exit window), the exit must
+          // start a replacement instead of leaving the goal driven and idle.
+          yield* Ref.update(pendingDrives, (active) => new Set([...active, goalId]));
+          return;
+        }
         yield* drive(goalId).pipe(
           Effect.ensuring(
-            Ref.update(drivers, (active) => {
-              const next = new Set(active);
-              next.delete(goalId);
-              return next;
+            Effect.gen(function* () {
+              yield* Ref.update(drivers, (active) => {
+                const next = new Set(active);
+                next.delete(goalId);
+                return next;
+              });
+              const pending = yield* Ref.modify(pendingDrives, (active) => {
+                if (!active.has(goalId)) return [false, active] as const;
+                const next = new Set(active);
+                next.delete(goalId);
+                return [true, next] as const;
+              });
+              if (!pending) return;
+              // A read that fails must not fail the exiting driver; the sweep
+              // blocks the goal later if it really is orphaned.
+              const record = yield* readRecord(goalId).pipe(
+                Effect.catch((cause) =>
+                  Effect.map(
+                    Effect.logWarning("Could not re-read a goal for a queued drive", {
+                      goalId,
+                      cause,
+                    }),
+                    () => null,
+                  ),
+                ),
+              );
+              if (record !== null && isDriven(record.goal.status)) {
+                yield* startDriver(goalId);
+              }
             }),
           ),
           Effect.forkIn(scope),
         );
       });
+
+    /** The list payload is only what selection and collapsed cards need. */
+    const toGoalSummary = (goal: Goal): GoalSummary => ({
+      id: goal.id,
+      projectId: goal.projectId,
+      threadId: goal.threadId,
+      title: goal.title,
+      status: goal.status,
+      currentTaskId: goal.currentTaskId,
+      currentTaskTitle:
+        goal.tasks.find((task) => task.id === goal.currentTaskId)?.title ??
+        goal.tasks.find((task) => task.status === "in_progress")?.title ??
+        null,
+      completedTaskCount: goal.tasks.filter((task) => task.status === "completed").length,
+      totalTaskCount: goal.tasks.length,
+      turnStartedAt: goal.turnStartedAt,
+      blockedReason: goal.blockedReason,
+      failureReason: goal.failureReason,
+      updatedAt: goal.updatedAt,
+      lastActivityAt: goal.lastActivityAt,
+      completedAt: goal.completedAt,
+    });
 
     const listRecords = Effect.fn("GoalService.listRecords")(function* (projectId?: string) {
       const rows =
@@ -1281,7 +1350,7 @@ export const layer = Layer.effect(
 
     const list: GoalService["Service"]["list"] = (input) =>
       listRecords(input.projectId).pipe(
-        Effect.map((records) => ({ goals: records.map((record) => record.goal) })),
+        Effect.map((records) => ({ goals: records.map((record) => toGoalSummary(record.goal)) })),
         Effect.mapError((cause) => toGoalError(cause)),
       );
 
@@ -1418,6 +1487,14 @@ export const layer = Layer.effect(
         if (hasEnded(record.goal.status) || record.goal.status === "paused") {
           return { goal: record.goal };
         }
+        // The question lives only in blockedReason, which pausing would clear;
+        // refuse instead of silently dropping an answer the agent is waiting on.
+        if (record.goal.status === "needs_input") {
+          return yield* new GoalError({
+            message: "This goal is waiting for an answer. Answer the question to continue.",
+            goalId: input.id,
+          });
+        }
         const paused = yield* setStatus(record, "paused", "Paused by the user");
         yield* interruptGoal(record, "The user paused this goal.");
         return { goal: paused.goal };
@@ -1429,6 +1506,14 @@ export const layer = Layer.effect(
         if (hasEnded(record.goal.status)) {
           return yield* new GoalError({
             message: "This goal has ended. Start a new goal instead.",
+            goalId: input.id,
+          });
+        }
+        // Resuming from needs_input would null blockedReason (the question)
+        // while pendingAnswer is still null, losing the agent's ask entirely.
+        if (record.goal.status === "needs_input") {
+          return yield* new GoalError({
+            message: "This goal is waiting for an answer. Answer the question to continue.",
             goalId: input.id,
           });
         }
@@ -1543,6 +1628,54 @@ export const layer = Layer.effect(
         return { goal: retried.goal };
       }).pipe(Effect.mapError((cause) => toGoalError(cause, input.id)));
 
+    /**
+     * A driven goal with nobody driving it looks live forever: restart recovery
+     * only claims the 20 most recent, and a driver that cannot persist its own
+     * failure leaves the goal as it stood. Block those so the card offers
+     * Resume. Goals an active driver or a queued restart holds are skipped, and
+     * the refs are re-read after the record so a driver that started mid-sweep
+     * keeps the goal.
+     */
+    const sweepStuckGoals: GoalService["Service"]["sweepStuckGoals"] = () =>
+      Effect.gen(function* () {
+        const now = yield* DateTime.now;
+        const cutoff = DateTime.formatIso(
+          DateTime.toUtc(
+            DateTime.subtract(now, { seconds: Duration.toSeconds(GOAL_STUCK_THRESHOLD) }),
+          ),
+        );
+        const rows = yield* sql<{ goal_id: string }>`
+          SELECT goal_id FROM goals
+          WHERE status IN ('planning', 'running', 'verifying')
+            AND updated_at <= ${cutoff}
+          ORDER BY updated_at ASC
+          LIMIT 100
+        `;
+        yield* Effect.forEach(
+          rows,
+          (row) =>
+            Effect.gen(function* () {
+              const goalId = GoalId.make(row.goal_id);
+              const active = yield* Ref.get(drivers);
+              if (active.has(goalId)) return;
+              const queued = yield* Ref.get(pendingDrives);
+              if (queued.has(goalId)) return;
+              const record = yield* readRecord(goalId);
+              if (record === null || !isDriven(record.goal.status)) return;
+              // A commit after the query means the goal just changed hands.
+              if (record.goal.updatedAt > cutoff) return;
+              const stillActive = yield* Ref.get(drivers);
+              if (stillActive.has(goalId)) return;
+              const stillQueued = yield* Ref.get(pendingDrives);
+              if (stillQueued.has(goalId)) return;
+              yield* setStatus(record, "blocked", "The goal stopped making progress", {
+                blockedReason: "The goal stopped making progress. Resume to continue.",
+              });
+            }),
+          { discard: true, concurrency: 1 },
+        );
+      }).pipe(Effect.mapError((cause) => toGoalError(cause)));
+
     // Resume goals a crash or restart interrupted. The delay lets provider
     // runtimes come up first, so the first dispatched turn does not fail.
     yield* Effect.gen(function* () {
@@ -1571,6 +1704,21 @@ export const layer = Layer.effect(
       Effect.forkIn(scope),
     );
 
+    // A goal nobody drives (recovery passed it over, or its driver could not
+    // persist a failure) sits driven and silent; block it once it stays past
+    // the threshold so the card offers Resume. The first pass waits out the
+    // interval, so recovery re-drives restart interruptions before anything is
+    // judged stuck. Failures log and the next pass still runs.
+    yield* Effect.sleep(GOAL_STUCK_SWEEP_INTERVAL).pipe(
+      Effect.andThen(
+        sweepStuckGoals().pipe(
+          Effect.catch((cause) => Effect.logWarning("Could not sweep stuck goals", { cause })),
+          Effect.repeat(Schedule.spaced(GOAL_STUCK_SWEEP_INTERVAL)),
+        ),
+      ),
+      Effect.forkIn(scope),
+    );
+
     return {
       list,
       subscribeList,
@@ -1582,6 +1730,7 @@ export const layer = Layer.effect(
       cancel,
       answer,
       retryTask,
+      sweepStuckGoals,
     };
   }),
 );
