@@ -32,8 +32,6 @@ import * as CliTokenManager from "../cloud/CliTokenManager.ts";
 import { filterRelayResponse } from "../cloud/relayResponse.ts";
 import {
   CLOUD_LINKED_USER_ID,
-  isAgentActivityPublishingEnabledValue,
-  PUBLISH_AGENT_ACTIVITY_SECRET,
   RELAY_URL_SECRET,
 } from "../cloud/config.ts";
 import { relayUrlConfig } from "../cloud/publicConfig.ts";
@@ -142,7 +140,6 @@ interface CloudCliStatus {
   readonly linked: boolean;
   readonly cloudUserId: string | null;
   readonly relayUrl: string | null;
-  readonly publishAgentActivity: boolean;
   readonly relayClient: RelayClient.RelayClientStatus;
 }
 
@@ -195,7 +192,6 @@ function formatCloudStatus(status: CloudCliStatus, options?: { readonly json?: b
     `  Authorization: ${status.authenticated ? "stored credential" : "missing"}`,
     `  Environment link: ${provisioned}`,
     `  Relay: ${status.relayUrl ?? "not provisioned"}`,
-    `  Publish agent activity: ${status.publishAgentActivity ? "enabled" : "disabled"}`,
     ...formatRelayClientStatus(status.relayClient),
     "",
     "This is saved setup, not a live connection check. Check the background service with `dak service status`.",
@@ -458,29 +454,21 @@ function formatRelayClientReady(version: string): string {
 
 const linkEnvironmentForConnect = Effect.fn("cloud.cli.link_environment")(function* (options: {
   readonly headless: boolean;
-  readonly publishOnly?: boolean;
 }) {
-  const publishOnly = options.publishOnly ?? false;
-  if (!publishOnly) {
-    const relayClient = yield* RelayClient.RelayClient;
-    const installed = yield* acquireRelayClientForLink(
-      relayClient,
-      confirmRelayClientInstall,
-      reportRelayClientInstallProgress,
-    );
-    if (Option.isNone(installed)) {
-      yield* Console.log("DAK Connect setup cancelled. The relay client was not installed.");
-      return null;
-    }
-    yield* Console.log(formatRelayClientReady(installed.value.version));
+  const relayClient = yield* RelayClient.RelayClient;
+  const installed = yield* acquireRelayClientForLink(
+    relayClient,
+    confirmRelayClientInstall,
+    reportRelayClientInstallProgress,
+  );
+  if (Option.isNone(installed)) {
+    yield* Console.log("DAK Connect setup cancelled. The relay client was not installed.");
+    return null;
   }
+  yield* Console.log(formatRelayClientReady(installed.value.version));
 
   const identity = yield* authorizeCli(options);
-  yield* CliState.setCliDesiredCloudLink(true, publishOnly ? "publish_only" : "managed");
-  if (publishOnly) {
-    const secrets = yield* ServerSecretStore.ServerSecretStore;
-    yield* secrets.set(PUBLISH_AGENT_ACTIVITY_SECRET, stringToBytes("true"));
-  }
+  yield* CliState.setCliDesiredCloudLink(true);
   return { identity } as const;
 });
 
@@ -504,12 +492,6 @@ const connectLoginCommand = Command.make("login", {
 const connectLinkCommand = Command.make("link", {
   ...projectLocationFlags,
   headless: headlessFlag,
-  publishOnly: Flag.Boolean("publish-only").pipe(
-    Flag.withDescription(
-      "Link to publish agent activity only — no managed tunnel. Reach this environment out of band (e.g. Tailscale).",
-    ),
-    Flag.withDefault(false),
-  ),
 }).pipe(
   Command.withDescription("Authorize this environment for DAK Connect on next start."),
   Command.withHandler((flags) =>
@@ -521,9 +503,7 @@ const connectLinkCommand = Command.make("link", {
         if (linked) {
           const serveCommand = yield* resolveCliCommand("serve");
           yield* Console.log(
-            flags.publishOnly
-              ? `✓ Authorized${connectedAs(linked.identity)}\n\nNext\n  Start DAK to publish agent activity (no managed tunnel).`
-              : `✓ Authorized${connectedAs(linked.identity)}\n\nNext\n  Start the server with \`${serveCommand}\` to make this machine reachable.`,
+            `✓ Authorized${connectedAs(linked.identity)}\n\nNext\n  Start the server with \`${serveCommand}\` to make this machine reachable.`,
           );
         }
       }),
@@ -543,14 +523,13 @@ const connectStatusCommand = Command.make("status", {
         const secrets = yield* ServerSecretStore.ServerSecretStore;
         const relayClient = yield* RelayClient.RelayClient;
         const tokens = yield* CliTokenManager.CloudCliTokenManager;
-        const [desired, authenticated, cloudUserId, relayUrl, publishAgentActivity, executable] =
+        const [desired, authenticated, cloudUserId, relayUrl, executable] =
           yield* Effect.all(
             [
               CliState.readCliDesiredCloudLink,
               tokens.hasCredential,
               secrets.get(CLOUD_LINKED_USER_ID),
               secrets.get(RELAY_URL_SECRET),
-              secrets.get(PUBLISH_AGENT_ACTIVITY_SECRET),
               relayClient.resolve,
             ],
             { concurrency: "unbounded" },
@@ -561,9 +540,6 @@ const connectStatusCommand = Command.make("status", {
           linked: Option.isSome(cloudUserId),
           cloudUserId: Option.isSome(cloudUserId) ? bytesToString(cloudUserId.value) : null,
           relayUrl: Option.isSome(relayUrl) ? bytesToString(relayUrl.value) : null,
-          publishAgentActivity: isAgentActivityPublishingEnabledValue(
-            Option.isSome(publishAgentActivity) ? bytesToString(publishAgentActivity.value) : null,
-          ),
           relayClient: executable,
         };
         yield* Console.log(formatCloudStatus(status, { json: flags.json }));
@@ -571,76 +547,6 @@ const connectStatusCommand = Command.make("status", {
       {
         quietLogs: flags.json,
       },
-    ),
-  ),
-);
-
-const connectPublishCommand = Command.make("publish", {
-  ...projectLocationFlags,
-  disable: Flag.Boolean("disable").pipe(
-    Flag.withDescription("Stop publishing agent activity to your mobile clients."),
-    Flag.withDefault(false),
-  ),
-}).pipe(
-  Command.withDescription(
-    "Toggle publishing agent activity (push notifications and Live Activities) to your mobile clients.",
-  ),
-  Command.withHandler((flags) =>
-    runCloudCommand(
-      flags,
-      Effect.gen(function* () {
-        const secrets = yield* ServerSecretStore.ServerSecretStore;
-        const tokens = yield* CliTokenManager.CloudCliTokenManager;
-        const enabled = !flags.disable;
-        yield* secrets.set(
-          PUBLISH_AGENT_ACTIVITY_SECRET,
-          stringToBytes(enabled ? "true" : "false"),
-        );
-        if (!enabled) {
-          // If enabling scheduled a publish-only link that hasn't been
-          // provisioned yet, disabling must cancel it too — otherwise the next
-          // start still links an environment whose only purpose was publishing.
-          // A pending managed link is left alone; it exists for the tunnel.
-          const linkedNow = Option.isSome(yield* secrets.get(CLOUD_LINKED_USER_ID));
-          if (!linkedNow && (yield* CliState.readCliDesiredLinkMode) === "publish_only") {
-            yield* CliState.setCliDesiredCloudLink(false);
-            yield* Console.log("Cancelled the pending publish-only DAK Connect link.");
-          }
-          yield* Console.log("Publishing agent activity disabled.");
-          return;
-        }
-
-        yield* Console.log("Publishing agent activity enabled.");
-        const linked = Option.isSome(yield* secrets.get(CLOUD_LINKED_USER_ID));
-        if (linked) {
-          return;
-        }
-
-        // Publishing needs the relay to know this environment belongs to you.
-        // Establish a tunnel-free publish-only link automatically so signing in
-        // is all it takes — the mobile client can still reach the environment
-        // out of band without DAK Connect.
-        if (!(yield* tokens.hasCredential)) {
-          yield* Console.log(
-            "Run `dak connect login` first so this environment can be authorized to publish.",
-          );
-          return;
-        }
-        // A link may already be desired (e.g. `dak connect link` before the
-        // server's first start). Never downgrade it: a desired managed link
-        // also covers publishing, so only request a publish-only link when no
-        // link is pending at all.
-        if (yield* CliState.readCliDesiredCloudLink) {
-          yield* Console.log(
-            "A DAK Connect link is already pending. Start DAK to finish provisioning it; publishing starts once it links.",
-          );
-          return;
-        }
-        yield* CliState.setCliDesiredCloudLink(true, "publish_only");
-        yield* Console.log(
-          "Restart DAK to finish authorizing this environment to publish (no managed tunnel is created).",
-        );
-      }),
     ),
   ),
 );
@@ -704,7 +610,6 @@ export const connectCommand = Command.make("connect", {
   Command.withSubcommands([
     connectLoginCommand,
     connectLinkCommand,
-    connectPublishCommand,
     connectStatusCommand,
     connectUnlinkCommand,
     connectLogoutCommand,

@@ -1,19 +1,12 @@
 import { useAuth, useClerk } from "@clerk/react";
-import { ServerIcon, SmartphoneIcon } from "lucide-react";
+import { ServerIcon } from "lucide-react";
 import { type ReactNode, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { MobileClientsUserProfilePage } from "./MobileClientsUserProfilePage";
 import { DakConnectUserProfilePage } from "./DakConnectUserProfilePage";
 
 /** Custom pages in the Clerk account modal, in menu order. */
 export const DAK_CONNECT_ACCOUNT_PAGES = [
-  {
-    label: "Mobile clients",
-    url: "mobile-clients",
-    icon: <SmartphoneIcon className="size-4" />,
-    content: <MobileClientsUserProfilePage />,
-  },
   {
     label: "DAK Connect",
     url: "dak-connect",

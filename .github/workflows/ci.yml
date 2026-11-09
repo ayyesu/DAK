@@ -340,12 +340,6 @@ jobs:
             cargo test --locked --manifest-path "native/$crate/Cargo.toml"
           done
 
-  # The mobile native static analysis and its change-detection gate are gone on
-  # this fork: they lint Swift and Kotlin against a macOS runner that bills ~6.7x
-  # a Linux minute, and this fork builds no mobile store binaries (the EAS
-  # workflows are dispatch-only). Run `vp run lint:mobile` locally if you touch
-  # apps/mobile native sources.
-
   release_smoke:
     name: Release Smoke
     runs-on: ubuntu-24.04
@@ -388,6 +382,4 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
         run: |
           echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          # No job listed above skips on purpose any more: the macOS mobile lint,
-          # which was the one allowed skip, is gone on this fork.
           echo "$RESULTS" | jq -e 'all(to_entries[]; .value.result == "success")' > /dev/null

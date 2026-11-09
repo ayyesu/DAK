@@ -1,7 +1,6 @@
 import { useAuth } from "@clerk/react";
 import { useAtomValue } from "@effect/atom-react";
 import {
-  AuthAdministrativeScopes,
   AuthRelayReadScope,
   AuthRelayWriteScope,
   type AuthSessionState,
@@ -25,7 +24,6 @@ import {
 import { environmentSession, readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { CloudEnvironmentConnectRows } from "./CloudEnvironmentConnectList";
 import { Button } from "../ui/button";
-import { Checkbox } from "../ui/checkbox";
 import { Dialog } from "../ui/dialog";
 import { Switch } from "../ui/switch";
 import { toastManager } from "../ui/toast";
@@ -46,7 +44,7 @@ export function ConnectOnboardingDialog() {
   return <ConfiguredConnectOnboardingDialog />;
 }
 
-type OnboardingStep = "publish" | "devices";
+type OnboardingStep = "devices";
 
 const EMPTY_SESSION_STATE_ATOM = Atom.make(AsyncResult.initial<AuthSessionState>());
 
@@ -70,34 +68,20 @@ function ConfiguredConnectOnboardingDialog() {
   const canReadRelay = useEnvironmentScope(primaryEnvironmentId, AuthRelayReadScope);
   const canWriteRelay = useEnvironmentScope(primaryEnvironmentId, AuthRelayWriteScope);
   const canManageRelay = canReadRelay && canWriteRelay;
-  // The publish step is only offered when we know the answer; opening the
-  // wizard before the session state resolves would let the step set change
-  // mid-flight. A failed session read still opens the wizard — it just means
-  // no publish step.
+  // The wizard is only offered when we know the answer; opening the wizard
+  // before the session state resolves would let the step set change mid-flight.
   const sessionScopesKnown =
     primaryEnvironmentId === null ? environmentsReady : primarySessionState._tag !== "Initial";
 
   const controller = useCloudLinkController();
-  const showPublishStep = canManageRelay && controller.linkState.target !== null;
-  const steps: ReadonlyArray<OnboardingStep> = showPublishStep
-    ? ["publish", "devices"]
-    : ["devices"];
-
+  const { operationError, linkState } = controller;
   const [requestedAccount, setRequestedAccount] = useState<string | null>(null);
   const [openForAccount, setOpenForAccount] = useState<string | null>(null);
-  const [step, setStep] = useState<OnboardingStep>("devices");
   const [exposeEnvironment, setExposeEnvironment] = useState(true);
-  const [publishAgentActivity, setPublishAgentActivity] = useState(true);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const prefilledFromLinkStateRef = useRef(false);
   const observedAccountRef = useRef<string | null | undefined>(undefined);
-
-  useEffect(() => {
-    if (step === "publish" && sessionScopesKnown && !showPublishStep && !isApplying) {
-      setStep("devices");
-    }
-  }, [isApplying, sessionScopesKnown, showPublishStep, step]);
 
   const optOutAccounts = optOutState.optOutAccounts;
 
@@ -119,37 +103,21 @@ function ConfiguredConnectOnboardingDialog() {
     }
   }, [isLoaded, isSignedIn, userId]);
 
-  // A manageable session implies a primary environment, so when the scopes
-  // allow publishing, wait for the connection target too — otherwise the
-  // wizard could open on the devices step moments before the publish step
-  // becomes available and freeze there.
-  const publishStepDecided = !canManageRelay || controller.linkState.target !== null;
-
-  // Open once the session scopes resolve so the step set is stable. Accounts
-  // that chose "Don't show this again" are skipped.
+  // Open once the session scopes resolve. Accounts that chose "Don't show this
+  // again" are skipped.
   useEffect(() => {
     if (requestedAccount === null || openForAccount !== null) return;
     if (optOutAccounts.includes(requestedAccount)) {
       setRequestedAccount(null);
       return;
     }
-    if (!sessionScopesKnown || !publishStepDecided) return;
+    if (!sessionScopesKnown) return;
     setRequestedAccount(null);
     prefilledFromLinkStateRef.current = false;
     setExposeEnvironment(true);
-    setPublishAgentActivity(true);
     setDontShowAgain(false);
-    setStep(canManageRelay && controller.linkState.target !== null ? "publish" : "devices");
     setOpenForAccount(requestedAccount);
-  }, [
-    canManageRelay,
-    controller.linkState.target,
-    openForAccount,
-    optOutAccounts,
-    publishStepDecided,
-    requestedAccount,
-    sessionScopesKnown,
-  ]);
+  }, [canManageRelay, optOutAccounts, openForAccount, requestedAccount, sessionScopesKnown]);
 
   // Signing out (or switching accounts) mid-wizard invalidates everything the
   // wizard would do — close it and let the sign-in trigger re-evaluate.
@@ -167,7 +135,7 @@ function ConfiguredConnectOnboardingDialog() {
   // Only when the link belongs to the account being onboarded, though — after
   // an account switch the cached link state can still describe the previous
   // account's setup.
-  const linkStateData = controller.linkState.data;
+  const linkStateData = linkState.data;
   useEffect(() => {
     if (openForAccount === null || prefilledFromLinkStateRef.current || linkStateData === null) {
       return;
@@ -175,7 +143,6 @@ function ConfiguredConnectOnboardingDialog() {
     prefilledFromLinkStateRef.current = true;
     if (linkStateData.linked && linkStateData.cloudUserId === openForAccount) {
       setExposeEnvironment(linkStateData.managedTunnelActive ?? linkStateData.linked);
-      setPublishAgentActivity(linkStateData.publishAgentActivity);
     }
   }, [linkStateData, openForAccount]);
 
@@ -194,27 +161,20 @@ function ConfiguredConnectOnboardingDialog() {
     }
   };
 
-  const applyPublishSelection = async () => {
+  const applyExposeSelection = async () => {
     if (isApplying) return;
     if (
       primaryEnvironmentId === null ||
       !readEnvironmentScope(primaryEnvironmentId, AuthRelayReadScope) ||
       !readEnvironmentScope(primaryEnvironmentId, AuthRelayWriteScope)
     ) {
-      setStep("devices");
+      setOpenForAccount(null);
       return;
     }
     if (linkStateData === null || controller.linkState.error !== null) return;
-    // The wizard only ever enables — with both toggles off there is nothing to
-    // apply, and an existing link must not be torn down from onboarding.
-    if (!exposeEnvironment && !publishAgentActivity) {
-      setStep("devices");
-      return;
-    }
     setIsApplying(true);
     const ok = await controller.reconcileCloudState({
       managedTunnel: exposeEnvironment,
-      publish: publishAgentActivity,
     });
     setIsApplying(false);
     if (!ok) return;
@@ -223,9 +183,9 @@ function ConfiguredConnectOnboardingDialog() {
       title: "DAK Connect enabled",
       description: exposeEnvironment
         ? "This environment is available to your other devices through DAK Connect."
-        : "This environment publishes agent activity to your mobile clients.",
+        : "This environment is no longer available through DAK Connect.",
     });
-    setStep("devices");
+    setOpenForAccount(null);
   };
 
   return (
@@ -242,38 +202,24 @@ function ConfiguredConnectOnboardingDialog() {
           title="Set up DAK Connect"
           description={
             <>
-              Mesh your devices together. Publish this environment and connect the rest, all in one
-              place.
+              Mesh your devices together and connect the rest, all in one place.
             </>
           }
         >
-          {steps.length > 1 ? (
-            <WizardSteps
-              steps={steps.map((id) => STEP_LABELS[id])}
-              currentStep={steps.indexOf(step)}
-              isStepDisabled={() => isApplying}
-              onStepChange={(index) => {
-                const next = steps[index];
-                if (
-                  next === "publish" &&
-                  (primaryEnvironmentId === null ||
-                    !readEnvironmentScope(primaryEnvironmentId, AuthRelayReadScope) ||
-                    !readEnvironmentScope(primaryEnvironmentId, AuthRelayWriteScope))
-                )
-                  return;
-                if (next) setStep(next);
-              }}
-            />
-          ) : null}
+          <WizardSteps
+            steps={["devices"].map((id) => STEP_LABELS[id as OnboardingStep])}
+            currentStep={0}
+            isStepDisabled={() => isApplying}
+          />
         </WizardHeader>
         <WizardPanel>
-          {step === "publish" ? (
-            <PublishStep
-              exposeEnvironment={exposeEnvironment}
-              publishAgentActivity={publishAgentActivity}
+          <div className="rounded-lg border">
+            <OnboardingToggleRow
+              title="Publish this environment"
+              description="Make this environment available to your other devices through DAK Connect."
+              checked={exposeEnvironment}
               disabled={isApplying || !canManageRelay || linkStateData === null}
-              operationError={controller.operationError ?? controller.linkState.error}
-              onExposeEnvironmentChange={(enabled) => {
+              onCheckedChange={(enabled) => {
                 if (
                   primaryEnvironmentId !== null &&
                   readEnvironmentScope(primaryEnvironmentId, AuthRelayReadScope) &&
@@ -281,47 +227,23 @@ function ConfiguredConnectOnboardingDialog() {
                 )
                   setExposeEnvironment(enabled);
               }}
-              onPublishAgentActivityChange={(enabled) => {
-                if (
-                  primaryEnvironmentId !== null &&
-                  readEnvironmentScope(primaryEnvironmentId, AuthRelayReadScope) &&
-                  readEnvironmentScope(primaryEnvironmentId, AuthRelayWriteScope)
-                )
-                  setPublishAgentActivity(enabled);
-              }}
             />
-          ) : (
-            <DevicesStep />
-          )}
+          </div>
+          {operationError ? <p className="text-xs text-destructive">{operationError}</p> : null}
+          <DevicesStep />
         </WizardPanel>
-        <WizardFooter
-          leading={
-            <label className="flex cursor-pointer items-center gap-2 self-start text-xs text-muted-foreground sm:self-center">
-              <Checkbox
-                checked={dontShowAgain}
-                onCheckedChange={(checked) => setDontShowAgain(checked === true)}
-              />
-              Don&apos;t show this again
-            </label>
-          }
-        >
-          {step === "publish" ? (
-            <>
-              <Button variant="ghost" disabled={isApplying} onClick={() => setStep("devices")}>
-                Not now
-              </Button>
-              <Button
-                disabled={isApplying || !canManageRelay || linkStateData === null}
-                onClick={() => void applyPublishSelection()}
-              >
-                {isApplying ? "Enabling…" : "Continue"}
-              </Button>
-            </>
-          ) : (
-            <Button disabled={isApplying} onClick={complete}>
-              Done
+        <WizardFooter>
+          {linkStateData !== null && (
+            <Button
+              disabled={isApplying || !canManageRelay || linkStateData === null}
+              onClick={() => void applyExposeSelection()}
+            >
+              {isApplying ? "Applying…" : "Continue"}
             </Button>
           )}
+          <Button disabled={isApplying} onClick={complete}>
+            Done
+          </Button>
         </WizardFooter>
       </WizardPopup>
     </Dialog>
@@ -329,47 +251,8 @@ function ConfiguredConnectOnboardingDialog() {
 }
 
 const STEP_LABELS: Record<OnboardingStep, string> = {
-  publish: "Publish",
   devices: "Connect devices",
 };
-
-function PublishStep({
-  exposeEnvironment,
-  publishAgentActivity,
-  disabled,
-  operationError,
-  onExposeEnvironmentChange,
-  onPublishAgentActivityChange,
-}: {
-  readonly exposeEnvironment: boolean;
-  readonly publishAgentActivity: boolean;
-  readonly disabled: boolean;
-  readonly operationError: string | null;
-  readonly onExposeEnvironmentChange: (enabled: boolean) => void;
-  readonly onPublishAgentActivityChange: (enabled: boolean) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <div className="rounded-lg border">
-        <OnboardingToggleRow
-          title="Publish this environment"
-          description="Make this environment available to your other devices through DAK Connect."
-          checked={exposeEnvironment}
-          disabled={disabled}
-          onCheckedChange={onExposeEnvironmentChange}
-        />
-        <OnboardingToggleRow
-          title="Publish agent activity"
-          description="Send activity from this environment to your mobile clients for push notifications and Live Activities."
-          checked={publishAgentActivity}
-          disabled={disabled}
-          onCheckedChange={onPublishAgentActivityChange}
-        />
-      </div>
-      {operationError ? <p className="text-xs text-destructive">{operationError}</p> : null}
-    </div>
-  );
-}
 
 function OnboardingToggleRow({
   title,

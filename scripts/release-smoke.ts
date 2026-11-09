@@ -16,10 +16,6 @@ const workspaceFiles = [
   "apps/server/package.json",
   "apps/desktop/package.json",
   "apps/web/package.json",
-  "apps/mobile/package.json",
-  "apps/mobile/modules/dak-markdown-text/package.json",
-  "apps/mobile/modules/dak-review-diff/package.json",
-  "apps/mobile/modules/dak-terminal/package.json",
   "apps/marketing/package.json",
   "infra/relay/package.json",
   "oxlint-plugin-dak/package.json",
@@ -42,13 +38,6 @@ function copyWorkspaceManifestFixture(targetRoot: string): void {
     const destinationPath = NodePath.resolve(targetRoot, relativePath);
     NodeFS.mkdirSync(NodePath.dirname(destinationPath), { recursive: true });
     NodeFS.cpSync(sourcePath, destinationPath);
-  }
-
-  const mobileDependencies = NodePath.resolve(repoRoot, "apps/mobile/deps");
-  if (NodeFS.existsSync(mobileDependencies)) {
-    NodeFS.cpSync(mobileDependencies, NodePath.resolve(targetRoot, "apps/mobile/deps"), {
-      recursive: true,
-    });
   }
 
   const patchesDirectory = NodePath.resolve(repoRoot, "patches");

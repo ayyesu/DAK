@@ -92,7 +92,6 @@ import {
   encodeConfirmedOriginJson,
   encodeEndpointRuntimeConfigJson,
   HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET,
-  PUBLISH_AGENT_ACTIVITY_SECRET,
   readRelayConnection,
   RELAY_ENVIRONMENT_CREDENTIAL_SECRET,
   RELAY_ISSUER_SECRET,
@@ -1306,7 +1305,6 @@ const make = Effect.gen(function* () {
       relayUrl,
       relayIssuer,
       endpointRuntimeConfig,
-      publishAgentActivity,
       holdWebhooks,
     ] = yield* Effect.all(
       [
@@ -1314,22 +1312,16 @@ const make = Effect.gen(function* () {
         secrets.get(RELAY_URL_SECRET),
         secrets.get(RELAY_ISSUER_SECRET),
         secrets.get(CLOUD_ENDPOINT_RUNTIME_CONFIG),
-        secrets.get(PUBLISH_AGENT_ACTIVITY_SECRET),
         secrets.get(HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET),
       ],
-      { concurrency: 6 },
+      { concurrency: 5 },
     );
     return {
       linked: Option.isSome(cloudUserId),
       cloudUserId: Option.isSome(cloudUserId) ? bytesToString(cloudUserId.value) : null,
       relayUrl: Option.isSome(relayUrl) ? bytesToString(relayUrl.value) : null,
       relayIssuer: Option.isSome(relayIssuer) ? bytesToString(relayIssuer.value) : null,
-      // The managed tunnel runtime config is only stored for managed links; a
-      // publish-only link leaves it absent.
       managedTunnelActive: Option.isSome(endpointRuntimeConfig),
-      publishAgentActivity: Option.isSome(publishAgentActivity)
-        ? bytesToString(publishAgentActivity.value) === "true"
-        : false,
       holdWebhooksWhileOffline:
         Option.isSome(holdWebhooks) && bytesToString(holdWebhooks.value) === "true",
     } satisfies EnvironmentCloudLinkStateResult;
@@ -1356,7 +1348,6 @@ const make = Effect.gen(function* () {
               secrets.remove(CLOUD_MINT_PUBLIC_KEY),
               secrets.remove(CLOUD_ENDPOINT_RUNTIME_CONFIG),
               secrets.remove(CLOUD_ENDPOINT_CONFIRMED_ORIGIN),
-              secrets.remove(PUBLISH_AGENT_ACTIVITY_SECRET),
               secrets.remove(HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET),
             ],
             { concurrency: 9 },
@@ -1402,9 +1393,7 @@ const make = Effect.gen(function* () {
       // anything changes, because a guessed value would be the rollback target.
       const readCurrent = (name: string) =>
         secrets.get(name).pipe(Effect.catch(internalError("read-preferences")));
-      const previousActivity = yield* readCurrent(PUBLISH_AGENT_ACTIVITY_SECRET);
       const previousHold = yield* readCurrent(HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET);
-      yield* savePreference(PUBLISH_AGENT_ACTIVITY_SECRET, input.publishAgentActivity);
       if (input.holdWebhooksWhileOffline !== undefined) {
         const next = input.holdWebhooksWhileOffline;
         const previous = Option.match(previousHold, {
@@ -1422,17 +1411,15 @@ const make = Effect.gen(function* () {
             ),
           ),
           Effect.tapError(() =>
-            Option.match(previousActivity, {
-              onNone: () => secrets.remove(PUBLISH_AGENT_ACTIVITY_SECRET),
-              onSome: (bytes) => secrets.set(PUBLISH_AGENT_ACTIVITY_SECRET, bytes),
+            Option.match(previousHold, {
+              onNone: () => Effect.void,
+              onSome: () => Effect.void,
             }).pipe(Effect.catch(rollbackFailed)),
           ),
         );
       }
       yield* awarenessRelay.requestCatchUp();
     },
-    // A client that disconnects mid-update must not stop it between a save and
-    // its rollback, so an update always finishes or undoes itself.
     Effect.uninterruptible,
     preferencesLock.withPermits(1),
   );

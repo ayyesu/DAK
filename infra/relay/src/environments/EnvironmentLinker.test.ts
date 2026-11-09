@@ -94,7 +94,7 @@ const makeRequest = Effect.gen(function* () {
       providerKind: "manual",
     },
     origin: { localHttpHost: "127.0.0.1", localHttpPort: 3773 },
-    scopes: ["agent_activity_notifications", "managed_tunnels"],
+    scopes: ["managed_tunnels"],
   } satisfies RelayEnvironmentLinkProofPayload;
   return {
     request: {
@@ -219,7 +219,7 @@ describe("EnvironmentLinker", () => {
           providerKind: "manual",
         },
         origin: { localHttpHost: "127.0.0.1", localHttpPort: 3773 },
-        scopes: ["agent_activity_notifications"],
+        scopes: ["managed_tunnels"],
       } satisfies RelayEnvironmentLinkProofPayload;
       const request = {
         proof: signTestJwt(payload, RELAY_LINK_PROOF_TYP, environmentKeyPair.privateKey),

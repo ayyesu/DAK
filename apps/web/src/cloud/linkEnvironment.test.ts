@@ -163,7 +163,6 @@ describe("web cloud link environment client", () => {
           relayUrl: "https://relay.example.test",
           relayIssuer: "https://relay.example.test",
           managedTunnelActive: true,
-          publishAgentActivity: false,
         }),
       );
       vi.stubGlobal("fetch", fetchMock);
@@ -177,7 +176,6 @@ describe("web cloud link environment client", () => {
           relayUrl: "https://relay.example.test",
           relayIssuer: "https://relay.example.test",
           managedTunnelActive: true,
-          publishAgentActivity: false,
         }),
       );
       expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
@@ -195,7 +193,6 @@ describe("web cloud link environment client", () => {
           relayUrl: "https://relay.example.test",
           relayIssuer: "https://relay.example.test",
           managedTunnelActive: true,
-          publishAgentActivity: false,
         }),
       );
       vi.stubGlobal("fetch", fetchMock);
@@ -223,7 +220,6 @@ describe("web cloud link environment client", () => {
           relayUrl: "https://relay.example.test",
           relayIssuer: "https://relay.example.test",
           managedTunnelActive: true,
-          publishAgentActivity: true,
         }),
       );
       vi.stubGlobal("fetch", fetchMock);
@@ -231,18 +227,14 @@ describe("web cloud link environment client", () => {
       const state = yield* withServices(
         updatePrimaryCloudPreferences({
           target: TARGET,
-          publishAgentActivity: true,
         }),
       );
 
-      expect(state.publishAgentActivity).toBe(true);
       expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
         "http://127.0.0.1:3000/api/connect/preferences",
       );
       expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("POST");
-      expect(JSON.parse(bodyText(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
-        publishAgentActivity: true,
-      });
+      expect(JSON.parse(bodyText(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({});
     }),
   );
 

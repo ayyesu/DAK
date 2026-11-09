@@ -22,7 +22,6 @@ import { resolveRelayClerkTokenOptions } from "./publicConfig";
 
 export interface CloudLinkDesiredState {
   readonly managedTunnel: boolean;
-  readonly publish: boolean;
   /** Omit to leave the webhook-hold setting as it is. */
   readonly holdWebhooksWhileOffline?: boolean;
 }
@@ -78,7 +77,6 @@ export function useCloudLinkController() {
   // link always implies a managed tunnel, so fall back to `linked`.
   const managedTunnelActive =
     primaryCloudLinkState.data?.managedTunnelActive ?? primaryCloudLinkState.data?.linked ?? false;
-  const publishAgentActivity = primaryCloudLinkState.data?.publishAgentActivity ?? false;
   const holdWebhooksWhileOffline = primaryCloudLinkState.data?.holdWebhooksWhileOffline ?? false;
   const linked = primaryCloudLinkState.data?.linked ?? false;
 
@@ -110,7 +108,7 @@ export function useCloudLinkController() {
       return state;
     };
     if (!canManageLink()) return false;
-    const wantsLink = desired.managedTunnel || desired.publish;
+    const wantsLink = desired.managedTunnel;
     if (wantsLink && readLinkState() === null) return false;
     const tokenResult = await settlePromise(() => getToken(resolveRelayClerkTokenOptions()));
     if (!canManageLink()) return false;
@@ -166,7 +164,6 @@ export function useCloudLinkController() {
       }
       const prefResult = await updatePrimaryEnvironmentPreferences({
         target,
-        publishAgentActivity: desired.publish,
         ...(desired.holdWebhooksWhileOffline === undefined
           ? {}
           : { holdWebhooksWhileOffline: desired.holdWebhooksWhileOffline }),
@@ -194,7 +191,6 @@ export function useCloudLinkController() {
     linkState: primaryCloudLinkState,
     linked,
     managedTunnelActive,
-    publishAgentActivity,
     holdWebhooksWhileOffline,
     operationError,
     reconcileCloudState,

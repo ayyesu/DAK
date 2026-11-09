@@ -271,18 +271,7 @@ export type RelayAgentActivityPublishProofPayload =
   typeof RelayAgentActivityPublishProofPayload.Type;
 export type RelayAgentActivityPublishProof = string;
 
-export const RelayAgentActivityPublishRequest = Schema.Struct({
-  state: Schema.NullOr(RelayAgentActivityState).annotate({
-    description: "Current agent-awareness state, or null to remove the published state.",
-  }),
-  proof: TrimmedNonEmptyString.annotate({
-    description: "Environment-signed JWT covering this published activity state.",
-  }),
-}).annotate({ description: "Publishes a signed agent-awareness update from an environment." });
-export type RelayAgentActivityPublishRequest = typeof RelayAgentActivityPublishRequest.Type;
-
 export const RelayEnvironmentLinkScope = Schema.Literals([
-  "agent_activity_notifications",
   "managed_tunnels",
 ]);
 export type RelayEnvironmentLinkScope = typeof RelayEnvironmentLinkScope.Type;
@@ -628,13 +617,6 @@ const RelayEnvironmentConnectErrors = [
   RelayInternalError,
 ] as const;
 
-const RelayAgentActivityPublishErrors = [
-  RelayAuthInvalidError,
-  RelayAgentActivityPublishProofExpiredError,
-  RelayAgentActivityPublishProofInvalidError,
-  RelayInternalError,
-] as const;
-
 export class RelayClientPrincipal extends Context.Service<
   RelayClientPrincipal,
   {
@@ -933,35 +915,10 @@ export const RelayEnvironmentMintResponse = Schema.Struct({
 });
 export type RelayEnvironmentMintResponse = typeof RelayEnvironmentMintResponse.Type;
 
-export const RelayDeliveryKind = Schema.Literals([
-  "live_activity_start",
-  "live_activity_update",
-  "live_activity_end",
-  "push_notification",
-]);
-export type RelayDeliveryKind = typeof RelayDeliveryKind.Type;
-
-export const RelayDeliveryResult = Schema.Struct({
-  deviceId: TrimmedNonEmptyString,
-  kind: RelayDeliveryKind,
-  ok: Schema.Boolean,
-  queued: Schema.optional(Schema.Boolean),
-  apnsStatus: Schema.NullOr(Schema.Number),
-  apnsReason: Schema.NullOr(Schema.String),
-  apnsId: Schema.NullOr(Schema.String),
-});
-export type RelayDeliveryResult = typeof RelayDeliveryResult.Type;
-
 export const RelayOkResponse = Schema.Struct({
   ok: Schema.Boolean,
 });
 export type RelayOkResponse = typeof RelayOkResponse.Type;
-
-export const RelayPublishResponse = Schema.Struct({
-  ok: Schema.Boolean,
-  deliveries: Schema.Array(RelayDeliveryResult),
-});
-export type RelayPublishResponse = typeof RelayPublishResponse.Type;
 
 export const RelayHealthResponse = Schema.Struct({
   ok: Schema.Boolean,
@@ -1194,19 +1151,6 @@ const RelayServerGroup = HttpApiGroup.make("server")
       success: RelayManagedEndpointRecoveryResponse,
       error: RelayAuthAndInternalErrors,
     }).annotate(OpenApi.Summary, "Recover an environment's managed tunnel"),
-    HttpApiEndpoint.post(
-      "publishAgentActivity",
-      "/v1/environments/:environmentId/threads/:threadId/agent-activity",
-      {
-        params: Schema.Struct({
-          environmentId: EnvironmentId,
-          threadId: ThreadId,
-        }),
-        payload: RelayAgentActivityPublishRequest,
-        success: RelayPublishResponse,
-        error: RelayAgentActivityPublishErrors,
-      },
-    ).annotate(OpenApi.Summary, "Publish agent activity"),
     HttpApiEndpoint.post(
       "updateLinkPreferences",
       "/v1/environments/:environmentId/link-preferences",

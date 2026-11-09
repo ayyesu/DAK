@@ -3,7 +3,6 @@
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
-import * as NodeURL from "node:url";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
@@ -14,10 +13,6 @@ import {
 } from "./third-party-licenses.js";
 
 const tempDirectories: string[] = [];
-const REPOSITORY_ROOT = NodePath.resolve(
-  NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)),
-  "../..",
-);
 
 async function writeJson(path: string, value: unknown): Promise<void> {
   await NodeFSP.mkdir(NodePath.dirname(path), { recursive: true });
@@ -77,24 +72,6 @@ afterEach(async () => {
 });
 
 describe("third-party license generation", () => {
-  it("keeps the GhosttyKit notice pinned to the vendored framework revision", async () => {
-    const [config, revision] = await Promise.all([
-      NodeFSP.readFile(NodePath.join(REPOSITORY_ROOT, "third-party-licenses.config.json"), "utf8"),
-      NodeFSP.readFile(
-        NodePath.join(
-          REPOSITORY_ROOT,
-          "apps/mobile/modules/dak-terminal/Vendor/libghostty/VERSION",
-        ),
-        "utf8",
-      ),
-    ]);
-
-    expect(config).toContain(revision.trim());
-    expect(config).toContain(
-      "https://github.com/Yash-Singh1/ghostty/tree/dak/custom-io-ordered-feed",
-    );
-  });
-
   it("collects production packages and custom asset notices", async () => {
     const fixture = await createFixture();
     const manifest = await generateThirdPartyLicenseManifest({
@@ -476,7 +453,7 @@ describe("third-party license generation", () => {
 
     const manifest = await generateThirdPartyLicenseManifest({
       configFile: fixture.configFile,
-      packageManifests: [{ bundle: "mobile", path: fixture.appManifest }],
+      packageManifests: [{ bundle: "web", path: fixture.appManifest }],
     });
 
     expect(manifest.entries.some((entry) => entry.name === "web-only-asset")).toBe(false);
@@ -501,7 +478,7 @@ describe("third-party license generation", () => {
           license: "MIT AND Apache-2.0",
           noticeFiles: ["tool-license.txt", "vendor-notice.txt"],
           bundles: ["device-tools"],
-          includeInBundles: ["mobile", "web"],
+          includeInBundles: ["web"],
         },
       ],
       packageOverrides: [],
@@ -509,7 +486,7 @@ describe("third-party license generation", () => {
 
     const manifest = await generateThirdPartyLicenseManifest({
       configFile: fixture.configFile,
-      packageManifests: [{ bundle: "mobile", path: fixture.appManifest }],
+      packageManifests: [{ bundle: "web", path: fixture.appManifest }],
     });
 
     expect(manifest.entries.find((entry) => entry.name === "optional-tool")).toMatchObject({

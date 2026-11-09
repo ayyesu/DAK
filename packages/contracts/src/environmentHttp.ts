@@ -417,7 +417,6 @@ export const EnvironmentCloudLinkStateResult = Schema.Struct({
   // clients can present the two capabilities as independent settings.
   // Optional so newer clients tolerate older environment servers.
   managedTunnelActive: Schema.optional(Schema.Boolean),
-  publishAgentActivity: Schema.Boolean,
   // Opt-in: DAK Connect holds webhook requests while this environment is
   // offline. Optional so newer clients tolerate older environment servers.
   holdWebhooksWhileOffline: Schema.optional(Schema.Boolean),
@@ -425,7 +424,6 @@ export const EnvironmentCloudLinkStateResult = Schema.Struct({
 export type EnvironmentCloudLinkStateResult = typeof EnvironmentCloudLinkStateResult.Type;
 
 export const EnvironmentCloudPreferencesRequest = Schema.Struct({
-  publishAgentActivity: Schema.Boolean,
   // Omit to leave the current value unchanged.
   holdWebhooksWhileOffline: Schema.optional(Schema.Boolean),
 });

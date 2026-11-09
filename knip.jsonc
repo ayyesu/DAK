@@ -19,7 +19,7 @@
     "scripts": {
       // Knip loads its preprocessor through a CLI option; native verification and
       // worktree setup (from dak.json) run directly.
-      "entry": ["knip-schemas.ts", "mobile-native-client.ts", "setup-worktree.ts"],
+      "entry": ["knip-schemas.ts", "setup-worktree.ts"],
     },
     "apps/server": {
       // Vite+ pack entries and the launcher used by installed background services.
@@ -68,27 +68,6 @@
       // named subcomponents even before they have callers; the file audit still
       // reports an entire component module when nothing imports it.
       "ignoreIssues": { "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"] },
-    },
-    "apps/mobile": {
-      // Expo loads plugins and the fingerprint config by string; Metro embeds the browser entry in the native WebView.
-      "entry": [
-        "index.ts!",
-        "fingerprint.config.js",
-        "plugins/*.cjs",
-        "scripts/generate-device-stream.mts",
-        "src/features/devices/device-stream.browser.ts!",
-        "src/features/browser/preview-stream.browser.ts!",
-      ],
-      // Fonts are configured as asset paths; Expo autolinks the native packages.
-      "ignoreDependencies": [
-        "@expo-google-fonts/dm-sans",
-        "@dak/mobile-review-diff-native",
-        "@dak/mobile-terminal-native",
-      ],
-    },
-    "apps/mobile/modules/dak-markdown-text": {
-      // React Native codegen discovers component specifications by filename.
-      "entry": ["src/*NativeComponent.ts!"],
     },
     "infra/relay": {
       "entry": ["alchemy.run.ts!", "src/persistence/schema.ts!"],

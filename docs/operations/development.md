@@ -106,7 +106,7 @@ vp lint <files>
 vp run --filter <package> typecheck
 ```
 
-Use `vp run lint:mobile` for native mobile changes. CI owns the full suite; see
+CI owns the full suite; see
 [ci.yml](../../.github/workflows/ci.yml) for its current jobs.
 The [manual Windows lane](../../.github/workflows/windows-tests.yml) is available for focused
 Windows investigation while that suite is not a required gate.

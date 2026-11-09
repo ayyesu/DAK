@@ -101,8 +101,8 @@ function proofAuthorizesRequestedCapabilities(
     return false;
   }
   return !(
-    (request.notificationsEnabled || request.liveActivitiesEnabled) &&
-    !scopes.has("agent_activity_notifications")
+    request.notificationsEnabled &&
+    !scopes.has("managed_tunnels")
   );
 }
 

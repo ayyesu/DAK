@@ -29,15 +29,11 @@ import * as RelayHttpApi from "./http/Api.ts";
 import { ManagedEndpointZone, RelayApiZone, RelayDeploymentConfig } from "./zone.ts";
 import { RelayObservability } from "./observability.ts";
 import * as Observability from "./observability.ts";
-import * as DeliveryAttempts from "./agentActivity/DeliveryAttempts.ts";
-import * as AgentActivityRows from "./agentActivity/AgentActivityRows.ts";
-import * as Devices from "./agentActivity/Devices.ts";
 import * as DpopProofs from "./auth/DpopProofs.ts";
 import * as RelayTokens from "./auth/RelayTokens.ts";
 import * as EnvironmentCredentials from "./environments/EnvironmentCredentials.ts";
 import * as EnvironmentLinks from "./environments/EnvironmentLinks.ts";
 import * as ManagedEndpointAllocations from "./environments/ManagedEndpointAllocations.ts";
-import * as LiveActivities from "./agentActivity/LiveActivities.ts";
 import * as RelayDb from "./db.ts";
 import {
   RelayApnsDeliveryDeadLetterQueue,
@@ -46,24 +42,13 @@ import {
   RelayFcmDeliveryDeadLetterQueue,
 } from "./queues.ts";
 import * as WebCrypto from "./WebCrypto.ts";
-import * as FcmAssertionSigner from "./agentActivity/FcmAssertionSigner.ts";
-import * as FcmClient from "./agentActivity/FcmClient.ts";
-import * as FcmDeliveryQueueSender from "./agentActivity/FcmDeliveryQueueSender.ts";
-import * as FcmDeliveries from "./agentActivity/FcmDeliveries.ts";
-import * as FcmDeliveryQueueConsumer from "./agentActivity/FcmDeliveryQueueConsumer.ts";
 import * as RelayConfiguration from "./Config.ts";
-import * as AgentActivityPublisher from "./agentActivity/AgentActivityPublisher.ts";
-import * as ApnsClient from "./agentActivity/ApnsClient.ts";
-import * as ApnsProviderTokens from "./agentActivity/ApnsProviderTokens.ts";
-import * as ApnsDeliveryQueue from "./agentActivity/ApnsDeliveryQueue.ts";
-import * as ApnsDeliveries from "./agentActivity/ApnsDeliveries.ts";
 import * as EnvironmentConnector from "./environments/EnvironmentConnector.ts";
 import * as EnvironmentLinker from "./environments/EnvironmentLinker.ts";
 import * as EnvironmentPublishSignatures from "./environments/EnvironmentPublishSignatures.ts";
 import * as ManagedEndpointProvider from "./environments/ManagedEndpointProvider.ts";
 import * as ManagedEndpointReaper from "./environments/ManagedEndpointReaper.ts";
 import * as ManagedTunnelLimits from "./environments/ManagedTunnelLimits.ts";
-import * as MobileRegistrations from "./agentActivity/MobileRegistrations.ts";
 import * as HookForwarder from "./hooks/HookForwarder.ts";
 import * as HeldHooks from "./hooks/HeldHooks.ts";
 import * as HookInbox from "./hooks/HookInbox.ts";
@@ -95,7 +80,6 @@ const layerHttpPlatformNotSupported = Layer.succeed(HttpPlatform.HttpPlatform, {
 const layerRelayApi = Layer.mergeAll(
   RelayHttpApi.layerHealthApi,
   RelayHttpApi.layerMetadataApi,
-  RelayHttpApi.layerMobileApi,
   RelayHttpApi.layerClientApi,
   RelayHttpApi.layerTokenApi,
   RelayHttpApi.layerDpopClientApi,
@@ -253,8 +237,6 @@ export const layer = Api.make(
     });
 
     const layerRuntime = Layer.empty.pipe(
-      Layer.provideMerge(MobileRegistrations.layer),
-      Layer.provideMerge(AgentActivityPublisher.layer),
       Layer.provideMerge(EnvironmentConnector.layer),
       Layer.provideMerge(EnvironmentLinker.layer),
       Layer.provideMerge(
@@ -272,32 +254,13 @@ export const layer = Api.make(
         ),
       ),
       Layer.provideMerge(DpopProofs.layer),
-      Layer.provideMerge(ApnsDeliveries.layer),
       Layer.provideMerge(
-        FcmDeliveries.layer.pipe(
-          Layer.provide(
-            Layer.succeed(FcmDeliveryQueueSender.FcmDeliveryQueueSender, {
-              send: (body) =>
-                fcmDeliveryQueueSender
-                  .send(body)
-                  .pipe(Effect.provideService(Alchemy.RuntimeContext, alchemyRuntimeContext)),
-            }),
-          ),
-          Layer.provideMerge(
-            FcmClient.layer.pipe(
-              Layer.provide(FcmAssertionSigner.layer),
-              Layer.provide(
-                Layer.succeed(WebCrypto.WebCrypto, { subtle: globalThis.crypto.subtle }),
-              ),
-            ),
-          ),
+        Layer.mergeAll(
+          EnvironmentLinks.layer,
+          ManagedEndpointAllocations.layer,
+          ManagedTunnelLimits.layer,
         ),
       ),
-      Layer.provideMerge(ApnsClient.layer.pipe(Layer.provideMerge(ApnsProviderTokens.layer))),
-      Layer.provideMerge(
-        ApnsDeliveryQueue.layerCloudflareQueues(apnsDeliveryQueueSender, alchemyRuntimeContext),
-      ),
-      Layer.provideMerge(Layer.mergeAll(AgentActivityRows.layer, Devices.layer, layerHookInbox)),
       Layer.provideMerge(EnvironmentCredentials.layer),
       Layer.provideMerge(
         Layer.mergeAll(
@@ -306,8 +269,6 @@ export const layer = Api.make(
           ManagedTunnelLimits.layer,
         ),
       ),
-      Layer.provideMerge(LiveActivities.layer),
-      Layer.provideMerge(DeliveryAttempts.layer),
       Layer.provideMerge(RelayTokens.layer),
       Layer.provideMerge(
         RelayDb.RelayTransactions.layer.pipe(
@@ -353,60 +314,11 @@ export const layer = Api.make(
       Layer.provide(layerRuntime),
     );
 
-    yield* Cloudflare.Queues.consumeQueueMessages<unknown>(
-      apnsDeliveryQueue,
-      {
-        batchSize: 10,
-        maxRetries: 5,
-        maxWaitTime: "5 seconds",
-        retryDelay: "30 seconds",
-        deadLetterQueue: apnsDeliveryDeadLetterQueue.queueName as unknown as string,
-      },
-      (stream) =>
-        stream.pipe(
-          Stream.withSpan("relay.apn_delivery_queue.process_batch"),
-          Stream.runForEach((message) =>
-            ApnsDeliveries.ApnsDeliveries.pipe(
-              Effect.flatMap((deliveries) => deliveries.processSignedJob(message.body)),
-              Effect.withSpan("relay.apn_delivery_queue.process_message"),
-            ),
-          ),
-          Effect.provide(layerRuntime),
-        ),
-    );
-
-    yield* Cloudflare.Queues.consumeQueueMessages<unknown>(
-      fcmDeliveryQueue,
-      {
-        batchSize: 10,
-        maxRetries: 5,
-        maxWaitTime: "1 second",
-        retryDelay: "30 seconds",
-        deadLetterQueue: fcmDeliveryDeadLetterQueue.queueName as unknown as string,
-      },
-      (stream) =>
-        stream.pipe(
-          Stream.withSpan("relay.fcm_delivery_queue.process_batch"),
-          Stream.runForEach(FcmDeliveryQueueConsumer.processMessage),
-          Effect.provide(layerRuntime),
-        ),
-    );
-
     yield* Cloudflare.Workers.cron("*/5 * * * *", () =>
       Effect.all(
         [
           DpopProofs.DpopProofReplay.pipe(
             Effect.flatMap((dpopProofs) => dpopProofs.pruneExpired),
-            // Keep completed thread rows long enough to show their final state.
-            Effect.andThen(
-              Effect.all([AgentActivityRows.AgentActivityRows, DateTime.now]).pipe(
-                Effect.flatMap(([activityRows, now]) =>
-                  activityRows.pruneTerminal({
-                    updatedBefore: DateTime.formatIso(DateTime.subtract(now, { minutes: 30 })),
-                  }),
-                ),
-              ),
-            ),
             Effect.catchCause((cause) =>
               Cause.hasInterrupts(cause)
                 ? Effect.interrupt

@@ -21,18 +21,10 @@ describe("loadRepoEnv", () => {
     expect(env.DAK_CLERK_PUBLISHABLE_KEY).toBeUndefined();
     expect(env.DAK_CLERK_CLI_OAUTH_CLIENT_ID).toBeUndefined();
     expect(env.VITE_CLERK_PUBLISHABLE_KEY).toBeUndefined();
-    expect(env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY).toBeUndefined();
     expect(env.DAK_CLERK_JWT_TEMPLATE).toBeUndefined();
     expect(env.VITE_CLERK_JWT_TEMPLATE).toBeUndefined();
-    expect(env.EXPO_PUBLIC_CLERK_JWT_TEMPLATE).toBeUndefined();
     expect(env.DAK_RELAY_URL).toBeUndefined();
     expect(env.VITE_DAK_RELAY_URL).toBeUndefined();
-    expect(env.DAK_MOBILE_OTLP_TRACES_URL).toBeUndefined();
-    expect(env.DAK_MOBILE_OTLP_TRACES_DATASET).toBeUndefined();
-    expect(env.DAK_MOBILE_OTLP_TRACES_TOKEN).toBeUndefined();
-    expect(env.EXPO_PUBLIC_OTLP_TRACES_URL).toBeUndefined();
-    expect(env.EXPO_PUBLIC_OTLP_TRACES_DATASET).toBeUndefined();
-    expect(env.EXPO_PUBLIC_OTLP_TRACES_TOKEN).toBeUndefined();
     expect(env.DAK_RELAY_CLIENT_OTLP_TRACES_URL).toBeUndefined();
     expect(env.DAK_RELAY_CLIENT_OTLP_TRACES_DATASET).toBeUndefined();
     expect(env.DAK_RELAY_CLIENT_OTLP_TRACES_TOKEN).toBeUndefined();
@@ -67,10 +59,8 @@ describe("loadRepoEnv", () => {
       DAK_CLERK_PUBLISHABLE_KEY: "pk_ci",
       DAK_CLERK_CLI_OAUTH_CLIENT_ID: "oauth_ci",
       VITE_CLERK_PUBLISHABLE_KEY: "pk_ci",
-      EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_ci",
       DAK_CLERK_JWT_TEMPLATE: "template_ci",
       VITE_CLERK_JWT_TEMPLATE: "template_ci",
-      EXPO_PUBLIC_CLERK_JWT_TEMPLATE: "template_ci",
       DAK_RELAY_URL: "https://ci.example.test",
       VITE_DAK_RELAY_URL: "https://ci.example.test",
     });
@@ -83,18 +73,12 @@ describe("loadRepoEnv", () => {
         VITE_CLERK_JWT_TEMPLATE: "template_legacy",
         DAK_CLERK_CLI_OAUTH_CLIENT_ID: "oauth_canonical",
         VITE_DAK_RELAY_URL: "https://legacy.example.test",
-        EXPO_PUBLIC_OTLP_TRACES_URL: "https://api.axiom.co/v1/traces",
-        EXPO_PUBLIC_OTLP_TRACES_DATASET: "mobile-traces",
-        EXPO_PUBLIC_OTLP_TRACES_TOKEN: "mobile-token",
       }),
     ).toEqual({
       clerkPublishableKey: "pk_legacy",
       clerkJwtTemplate: "template_legacy",
       clerkCliOAuthClientId: "oauth_canonical",
       relayUrl: "https://legacy.example.test",
-      mobileOtlpTracesUrl: "https://api.axiom.co/v1/traces",
-      mobileOtlpTracesDataset: "mobile-traces",
-      mobileOtlpTracesToken: "mobile-token",
       relayClientOtlpTracesUrl: undefined,
       relayClientOtlpTracesDataset: undefined,
       relayClientOtlpTracesToken: undefined,
@@ -118,29 +102,6 @@ describe("loadRepoEnv", () => {
       VITE_RELAY_OTLP_TRACES_URL: "https://api.axiom.co/v1/traces",
       VITE_RELAY_OTLP_TRACES_DATASET: "relay-client-traces",
       VITE_RELAY_OTLP_TRACES_TOKEN: "relay-client-token",
-    });
-  });
-
-  it("projects canonical mobile tracing values to Expo public aliases", () => {
-    expect(
-      loadRepoEnv({
-        baseEnv: {
-          DAK_RELAY_URL: "https://relay.example.test",
-          DAK_MOBILE_OTLP_TRACES_URL: "https://api.axiom.co/v1/traces",
-          DAK_MOBILE_OTLP_TRACES_DATASET: "mobile-traces",
-          DAK_MOBILE_OTLP_TRACES_TOKEN: "mobile-token",
-        },
-        repoRoot: makeTemporaryDirectory(),
-      }),
-    ).toEqual({
-      DAK_RELAY_URL: "https://relay.example.test",
-      VITE_DAK_RELAY_URL: "https://relay.example.test",
-      DAK_MOBILE_OTLP_TRACES_URL: "https://api.axiom.co/v1/traces",
-      DAK_MOBILE_OTLP_TRACES_DATASET: "mobile-traces",
-      DAK_MOBILE_OTLP_TRACES_TOKEN: "mobile-token",
-      EXPO_PUBLIC_OTLP_TRACES_URL: "https://api.axiom.co/v1/traces",
-      EXPO_PUBLIC_OTLP_TRACES_DATASET: "mobile-traces",
-      EXPO_PUBLIC_OTLP_TRACES_TOKEN: "mobile-token",
     });
   });
 });

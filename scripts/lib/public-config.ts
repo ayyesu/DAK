@@ -9,9 +9,6 @@ export interface DAKPublicConfig {
   readonly clerkJwtTemplate: string | undefined;
   readonly clerkCliOAuthClientId: string | undefined;
   readonly relayUrl: string | undefined;
-  readonly mobileOtlpTracesUrl: string | undefined;
-  readonly mobileOtlpTracesDataset: string | undefined;
-  readonly mobileOtlpTracesToken: string | undefined;
   readonly relayClientOtlpTracesUrl: string | undefined;
   readonly relayClientOtlpTracesDataset: string | undefined;
   readonly relayClientOtlpTracesToken: string | undefined;
@@ -42,14 +39,12 @@ export function loadRepoEnv({
       ? {
           DAK_CLERK_PUBLISHABLE_KEY: config.clerkPublishableKey,
           VITE_CLERK_PUBLISHABLE_KEY: config.clerkPublishableKey,
-          EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: config.clerkPublishableKey,
         }
       : {}),
     ...(config.clerkJwtTemplate
       ? {
           DAK_CLERK_JWT_TEMPLATE: config.clerkJwtTemplate,
           VITE_CLERK_JWT_TEMPLATE: config.clerkJwtTemplate,
-          EXPO_PUBLIC_CLERK_JWT_TEMPLATE: config.clerkJwtTemplate,
         }
       : {}),
     ...(config.clerkCliOAuthClientId
@@ -62,24 +57,6 @@ export function loadRepoEnv({
       ? {
           DAK_RELAY_URL: config.relayUrl,
           VITE_DAK_RELAY_URL: config.relayUrl,
-        }
-      : {}),
-    ...(config.mobileOtlpTracesUrl
-      ? {
-          DAK_MOBILE_OTLP_TRACES_URL: config.mobileOtlpTracesUrl,
-          EXPO_PUBLIC_OTLP_TRACES_URL: config.mobileOtlpTracesUrl,
-        }
-      : {}),
-    ...(config.mobileOtlpTracesDataset
-      ? {
-          DAK_MOBILE_OTLP_TRACES_DATASET: config.mobileOtlpTracesDataset,
-          EXPO_PUBLIC_OTLP_TRACES_DATASET: config.mobileOtlpTracesDataset,
-        }
-      : {}),
-    ...(config.mobileOtlpTracesToken
-      ? {
-          DAK_MOBILE_OTLP_TRACES_TOKEN: config.mobileOtlpTracesToken,
-          EXPO_PUBLIC_OTLP_TRACES_TOKEN: config.mobileOtlpTracesToken,
         }
       : {}),
     ...(config.relayClientOtlpTracesUrl
@@ -109,35 +86,14 @@ export function resolvePublicConfig(...sources: readonly Environment[]): DAKPubl
       sources,
       "DAK_CLERK_PUBLISHABLE_KEY",
       "VITE_CLERK_PUBLISHABLE_KEY",
-      "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY",
     ),
-    clerkJwtTemplate: firstNonEmpty(
-      sources,
-      "DAK_CLERK_JWT_TEMPLATE",
-      "VITE_CLERK_JWT_TEMPLATE",
-      "EXPO_PUBLIC_CLERK_JWT_TEMPLATE",
-    ),
+    clerkJwtTemplate: firstNonEmpty(sources, "DAK_CLERK_JWT_TEMPLATE", "VITE_CLERK_JWT_TEMPLATE"),
     clerkCliOAuthClientId: firstNonEmpty(
       sources,
       "DAK_CLERK_CLI_OAUTH_CLIENT_ID",
       "VITE_CLERK_CLI_OAUTH_CLIENT_ID",
     ),
     relayUrl: firstNonEmpty(sources, "DAK_RELAY_URL", "VITE_DAK_RELAY_URL"),
-    mobileOtlpTracesUrl: firstNonEmpty(
-      sources,
-      "DAK_MOBILE_OTLP_TRACES_URL",
-      "EXPO_PUBLIC_OTLP_TRACES_URL",
-    ),
-    mobileOtlpTracesDataset: firstNonEmpty(
-      sources,
-      "DAK_MOBILE_OTLP_TRACES_DATASET",
-      "EXPO_PUBLIC_OTLP_TRACES_DATASET",
-    ),
-    mobileOtlpTracesToken: firstNonEmpty(
-      sources,
-      "DAK_MOBILE_OTLP_TRACES_TOKEN",
-      "EXPO_PUBLIC_OTLP_TRACES_TOKEN",
-    ),
     relayClientOtlpTracesUrl: firstNonEmpty(
       sources,
       "DAK_RELAY_CLIENT_OTLP_TRACES_URL",

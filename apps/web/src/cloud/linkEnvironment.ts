@@ -198,7 +198,6 @@ export function readPrimaryCloudLinkState(input: {
 
 export function updatePrimaryCloudPreferences(input: {
   readonly target: CloudLinkTarget;
-  readonly publishAgentActivity: boolean;
   readonly holdWebhooksWhileOffline?: boolean;
 }): Effect.Effect<CloudLinkState, CloudEnvironmentLinkError, HttpClient.HttpClient> {
   return Effect.gen(function* () {
