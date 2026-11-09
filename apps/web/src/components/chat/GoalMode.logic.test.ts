@@ -16,6 +16,7 @@ import {
   goalNeedsAttention,
   goalNoticeTitle,
   goalProgress,
+  goalProgressLabel,
   goalSlashPrefixLength,
   goalSummaryHeadline,
   goalSummaryProgress,
@@ -30,6 +31,7 @@ import {
   selectGoalForThread,
   selectGoalModelSelection,
   splitCriteriaLines,
+  type GoalProgress,
 } from "./GoalMode.logic";
 
 function task(overrides: Partial<GoalTask> & Pick<GoalTask, "id" | "title">): GoalTask {
@@ -92,19 +94,87 @@ function goal(
 }
 
 describe("goalProgress", () => {
-  it("counts only completed tasks and rounds the percentage down to a whole number", () => {
+  const unchecked = { status: "pending", summary: null, checkedAt: null } as const;
+
+  it("counts only completed tasks and reserves the last unit for verification", () => {
     const progress = goalProgress({
       tasks: [
         task({ id: "t1", title: "one", status: "completed" }),
         task({ id: "t2", title: "two", status: "completed" }),
         task({ id: "t3", title: "three", status: "in_progress" }),
       ],
+      verification: unchecked,
     });
-    expect(progress).toEqual({ completed: 2, total: 3, percent: 67 });
+    expect(progress).toEqual({
+      completed: 2,
+      total: 4,
+      percent: 50,
+      tasksCompleted: 2,
+      tasksTotal: 3,
+      verified: false,
+    });
+  });
+
+  it("never reads 100% until verification passes", () => {
+    const tasks = [
+      task({ id: "t1", title: "one", status: "completed" }),
+      task({ id: "t2", title: "two", status: "completed" }),
+    ];
+    const failed = goalProgress({
+      tasks,
+      verification: {
+        status: "failed",
+        summary: "One criterion missed",
+        checkedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    expect(failed.percent).toBeLessThan(100);
+    expect(failed.verified).toBe(false);
+    expect(goalProgress({ tasks, verification: unchecked }).percent).toBeLessThan(100);
+
+    const passed = goalProgress({
+      tasks,
+      verification: { status: "passed", summary: null, checkedAt: "2026-01-01T00:00:00.000Z" },
+    });
+    expect(passed.percent).toBe(100);
+    expect(passed.verified).toBe(true);
   });
 
   it("reports an empty plan as zero without dividing by zero", () => {
-    expect(goalProgress({ tasks: [] })).toEqual({ completed: 0, total: 0, percent: 0 });
+    expect(goalProgress({ tasks: [], verification: unchecked })).toEqual({
+      completed: 0,
+      total: 0,
+      percent: 0,
+      tasksCompleted: 0,
+      tasksTotal: 0,
+      verified: false,
+    });
+  });
+});
+
+describe("goalProgressLabel", () => {
+  const progress = (overrides: Partial<GoalProgress>): GoalProgress => ({
+    completed: 0,
+    total: 0,
+    percent: 0,
+    tasksCompleted: 0,
+    tasksTotal: 0,
+    verified: false,
+    ...overrides,
+  });
+
+  it("says what is left instead of claiming a finished task", () => {
+    expect(goalProgressLabel(progress({ tasksCompleted: 1, tasksTotal: 3 }))).toBe("1 of 3 tasks");
+    expect(
+      goalProgressLabel(progress({ tasksCompleted: 3, tasksTotal: 3, completed: 3, total: 4 })),
+    ).toBe("3 of 3 tasks · awaiting verification");
+    expect(
+      goalProgressLabel(
+        progress({ tasksCompleted: 3, tasksTotal: 3, completed: 4, total: 4, verified: true }),
+      ),
+    ).toBe("3 of 3 tasks · verified");
+    expect(goalProgressLabel(progress({}))).toBe("No plan yet");
+    expect(goalProgressLabel(progress({ tasksCompleted: 0, tasksTotal: 1 }))).toBe("0 of 1 task");
   });
 });
 
@@ -176,16 +246,36 @@ describe("selectGoalForThread", () => {
 });
 
 describe("goal summary progress and headline", () => {
-  it("derives progress from summary counts", () => {
-    expect(goalSummaryProgress({ completedTaskCount: 2, totalTaskCount: 5 })).toEqual({
+  it("derives progress from summary counts and the completion status", () => {
+    expect(
+      goalSummaryProgress({ completedTaskCount: 2, totalTaskCount: 5, status: "running" }),
+    ).toEqual({
       completed: 2,
-      total: 5,
-      percent: 40,
+      total: 6,
+      percent: 33,
+      tasksCompleted: 2,
+      tasksTotal: 5,
+      verified: false,
     });
-    expect(goalSummaryProgress({ completedTaskCount: 0, totalTaskCount: 0 })).toEqual({
+    expect(
+      goalSummaryProgress({ completedTaskCount: 5, totalTaskCount: 5, status: "completed" }),
+    ).toEqual({
+      completed: 6,
+      total: 6,
+      percent: 100,
+      tasksCompleted: 5,
+      tasksTotal: 5,
+      verified: true,
+    });
+    expect(
+      goalSummaryProgress({ completedTaskCount: 0, totalTaskCount: 0, status: "planning" }),
+    ).toEqual({
       completed: 0,
       total: 0,
       percent: 0,
+      tasksCompleted: 0,
+      tasksTotal: 0,
+      verified: false,
     });
   });
 

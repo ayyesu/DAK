@@ -186,6 +186,46 @@ const verifyReport = report({
     },
   ],
 });
+const taskFailedReport = report({
+  status: "running",
+  summary: "The port was already in use",
+  tasks: [{ title: "Do the thing", status: "failed", evidence: "port 4000 already in use" }],
+});
+const twoTaskPlanReport = report({
+  status: "running",
+  summary: "Planned two steps",
+  plan: [
+    { title: "First", detail: null },
+    { title: "Second", detail: null },
+  ],
+});
+const firstFailedReport = report({
+  status: "running",
+  summary: "First could not start",
+  tasks: [{ title: "First", status: "failed", evidence: "port 4000 already in use" }],
+});
+const secondDoneReport = report({
+  status: "running",
+  summary: "Second finished",
+  tasks: [{ title: "Second", status: "completed", evidence: "tests passed" }],
+});
+const firstDoneReport = report({
+  status: "running",
+  summary: "First finished on the second attempt",
+  tasks: [{ title: "First", status: "completed", evidence: "tests passed" }],
+});
+/** Claims a criterion is met without the command that proves it. */
+const verifyWithoutEvidence = report({
+  status: "completed",
+  verified: true,
+  summary: "Looks done to me",
+  acceptance: [{ criterion: "Each channel persists after reload", met: true }],
+});
+const repairReport = report({
+  status: "completed",
+  summary: "Re-ran the reload check",
+  tasks: [{ title: "Do the thing", status: "completed", evidence: "tests passed" }],
+});
 
 const takeStep = (script: GoalScript, where: string): TurnStep => {
   const step = script.steps.shift();
@@ -885,6 +925,330 @@ it.effect("verification records per-criterion results on the goal", () => {
     expect(full.goal.verification.criteria).toEqual([
       { criterion: "Each channel persists after reload", met: true },
     ]);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+
+it.effect("a failed task is retried automatically and the goal completes untouched", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskFailedReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(
+      createInput({ acceptanceCriteria: ["Each channel persists after reload"] }),
+    );
+
+    const done = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "completed",
+    );
+    expect(done.completedTaskCount).toBe(1);
+    // Plan, failed attempt, automatic retry, verification: no user turn.
+    expect(script.sentTexts).toHaveLength(4);
+
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.verification.status).toBe("passed");
+    expect(full.goal.tasks[0]?.attempts).toBe(2);
+    const requeued = full.goal.activities.find((activity) =>
+      activity.summary.startsWith("Requeued 1 failed task"),
+    );
+    expect(requeued).toBeDefined();
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+
+it.effect("a failed task does not hold up independent pending work", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: twoTaskPlanReport },
+      { kind: "completed", reply: firstFailedReport },
+      { kind: "completed", reply: secondDoneReport },
+      { kind: "completed", reply: firstDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(
+      createInput({ acceptanceCriteria: ["Each channel persists after reload"] }),
+    );
+
+    yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "completed",
+    );
+
+    const runs = script.sentTexts
+      .map((text, index) => ({ text, index }))
+      .filter(({ text }) => text.includes("Your task this turn:"));
+    const firstRuns = runs.filter(({ text }) => text.includes(`"First"`));
+    const secondRun = runs.find(({ text }) => text.includes(`"Second"`));
+    expect(firstRuns).toHaveLength(2);
+    assert.isDefined(secondRun);
+    // The unstarted task runs between the two attempts at the failed one.
+    expect(secondRun.index).toBeGreaterThan(firstRuns[0]!.index);
+    expect(secondRun.index).toBeLessThan(firstRuns[1]!.index);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+
+it.effect("a task that exhausts its automatic attempts stops the goal", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskFailedReport },
+      { kind: "completed", reply: taskFailedReport },
+      { kind: "completed", reply: taskFailedReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    const stopped = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "blocked",
+    );
+    expect(stopped.blockedReason).toContain("Exhausted 3 attempts on: Do the thing.");
+    expect(script.sentTexts).toHaveLength(4);
+
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.tasks[0]?.attempts).toBe(3);
+    expect(full.goal.tasks[0]?.status).toBe("failed");
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+
+it.effect("verification that claims a criterion without evidence repairs, then passes", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyWithoutEvidence },
+      { kind: "completed", reply: repairReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(
+      createInput({ acceptanceCriteria: ["Each channel persists after reload"] }),
+    );
+
+    const done = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "completed",
+    );
+    expect(done.completedTaskCount).toBe(1);
+    // The evidence-less verdict cost a repair turn instead of completing.
+    expect(script.sentTexts).toHaveLength(5);
+
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.verification.status).toBe("passed");
+    expect(full.goal.verification.criteria).toEqual([
+      { criterion: "Each channel persists after reload", met: true },
+    ]);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+
+it.effect("verification that never proves the criteria blocks instead of completing", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyWithoutEvidence },
+      { kind: "completed", reply: repairReport },
+      { kind: "completed", reply: verifyWithoutEvidence },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(
+      createInput({ acceptanceCriteria: ["Each channel persists after reload"] }),
+    );
+
+    const stopped = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "blocked",
+    );
+    expect(stopped.blockedReason).toContain("Verification did not pass");
+    expect(stopped.completedTaskCount).toBe(1);
+
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.verification.status).toBe("failed");
+    expect(full.goal.verification.criteria).toEqual([
+      { criterion: "Each channel persists after reload", met: false },
+    ]);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+
+it.effect("pausing mid-turn pauses the goal and resuming finishes it", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+    holdWaitAt: 1,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(
+      createInput({ acceptanceCriteria: ["Each channel persists after reload"] }),
+    );
+
+    // The task turn is provably in flight: two sends, and the turn the pause
+    // lands under has not come back yet. Pausing takes effect right now rather
+    // than waiting for the turn, which is what lets a user hold a goal that is
+    // already working.
+    yield* Effect.promise(() => gate.reached);
+    expect(script.sentTexts).toHaveLength(2);
+    yield* service.pause({ id: created.goal.id });
+    const held = yield* service.get({ id: created.goal.id });
+    expect(held.goal.status).toBe("paused");
+    expect(held.goal.turnStartedAt).toBeNull();
+
+    // Releasing ends the held turn, and resuming picks the goal back up. The
+    // loop finishes on its own whether that turn's report lands before or
+    // after the resume, so either interleaving must reach the same end state.
+    gate.release();
+    yield* service.resume({ id: created.goal.id });
+    const done = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "completed",
+    );
+    expect(done.completedTaskCount).toBe(1);
+    // Plan, the held task turn, then the task/verification rounds each
+    // interleaving needs: four when the paused turn was dropped, five when it
+    // was applied and cost an extra repair round.
+    expect(script.sentTexts.length).toBeGreaterThanOrEqual(4);
+    expect(script.sentTexts.length).toBeLessThanOrEqual(5);
+
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.verification.status).toBe("passed");
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+
+it.effect("cancelling during automatic execution stops the loop", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskDoneReport },
+    ],
+    holdWaitAt: 1,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    yield* Effect.promise(() => gate.reached);
+    yield* service.cancel({ id: created.goal.id });
+    gate.release();
+
+    const cancelled = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "cancelled",
+    );
+    expect(cancelled.status).toBe("cancelled");
+    expect(script.sentTexts).toHaveLength(2);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+
+it.effect("resuming a driven goal never dispatches the same task twice", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+    holdWaitAt: 1,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(
+      createInput({ acceptanceCriteria: ["Each channel persists after reload"] }),
+    );
+
+    // Two extra triggers while the only driver already owns the goal.
+    yield* Effect.promise(() => gate.reached);
+    yield* service.resume({ id: created.goal.id });
+    yield* service.resume({ id: created.goal.id });
+    gate.release();
+
+    yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "completed",
+    );
+    expect(script.sentTexts).toHaveLength(3);
+    expect(script.sentTexts.filter((text) => text.includes("Your task this turn:"))).toHaveLength(
+      1,
+    );
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+
+it.effect("attempts and task state survive a server restart", () => {
+  const script = makeScript();
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const service = yield* GoalService.GoalService;
+    const goalId = "goal:seed-attempts";
+    const at = "2026-01-01T00:00:00.000Z";
+    yield* sql`
+      INSERT INTO goals (
+        goal_id, project_id, thread_id, title, objective, acceptance_criteria_json, status,
+        current_task_id, model_selection_json, runtime_mode, interaction_mode,
+        workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
+        failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
+        creation_source, created_at, updated_at, started_at, turn_started_at,
+        completed_at, last_activity_at
+      ) VALUES (
+        ${goalId}, ${projectId}, NULL, 'Seeded goal', 'Objective', '[]', 'running',
+        NULL, ${JSON.stringify(modelSelection)}, 'auto', 'default',
+        '{"type":"root"}', 1, 0, '{"status":"pending","summary":null,"checkedAt":null}',
+        NULL, NULL, 0, NULL, 0, 'user', 'web', ${at}, ${at}, ${at}, NULL, NULL, ${at}
+      )
+    `;
+    yield* sql`
+      INSERT INTO goal_tasks (
+        goal_id, task_id, title, detail, status, task_order, started_at, completed_at,
+        evidence, attempts
+      ) VALUES (
+        ${goalId}, 'task:seeded', 'Do the thing', NULL, 'failed', 0, ${at}, NULL,
+        'port 4000 already in use', 3
+      )
+    `;
+
+    // Recovery wakes on the virtual clock and drives the seeded goal.
+    yield* TestClock.adjust("15 seconds");
+    const stopped = yield* awaitGoalState(
+      service.subscribeList({}),
+      GoalId.make(goalId),
+      (goal) => goal.status === "blocked",
+    );
+    expect(stopped.blockedReason).toContain("Exhausted 3 attempts on: Do the thing.");
+
+    // The stored budget is what stopped it: a restart must not reset it.
+    const loaded = yield* service.get({ id: GoalId.make(goalId) });
+    expect(loaded.goal.tasks[0]?.attempts).toBe(3);
+    expect(loaded.goal.tasks[0]?.evidence).toBe("port 4000 already in use");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("restart recovery resumes the 20 most recently updated goals", () => {

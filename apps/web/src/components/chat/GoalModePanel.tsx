@@ -58,6 +58,7 @@ import {
   goalCriterionStates,
   goalNeedsAttention,
   goalProgress,
+  goalProgressLabel,
   goalSummaryHeadline,
   goalSummaryProgress,
   goalStatusLabel,
@@ -252,7 +253,7 @@ function GoalCard(props: {
 
   return (
     <>
-      <div className="flex items-start gap-2 px-3.5 pt-3">
+      <div className="flex shrink-0 items-start gap-2 px-3.5 pt-3">
         {compact ? (
           <span className="mt-0.5 shrink-0 text-muted-foreground">
             <TargetIcon aria-hidden className="size-4" />
@@ -359,7 +360,7 @@ function GoalCard(props: {
         </div>
       </div>
 
-      <div className="px-3.5 pt-2">
+      <div className="shrink-0 px-3.5 pt-2">
         <div
           role="progressbar"
           aria-label="Goal progress"
@@ -383,10 +384,7 @@ function GoalCard(props: {
             <span className="text-xl font-semibold tabular-nums leading-6">
               {progress.percent}%
             </span>
-            <span className="text-2xs text-muted-foreground">
-              {progress.completed} of {progress.total} {progress.total === 1 ? "task" : "tasks"}{" "}
-              completed
-            </span>
+            <span className="text-2xs text-muted-foreground">{goalProgressLabel(progress)}</span>
           </div>
         )}
       </div>
@@ -395,7 +393,7 @@ function GoalCard(props: {
         <div
           aria-live="polite"
           className={cn(
-            "mx-3.5 mt-2.5 flex gap-2 rounded-xl border p-2",
+            "mx-3.5 mt-2.5 flex shrink-0 gap-2 rounded-xl border p-2",
             reasonBox.tone === "danger"
               ? "border-destructive/30 bg-destructive/5"
               : "border-warning/30 bg-warning/5",
@@ -414,182 +412,212 @@ function GoalCard(props: {
 
       {collapsed ? null : (
         <>
-          {shownTasks.length > 0 ? (
-            <ul className="mt-2.5 list-none space-y-0 px-3.5">
-              {shownTasks.map((task, index) => {
-                const last = index === shownTasks.length - 1 && hiddenTasks === 0;
-                const isCurrent = current?.id === task.id && task.status !== "completed";
-                return (
-                  <li key={task.id} className="flex gap-2.5">
-                    <span className="relative flex w-4 shrink-0 justify-center pt-0.5">
-                      <GoalTaskIcon task={task} />
-                      {last ? null : (
-                        <span aria-hidden className="absolute top-4.5 bottom-0 w-px bg-border" />
+          {/* Header, bar and actions stay pinned; only this region scrolls, so
+              a long plan can never push the card past the viewport. */}
+          <div className="min-h-0 grow overflow-y-auto">
+            {shownTasks.length > 0 ? (
+              <ul className="mt-2.5 list-none space-y-0 px-3.5">
+                {shownTasks.map((task, index) => {
+                  const last = index === shownTasks.length - 1 && hiddenTasks === 0;
+                  const isCurrent = current?.id === task.id && task.status !== "completed";
+                  return (
+                    <li key={task.id} className="flex gap-2.5">
+                      <span className="relative flex w-4 shrink-0 justify-center pt-0.5">
+                        <GoalTaskIcon task={task} />
+                        {last ? null : (
+                          <span aria-hidden className="absolute top-4.5 bottom-0 w-px bg-border" />
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1 pb-2">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "min-w-0 truncate text-xs font-medium",
+                              task.status === "pending"
+                                ? "text-muted-foreground"
+                                : "text-foreground",
+                            )}
+                          >
+                            {task.title}
+                          </span>
+                          {isCurrent && goal.status === "running" ? (
+                            <span className="shrink-0 text-2xs text-info">now</span>
+                          ) : null}
+                          {canOperate &&
+                          canRetryGoal(goal.status) &&
+                          (task.status === "failed" || task.status === "blocked") &&
+                          !busy ? (
+                            <button
+                              type="button"
+                              className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                              aria-label={`Retry ${task.title}`}
+                              onClick={() =>
+                                void run("Could not retry the task", () =>
+                                  retryGoalTask({
+                                    environmentId,
+                                    input: { id: goal.id, taskId: task.id },
+                                  }),
+                                )
+                              }
+                            >
+                              <RotateCcwIcon aria-hidden className="size-3" />
+                            </button>
+                          ) : null}
+                        </div>
+                        <p className="truncate text-2xs text-muted-foreground">
+                          {task.evidence ?? goalTaskStatusLabel(task.status)}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="px-3.5 pt-2 text-xs text-muted-foreground">
+                The plan appears as soon as the agent finishes planning.
+              </p>
+            )}
+
+            {hiddenTasks > 0 || allTasksOpen ? (
+              <button
+                type="button"
+                className="mx-3.5 mb-1 text-2xs text-muted-foreground hover:text-foreground"
+                onClick={() => setAllTasksOpen((value) => !value)}
+              >
+                {allTasksOpen ? "Show fewer tasks" : `Show ${hiddenTasks} more tasks`}
+              </button>
+            ) : null}
+
+            {showVerification ? (
+              <div className="px-3.5 pb-1 pt-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-2xs font-medium text-muted-foreground">Done when</span>
+                  {verification.status === "pending" ? null : (
+                    <span
+                      className={cn(
+                        "text-2xs font-medium",
+                        verification.status === "passed" ? "text-success" : "text-destructive",
                       )}
+                    >
+                      {goalVerificationStatusLabel(verification.status)}
                     </span>
-                    <div className="min-w-0 flex-1 pb-2">
-                      <div className="flex items-center gap-1.5">
+                  )}
+                </div>
+                {verification.summary !== null && verification.status !== "pending" ? (
+                  <p className="mt-0.5 text-2xs text-muted-foreground">{verification.summary}</p>
+                ) : null}
+                {criteria.length > 0 ? (
+                  <ul className="mt-1 list-none space-y-1">
+                    {shownCriteria.map((criterion) => (
+                      <li key={criterion.criterion} className="flex items-start gap-2">
+                        <GoalCriterionIcon met={criterion.met} />
                         <span
                           className={cn(
-                            "min-w-0 truncate text-xs font-medium",
-                            task.status === "pending" ? "text-muted-foreground" : "text-foreground",
+                            "min-w-0 text-xs leading-4",
+                            criterion.met === false
+                              ? "text-destructive"
+                              : criterion.met === true
+                                ? "text-foreground"
+                                : "text-muted-foreground",
                           )}
                         >
-                          {task.title}
+                          {criterion.criterion}
                         </span>
-                        {isCurrent && goal.status === "running" ? (
-                          <span className="shrink-0 text-2xs text-info">now</span>
-                        ) : null}
-                        {canOperate &&
-                        canRetryGoal(goal.status) &&
-                        (task.status === "failed" || task.status === "blocked") &&
-                        !busy ? (
-                          <button
-                            type="button"
-                            className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                            aria-label={`Retry ${task.title}`}
-                            onClick={() =>
-                              void run("Could not retry the task", () =>
-                                retryGoalTask({
-                                  environmentId,
-                                  input: { id: goal.id, taskId: task.id },
-                                }),
-                              )
-                            }
-                          >
-                            <RotateCcwIcon aria-hidden className="size-3" />
-                          </button>
-                        ) : null}
-                      </div>
-                      <p className="truncate text-2xs text-muted-foreground">
-                        {task.evidence ?? goalTaskStatusLabel(task.status)}
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="px-3.5 pt-2 text-xs text-muted-foreground">
-              The plan appears as soon as the agent finishes planning.
-            </p>
-          )}
-
-          {hiddenTasks > 0 || allTasksOpen ? (
-            <button
-              type="button"
-              className="mx-3.5 mb-1 text-2xs text-muted-foreground hover:text-foreground"
-              onClick={() => setAllTasksOpen((value) => !value)}
-            >
-              {allTasksOpen ? "Show fewer tasks" : `Show ${hiddenTasks} more tasks`}
-            </button>
-          ) : null}
-
-          {showVerification ? (
-            <div className="px-3.5 pb-1 pt-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-2xs font-medium text-muted-foreground">Done when</span>
-                {verification.status === "pending" ? null : (
-                  <span
-                    className={cn(
-                      "text-2xs font-medium",
-                      verification.status === "passed" ? "text-success" : "text-destructive",
-                    )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {hiddenCriteria > 0 || allCriteriaOpen ? (
+                  <button
+                    type="button"
+                    className="mt-1 text-2xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setAllCriteriaOpen((value) => !value)}
                   >
-                    {goalVerificationStatusLabel(verification.status)}
-                  </span>
-                )}
+                    {allCriteriaOpen
+                      ? "Show fewer criteria"
+                      : `Show ${hiddenCriteria} more criteria`}
+                  </button>
+                ) : null}
               </div>
-              {verification.summary !== null && verification.status !== "pending" ? (
-                <p className="mt-0.5 text-2xs text-muted-foreground">{verification.summary}</p>
-              ) : null}
-              {criteria.length > 0 ? (
-                <ul className="mt-1 list-none space-y-1">
-                  {shownCriteria.map((criterion) => (
-                    <li key={criterion.criterion} className="flex items-start gap-2">
-                      <GoalCriterionIcon met={criterion.met} />
-                      <span
-                        className={cn(
-                          "min-w-0 text-xs leading-4",
-                          criterion.met === false
-                            ? "text-destructive"
-                            : criterion.met === true
-                              ? "text-foreground"
-                              : "text-muted-foreground",
-                        )}
-                      >
-                        {criterion.criterion}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {hiddenCriteria > 0 || allCriteriaOpen ? (
-                <button
-                  type="button"
-                  className="mt-1 text-2xs text-muted-foreground hover:text-foreground"
-                  onClick={() => setAllCriteriaOpen((value) => !value)}
-                >
-                  {allCriteriaOpen ? "Show fewer criteria" : `Show ${hiddenCriteria} more criteria`}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+            ) : null}
 
-          {goal.status === "needs_input" ? (
-            <div className="mx-3.5 mb-2 rounded-xl border border-warning/30 bg-warning/5 p-2">
-              <p className="text-xs text-foreground">{goal.blockedReason}</p>
-              <div className="mt-1.5 flex items-end gap-1.5">
-                <Textarea
-                  aria-label="Answer the agent's question"
-                  placeholder="Your answer…"
-                  rows={1}
-                  value={answerText}
-                  className="min-h-8 resize-none"
-                  onChange={(event) => setAnswerText(event.target.value)}
-                />
-                <Button
-                  size="xs"
-                  disabled={!canOperate || busy || answerText.trim() === ""}
-                  onClick={() =>
-                    void run(
-                      "Could not send the answer",
-                      () =>
-                        answerGoal({
-                          environmentId,
-                          input: { id: goal.id, text: answerText.trim() },
-                        }),
-                      () => setAnswerText(""),
-                    )
-                  }
-                >
-                  Send
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
-          {editText !== null ? (
-            <div className="mx-3.5 mb-2 rounded-xl border border-border/60 p-2">
-              <Textarea
-                autoFocus
-                aria-label="Edit the goal"
-                rows={3}
-                value={editText}
-                className="min-h-16 resize-none"
-                onChange={(event) => setEditText(event.target.value)}
-              />
-              <p className="mt-1 text-2xs text-muted-foreground">
-                Completed work is kept; the agent revises what remains.
-              </p>
-              <div className="mt-1.5 flex justify-end gap-1.5">
-                <Button size="xs" variant="ghost" onClick={() => setEditText(null)}>
-                  Cancel
-                </Button>
-                {!canPauseGoal(goal.status) ? (
+            {goal.status === "needs_input" ? (
+              <div className="mx-3.5 mb-2 rounded-xl border border-warning/30 bg-warning/5 p-2">
+                <p className="text-xs text-foreground">{goal.blockedReason}</p>
+                <div className="mt-1.5 flex items-end gap-1.5">
+                  <Textarea
+                    aria-label="Answer the agent's question"
+                    placeholder="Your answer…"
+                    rows={1}
+                    value={answerText}
+                    className="min-h-8 resize-none"
+                    onChange={(event) => setAnswerText(event.target.value)}
+                  />
                   <Button
                     size="xs"
-                    variant="outline"
+                    disabled={!canOperate || busy || answerText.trim() === ""}
+                    onClick={() =>
+                      void run(
+                        "Could not send the answer",
+                        () =>
+                          answerGoal({
+                            environmentId,
+                            input: { id: goal.id, text: answerText.trim() },
+                          }),
+                        () => setAnswerText(""),
+                      )
+                    }
+                  >
+                    Send
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {editText !== null ? (
+              <div className="mx-3.5 mb-2 rounded-xl border border-border/60 p-2">
+                <Textarea
+                  autoFocus
+                  aria-label="Edit the goal"
+                  rows={3}
+                  value={editText}
+                  className="min-h-16 resize-none"
+                  onChange={(event) => setEditText(event.target.value)}
+                />
+                <p className="mt-1 text-2xs text-muted-foreground">
+                  Completed work is kept; the agent revises what remains.
+                </p>
+                <div className="mt-1.5 flex justify-end gap-1.5">
+                  <Button size="xs" variant="ghost" onClick={() => setEditText(null)}>
+                    Cancel
+                  </Button>
+                  {!canPauseGoal(goal.status) ? (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      disabled={!canOperate || busy || editText.trim() === ""}
+                      onClick={() =>
+                        void run(
+                          "Could not update the goal",
+                          () =>
+                            updateGoal({
+                              environmentId,
+                              input: { id: goal.id, objective: editText.trim() },
+                            }),
+                          () => {
+                            setEditText(null);
+                            void run("Could not resume the goal", () =>
+                              resumeGoal({ environmentId, input: { id: goal.id } }),
+                            );
+                          },
+                        )
+                      }
+                    >
+                      Save & resume
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="xs"
                     disabled={!canOperate || busy || editText.trim() === ""}
                     onClick={() =>
                       void run(
@@ -599,40 +627,46 @@ function GoalCard(props: {
                             environmentId,
                             input: { id: goal.id, objective: editText.trim() },
                           }),
-                        () => {
-                          setEditText(null);
-                          void run("Could not resume the goal", () =>
-                            resumeGoal({ environmentId, input: { id: goal.id } }),
-                          );
-                        },
+                        () => setEditText(null),
                       )
                     }
                   >
-                    Save & resume
+                    Save changes
                   </Button>
-                ) : null}
-                <Button
-                  size="xs"
-                  disabled={!canOperate || busy || editText.trim() === ""}
-                  onClick={() =>
-                    void run(
-                      "Could not update the goal",
-                      () =>
-                        updateGoal({
-                          environmentId,
-                          input: { id: goal.id, objective: editText.trim() },
-                        }),
-                      () => setEditText(null),
-                    )
-                  }
-                >
-                  Save changes
-                </Button>
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          <div className="flex items-center justify-between gap-2 border-t border-border/60 px-2 py-1.5">
+            {activityOpen ? (
+              <div className="border-t border-border/60 bg-muted/20 px-3.5 py-2">
+                <ol className="list-none space-y-1.5">
+                  {activities.length === 0 ? (
+                    <li className="text-2xs text-muted-foreground">No activity yet.</li>
+                  ) : (
+                    activities.map((activity) => (
+                      <li key={activity.id} className="flex gap-2">
+                        <span className="w-14 shrink-0 pt-px text-3xs tabular-nums text-muted-foreground/70">
+                          {formatGoalActivityTime(activity.at, now)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-2 text-2xs text-foreground/90">
+                            {activity.summary}
+                          </p>
+                          {activity.detail === null ? null : (
+                            <p className="line-clamp-2 text-3xs text-muted-foreground">
+                              {activity.detail}
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    ))
+                  )}
+                </ol>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/60 px-2 py-1.5">
             <div className="flex items-center gap-0.5">
               {canPauseGoal(goal.status) ? (
                 <Button
@@ -701,34 +735,6 @@ function GoalCard(props: {
               </Button>
             </div>
           </div>
-
-          {activityOpen ? (
-            <div className="max-h-56 overflow-y-auto border-t border-border/60 bg-muted/20 px-3.5 py-2">
-              <ol className="list-none space-y-1.5">
-                {activities.length === 0 ? (
-                  <li className="text-2xs text-muted-foreground">No activity yet.</li>
-                ) : (
-                  activities.map((activity) => (
-                    <li key={activity.id} className="flex gap-2">
-                      <span className="w-14 shrink-0 pt-px text-3xs tabular-nums text-muted-foreground/70">
-                        {formatGoalActivityTime(activity.at, now)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 text-2xs text-foreground/90">
-                          {activity.summary}
-                        </p>
-                        {activity.detail === null ? null : (
-                          <p className="line-clamp-2 text-3xs text-muted-foreground">
-                            {activity.detail}
-                          </p>
-                        )}
-                      </div>
-                    </li>
-                  ))
-                )}
-              </ol>
-            </div>
-          ) : null}
         </>
       )}
 
@@ -857,7 +863,7 @@ export function GoalModePanel(props: {
       data-goal-mode-panel="true"
       role="region"
       aria-label="Goal mode"
-      className="pointer-events-auto mb-2 overflow-hidden rounded-2xl border border-border/60 bg-card/80 text-card-foreground shadow-sm backdrop-blur-xl"
+      className="pointer-events-auto mb-2 flex max-h-[min(30rem,45dvh)] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/80 text-card-foreground shadow-sm backdrop-blur-xl"
     >
       {goal === null ? null : (
         <GoalCard
@@ -880,7 +886,12 @@ export function GoalModePanel(props: {
       )}
 
       {goalsQuery.error !== null ? (
-        <p className={cn("px-3.5 pb-2.5 text-2xs text-destructive", goal === null && "pt-2.5")}>
+        <p
+          className={cn(
+            "shrink-0 px-3.5 pb-2.5 text-2xs text-destructive",
+            goal === null && "pt-2.5",
+          )}
+        >
           Could not load goals: {goalsQuery.error}
         </p>
       ) : null}

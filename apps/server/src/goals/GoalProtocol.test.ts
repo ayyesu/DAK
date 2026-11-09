@@ -5,6 +5,7 @@ import {
   applyGoalReport,
   buildGoalExecutionPrompt,
   buildGoalPlanningPrompt,
+  buildGoalRepairPrompt,
   buildGoalVerificationPrompt,
   parseGoalReport,
   stripGoalReport,
@@ -94,6 +95,35 @@ describe("parseGoalReport", () => {
     expect(parseGoalReport("```goal\n{not json}\n```")).toBeNull();
     expect(parseGoalReport(reportFor({}))).toBeNull();
     expect(parseGoalReport("I finished everything, honestly.")).toBeNull();
+  });
+
+  it("accepts a pending task so an untouched plan item is not reported blocked", () => {
+    const report = parseGoalReport(
+      reportFor({ status: "running", tasks: [{ title: "Later", status: "pending" }] }),
+    );
+    expect(report?.tasks).toEqual([{ title: "Later", status: "pending", evidence: null }]);
+  });
+
+  it("counts a verification-only block as a report", () => {
+    const report = parseGoalReport(reportFor({ verified: true }));
+    expect(report?.verified).toBe(true);
+    expect(report?.status).toBe("running");
+  });
+
+  it("recovers a report whose closing brackets were cut off", () => {
+    const full = JSON.stringify({
+      goal_report: {
+        status: "completed",
+        summary: "Verified",
+        verified: true,
+        acceptance: [{ criterion: "Ships", met: true, evidence: "build ok" }],
+      },
+    });
+    const truncated = full.slice(0, full.length - 2);
+    const report = parseGoalReport(`\`\`\`goal\n${truncated}\n\`\`\``);
+    expect(report?.status).toBe("completed");
+    expect(report?.verified).toBe(true);
+    expect(report?.acceptance[0]?.evidence).toBe("build ok");
   });
 
   it("bounds the plan so a runaway report cannot flood the UI", () => {
@@ -260,6 +290,111 @@ describe("applyGoalReport", () => {
     expect(applied.status).toBe("needs_input");
     expect(applied.acceptanceCriteria).toEqual(["The toggle persists", "The page loads"]);
   });
+
+  it("keeps a task nobody started runnable instead of stranding it as blocked", () => {
+    const report = parseGoalReport(
+      reportFor({
+        status: "running",
+        tasks: [{ title: "Inspect", status: "blocked", evidence: "not attempted" }],
+      }),
+    );
+    assert.isNotNull(report);
+    const applied = applyGoalReport({
+      tasks: [task({ id: "t1", title: "Inspect", order: 0 })],
+      acceptanceCriteria: [],
+      report,
+      makeTaskId,
+      nowIso,
+    });
+    expect(applied.tasks[0]?.status).toBe("pending");
+    expect(applied.tasks[0]?.attempts).toBe(0);
+    expect(applied.tasks[0]?.startedAt).toBeNull();
+  });
+
+  it("does not invent a failed task out of a report for work that does not exist", () => {
+    const report = parseGoalReport(
+      reportFor({
+        status: "running",
+        tasks: [{ title: "Ghost", status: "failed", evidence: "never tried" }],
+      }),
+    );
+    assert.isNotNull(report);
+    const applied = applyGoalReport({
+      tasks: [],
+      acceptanceCriteria: [],
+      report,
+      makeTaskId,
+      nowIso,
+    });
+    expect(applied.tasks).toHaveLength(1);
+    expect(applied.tasks[0]?.status).toBe("pending");
+    expect(applied.tasks[0]?.attempts).toBe(0);
+  });
+
+  it("still lets a task that actually ran be reported failed", () => {
+    const report = parseGoalReport(
+      reportFor({
+        status: "running",
+        tasks: [{ title: "Inspect", status: "failed", evidence: "port 4000 in use" }],
+      }),
+    );
+    assert.isNotNull(report);
+    const applied = applyGoalReport({
+      tasks: [
+        task({
+          id: "t1",
+          title: "Inspect",
+          order: 0,
+          status: "in_progress",
+          attempts: 1,
+          startedAt: nowIso,
+        }),
+      ],
+      acceptanceCriteria: [],
+      report,
+      makeTaskId,
+      nowIso,
+    });
+    expect(applied.tasks[0]?.status).toBe("failed");
+    expect(applied.tasks[0]?.evidence).toBe("port 4000 in use");
+  });
+
+  it("spends one attempt when a pending task starts and none when it repeats", () => {
+    const starting = parseGoalReport(
+      reportFor({ status: "running", tasks: [{ title: "Inspect", status: "in_progress" }] }),
+    );
+    assert.isNotNull(starting);
+    const first = applyGoalReport({
+      tasks: [task({ id: "t1", title: "Inspect", order: 0 })],
+      acceptanceCriteria: [],
+      report: starting,
+      makeTaskId,
+      nowIso,
+    });
+    expect(first.tasks[0]?.attempts).toBe(1);
+
+    const repeating = parseGoalReport(
+      reportFor({ status: "running", tasks: [{ title: "Inspect", status: "in_progress" }] }),
+    );
+    assert.isNotNull(repeating);
+    const second = applyGoalReport({
+      tasks: [
+        task({
+          id: "t1",
+          title: "Inspect",
+          order: 0,
+          status: "in_progress",
+          attempts: 1,
+          startedAt: nowIso,
+        }),
+      ],
+      acceptanceCriteria: [],
+      report: repeating,
+      makeTaskId,
+      nowIso,
+    });
+    expect(second.tasks[0]?.attempts).toBe(1);
+  });
 });
 
 describe("stripGoalReport", () => {
@@ -311,5 +446,56 @@ describe("goal prompts", () => {
     expect(prompt).toContain(
       `Set "verified": true only if every criterion is demonstrably satisfied`,
     );
+    // The report shape has to carry what the verifier is told to produce.
+    expect(prompt).toContain(`"acceptance":[{"criterion":`);
+    expect(prompt).toContain(`"verified":false`);
+    expect(prompt).toContain("A criterion you cannot prove with a command");
+  });
+
+  it("tells a retry why the last attempt failed and to change approach", () => {
+    const retrying = task({
+      id: "t2",
+      title: "Add toggle",
+      order: 1,
+      attempts: 2,
+      evidence: "port 4000 already in use",
+    });
+    const prompt = buildGoalExecutionPrompt({
+      goal: { ...baseGoal, tasks: [retrying] },
+      task: retrying,
+      edited: false,
+    });
+    expect(prompt).toContain("This is attempt 2 at this task.");
+    expect(prompt).toContain("port 4000 already in use");
+    expect(prompt).toContain("Do not repeat the same failing operation unchanged");
+  });
+
+  it("does not lecture a first attempt about recovery", () => {
+    const first = task({ id: "t1", title: "Inspect", order: 0, attempts: 1 });
+    const prompt = buildGoalExecutionPrompt({
+      goal: { ...baseGoal, tasks: [first] },
+      task: first,
+      edited: false,
+    });
+    expect(prompt).not.toContain("This is attempt");
+  });
+
+  it("lists exactly the criteria verification rejected when repairing", () => {
+    const prompt = buildGoalRepairPrompt({
+      ...baseGoal,
+      status: "running",
+      acceptanceCriteria: ["Persists after reload", "Loads fast"],
+      verification: {
+        status: "failed",
+        summary: "Unmet: Loads fast",
+        checkedAt: "2026-01-01T00:20:00.000Z",
+        criteria: [
+          { criterion: "Persists after reload", met: true },
+          { criterion: "Loads fast", met: false },
+        ],
+      },
+    });
+    expect(prompt).toContain("Criteria verification did not accept:\n- Loads fast");
+    expect(prompt).toContain("Unmet: Loads fast");
   });
 });

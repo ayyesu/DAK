@@ -91,11 +91,52 @@ sound instead.
 
 ## Verification
 
-A goal is marked **Completed** only after the agent has verified every
-acceptance criterion; a reply on its own never counts as completion. The card
-reports the check as **Verified** or **Did not pass**, with each criterion
-ticked or marked unmet. When a check fails, the goal keeps working until the
-criteria hold or the goal runs out of attempts.
+A goal is marked **Completed** only after the agent has verified every acceptance criterion; a reply on its own never counts as completion. The card reports the check as **Verified** or **Did not pass**, with each criterion ticked or marked unmet. When a check fails, the goal keeps working until the criteria hold or the goal runs out of attempts.
+
+### 3-attempt budget per task
+
+Each task may be started up to **3 times** automatically before the goal stops for a person. The budget is server-local and counted in the `attempts` field on each task:
+
+| Attempts | Meaning                                                                                            |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| `0`      | Task not yet started                                                                               |
+| `1`      | First attempt (pending → in progress)                                                              |
+| `2`      | Second attempt (recovery after first failure)                                                      |
+| `3`      | Exhausted — the goal parks with reason “Exhausted 3 attempts on …”. Retry a task or edit the goal. |
+
+When a task reports `failed`, its `attempts` counter is **not** incremented again — only a pending task becoming active starts a new attempt. A retry via the UI (`Retry task`) resets `attempts` to `0`, giving the task a fresh budget.
+
+If every remaining task has exhausted its budget (`attempts >= 3`), the goal is parked with a message like:
+
+> **Exhausted 3 attempts on: Do the thing. Retry a task or edit the goal.**
+
+### Verification requires evidence
+
+A criterion counts as met only when a matching `acceptance` entry claims `met: true` **and** carries non-empty `evidence` (the command you ran and what it proved). A bare `met: true` is the agent's word, not proof. If verification fails because criteria lack evidence, the agent identifies the unmet criteria, performs corrective work, and re-verifies automatically — up to `GOAL_MAX_VERIFY_ROUNDS` (2) repair rounds before the goal is parked as “Verification never reported back”.
+
+### Progress percentage includes a verification unit
+
+The progress bar counts `tasks + 1` total units, where the last unit is verification:
+
+- **Total** = `number of tasks + 1`
+- **Done** = `completedTasks + (verified ? 1 : 0)`
+
+This means the bar never reaches 100% until verification independently passes. If verification fails, progress stays below 100% and corrective execution resumes.
+
+### How the verification loop works
+
+1. After all tasks are `completed`, the goal enters the **verifying** state.
+2. A verification turn runs; the agent must set `verified: false` with an `acceptance` entry for each criterion (met: false + evidence of what is missing), OR `verified: true` with `status: "completed"` if all criteria are provably satisfied.
+3. If `verified: false`, the goal enters **repair** mode; the agent fixes what's needed and reports a repair turn.
+4. After a repair turn, verification runs again. If it still fails after `GOAL_MAX_VERIFY_ROUNDS = 2` rounds, the goal is parked as **Blocked** with reason “Verification did not pass”.
+5. The user can resume to try again, edit the goal, or cancel it.
+
+### “Gets stuck” scenarios
+
+- **Goal shows Blocked with “Verification never reported back”**: The verification turn finished without emitting a report (`report: null`). Resume the goal to try again.
+- **Goal shows Blocked with “Exhausted 3 attempts on …”**: All tasks have used their automatic retry budget. Retry a task manually or edit the goal.
+- **Goal shows Needed input**: The agent asked the user a question. Answer it to continue.
+- **Progress stays below 100% while verification is pending**: This is expected — verification is the final unit; it must pass for the bar to reach 100%.
 
 ## Using the thread
 

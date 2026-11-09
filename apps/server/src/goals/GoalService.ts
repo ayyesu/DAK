@@ -71,6 +71,12 @@ const GOAL_TURN_TIMEOUT_MS = 20 * 60 * 1_000;
 export const GOAL_TURN_HEARTBEAT_MS = 25_000;
 /** Verification passes (each with one repair turn) before a goal is blocked. */
 const GOAL_MAX_VERIFY_ROUNDS = 2;
+/**
+ * How many times one task may be started before the goal stops for a person.
+ * A recovery has to change approach, so this bounds automatic retries without
+ * relying on the agent deciding to give up.
+ */
+const GOAL_TASK_MAX_ATTEMPTS = 3;
 /** Boot delay before interrupted goals resume, so provider runtimes are up. */
 const GOAL_RECOVERY_DELAY = Duration.seconds(15);
 /** A driven goal this old with no driver is stuck, not waiting for a turn. */
@@ -918,13 +924,17 @@ export const layer = Layer.effect(
       report: GoalReport,
     ) {
       const goal = record.goal;
-      const unmet = goal.acceptanceCriteria.filter(
-        (criterion) =>
-          !report.acceptance.some(
-            (entry) =>
-              entry.met && normalizedCriterion(entry.criterion) === normalizedCriterion(criterion),
-          ),
-      );
+      // A criterion counts as met only when a matching entry claims it is met
+      // and carries evidence; a bare "met": true is the agent's word, not proof.
+      const evidenced = (criterion: string) =>
+        report.acceptance.some(
+          (entry) =>
+            entry.met &&
+            entry.evidence !== null &&
+            entry.evidence.trim() !== "" &&
+            normalizedCriterion(entry.criterion) === normalizedCriterion(criterion),
+        );
+      const unmet = goal.acceptanceCriteria.filter((criterion) => !evidenced(criterion));
       const allTasksCompleted =
         goal.tasks.length > 0 && goal.tasks.every((task) => task.status === "completed");
       const verified =
@@ -1165,16 +1175,53 @@ export const layer = Layer.effect(
 
           const nextTask =
             goal.tasks.find((task) => task.status === "in_progress") ??
+            // Unstarted work first: a task that already failed must not hold up
+            // the rest of the plan while it spends its recovery budget.
+            goal.tasks.find((task) => task.status === "pending" && task.startedAt === null) ??
             goal.tasks.find((task) => task.status === "pending");
           if (nextTask === undefined) {
             const stuck = goal.tasks.filter(
               (task) => task.status === "failed" || task.status === "blocked",
             );
+            const recoverable = stuck.filter((task) => task.attempts < GOAL_TASK_MAX_ATTEMPTS);
+            if (recoverable.length === stuck.length && stuck.length > 0) {
+              // Every remaining task failed, and each one still has budget, so
+              // the goal keeps working instead of parking for a person. Their
+              // startedAt survives, which puts them behind any fresh pending
+              // task and marks them as recoveries rather than first attempts.
+              yield* commit(
+                {
+                  ...record,
+                  goal: {
+                    ...goal,
+                    status: "running",
+                    blockedReason: null,
+                    currentTaskId: null,
+                    tasks: goal.tasks.map((task) =>
+                      task.status === "failed" || task.status === "blocked"
+                        ? { ...task, status: "pending" as const, completedAt: null }
+                        : task,
+                    ),
+                  },
+                },
+                {
+                  kind: "status",
+                  summary: `Requeued ${stuck.length} failed task${stuck.length === 1 ? "" : "s"} for another attempt`,
+                  detail: stuck
+                    .map(
+                      (task) =>
+                        `${task.title} (attempt ${task.attempts}): ${task.evidence ?? "no reason recorded"}`,
+                    )
+                    .join("\n"),
+                },
+              );
+              continue;
+            }
             yield* setStatus(record, "blocked", "No runnable task remains", {
               blockedReason:
                 stuck.length === 0
                   ? "Every task ended without a runnable next step."
-                  : `Waiting on: ${stuck.map((task) => task.title).join("; ")}. Retry a task or edit the goal.`,
+                  : `Exhausted ${GOAL_TASK_MAX_ATTEMPTS} attempts on: ${stuck.map((task) => task.title).join("; ")}. Retry a task or edit the goal.`,
             });
             return;
           }
@@ -1612,6 +1659,9 @@ export const layer = Layer.effect(
                       startedAt: null,
                       completedAt: null,
                       evidence: null,
+                      // A person asked for this retry, so it starts a new
+                      // recovery budget rather than inheriting the spent one.
+                      attempts: 0,
                     }
                   : candidate,
               ),

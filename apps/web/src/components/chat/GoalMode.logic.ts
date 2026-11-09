@@ -61,28 +61,74 @@ export function goalNeedsAttention(status: GoalStatus): boolean {
   );
 }
 
-/** Completed tasks over the plan; a goal with no plan yet reads as 0%. */
-export function goalProgress(goal: Pick<Goal, "tasks">): {
+export interface GoalProgress {
+  /** Completed units over all units; verification is the last unit. */
   readonly completed: number;
   readonly total: number;
   readonly percent: number;
-} {
-  const total = goal.tasks.length;
-  const completed = goal.tasks.filter((task) => task.status === "completed").length;
-  return { completed, total, percent: total === 0 ? 0 : Math.round((completed / total) * 100) };
+  /** Task counts on their own, so the label never calls verification a task. */
+  readonly tasksCompleted: number;
+  readonly tasksTotal: number;
+  readonly verified: boolean;
 }
 
-/** The same counts without importing the full task list. */
+/**
+ * Completed tasks plus one verification unit, so the bar reaches 100% only
+ * when the server has independently verified the goal. A goal with no plan
+ * yet reads as 0% rather than as half-verified.
+ */
+export function goalProgress(goal: Pick<Goal, "tasks" | "verification">): GoalProgress {
+  const tasksTotal = goal.tasks.length;
+  const tasksCompleted = goal.tasks.filter((task) => task.status === "completed").length;
+  const verified = goal.verification.status === "passed";
+  if (tasksTotal === 0) {
+    return { completed: 0, total: 0, percent: 0, tasksCompleted, tasksTotal, verified };
+  }
+  const total = tasksTotal + 1;
+  const completed = tasksCompleted + (verified ? 1 : 0);
+  return {
+    completed,
+    total,
+    percent: Math.round((completed / total) * 100),
+    tasksCompleted,
+    tasksTotal,
+    verified,
+  };
+}
+
+/** The counter beside the bar; verification never reads as a finished task. */
+export function goalProgressLabel(progress: GoalProgress): string {
+  if (progress.tasksTotal === 0) return "No plan yet";
+  const tasks = `${progress.tasksCompleted} of ${progress.tasksTotal} ${
+    progress.tasksTotal === 1 ? "task" : "tasks"
+  }`;
+  if (progress.verified) return `${tasks} · verified`;
+  return progress.tasksCompleted === progress.tasksTotal
+    ? `${tasks} · awaiting verification`
+    : tasks;
+}
+
+/** The same model without importing the full task list. */
 export function goalSummaryProgress(
-  summary: Pick<GoalSummary, "completedTaskCount" | "totalTaskCount">,
-): {
-  readonly completed: number;
-  readonly total: number;
-  readonly percent: number;
-} {
-  const total = summary.totalTaskCount;
-  const completed = summary.completedTaskCount;
-  return { completed, total, percent: total === 0 ? 0 : Math.round((completed / total) * 100) };
+  summary: Pick<GoalSummary, "completedTaskCount" | "totalTaskCount" | "status">,
+): GoalProgress {
+  const tasksTotal = summary.totalTaskCount;
+  const tasksCompleted = summary.completedTaskCount;
+  // Only a verified goal is ever completed, so the status carries the unit.
+  const verified = summary.status === "completed";
+  if (tasksTotal === 0) {
+    return { completed: 0, total: 0, percent: 0, tasksCompleted, tasksTotal, verified };
+  }
+  const total = tasksTotal + 1;
+  const completed = tasksCompleted + (verified ? 1 : 0);
+  return {
+    completed,
+    total,
+    percent: Math.round((completed / total) * 100),
+    tasksCompleted,
+    tasksTotal,
+    verified,
+  };
 }
 
 /**

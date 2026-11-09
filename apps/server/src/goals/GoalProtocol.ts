@@ -146,6 +146,7 @@ function parseReportBody(body: unknown): GoalReport | null {
     acceptance.length === 0 &&
     acceptanceCriteria.length === 0 &&
     summary === null &&
+    verified === null &&
     valueHasStatus(report) === false
   ) {
     return null;
@@ -168,6 +169,32 @@ function valueHasStatus(report: Record<string, unknown>): boolean {
 }
 
 /**
+ * A report block can lose its closing brackets when the model's output is cut
+ * short, which used to drop the whole turn as "no report". Counting brackets
+ * outside strings and closing what is still open recovers those reports; a
+ * block that was never closeable is returned unchanged and still fails.
+ */
+function closeTruncatedJson(body: string): string {
+  const trimmed = body.trimEnd();
+  const closers: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (const char of trimmed) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === "{") closers.push("}");
+    else if (char === "[") closers.push("]");
+    else if (char === "}" || char === "]") closers.pop();
+  }
+  return closers.length === 0 ? trimmed : trimmed + closers.toReversed().join("");
+}
+
+/**
  * Reads the last goal report in an assistant message. Providers sometimes wrap
  * the block in prose, and a retry can leave two blocks, so the last one wins.
  */
@@ -182,7 +209,13 @@ export function parseGoalReport(message: string): GoalReport | null {
     try {
       parsed = JSON.parse(body.trim());
     } catch {
-      continue;
+      // Only ever applied after JSON.parse already failed, so a well-formed
+      // report can never be rewritten by these repairs.
+      try {
+        parsed = JSON.parse(closeTruncatedJson(body).replace(/,\s*([}\]])/g, "$1"));
+      } catch {
+        continue;
+      }
     }
     const report = parseReportBody(parsed);
     if (report !== null) return report;
@@ -293,16 +326,19 @@ export function applyGoalReport(input: {
     const index = tasks.findIndex((task) => normalizedTitle(task.title) === key);
     if (index === -1) {
       if (tasks.length >= GOAL_MAX_TASKS) continue;
+      // A task introduced by a report cannot already be failed or blocked: it
+      // has never been attempted, so it stays runnable work.
+      const stranded = update.status === "failed" || update.status === "blocked";
       tasks.push({
         id: input.makeTaskId(),
         title: update.title,
         detail: null,
-        status: update.status,
+        status: stranded ? "pending" : update.status,
         order: nextOrder,
         startedAt: update.status === "completed" ? nowIso : null,
         completedAt: update.status === "completed" ? nowIso : null,
         evidence: update.evidence,
-        attempts: 1,
+        attempts: stranded ? 0 : 1,
       });
       nextOrder += 1;
       continue;
@@ -311,6 +347,12 @@ export function applyGoalReport(input: {
     // A completed task is terminal until the user retries it explicitly, so a
     // sloppy later report cannot un-complete verified work.
     if (current.status === "completed" && update.status !== "completed") continue;
+    // Work nobody started cannot be failed or blocked. Reporting it that way
+    // would strand a task the loop never ran, leaving no runnable task while
+    // the plan still has work to do.
+    if (replaceable(current) && (update.status === "blocked" || update.status === "failed")) {
+      continue;
+    }
     const next: GoalTask =
       update.status === "completed"
         ? {
@@ -326,7 +368,9 @@ export function applyGoalReport(input: {
               ...current,
               status: "in_progress",
               startedAt: current.startedAt ?? nowIso,
-              attempts: current.attempts + 1,
+              // Only a pending task becoming active starts a new attempt. A
+              // repeat "still working" report must not spend recovery budget.
+              attempts: current.status === "in_progress" ? current.attempts : current.attempts + 1,
             }
           : { ...current, status: update.status, evidence: update.evidence ?? current.evidence };
     tasks[index] = next;
@@ -379,7 +423,7 @@ export function applyGoalReport(input: {
   };
 }
 
-const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input|planning","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"completed|in_progress|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptanceCriteria":["condition that must hold to call the goal complete"],"question":"only when status is needs_input"}}`;
+const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input|planning","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"pending|in_progress|completed|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptance":[{"criterion":"exact acceptance criterion text","met":true,"evidence":"the command you ran and what it proved"}],"verified":false,"acceptanceCriteria":["condition that must hold to call the goal complete"],"question":"only when status is needs_input"}}`;
 
 function criteriaSection(goal: Goal): string {
   if (goal.acceptanceCriteria.length === 0) {
@@ -402,6 +446,9 @@ const RULES = `Rules:
 - Keep the chat update short: one plain sentence about what you changed and what happens next, no headings or bullet lists unless the task itself needs them. Put proof in the report evidence, not in prose.
 - Never report a task completed unless it is actually done, and never invent test results, file changes, or command output.
 - Report real evidence: the files you changed, the commands you ran, and what they printed.
+- A task you have not started yet is "pending". Never report a task you did not attempt as "failed" or "blocked": those are only for work you actually tried this turn.
+- A retry must first say why the previous attempt failed, then take a different approach. Never repeat the same failing operation unchanged.
+- When you report "verified", every entry in "acceptance" must carry the evidence that proves it; a criterion without evidence counts as not met.
 - Ask for clarification only when you cannot proceed without information only the user has; then set status "needs_input" with a single question.
 - Set status "planning" only while you are still deciding what to do; use "running" once you are executing the plan, so the card shows what is happening.
 - If you are blocked (missing access, failing dependency, contradictory requirement), set status "blocked" and explain precisely what stopped you. Do not retry the same failing action forever.
@@ -432,6 +479,14 @@ export function buildGoalExecutionPrompt(input: {
 }): string {
   const { goal, task } = input;
   const remaining = goal.tasks.filter((candidate) => candidate.status !== "completed");
+  const recovery =
+    task.attempts <= 1
+      ? ""
+      : `This is attempt ${task.attempts} at this task.${
+          task.evidence === null
+            ? " The earlier attempt recorded no reason, so establish first why it did not finish."
+            : ` The previous attempt failed with: ${task.evidence}`
+        }\nDiagnose that failure, then take a different approach. Do not repeat the same failing operation unchanged.\n`;
   return `You are executing a persistent goal in Goal Mode.
 
 Objective from the user:
@@ -443,7 +498,7 @@ ${progressSection(goal)}
 
 ${input.edited ? "The user edited this goal since the last turn. Keep every completed task as done, revise only what remains, and follow the updated objective above.\n" : ""}Your task this turn: "${task.title}"${task.detail === null ? "" : `\nWhat it covers: ${task.detail}`}
 
-Do the actual work now. When you finish it, report it completed with evidence; if it fails, report it failed with the error; if it needs the user, report needs_input with the question. Do not start other tasks in this turn beyond what this one requires.
+${recovery}Do the actual work now. When you finish it, report it completed with evidence; if it fails, report it failed with the error; if it needs the user, report needs_input with the question. Do not start other tasks in this turn beyond what this one requires.
 Still open after this: ${remaining.length === 0 ? "nothing" : remaining.map((candidate) => candidate.title).join("; ")}
 
 ${RULES}`;
@@ -466,7 +521,7 @@ ${criteria}
 
 ${progressSection(goal)}
 
-Set "verified": true only if every criterion is demonstrably satisfied right now. Otherwise set "verified": false, list each criterion with met: false and the reason, and set status "running" so the server can dispatch one repair turn.
+Set "verified": true only if every criterion is demonstrably satisfied right now, and set status "completed". Otherwise set "verified": false, set status "running" so the server can dispatch a repair turn, and list every criterion in "acceptance" with its exact text, met: false, and what is missing. A criterion you cannot prove with a command or a file you actually inspected is not met.
 
 ${RULES}`;
 }
@@ -475,6 +530,12 @@ export function buildGoalRepairPrompt(goal: Goal): string {
   const reason =
     goal.verification.summary ??
     "Verification did not confirm that the acceptance criteria are satisfied.";
+  const criteria = goal.verification.criteria ?? [];
+  const unmet = criteria.filter((result) => !result.met);
+  const unmetSection =
+    unmet.length === 0
+      ? ""
+      : `Criteria verification did not accept:\n${unmet.map((result) => `- ${result.criterion}`).join("\n")}\n\n`;
   return `You are repairing a persistent goal in Goal Mode. The verification pass did not pass.
 
 Objective from the user:
@@ -482,7 +543,7 @@ ${goal.objective}
 
 Why verification failed: ${reason}
 
-${criteriaSection(goal)}
+${unmetSection}${criteriaSection(goal)}
 
 ${progressSection(goal)}
 
