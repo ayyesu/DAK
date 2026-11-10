@@ -1004,17 +1004,29 @@ it.effect("a failed task is always retried, never blocking the goal", () => {
       { kind: "completed", reply: taskFailedReport },
       { kind: "completed", reply: taskFailedReport },
       { kind: "completed", reply: taskFailedReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
     ],
   });
   return Effect.gen(function* () {
     const service = yield* GoalService.GoalService;
     const created = yield* service.create(createInput());
 
-    // After three failures the task is requeued as pending, not blocked.
+    // The task is retried past the old three-attempt cap and the goal completes.
+    const done = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "completed",
+    );
+    expect(done.completedTaskCount).toBe(1);
+
     const full = yield* service.get({ id: created.goal.id });
-    expect(full.goal.status).toBe("running");
-    expect(full.goal.tasks[0]?.attempts).toBe(3);
-    expect(full.goal.tasks[0]?.status).toBe("pending");
+    expect(full.goal.tasks[0]?.attempts).toBe(4);
+    expect(full.goal.tasks[0]?.status).toBe("completed");
+    const requeues = full.goal.activities.filter((activity) =>
+      activity.summary.startsWith("Requeued 1 failed task"),
+    );
+    expect(requeues).toHaveLength(3);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
@@ -1197,7 +1209,12 @@ it.effect("resuming a driven goal never dispatches the same task twice", () => {
 });
 
 it.effect("attempts and task state survive a server restart", () => {
-  const script = makeScript();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+  });
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const service = yield* GoalService.GoalService;
@@ -1231,13 +1248,22 @@ it.effect("attempts and task state survive a server restart", () => {
     // Recovery wakes on the virtual clock and drives the seeded goal.
     yield* TestClock.adjust("15 seconds");
 
-    // The stored attempts and evidence survive: the failed task is requeued
-    // as pending for another attempt instead of blocking the goal.
+    // The requeued task keeps its stored attempts and evidence, then completes.
+    const done = yield* awaitGoalState(
+      service.subscribeList({}),
+      GoalId.make(goalId),
+      (goal) => goal.status === "completed",
+    );
+    expect(done.completedTaskCount).toBe(1);
+
     const loaded = yield* service.get({ id: GoalId.make(goalId) });
-    expect(loaded.goal.status).toBe("running");
-    expect(loaded.goal.tasks[0]?.attempts).toBe(3);
-    expect(loaded.goal.tasks[0]?.evidence).toBe("port 4000 already in use");
-    expect(loaded.goal.tasks[0]?.status).toBe("pending");
+    expect(loaded.goal.tasks[0]?.attempts).toBe(4);
+    const requeued = loaded.goal.activities.find((activity) =>
+      activity.summary.startsWith("Requeued 1 failed task"),
+    );
+    expect(requeued).toBeDefined();
+    expect(requeued?.detail).toContain("(attempt 3)");
+    expect(requeued?.detail).toContain("port 4000 already in use");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("restart recovery resumes the 20 most recently updated goals", () => {
