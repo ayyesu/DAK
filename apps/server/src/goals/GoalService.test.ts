@@ -1081,7 +1081,9 @@ it.effect("verification failure triggers repair instead of blocking", () => {
       (goal) => goal.status === "completed",
     );
     expect(done.completedTaskCount).toBe(1);
-    expect(done.verification.status).toBe("passed");
+
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.verification.status).toBe("passed");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
