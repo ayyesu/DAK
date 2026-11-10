@@ -926,7 +926,7 @@ export const layer = Layer.effect(
         report.acceptance.some(
           (entry) =>
             entry.met &&
-            (entry.evidence !== null && entry.evidence.trim() !== "" || entry.proof.length > 0) &&
+            ((entry.evidence !== null && entry.evidence.trim() !== "") || entry.proof.length > 0) &&
             normalizedCriterion(entry.criterion) === normalizedCriterion(criterion),
         );
       const unmet = goal.acceptanceCriteria.filter((criterion) => !evidenced(criterion));

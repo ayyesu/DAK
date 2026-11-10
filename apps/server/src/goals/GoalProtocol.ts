@@ -128,24 +128,30 @@ function parseReportBody(body: unknown): GoalReport | null {
           const criterion = text(item.criterion);
           if (criterion === null) return [];
           const proof = Array.isArray(item.proof)
-            ? item.proof
-                .flatMap((p): ReadonlyArray<GoalProof> => {
-                  if (!isRecord(p)) return [];
-                  const type =
-                    p.type === "image" || p.type === "screenshot" || p.type === "canvas" ||
-                    p.type === "test" || p.type === "check" || p.type === "run" || p.type === "text"
-                      ? p.type
-                      : null;
-                  const url = text(p.url);
-                  if (type === null || url === null) return [];
-                  return [{
+            ? item.proof.flatMap((p): ReadonlyArray<GoalProof> => {
+                if (!isRecord(p)) return [];
+                const type =
+                  p.type === "image" ||
+                  p.type === "screenshot" ||
+                  p.type === "canvas" ||
+                  p.type === "test" ||
+                  p.type === "check" ||
+                  p.type === "run" ||
+                  p.type === "text"
+                    ? p.type
+                    : null;
+                const url = text(p.url);
+                if (type === null || url === null) return [];
+                return [
+                  {
                     type,
                     url,
                     thumbnailUrl: text(p.thumbnailUrl) ?? null,
                     caption: text(p.caption) ?? null,
                     createdAt: typeof p.createdAt === "string" ? p.createdAt : null,
-                  }];
-                })
+                  },
+                ];
+              })
             : [];
           return [{ criterion, met: item.met === true, evidence: text(item.evidence), proof }];
         })

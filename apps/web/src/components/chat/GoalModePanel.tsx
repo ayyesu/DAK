@@ -3,7 +3,14 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@dak/client-runtime/state/runtime";
-import type { EnvironmentId, GoalProof, GoalSummary, GoalTask, ProjectId, ThreadId } from "@dak/contracts";
+import type {
+  EnvironmentId,
+  GoalProof,
+  GoalSummary,
+  GoalTask,
+  ProjectId,
+  ThreadId,
+} from "@dak/contracts";
 import { scopeThreadRef } from "@dak/client-runtime/environment";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
@@ -153,7 +160,7 @@ function GoalCriterionProof({ proof }: { readonly proof: GoalProof }) {
           rel="noopener noreferrer"
           className="text-xs text-primary underline-offset-4 hover:text-primary/80"
         >
-          {proof.caption ?? proof.type === "test"
+          {(proof.caption ?? proof.type === "test")
             ? "Test results"
             : proof.type === "check"
               ? "Check output"
