@@ -92,8 +92,8 @@ export const GoalProof = Schema.Struct({
   thumbnailUrl: Schema.NullOr(Schema.String),
   /** Human-readable description of what this proof shows. */
   caption: Schema.NullOr(Schema.String),
-  /** When the proof was captured. */
-  createdAt: IsoDateTime,
+  /** When the proof was captured. Null when the agent did not supply one. */
+  createdAt: Schema.NullOr(IsoDateTime),
 });
 export type GoalProof = typeof GoalProof.Type;
 

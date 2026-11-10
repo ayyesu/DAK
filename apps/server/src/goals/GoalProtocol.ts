@@ -143,7 +143,7 @@ function parseReportBody(body: unknown): GoalReport | null {
                     url,
                     thumbnailUrl: text(p.thumbnailUrl) ?? null,
                     caption: text(p.caption) ?? null,
-                    createdAt: typeof p.createdAt === "string" ? p.createdAt : new Date().toISOString(),
+                    createdAt: typeof p.createdAt === "string" ? p.createdAt : null,
                   }];
                 })
             : [];
