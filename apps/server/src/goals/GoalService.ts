@@ -395,7 +395,7 @@ export const layer = Layer.effect(
           workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
           failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
           creation_source, created_at, updated_at, started_at, turn_started_at,
-          completed_at, last_activity_at
+          completed_at, last_activity_at, progress, progress_label
         ) VALUES (
           ${goal.id}, ${goal.projectId}, ${goal.threadId}, ${goal.title}, ${goal.objective},
           ${encodeCriteria([...goal.acceptanceCriteria])}, ${goal.status}, ${goal.currentTaskId},
