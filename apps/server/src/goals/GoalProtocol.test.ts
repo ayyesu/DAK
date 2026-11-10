@@ -451,7 +451,7 @@ describe("goal prompts", () => {
     // The report shape has to carry what the verifier is told to produce.
     expect(prompt).toContain(`"acceptance":[{"criterion":`);
     expect(prompt).toContain(`"verified":false`);
-    expect(prompt).toContain("A criterion you cannot prove with a command");
+    expect(prompt).toContain("Every criterion without proof counts as not met");
   });
 
   it("tells a retry why the last attempt failed and to change approach", () => {
