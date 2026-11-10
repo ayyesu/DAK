@@ -1,7 +1,6 @@
 import {
   CommandId,
   GOAL_ACTIVITY_LIMIT,
-  GOAL_MAX_CYCLES,
   GOAL_MAX_IDLE_CYCLES,
   GoalError,
   GoalId,
@@ -69,14 +68,6 @@ const GOAL_TURN_TIMEOUT_MS = 20 * 60 * 1_000;
  * live turn from a stalled one. Exported for the heartbeat test.
  */
 export const GOAL_TURN_HEARTBEAT_MS = 25_000;
-/** Verification passes (each with one repair turn) before a goal is blocked. */
-const GOAL_MAX_VERIFY_ROUNDS = 2;
-/**
- * How many times one task may be started before the goal stops for a person.
- * A recovery has to change approach, so this bounds automatic retries without
- * relying on the agent deciding to give up.
- */
-const GOAL_TASK_MAX_ATTEMPTS = 3;
 /** Boot delay before interrupted goals resume, so provider runtimes are up. */
 const GOAL_RECOVERY_DELAY = Duration.seconds(15);
 /** A driven goal this old with no driver is stuck, not waiting for a turn. */
@@ -113,7 +104,6 @@ interface GoalRow {
   readonly progress_label: string | null;
   readonly pending_edit: number;
   readonly pending_answer: string | null;
-  readonly verify_rounds: number;
   readonly created_by: string;
   readonly creation_source: string;
   readonly created_at: string;
@@ -156,7 +146,6 @@ interface GoalRecord {
   readonly workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy;
   readonly pendingEdit: boolean;
   readonly pendingAnswer: string | null;
-  readonly verifyRounds: number;
 }
 
 interface GoalActivityInput {
@@ -359,7 +348,6 @@ export const layer = Layer.effect(
         workspaceStrategy,
         pendingEdit: row.pending_edit === 1,
         pendingAnswer: row.pending_answer,
-        verifyRounds: row.verify_rounds,
       } satisfies GoalRecord;
     });
 
@@ -393,7 +381,7 @@ export const layer = Layer.effect(
           goal_id, project_id, thread_id, title, objective, acceptance_criteria_json, status,
           current_task_id, model_selection_json, runtime_mode, interaction_mode,
           workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
-          failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
+          failure_reason, pending_edit, pending_answer, created_by,
           creation_source, created_at, updated_at, started_at, turn_started_at,
           completed_at, last_activity_at, progress, progress_label
         ) VALUES (
@@ -403,7 +391,7 @@ export const layer = Layer.effect(
           ${goal.interactionMode}, ${encodeWorkspaceStrategy(record.workspaceStrategy)},
           ${goal.revision}, ${goal.cycleCount}, ${encodeVerification(goal.verification)},
           ${goal.blockedReason}, ${goal.failureReason}, ${record.pendingEdit ? 1 : 0},
-          ${record.pendingAnswer}, ${record.verifyRounds},           ${goal.createdBy},
+          ${record.pendingAnswer}, ${goal.createdBy},
           ${goal.creationSource}, ${goal.createdAt}, ${goal.updatedAt}, ${goal.startedAt},
           ${goal.turnStartedAt}, ${goal.completedAt}, ${goal.lastActivityAt},
           ${goal.progress}, ${goal.progressLabel}
@@ -427,7 +415,6 @@ export const layer = Layer.effect(
           failure_reason = excluded.failure_reason,
           pending_edit = excluded.pending_edit,
           pending_answer = excluded.pending_answer,
-          verify_rounds = excluded.verify_rounds,
           created_at = excluded.created_at,
           updated_at = excluded.updated_at,
           started_at = excluded.started_at,
@@ -934,13 +921,12 @@ export const layer = Layer.effect(
     ) {
       const goal = record.goal;
       // A criterion counts as met only when a matching entry claims it is met
-      // and carries evidence; a bare "met": true is the agent's word, not proof.
+      // and carries evidence or proof; a bare "met": true is the agent's word, not proof.
       const evidenced = (criterion: string) =>
         report.acceptance.some(
           (entry) =>
             entry.met &&
-            entry.evidence !== null &&
-            entry.evidence.trim() !== "" &&
+            ((entry.evidence !== null && entry.evidence.trim() !== "") || entry.proof.length > 0) &&
             normalizedCriterion(entry.criterion) === normalizedCriterion(criterion),
         );
       const unmet = goal.acceptanceCriteria.filter((criterion) => !evidenced(criterion));
@@ -951,10 +937,16 @@ export const layer = Layer.effect(
         unmet.length === 0 &&
         allTasksCompleted &&
         (goal.acceptanceCriteria.length === 0 || report.acceptance.length > 0);
-      // Per-criterion results for the UI, whatever the pass decided.
+      // Per-criterion results for the UI, including the proof that backs each one.
+      const proofByCriterion = new Map(
+        report.acceptance
+          .filter((entry) => entry.met && entry.proof.length > 0)
+          .map((entry) => [normalizedCriterion(entry.criterion), entry.proof]),
+      );
       const criterionResults = goal.acceptanceCriteria.map((criterion) => ({
         criterion,
         met: !unmet.some((entry) => normalizedCriterion(entry) === normalizedCriterion(criterion)),
+        proof: proofByCriterion.get(normalizedCriterion(criterion)) ?? [],
       }));
       const at = yield* nowIso;
       if (verified) {
@@ -983,7 +975,6 @@ export const layer = Layer.effect(
         return { done: true as const, record: completed };
       }
 
-      const rounds = record.verifyRounds + 1;
       const summary =
         report.summary ??
         (unmet.length > 0
@@ -995,7 +986,6 @@ export const layer = Layer.effect(
       const repair = yield* commit(
         {
           ...record,
-          verifyRounds: rounds,
           goal: {
             ...goal,
             status: "running",
@@ -1010,24 +1000,17 @@ export const layer = Layer.effect(
     const drive = (goalId: GoalId) =>
       Effect.gen(function* () {
         let idleCycles = 0;
-        for (let iteration = 0; iteration < GOAL_MAX_CYCLES + 2; iteration += 1) {
+        while (true) {
           const record = yield* readRecordOrFail(goalId);
           const goal = record.goal;
           if (!isDriven(goal.status)) return;
-
-          if (goal.cycleCount >= GOAL_MAX_CYCLES) {
-            yield* setStatus(record, "blocked", "Stopped after too many attempts", {
-              blockedReason: `The goal used all ${GOAL_MAX_CYCLES} attempts without finishing. Review the plan and resume to continue.`,
-            });
-            return;
-          }
 
           if (record.pendingAnswer !== null) {
             const question = goal.blockedReason ?? "You asked the user for clarification.";
             // The answer stays stored until its turn completes, so a pause or
             // an interrupted turn cannot swallow the user's reply.
             const outcome = yield* runTurn(
-              { ...record, verifyRounds: 0 },
+              record,
               buildGoalAnswerPrompt({ goal, question, answer: record.pendingAnswer }),
               "answer",
             );
@@ -1173,12 +1156,11 @@ export const layer = Layer.effect(
             const stuck = goal.tasks.filter(
               (task) => task.status === "failed" || task.status === "blocked",
             );
-            const recoverable = stuck.filter((task) => task.attempts < GOAL_TASK_MAX_ATTEMPTS);
-            if (recoverable.length === stuck.length && stuck.length > 0) {
-              // Every remaining task failed, and each one still has budget, so
-              // the goal keeps working instead of parking for a person. Their
-              // startedAt survives, which puts them behind any fresh pending
-              // task and marks them as recoveries rather than first attempts.
+            if (stuck.length > 0) {
+              // Failed and blocked tasks are always requeued: the agent decides
+              // its own approach, with no attempt cap. Their startedAt survives,
+              // which puts them behind any fresh pending task and marks them as
+              // recoveries rather than first attempts.
               yield* commit(
                 {
                   ...record,
@@ -1211,7 +1193,7 @@ export const layer = Layer.effect(
               blockedReason:
                 stuck.length === 0
                   ? "Every task ended without a runnable next step."
-                  : `Exhausted ${GOAL_TASK_MAX_ATTEMPTS} attempts on: ${stuck.map((task) => task.title).join("; ")}. Retry a task or edit the goal.`,
+                  : `No runnable task remains on: ${stuck.map((task) => task.title).join("; ")}. Retry a task or edit the goal.`,
             });
             return;
           }
@@ -1266,13 +1248,6 @@ export const layer = Layer.effect(
           });
           if (applied.status === "needs_input" || applied.status === "blocked") return;
           if (applied.status === "completed") return;
-        }
-
-        const last = yield* readRecordOrFail(goalId);
-        if (isDriven(last.goal.status)) {
-          yield* setStatus(last, "blocked", "Stopped after too many attempts", {
-            blockedReason: "The execution loop hit its iteration guard. Resume to continue.",
-          });
         }
       }).pipe(
         Effect.catchCause((cause) =>
@@ -1452,7 +1427,6 @@ export const layer = Layer.effect(
           workspaceStrategy: input.workspaceStrategy ?? { type: "root" },
           pendingEdit: false,
           pendingAnswer: null,
-          verifyRounds: 0,
         };
         yield* writeRecord(record);
         yield* appendActivity(id, {
@@ -1495,7 +1469,6 @@ export const layer = Layer.effect(
           {
             ...record,
             pendingEdit: true,
-            verifyRounds: 0,
             goal: {
               ...record.goal,
               title: input.objective === undefined ? record.goal.title : deriveTitle(objective),
@@ -1565,7 +1538,6 @@ export const layer = Layer.effect(
         const resumed = yield* commit(
           {
             ...record,
-            verifyRounds: 0,
             goal: {
               ...record.goal,
               status: record.goal.tasks.length === 0 ? "planning" : "running",
@@ -1638,7 +1610,6 @@ export const layer = Layer.effect(
         const retried = yield* commit(
           {
             ...record,
-            verifyRounds: 0,
             goal: {
               ...record.goal,
               status: record.goal.status === "paused" ? "paused" : "running",

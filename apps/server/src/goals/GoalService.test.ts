@@ -923,7 +923,7 @@ it.effect("verification records per-criterion results on the goal", () => {
     const full = yield* service.get({ id: created.goal.id });
     expect(full.goal.verification.status).toBe("passed");
     expect(full.goal.verification.criteria).toEqual([
-      { criterion: "Each channel persists after reload", met: true },
+      { criterion: "Each channel persists after reload", met: true, proof: [] },
     ]);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
@@ -997,30 +997,36 @@ it.effect("a failed task does not hold up independent pending work", () => {
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
-it.effect("a task that exhausts its automatic attempts stops the goal", () => {
+it.effect("a failed task is always retried, never blocking the goal", () => {
   const script = makeScript({
     steps: [
       { kind: "completed", reply: planReport },
       { kind: "completed", reply: taskFailedReport },
       { kind: "completed", reply: taskFailedReport },
       { kind: "completed", reply: taskFailedReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
     ],
   });
   return Effect.gen(function* () {
     const service = yield* GoalService.GoalService;
     const created = yield* service.create(createInput());
 
-    const stopped = yield* awaitGoalState(
+    // The task is retried past the old three-attempt cap and the goal completes.
+    const done = yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
-      (goal) => goal.status === "blocked",
+      (goal) => goal.status === "completed",
     );
-    expect(stopped.blockedReason).toContain("Exhausted 3 attempts on: Do the thing.");
-    expect(script.sentTexts).toHaveLength(4);
+    expect(done.completedTaskCount).toBe(1);
 
     const full = yield* service.get({ id: created.goal.id });
-    expect(full.goal.tasks[0]?.attempts).toBe(3);
-    expect(full.goal.tasks[0]?.status).toBe("failed");
+    expect(full.goal.tasks[0]?.attempts).toBe(4);
+    expect(full.goal.tasks[0]?.status).toBe("completed");
+    const requeues = full.goal.activities.filter((activity) =>
+      activity.summary.startsWith("Requeued 1 failed task"),
+    );
+    expect(requeues).toHaveLength(3);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
@@ -1052,7 +1058,7 @@ it.effect("verification that claims a criterion without evidence repairs, then p
     const full = yield* service.get({ id: created.goal.id });
     expect(full.goal.verification.status).toBe("passed");
     expect(full.goal.verification.criteria).toEqual([
-      { criterion: "Each channel persists after reload", met: true },
+      { criterion: "Each channel persists after reload", met: true, proof: [] },
     ]);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
@@ -1203,7 +1209,12 @@ it.effect("resuming a driven goal never dispatches the same task twice", () => {
 });
 
 it.effect("attempts and task state survive a server restart", () => {
-  const script = makeScript();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+  });
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const service = yield* GoalService.GoalService;
@@ -1214,14 +1225,14 @@ it.effect("attempts and task state survive a server restart", () => {
         goal_id, project_id, thread_id, title, objective, acceptance_criteria_json, status,
         current_task_id, model_selection_json, runtime_mode, interaction_mode,
         workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
-        failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
+        failure_reason, pending_edit, pending_answer, created_by,
         creation_source, created_at, updated_at, started_at, turn_started_at,
         completed_at, last_activity_at
       ) VALUES (
         ${goalId}, ${projectId}, NULL, 'Seeded goal', 'Objective', '[]', 'running',
         NULL, ${JSON.stringify(modelSelection)}, 'auto', 'default',
         '{"type":"root"}', 1, 0, '{"status":"pending","summary":null,"checkedAt":null}',
-        NULL, NULL, 0, NULL, 0, 'user', 'web', ${at}, ${at}, ${at}, NULL, NULL, ${at}
+        NULL, NULL, 0, NULL, 'user', 'web', ${at}, ${at}, ${at}, NULL, NULL, ${at}
       )
     `;
     yield* sql`
@@ -1236,17 +1247,23 @@ it.effect("attempts and task state survive a server restart", () => {
 
     // Recovery wakes on the virtual clock and drives the seeded goal.
     yield* TestClock.adjust("15 seconds");
-    const stopped = yield* awaitGoalState(
+
+    // The requeued task keeps its stored attempts and evidence, then completes.
+    const done = yield* awaitGoalState(
       service.subscribeList({}),
       GoalId.make(goalId),
-      (goal) => goal.status === "blocked",
+      (goal) => goal.status === "completed",
     );
-    expect(stopped.blockedReason).toContain("Exhausted 3 attempts on: Do the thing.");
+    expect(done.completedTaskCount).toBe(1);
 
-    // The stored budget is what stopped it: a restart must not reset it.
     const loaded = yield* service.get({ id: GoalId.make(goalId) });
-    expect(loaded.goal.tasks[0]?.attempts).toBe(3);
-    expect(loaded.goal.tasks[0]?.evidence).toBe("port 4000 already in use");
+    expect(loaded.goal.tasks[0]?.attempts).toBe(4);
+    const requeued = loaded.goal.activities.find((activity) =>
+      activity.summary.startsWith("Requeued 1 failed task"),
+    );
+    expect(requeued).toBeDefined();
+    expect(requeued?.detail).toContain("(attempt 3)");
+    expect(requeued?.detail).toContain("port 4000 already in use");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("restart recovery resumes the 20 most recently updated goals", () => {
@@ -1265,13 +1282,13 @@ it.effect("restart recovery resumes the 20 most recently updated goals", () => {
           goal_id, project_id, thread_id, title, objective, acceptance_criteria_json, status,
           current_task_id, model_selection_json, runtime_mode, interaction_mode,
           workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
-          failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
+          failure_reason, pending_edit, pending_answer, created_by,
           creation_source, created_at, updated_at, started_at, completed_at, last_activity_at
         ) VALUES (
           ${goalId}, ${projectId}, NULL, 'Seeded goal', 'Objective', '[]', 'planning',
           NULL, ${JSON.stringify(modelSelection)}, 'auto', 'default',
           '{"type":"root"}', 1, 0, '{"status":"pending","summary":null,"checkedAt":null}',
-          NULL, NULL, 0, NULL, 0, 'user', 'web', ${updatedAt}, ${updatedAt}, ${updatedAt},
+          NULL, NULL, 0, NULL, 'user', 'web', ${updatedAt}, ${updatedAt}, ${updatedAt},
           NULL, ${updatedAt}
         )
       `;
@@ -1427,14 +1444,14 @@ it.effect("blocks driven goals nobody is driving and leaves the rest alone", () 
         goal_id, project_id, thread_id, title, objective, acceptance_criteria_json, status,
         current_task_id, model_selection_json, runtime_mode, interaction_mode,
         workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
-        failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
+        failure_reason, pending_edit, pending_answer, created_by,
         creation_source, created_at, updated_at, started_at, turn_started_at,
         completed_at, last_activity_at
       ) VALUES (
         ${goalId}, ${projectId}, NULL, 'Orphaned goal', 'Objective', '[]', 'running',
         NULL, ${JSON.stringify(modelSelection)}, 'auto', 'default',
         '{"type":"root"}', 1, 0, '{"status":"pending","summary":null,"checkedAt":null}',
-        NULL, NULL, 0, NULL, 0, 'user', 'web',
+        NULL, NULL, 0, NULL, 'user', 'web',
         ${at}, ${at}, ${at}, ${at}, NULL, ${at}
       )
     `;

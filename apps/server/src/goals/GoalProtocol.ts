@@ -2,6 +2,7 @@ import {
   GOAL_MAX_TASKS,
   type Goal,
   type GoalActivityKind,
+  type GoalProof,
   type GoalStatus,
   type GoalTask,
   type GoalTaskStatus,
@@ -34,6 +35,8 @@ export interface GoalReportAcceptance {
   readonly criterion: string;
   readonly met: boolean;
   readonly evidence: string | null;
+  /** Rich proof backing this criterion: images, screenshots, canvas, test results, run output. */
+  readonly proof: ReadonlyArray<GoalProof>;
 }
 
 export interface GoalReport {
@@ -123,9 +126,34 @@ function parseReportBody(body: unknown): GoalReport | null {
         .flatMap((item): ReadonlyArray<GoalReportAcceptance> => {
           if (!isRecord(item)) return [];
           const criterion = text(item.criterion);
-          return criterion === null
-            ? []
-            : [{ criterion, met: item.met === true, evidence: text(item.evidence) }];
+          if (criterion === null) return [];
+          const proof = Array.isArray(item.proof)
+            ? item.proof.flatMap((p): ReadonlyArray<GoalProof> => {
+                if (!isRecord(p)) return [];
+                const type =
+                  p.type === "image" ||
+                  p.type === "screenshot" ||
+                  p.type === "canvas" ||
+                  p.type === "test" ||
+                  p.type === "check" ||
+                  p.type === "run" ||
+                  p.type === "text"
+                    ? p.type
+                    : null;
+                const url = text(p.url);
+                if (type === null || url === null) return [];
+                return [
+                  {
+                    type,
+                    url,
+                    thumbnailUrl: text(p.thumbnailUrl) ?? null,
+                    caption: text(p.caption) ?? null,
+                    createdAt: typeof p.createdAt === "string" ? p.createdAt : null,
+                  },
+                ];
+              })
+            : [];
+          return [{ criterion, met: item.met === true, evidence: text(item.evidence), proof }];
         })
         .slice(0, 20)
     : [];
@@ -436,7 +464,7 @@ export function applyGoalReport(input: {
   };
 }
 
-const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input|planning","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"pending|in_progress|completed|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptance":[{"criterion":"exact acceptance criterion text","met":true,"evidence":"the command you ran and what it proved"}],"verified":false,"acceptanceCriteria":["condition that must hold to call the goal complete"],"progress":0,"progressLabel":"short phrase describing progress","question":"only when status is needs_input"}}`;
+const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input|planning","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"pending|in_progress|completed|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptance":[{"criterion":"exact acceptance criterion text","met":true,"evidence":"the command you ran and what it proved","proof":[{"type":"image|screenshot|canvas|test|check|run|text","url":"https://...","thumbnailUrl":"https://...","caption":"what this proof shows","createdAt":"ISO timestamp"}]}],"verified":false,"acceptanceCriteria":["condition that must hold to call the goal complete"],"progress":0,"progressLabel":"short phrase describing progress","question":"only when status is needs_input"}}`;
 
 function criteriaSection(goal: Goal): string {
   if (goal.acceptanceCriteria.length === 0) {
@@ -456,13 +484,13 @@ function progressSection(goal: Goal): string {
 
 const RULES = `Rules:
 - Do the work in this workspace with your tools. Do not only describe what you would do.
-- Keep the chat update short: one plain sentence about what you changed and what happens next, no headings or bullet lists unless the task itself needs them. Put proof in the report evidence, not in prose.
+- Keep the chat update short: one plain sentence about what you changed and what happens next, no headings or bullet lists unless the task itself needs them. Put proof in the report evidence and proof array, not in prose.
 - Report real progress every turn: set "progress" to a number 0-100 for how far along the whole goal is, and "progressLabel" to a short phrase (e.g. "Planning the work", "Working on task 2 of 5", "Verifying the result"). The card shows this instead of guessing.
 - Never report a task completed unless it is actually done, and never invent test results, file changes, or command output.
 - Report real evidence: the files you changed, the commands you ran, and what they printed.
 - A task you have not started yet is "pending". Never report a task you did not attempt as "failed" or "blocked": those are only for work you actually tried this turn.
 - A retry must first say why the previous attempt failed, then take a different approach. Never repeat the same failing operation unchanged.
-- When you report "verified", every entry in "acceptance" must carry the evidence that proves it; a criterion without evidence counts as not met.
+- When you report "verified", every entry in "acceptance" must carry proof that proves it. Proof can be images, screenshots, canvas output, test results, check output, or run output. A criterion without proof counts as not met. Attach screenshots, images, or canvas exports with a URL and a caption describing what they show.
 - Ask for clarification only when you cannot proceed without information only the user has; then set status "needs_input" with a single question.
 - Set status "planning" only while you are still deciding what to do; use "running" once you are executing the plan, so the card shows what is happening.
 - If you are blocked (missing access, failing dependency, contradictory requirement), set status "blocked" and explain precisely what stopped you. Do not retry the same failing action forever.
@@ -528,14 +556,14 @@ export function buildGoalVerificationPrompt(goal: Goal): string {
 Objective from the user:
 ${goal.objective}
 
-Check every acceptance criterion against the actual workspace. Run the tests, typecheck, build, or commands that prove the behaviour. Reading code is not proof when a check can be run.
+Check every acceptance criterion against the actual workspace. Run the tests, typecheck, build, or commands that prove the behaviour. Reading code is not proof when a check can be run. Capture screenshots, images, canvas output, test results, or run output as proof attached to each criterion.
 
 Acceptance criteria:
 ${criteria}
 
 ${progressSection(goal)}
 
-Set "verified": true only if every criterion is demonstrably satisfied right now, and set status "completed". Otherwise set "verified": false, set status "running" so the server can dispatch a repair turn, and list every criterion in "acceptance" with its exact text, met: false, and what is missing. A criterion you cannot prove with a command or a file you actually inspected is not met.
+Set "verified": true only if every criterion is demonstrably satisfied right now, and set status "completed". Otherwise set "verified": false, set status "running" so the server can dispatch a repair turn, and list every criterion in "acceptance" with its exact text, met: false, and what is missing. Every criterion that is met must carry proof in its "proof" array: images, screenshots, canvas exports, test results, check output, or run output with a URL and caption. A criterion without proof counts as not met.
 
 ${RULES}`;
 }
@@ -561,7 +589,7 @@ ${unmetSection}${criteriaSection(goal)}
 
 ${progressSection(goal)}
 
-Fix only what is needed to satisfy the criteria, then re-run the checks that prove it. Report what you changed with real evidence. Do not claim success without proof.
+Fix only what is needed to satisfy the criteria, then re-run the checks that prove it. Report what you changed with real evidence. Every criterion you claim is met must carry proof in its "proof" array: images, screenshots, canvas exports, test results, check output, or run output with a URL and caption. Do not claim success without proof.
 
 ${RULES}`;
 }

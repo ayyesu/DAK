@@ -3,7 +3,14 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@dak/client-runtime/state/runtime";
-import type { EnvironmentId, GoalSummary, GoalTask, ProjectId, ThreadId } from "@dak/contracts";
+import type {
+  EnvironmentId,
+  GoalProof,
+  GoalSummary,
+  GoalTask,
+  ProjectId,
+  ThreadId,
+} from "@dak/contracts";
 import { scopeThreadRef } from "@dak/client-runtime/environment";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
@@ -134,6 +141,40 @@ function GoalCriterionIcon({ met }: { readonly met: boolean | null }) {
   return <CircleIcon aria-hidden className="size-4 shrink-0 text-muted-foreground/40" />;
 }
 
+/** One piece of rich proof: an image, screenshot, canvas export, or link to test/run output. */
+function GoalCriterionProof({ proof }: { readonly proof: GoalProof }) {
+  const isImage = proof.type === "image" || proof.type === "screenshot" || proof.type === "canvas";
+  return (
+    <div className="flex flex-col gap-1 pt-1">
+      {isImage ? (
+        <img
+          src={proof.thumbnailUrl ?? proof.url}
+          alt={proof.caption ?? "proof"}
+          className="max-w-[200px] max-h-[120px] rounded-md border border-border/50 object-cover cursor-pointer"
+        />
+      ) : (
+        <a
+          href={proof.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-primary underline-offset-4 hover:text-primary/80"
+        >
+          {(proof.caption ?? proof.type === "test")
+            ? "Test results"
+            : proof.type === "check"
+              ? "Check output"
+              : proof.type === "run"
+                ? "Run output"
+                : "Proof"}
+        </a>
+      )}
+      {proof.caption !== null && !isImage ? (
+        <p className="text-3xs text-muted-foreground">{proof.caption}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function GoalStatusPill({ goal }: { readonly goal: GoalSummary }) {
   const tone = goalStatusTone(goal.status);
   return (
@@ -217,7 +258,7 @@ function GoalCard(props: {
   const detailRefresh = detailQuery.refresh;
   useEffect(() => {
     if (expanded) detailRefresh();
-  }, [detailRefresh, expanded, goal.updatedAt]);
+  }, [detailRefresh, expanded]);
 
   const progress = goalDetail ? goalProgress(goalDetail) : goalSummaryProgress(goal);
   const tone = goalStatusTone(goal.status);
@@ -509,20 +550,32 @@ function GoalCard(props: {
                 {criteria.length > 0 ? (
                   <ul className="mt-1 list-none space-y-1">
                     {shownCriteria.map((criterion) => (
-                      <li key={criterion.criterion} className="flex items-start gap-2">
-                        <GoalCriterionIcon met={criterion.met} />
-                        <span
-                          className={cn(
-                            "min-w-0 text-xs leading-4",
-                            criterion.met === false
-                              ? "text-destructive"
-                              : criterion.met === true
-                                ? "text-foreground"
-                                : "text-muted-foreground",
-                          )}
-                        >
-                          {criterion.criterion}
-                        </span>
+                      <li key={criterion.criterion} className="flex flex-col gap-2">
+                        <div className="flex items-start gap-2">
+                          <GoalCriterionIcon met={criterion.met} />
+                          <span
+                            className={cn(
+                              "min-w-0 text-xs leading-4",
+                              criterion.met === false
+                                ? "text-destructive"
+                                : criterion.met === true
+                                  ? "text-foreground"
+                                  : "text-muted-foreground",
+                            )}
+                          >
+                            {criterion.criterion}
+                          </span>
+                        </div>
+                        {criterion.proof.length > 0 ? (
+                          <div className="ml-8 flex flex-col gap-1">
+                            {criterion.proof.map((proof) => (
+                              <GoalCriterionProof
+                                key={`${proof.type}:${proof.url}`}
+                                proof={proof}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
@@ -818,10 +871,7 @@ export function GoalModePanel(props: {
 
   // The palette and the chat.key command ask for Goal Mode without owning its
   // state; subscribe here, next to the consumer.
-  useEffect(
-    () => onOpenGoalComposer(() => props.onGoalModeOpenChange(true)),
-    [props.onGoalModeOpenChange],
-  );
+  useEffect(() => onOpenGoalComposer(() => props.onGoalModeOpenChange(true)), [props]);
 
   const goals = useMemo(
     () =>
