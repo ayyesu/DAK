@@ -42,6 +42,8 @@ const baseGoal: Goal = {
   verification: { status: "pending", summary: null, checkedAt: null },
   blockedReason: null,
   failureReason: null,
+  progress: null,
+  progressLabel: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
   startedAt: null,

@@ -1436,6 +1436,8 @@ export const layer = Layer.effect(
           verification: { status: "pending", summary: null, checkedAt: null },
           blockedReason: null,
           failureReason: null,
+          progress: null,
+          progressLabel: null,
           createdAt: at,
           updatedAt: at,
           startedAt: at,
