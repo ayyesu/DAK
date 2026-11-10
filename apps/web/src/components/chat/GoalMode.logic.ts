@@ -9,24 +9,24 @@ import type {
 } from "@dak/contracts";
 
 /** Statuses where the server is still working or waiting to work. */
-const GOAL_ACTIVE_STATUSES: ReadonlyArray<GoalStatus> = [
+const GOAL_ACTIVE_STATUSES: ReadonlySet<GoalStatus> = new Set([
   "planning",
   "running",
   "verifying",
   "paused",
   "needs_input",
   "blocked",
-];
+]);
 
 export function isGoalActive(status: GoalStatus): boolean {
-  return GOAL_ACTIVE_STATUSES.includes(status);
+  return GOAL_ACTIVE_STATUSES.has(status);
 }
 
 /** Statuses that ended the goal for good; resume, edit, cancel and retry refuse them. */
-const ENDED_GOAL_STATUSES: ReadonlyArray<GoalStatus> = ["completed", "cancelled"];
+const ENDED_GOAL_STATUSES: ReadonlySet<GoalStatus> = new Set(["completed", "cancelled"]);
 
 export function isGoalEnded(status: GoalStatus): boolean {
-  return ENDED_GOAL_STATUSES.includes(status);
+  return ENDED_GOAL_STATUSES.has(status);
 }
 
 /** Statuses with a driver dispatching turns; the card spins and counts turn age here. */

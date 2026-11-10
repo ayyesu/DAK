@@ -151,7 +151,6 @@ function GoalCriterionProof({ proof }: { readonly proof: GoalProof }) {
           src={proof.thumbnailUrl ?? proof.url}
           alt={proof.caption ?? "proof"}
           className="max-w-[200px] max-h-[120px] rounded-md border border-border/50 object-cover cursor-pointer"
-          title={proof.caption ?? proof.url}
         />
       ) : (
         <a
@@ -170,7 +169,7 @@ function GoalCriterionProof({ proof }: { readonly proof: GoalProof }) {
         </a>
       )}
       {proof.caption !== null && !isImage ? (
-        <p className="text-[10px] text-muted-foreground">{proof.caption}</p>
+        <p className="text-3xs text-muted-foreground">{proof.caption}</p>
       ) : null}
     </div>
   );
@@ -259,7 +258,7 @@ function GoalCard(props: {
   const detailRefresh = detailQuery.refresh;
   useEffect(() => {
     if (expanded) detailRefresh();
-  }, [detailRefresh, expanded, goal.updatedAt]);
+  }, [detailRefresh, expanded]);
 
   const progress = goalDetail ? goalProgress(goalDetail) : goalSummaryProgress(goal);
   const tone = goalStatusTone(goal.status);
@@ -569,8 +568,11 @@ function GoalCard(props: {
                         </div>
                         {criterion.proof.length > 0 ? (
                           <div className="ml-8 flex flex-col gap-1">
-                            {criterion.proof.map((proof, index) => (
-                              <GoalCriterionProof key={index} proof={proof} />
+                            {criterion.proof.map((proof) => (
+                              <GoalCriterionProof
+                                key={`${proof.type}:${proof.url}`}
+                                proof={proof}
+                              />
                             ))}
                           </div>
                         ) : null}
@@ -869,10 +871,7 @@ export function GoalModePanel(props: {
 
   // The palette and the chat.key command ask for Goal Mode without owning its
   // state; subscribe here, next to the consumer.
-  useEffect(
-    () => onOpenGoalComposer(() => props.onGoalModeOpenChange(true)),
-    [props.onGoalModeOpenChange],
-  );
+  useEffect(() => onOpenGoalComposer(() => props.onGoalModeOpenChange(true)), [props]);
 
   const goals = useMemo(
     () =>
