@@ -572,7 +572,7 @@ describe("goalCriterionStates", () => {
         acceptanceCriteria: ["Persists after reload"],
       }),
     );
-    expect(states).toEqual([{ criterion: "Persists after reload", met: null }]);
+    expect(states).toEqual([{ criterion: "Persists after reload", met: null, proof: [] }]);
   });
 
   it("maps verification verdicts back onto the acceptance criteria", () => {
@@ -594,8 +594,8 @@ describe("goalCriterionStates", () => {
       }),
     );
     expect(states).toEqual([
-      { criterion: "Persists after reload", met: true },
-      { criterion: "Loads under a second", met: false },
+      { criterion: "Persists after reload", met: true, proof: [] },
+      { criterion: "Loads under a second", met: false, proof: [] },
     ]);
   });
 
@@ -615,8 +615,8 @@ describe("goalCriterionStates", () => {
       }),
     );
     expect(states).toEqual([
-      { criterion: "Checked", met: true },
-      { criterion: "Never judged", met: null },
+      { criterion: "Checked", met: true, proof: [] },
+      { criterion: "Never judged", met: null, proof: [] },
     ]);
   });
 });

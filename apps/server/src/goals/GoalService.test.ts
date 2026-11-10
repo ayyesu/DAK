@@ -1214,14 +1214,14 @@ it.effect("attempts and task state survive a server restart", () => {
         goal_id, project_id, thread_id, title, objective, acceptance_criteria_json, status,
         current_task_id, model_selection_json, runtime_mode, interaction_mode,
         workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
-        failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
+        failure_reason, pending_edit, pending_answer, created_by,
         creation_source, created_at, updated_at, started_at, turn_started_at,
         completed_at, last_activity_at
       ) VALUES (
         ${goalId}, ${projectId}, NULL, 'Seeded goal', 'Objective', '[]', 'running',
         NULL, ${JSON.stringify(modelSelection)}, 'auto', 'default',
         '{"type":"root"}', 1, 0, '{"status":"pending","summary":null,"checkedAt":null}',
-        NULL, NULL, 0, NULL, 0, 'user', 'web', ${at}, ${at}, ${at}, NULL, NULL, ${at}
+        NULL, NULL, 0, NULL, 'user', 'web', ${at}, ${at}, ${at}, NULL, NULL, ${at}
       )
     `;
     yield* sql`
@@ -1265,13 +1265,13 @@ it.effect("restart recovery resumes the 20 most recently updated goals", () => {
           goal_id, project_id, thread_id, title, objective, acceptance_criteria_json, status,
           current_task_id, model_selection_json, runtime_mode, interaction_mode,
           workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
-          failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
+          failure_reason, pending_edit, pending_answer, created_by,
           creation_source, created_at, updated_at, started_at, completed_at, last_activity_at
         ) VALUES (
           ${goalId}, ${projectId}, NULL, 'Seeded goal', 'Objective', '[]', 'planning',
           NULL, ${JSON.stringify(modelSelection)}, 'auto', 'default',
           '{"type":"root"}', 1, 0, '{"status":"pending","summary":null,"checkedAt":null}',
-          NULL, NULL, 0, NULL, 0, 'user', 'web', ${updatedAt}, ${updatedAt}, ${updatedAt},
+          NULL, NULL, 0, NULL, 'user', 'web', ${updatedAt}, ${updatedAt}, ${updatedAt},
           NULL, ${updatedAt}
         )
       `;
@@ -1427,14 +1427,14 @@ it.effect("blocks driven goals nobody is driving and leaves the rest alone", () 
         goal_id, project_id, thread_id, title, objective, acceptance_criteria_json, status,
         current_task_id, model_selection_json, runtime_mode, interaction_mode,
         workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
-        failure_reason, pending_edit, pending_answer, verify_rounds, created_by,
+        failure_reason, pending_edit, pending_answer, created_by,
         creation_source, created_at, updated_at, started_at, turn_started_at,
         completed_at, last_activity_at
       ) VALUES (
         ${goalId}, ${projectId}, NULL, 'Orphaned goal', 'Objective', '[]', 'running',
         NULL, ${JSON.stringify(modelSelection)}, 'auto', 'default',
         '{"type":"root"}', 1, 0, '{"status":"pending","summary":null,"checkedAt":null}',
-        NULL, NULL, 0, NULL, 0, 'user', 'web',
+        NULL, NULL, 0, NULL, 'user', 'web',
         ${at}, ${at}, ${at}, ${at}, NULL, ${at}
       )
     `;
