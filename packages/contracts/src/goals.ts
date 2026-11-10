@@ -271,7 +271,5 @@ export class GoalError extends Schema.TaggedError<GoalError>()("GoalError", {
 export const GOAL_ACTIVITY_LIMIT = 40;
 /** Tasks one plan may contain. No cap: the agent decides its own approach. */
 export const GOAL_MAX_TASKS = 10_000;
-/** Execution cycles per goal. No cap: verification runs until the agent confirms completion. */
-export const GOAL_MAX_CYCLES = 100_000;
 /** Consecutive turns without a usable progress report before a goal is blocked. */
 export const GOAL_MAX_IDLE_CYCLES = 2;
