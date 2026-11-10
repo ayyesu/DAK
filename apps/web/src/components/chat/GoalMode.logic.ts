@@ -107,7 +107,16 @@ export function goalProgress(
   }
 
   if (tasksTotal === 0) {
-    return { completed: 0, total: 0, percent: 0, tasksCompleted, tasksTotal, verified, agentProgress: null, agentProgressLabel: null };
+    return {
+      completed: 0,
+      total: 0,
+      percent: 0,
+      tasksCompleted,
+      tasksTotal,
+      verified,
+      agentProgress: null,
+      agentProgressLabel: null,
+    };
   }
   const total = tasksTotal + 1;
   const completed = tasksCompleted + (verified ? 1 : 0);
@@ -165,7 +174,16 @@ export function goalSummaryProgress(
   }
 
   if (tasksTotal === 0) {
-    return { completed: 0, total: 0, percent: 0, tasksCompleted, tasksTotal, verified, agentProgress: null, agentProgressLabel: null };
+    return {
+      completed: 0,
+      total: 0,
+      percent: 0,
+      tasksCompleted,
+      tasksTotal,
+      verified,
+      agentProgress: null,
+      agentProgressLabel: null,
+    };
   }
   const total = tasksTotal + 1;
   const completed = tasksCompleted + (verified ? 1 : 0);
