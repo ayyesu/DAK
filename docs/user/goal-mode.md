@@ -91,28 +91,17 @@ sound instead.
 
 ## Verification
 
-A goal is marked **Completed** only after the agent has verified every acceptance criterion; a reply on its own never counts as completion. The card reports the check as **Verified** or **Did not pass**, with each criterion ticked or marked unmet. When a check fails, the goal keeps working until the criteria hold or the goal runs out of attempts.
+A goal is marked **Completed** only after the agent has verified every acceptance criterion; a reply on its own never counts as completion. The card reports the check as **Verified** or **Did not pass**, with each criterion ticked or marked unmet. When a check fails, the agent keeps working until every criterion holds — there is no automatic cap on how many times it can try.
 
-### 3-attempt budget per task
+### The agent decides its own approach
 
-Each task may be started up to **3 times** automatically before the goal stops for a person. The budget is server-local and counted in the `attempts` field on each task:
+There is no limit on how many tasks a plan can contain, how many times a task can be retried, or how long a goal can run. The agent determines its own approach, breaks the work into whatever tasks it needs, and can spend as many turns as required to fix an issue. A goal can run for weeks or months so long as you have tokens; it stops only when it completes, when you cancel it, or when a problem genuinely cannot be fixed.
 
-| Attempts | Meaning                                                                                            |
-| -------- | -------------------------------------------------------------------------------------------------- |
-| `0`      | Task not yet started                                                                               |
-| `1`      | First attempt (pending → in progress)                                                              |
-| `2`      | Second attempt (recovery after first failure)                                                      |
-| `3`      | Exhausted — the goal parks with reason “Exhausted 3 attempts on …”. Retry a task or edit the goal. |
+### Verification requires proof
 
-When a task reports `failed`, its `attempts` counter is **not** incremented again — only a pending task becoming active starts a new attempt. A retry via the UI (`Retry task`) resets `attempts` to `0`, giving the task a fresh budget.
+A criterion counts as met only when the matching `acceptance` entry claims `met: true` **and** carries proof — not just the agent's word. Proof can be images, screenshots, canvas output, test results, check output, or run output, each with a URL and a caption describing what it shows. A bare `met: true` without proof counts as not met.
 
-If every remaining task has exhausted its budget (`attempts >= 3`), the goal is parked with a message like:
-
-> **Exhausted 3 attempts on: Do the thing. Retry a task or edit the goal.**
-
-### Verification requires evidence
-
-A criterion counts as met only when a matching `acceptance` entry claims `met: true` **and** carries non-empty `evidence` (the command you ran and what it proved). A bare `met: true` is the agent's word, not proof. If verification fails because criteria lack evidence, the agent identifies the unmet criteria, performs corrective work, and re-verifies automatically — up to `GOAL_MAX_VERIFY_ROUNDS` (2) repair rounds before the goal is parked as “Verification never reported back”.
+If verification fails because criteria lack proof, the agent identifies the unmet criteria, performs corrective work, captures new proof, and re-verifies automatically. This loop repeats until every criterion is provably satisfied or you stop the goal.
 
 ### Progress percentage includes a verification unit
 
@@ -126,15 +115,15 @@ This means the bar never reaches 100% until verification independently passes. I
 ### How the verification loop works
 
 1. After all tasks are `completed`, the goal enters the **verifying** state.
-2. A verification turn runs; the agent must set `verified: false` with an `acceptance` entry for each criterion (met: false + evidence of what is missing), OR `verified: true` with `status: "completed"` if all criteria are provably satisfied.
-3. If `verified: false`, the goal enters **repair** mode; the agent fixes what's needed and reports a repair turn.
-4. After a repair turn, verification runs again. If it still fails after `GOAL_MAX_VERIFY_ROUNDS = 2` rounds, the goal is parked as **Blocked** with reason “Verification did not pass”.
-5. The user can resume to try again, edit the goal, or cancel it.
+2. A verification turn runs; the agent checks every criterion against the workspace — running tests, typechecks, builds, or commands that prove the behaviour. Reading code is not proof when a check can be run. The agent must attach proof (images, screenshots, canvas output, test results, check output, or run output) to every criterion it claims is met.
+3. If all criteria carry proof and `verified: true`, the goal is marked **Completed**.
+4. If any criterion lacks proof or is not met, the goal enters **repair** mode; the agent fixes what is needed and reports a repair turn. After the repair, verification runs again. This repeats as long as needed.
+5. You can pause, edit, or cancel the goal at any time.
 
 ### “Gets stuck” scenarios
 
-- **Goal shows Blocked with “Verification never reported back”**: The verification turn finished without emitting a report (`report: null`). Resume the goal to try again.
-- **Goal shows Blocked with “Exhausted 3 attempts on …”**: All tasks have used their automatic retry budget. Retry a task manually or edit the goal.
+- **Goal shows Blocked with “Verification never reported back”**: The verification turn finished without emitting a report. Resume the goal to try again.
+- **Goal shows Blocked with “No runnable task remains”**: Every task ended without a runnable next step. Retry a task manually or edit the goal.
 - **Goal shows Needed input**: The agent asked the user a question. Answer it to continue.
 - **Progress stays below 100% while verification is pending**: This is expected — verification is the final unit; it must pass for the bar to reach 100%.
 
@@ -150,3 +139,8 @@ Agents can use the `dak_goal_*` MCP tools to list summaries, read full goal
 details, create, update, pause, resume, cancel, answer, or retry a task. List
 first to find a goal's id; use read when you need its full task and activity
 history.
+
+## Platform support
+
+Goal mode is available on web and desktop. The mobile app does not support
+DAK Goal Mode; it only shows the provider's own native goal feature.

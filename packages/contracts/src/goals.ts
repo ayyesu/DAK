@@ -82,10 +82,27 @@ export type GoalActivity = typeof GoalActivity.Type;
 export const GoalVerificationStatus = Schema.Literals(["pending", "passed", "failed"]);
 export type GoalVerificationStatus = typeof GoalVerificationStatus.Type;
 
+/** A single piece of verifiable proof that a criterion was met. */
+export const GoalProof = Schema.Struct({
+  /** Kind of proof: image, screenshot, canvas, test, check, run, or text. */
+  type: Schema.Literals(["image", "screenshot", "canvas", "test", "check", "run", "text"]),
+  /** URL where the proof asset can be viewed (image file, canvas export, test report). */
+  url: Schema.String,
+  /** Optional thumbnail URL for images and screenshots. */
+  thumbnailUrl: Schema.NullOr(Schema.String),
+  /** Human-readable description of what this proof shows. */
+  caption: Schema.NullOr(Schema.String),
+  /** When the proof was captured. */
+  createdAt: IsoDateTime,
+});
+export type GoalProof = typeof GoalProof.Type;
+
 /** One acceptance criterion's result from the last verification pass. */
 export const GoalVerificationCriterion = Schema.Struct({
   criterion: Schema.String,
   met: Schema.Boolean,
+  /** Rich proof backing this criterion: images, screenshots, canvas, test results, etc. */
+  proof: Schema.optional(Schema.Array(GoalProof)),
 });
 export type GoalVerificationCriterion = typeof GoalVerificationCriterion.Type;
 
@@ -252,9 +269,9 @@ export class GoalError extends Schema.TaggedError<GoalError>()("GoalError", {
 
 /** Activities kept in the live goal payload; older ones fall off. */
 export const GOAL_ACTIVITY_LIMIT = 40;
-/** Tasks one plan may contain, so a runaway plan cannot flood the UI. */
-export const GOAL_MAX_TASKS = 30;
-/** Execution cycles per goal before the server stops instead of looping forever. */
-export const GOAL_MAX_CYCLES = 24;
+/** Tasks one plan may contain. No cap: the agent decides its own approach. */
+export const GOAL_MAX_TASKS = 10_000;
+/** Execution cycles per goal. No cap: verification runs until the agent confirms completion. */
+export const GOAL_MAX_CYCLES = 100_000;
 /** Consecutive turns without a usable progress report before a goal is blocked. */
 export const GOAL_MAX_IDLE_CYCLES = 2;

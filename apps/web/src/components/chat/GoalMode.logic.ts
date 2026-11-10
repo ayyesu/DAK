@@ -1,5 +1,6 @@
 import type {
   Goal,
+  GoalProof,
   GoalStatus,
   GoalSummary,
   GoalTask,
@@ -495,6 +496,8 @@ export interface GoalCriterionState {
   readonly criterion: string;
   /** `null` until a verification pass has judged the criterion. */
   readonly met: boolean | null;
+  /** Rich proof backing a met criterion: images, screenshots, canvas, test results, etc. */
+  readonly proof: ReadonlyArray<GoalProof>;
 }
 
 /**
@@ -505,8 +508,12 @@ export function goalCriterionStates(
   goal: Pick<Goal, "acceptanceCriteria" | "verification">,
 ): ReadonlyArray<GoalCriterionState> {
   const results = goal.verification.criteria ?? [];
-  return goal.acceptanceCriteria.map((criterion) => ({
-    criterion,
-    met: results.find((result) => result.criterion === criterion)?.met ?? null,
-  }));
+  return goal.acceptanceCriteria.map((criterion) => {
+    const result = results.find((item) => item.criterion === criterion);
+    return {
+      criterion,
+      met: result?.met ?? null,
+      proof: result?.proof ?? [],
+    };
+  });
 }
