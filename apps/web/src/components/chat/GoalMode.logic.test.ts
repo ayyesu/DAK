@@ -64,6 +64,8 @@ const baseGoal: Omit<Goal, "id" | "status" | "updatedAt"> = {
   verification: { status: "pending", summary: null, checkedAt: null },
   blockedReason: null,
   failureReason: null,
+  progress: null,
+  progressLabel: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   lastActivityAt: "2026-01-01T00:00:00.000Z",
   startedAt: null,
@@ -112,6 +114,8 @@ describe("goalProgress", () => {
       tasksCompleted: 2,
       tasksTotal: 3,
       verified: false,
+      agentProgress: null,
+      agentProgressLabel: null,
     });
   });
 
@@ -148,6 +152,8 @@ describe("goalProgress", () => {
       tasksCompleted: 0,
       tasksTotal: 0,
       verified: false,
+      agentProgress: null,
+      agentProgressLabel: null,
     });
   });
 });
@@ -160,6 +166,8 @@ describe("goalProgressLabel", () => {
     tasksCompleted: 0,
     tasksTotal: 0,
     verified: false,
+    agentProgress: null,
+    agentProgressLabel: null,
     ...overrides,
   });
 
@@ -256,6 +264,8 @@ describe("goal summary progress and headline", () => {
       tasksCompleted: 2,
       tasksTotal: 5,
       verified: false,
+      agentProgress: null,
+      agentProgressLabel: null,
     });
     expect(
       goalSummaryProgress({ completedTaskCount: 5, totalTaskCount: 5, status: "completed" }),
@@ -266,6 +276,8 @@ describe("goal summary progress and headline", () => {
       tasksCompleted: 5,
       tasksTotal: 5,
       verified: true,
+      agentProgress: null,
+      agentProgressLabel: null,
     });
     expect(
       goalSummaryProgress({ completedTaskCount: 0, totalTaskCount: 0, status: "planning" }),
@@ -276,6 +288,8 @@ describe("goal summary progress and headline", () => {
       tasksCompleted: 0,
       tasksTotal: 0,
       verified: false,
+      agentProgress: null,
+      agentProgressLabel: null,
     });
   });
 

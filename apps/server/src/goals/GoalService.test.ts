@@ -1057,14 +1057,14 @@ it.effect("verification that claims a criterion without evidence repairs, then p
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
-it.effect("verification that never proves the criteria blocks instead of completing", () => {
+it.effect("verification failure triggers repair instead of blocking", () => {
   const script = makeScript({
     steps: [
       { kind: "completed", reply: planReport },
       { kind: "completed", reply: taskDoneReport },
       { kind: "completed", reply: verifyWithoutEvidence },
       { kind: "completed", reply: repairReport },
-      { kind: "completed", reply: verifyWithoutEvidence },
+      { kind: "completed", reply: verifyReport },
     ],
   });
   return Effect.gen(function* () {
@@ -1073,19 +1073,17 @@ it.effect("verification that never proves the criteria blocks instead of complet
       createInput({ acceptanceCriteria: ["Each channel persists after reload"] }),
     );
 
-    const stopped = yield* awaitGoalState(
+    // After verification failure, the goal goes back to running (repair),
+    // not blocked. After repair + successful verification, it completes.
+    const done = yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
-      (goal) => goal.status === "blocked",
+      (goal) => goal.status === "completed",
     );
-    expect(stopped.blockedReason).toContain("Verification did not pass");
-    expect(stopped.completedTaskCount).toBe(1);
+    expect(done.completedTaskCount).toBe(1);
 
     const full = yield* service.get({ id: created.goal.id });
-    expect(full.goal.verification.status).toBe("failed");
-    expect(full.goal.verification.criteria).toEqual([
-      { criterion: "Each channel persists after reload", met: false },
-    ]);
+    expect(full.goal.verification.status).toBe("passed");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 

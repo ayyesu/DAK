@@ -982,6 +982,7 @@ describe("draft hero submission transition", () => {
         isWorking: false,
         draftHeroDockRequested: false,
         backgroundSubmissionPending: false,
+        goalIsDriven: false,
         hasWorktreeSetupCard: true,
       }),
     ).toBe(false);
@@ -993,6 +994,7 @@ describe("draft hero submission transition", () => {
         isWorking: false,
         draftHeroDockRequested: false,
         backgroundSubmissionPending: true,
+        goalIsDriven: false,
         hasWorktreeSetupCard: true,
       }),
     ).toBe(false);
@@ -1006,6 +1008,7 @@ describe("draft hero submission transition", () => {
         isWorking: true,
         draftHeroDockRequested: false,
         backgroundSubmissionPending: true,
+        goalIsDriven: false,
       }),
     ).toBe(true);
   });

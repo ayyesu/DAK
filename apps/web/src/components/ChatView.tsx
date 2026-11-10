@@ -4102,12 +4102,28 @@ export default function ChatView(props: ChatViewProps) {
   const [dockedDraftHeroThreadKey, setDockedDraftHeroThreadKey] = useState<string | null>(null);
   const draftHeroDockRequested =
     activeThreadKey !== null && dockedDraftHeroThreadKey === activeThreadKey;
+
+  // A driven goal means the agent is working; the empty-state picture must not show.
+  const goalProjectId = isServerThread
+    ? (activeThread?.projectId ?? null)
+    : (activeProject?.id ?? null);
+  const goalsQuery = useEnvironmentQuery(
+    goalProjectId === null
+      ? null
+      : serverEnvironment.goalsLive({ environmentId, input: { projectId: goalProjectId } }),
+  );
+  const goalIsDriven =
+    goalsQuery.data?.goals.some(
+      (g) => g.status === "planning" || g.status === "running" || g.status === "verifying",
+    ) ?? false;
+
   const isDraftHeroState = resolveDraftHeroState({
     isLocalDraftThread,
     hasTimelineEntries: timelineEntries.length > 0,
     isWorking,
     draftHeroDockRequested,
     backgroundSubmissionPending,
+    goalIsDriven,
     hasWorktreeSetupCard: worktreeSetup !== null,
   });
   const draftHeroTransition = useDraftHeroLayoutTransition(
@@ -11762,6 +11778,7 @@ export default function ChatView(props: ChatViewProps) {
                     threadId={isServerThread ? (activeThreadId ?? null) : null}
                     canOperate={canOperateThread}
                     goalModeOpen={goalComposerOpen}
+                    goalIsDriven={goalIsDriven}
                     onGoalModeOpenChange={setGoalComposerOpen}
                     focusGoalId={focusGoalId}
                   />

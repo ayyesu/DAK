@@ -123,6 +123,10 @@ export const Goal = Schema.Struct({
   verification: GoalVerification,
   blockedReason: Schema.NullOr(Schema.String),
   failureReason: Schema.NullOr(Schema.String),
+  /** The agent's own progress estimate (0-100), reported each turn. */
+  progress: Schema.NullOr(Schema.Int),
+  /** Human label for the agent's reported progress. */
+  progressLabel: Schema.NullOr(Schema.String),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
   startedAt: Schema.NullOr(IsoDateTime),
@@ -161,6 +165,10 @@ export const GoalSummary = Schema.Struct({
   turnStartedAt: Schema.NullOr(IsoDateTime),
   blockedReason: Schema.NullOr(Schema.String),
   failureReason: Schema.NullOr(Schema.String),
+  /** The agent's own progress estimate (0-100), reported each turn. */
+  progress: Schema.NullOr(Schema.Int),
+  /** Human label for the agent's reported progress. */
+  progressLabel: Schema.NullOr(Schema.String),
   updatedAt: IsoDateTime,
   lastActivityAt: IsoDateTime,
   completedAt: Schema.NullOr(IsoDateTime),

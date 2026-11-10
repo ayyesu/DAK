@@ -293,6 +293,8 @@ export function resolveDraftHeroState(input: {
   isWorking: boolean;
   draftHeroDockRequested: boolean;
   backgroundSubmissionPending: boolean;
+  /** A goal is actively being driven, so the empty-state picture must not show. */
+  goalIsDriven: boolean;
   /** A worktree setup card is on the timeline, so the timeline must stay visible. */
   hasWorktreeSetupCard?: boolean;
 }): boolean {
@@ -301,6 +303,9 @@ export function resolveDraftHeroState(input: {
   }
   if (input.backgroundSubmissionPending) {
     return true;
+  }
+  if (input.goalIsDriven) {
+    return false;
   }
   return (
     input.isLocalDraftThread &&

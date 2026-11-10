@@ -70,19 +70,54 @@ export interface GoalProgress {
   readonly tasksCompleted: number;
   readonly tasksTotal: number;
   readonly verified: boolean;
+  /** The agent's own reported progress, when it reported one this turn. */
+  readonly agentProgress: number | null;
+  readonly agentProgressLabel: string | null;
 }
 
 /**
- * Completed tasks plus one verification unit, so the bar reaches 100% only
- * when the server has independently verified the goal. A goal with no plan
- * yet reads as 0% rather than as half-verified.
+ * The agent's own reported progress takes precedence: it is authoritative
+ * during planning and execution, so the bar never sits at 0% while the agent
+ * is working. Falls back to tasks + verification when the agent hasn't
+ * reported anything yet.
  */
-export function goalProgress(goal: Pick<Goal, "tasks" | "verification">): GoalProgress {
+export function goalProgress(
+  goal: Pick<Goal, "tasks" | "verification"> & {
+    readonly progress?: number | null;
+    readonly progressLabel?: string | null;
+  },
+): GoalProgress {
   const tasksTotal = goal.tasks.length;
   const tasksCompleted = goal.tasks.filter((task) => task.status === "completed").length;
   const verified = goal.verification.status === "passed";
+  const agentProgress = goal.progress ?? null;
+  const agentProgressLabel = goal.progressLabel ?? null;
+
+  // Agent-reported progress is authoritative whenever it is present.
+  if (agentProgress !== null) {
+    return {
+      completed: agentProgress,
+      total: 100,
+      percent: agentProgress,
+      tasksCompleted,
+      tasksTotal,
+      verified,
+      agentProgress,
+      agentProgressLabel,
+    };
+  }
+
   if (tasksTotal === 0) {
-    return { completed: 0, total: 0, percent: 0, tasksCompleted, tasksTotal, verified };
+    return {
+      completed: 0,
+      total: 0,
+      percent: 0,
+      tasksCompleted,
+      tasksTotal,
+      verified,
+      agentProgress: null,
+      agentProgressLabel: null,
+    };
   }
   const total = tasksTotal + 1;
   const completed = tasksCompleted + (verified ? 1 : 0);
@@ -93,11 +128,15 @@ export function goalProgress(goal: Pick<Goal, "tasks" | "verification">): GoalPr
     tasksCompleted,
     tasksTotal,
     verified,
+    agentProgress: null,
+    agentProgressLabel: null,
   };
 }
 
 /** The counter beside the bar; verification never reads as a finished task. */
 export function goalProgressLabel(progress: GoalProgress): string {
+  // The agent's own label takes precedence while it is working.
+  if (progress.agentProgressLabel !== null) return progress.agentProgressLabel;
   if (progress.tasksTotal === 0) return "No plan yet";
   const tasks = `${progress.tasksCompleted} of ${progress.tasksTotal} ${
     progress.tasksTotal === 1 ? "task" : "tasks"
@@ -110,14 +149,42 @@ export function goalProgressLabel(progress: GoalProgress): string {
 
 /** The same model without importing the full task list. */
 export function goalSummaryProgress(
-  summary: Pick<GoalSummary, "completedTaskCount" | "totalTaskCount" | "status">,
+  summary: Pick<GoalSummary, "completedTaskCount" | "totalTaskCount" | "status"> & {
+    readonly progress?: number | null;
+    readonly progressLabel?: string | null;
+  },
 ): GoalProgress {
   const tasksTotal = summary.totalTaskCount;
   const tasksCompleted = summary.completedTaskCount;
   // Only a verified goal is ever completed, so the status carries the unit.
   const verified = summary.status === "completed";
+  const agentProgress = summary.progress ?? null;
+  const agentProgressLabel = summary.progressLabel ?? null;
+
+  if (agentProgress !== null) {
+    return {
+      completed: agentProgress,
+      total: 100,
+      percent: agentProgress,
+      tasksCompleted,
+      tasksTotal,
+      verified,
+      agentProgress,
+      agentProgressLabel,
+    };
+  }
+
   if (tasksTotal === 0) {
-    return { completed: 0, total: 0, percent: 0, tasksCompleted, tasksTotal, verified };
+    return {
+      completed: 0,
+      total: 0,
+      percent: 0,
+      tasksCompleted,
+      tasksTotal,
+      verified,
+      agentProgress: null,
+      agentProgressLabel: null,
+    };
   }
   const total = tasksTotal + 1;
   const completed = tasksCompleted + (verified ? 1 : 0);
@@ -128,6 +195,8 @@ export function goalSummaryProgress(
     tasksCompleted,
     tasksTotal,
     verified,
+    agentProgress: null,
+    agentProgressLabel: null,
   };
 }
 
