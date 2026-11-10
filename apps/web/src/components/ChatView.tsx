@@ -4104,15 +4104,17 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadKey !== null && dockedDraftHeroThreadKey === activeThreadKey;
 
   // A driven goal means the agent is working; the empty-state picture must not show.
-  const goalProjectId =
-    isServerThread ? (activeThread?.projectId ?? null) : (activeProject?.id ?? null);
+  const goalProjectId = isServerThread
+    ? (activeThread?.projectId ?? null)
+    : (activeProject?.id ?? null);
   const goalsQuery = useEnvironmentQuery(
     goalProjectId === null
       ? null
       : serverEnvironment.goalsLive({ environmentId, input: { projectId: goalProjectId } }),
   );
-  const goalIsDriven = goalsQuery.data?.goals.some((g) =>
-        g.status === "planning" || g.status === "running" || g.status === "verifying",
+  const goalIsDriven =
+    goalsQuery.data?.goals.some(
+      (g) => g.status === "planning" || g.status === "running" || g.status === "verifying",
     ) ?? false;
 
   const isDraftHeroState = resolveDraftHeroState({
