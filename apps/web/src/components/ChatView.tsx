@@ -4112,8 +4112,8 @@ export default function ChatView(props: ChatViewProps) {
       : serverEnvironment.goalsLive({ environmentId, input: { projectId: goalProjectId } }),
   );
   const goalIsDriven = goalsQuery.data?.goals.some((g) =>
-    g.status === "planning" || g.status === "running" || g.status === "verifying",
-  ) ?? false;
+        g.status === "planning" || g.status === "running" || g.status === "verifying",
+    ) ?? false;
 
   const isDraftHeroState = resolveDraftHeroState({
     isLocalDraftThread,
