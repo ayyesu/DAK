@@ -82,7 +82,9 @@ export interface GoalProgress {
  * reported anything yet.
  */
 export function goalProgress(
-  goal: Pick<Goal, "tasks" | "verification"> & { readonly progress?: number | null; readonly progressLabel?: string | null },
+  goal:
+    & Pick<Goal, "tasks" | "verification">
+    & { readonly progress?: number | null; readonly progressLabel?: string | null },
 ): GoalProgress {
   const tasksTotal = goal.tasks.length;
   const tasksCompleted = goal.tasks.filter((task) => task.status === "completed").length;
