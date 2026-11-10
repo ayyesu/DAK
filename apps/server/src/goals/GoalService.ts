@@ -109,6 +109,8 @@ interface GoalRow {
   readonly verification_json: string;
   readonly blocked_reason: string | null;
   readonly failure_reason: string | null;
+  readonly progress: number | null;
+  readonly progress_label: string | null;
   readonly pending_edit: number;
   readonly pending_answer: string | null;
   readonly verify_rounds: number;
@@ -338,6 +340,8 @@ export const layer = Layer.effect(
         verification,
         blockedReason: row.blocked_reason,
         failureReason: row.failure_reason,
+        progress: row.progress,
+        progressLabel: row.progress_label,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         startedAt: row.started_at,
@@ -399,9 +403,10 @@ export const layer = Layer.effect(
           ${goal.interactionMode}, ${encodeWorkspaceStrategy(record.workspaceStrategy)},
           ${goal.revision}, ${goal.cycleCount}, ${encodeVerification(goal.verification)},
           ${goal.blockedReason}, ${goal.failureReason}, ${record.pendingEdit ? 1 : 0},
-          ${record.pendingAnswer}, ${record.verifyRounds}, ${goal.createdBy},
+          ${record.pendingAnswer}, ${record.verifyRounds},           ${goal.createdBy},
           ${goal.creationSource}, ${goal.createdAt}, ${goal.updatedAt}, ${goal.startedAt},
-          ${goal.turnStartedAt}, ${goal.completedAt}, ${goal.lastActivityAt}
+          ${goal.turnStartedAt}, ${goal.completedAt}, ${goal.lastActivityAt},
+          ${goal.progress}, ${goal.progressLabel}
         )
         ON CONFLICT(goal_id) DO UPDATE SET
           project_id = excluded.project_id,
@@ -428,7 +433,9 @@ export const layer = Layer.effect(
           started_at = excluded.started_at,
           turn_started_at = excluded.turn_started_at,
           completed_at = excluded.completed_at,
-          last_activity_at = excluded.last_activity_at
+          last_activity_at = excluded.last_activity_at,
+          progress = excluded.progress,
+          progress_label = excluded.progress_label
       `;
 
       yield* sql`DELETE FROM goal_tasks WHERE goal_id = ${goal.id}`;
@@ -891,6 +898,8 @@ export const layer = Layer.effect(
               ? (report.question ?? "The agent needs information to continue.")
               : null,
         failureReason: null,
+        progress: report.progress ?? null,
+        progressLabel: report.progressLabel ?? null,
       };
       const next = yield* commit({ ...record, goal }, null);
       for (const change of applied.changes) {
@@ -980,28 +989,9 @@ export const layer = Layer.effect(
         (unmet.length > 0
           ? `Unmet: ${unmet.join("; ")}`
           : "The agent did not confirm that the goal is satisfied.");
-      if (rounds >= GOAL_MAX_VERIFY_ROUNDS) {
-        const blocked = yield* commit(
-          {
-            ...record,
-            verifyRounds: rounds,
-            goal: {
-              ...goal,
-              status: "blocked",
-              verification: {
-                status: "failed",
-                summary,
-                checkedAt: at,
-                criteria: criterionResults,
-              },
-              blockedReason: `Verification did not pass: ${summary}`,
-            },
-          },
-          { kind: "verification", summary: "Verification failed", detail: summary },
-        );
-        return { done: true as const, record: blocked };
-      }
 
+      // Always repair instead of giving up: the fix-and-verify loop runs until
+      // the agent confirms every criterion is met, or the user stops the goal.
       const repair = yield* commit(
         {
           ...record,
@@ -1374,6 +1364,8 @@ export const layer = Layer.effect(
       turnStartedAt: goal.turnStartedAt,
       blockedReason: goal.blockedReason,
       failureReason: goal.failureReason,
+      progress: goal.progress,
+      progressLabel: goal.progressLabel,
       updatedAt: goal.updatedAt,
       lastActivityAt: goal.lastActivityAt,
       completedAt: goal.completedAt,

@@ -197,7 +197,7 @@ function GoalCard(props: {
   });
 
   const navigate = useNavigate();
-  const [collapsedState, setCollapsedState] = useState(false);
+  const [collapsedState, setCollapsedState] = useState(() => props.compact);
   const [editText, setEditText] = useState<string | null>(null);
   const [answerText, setAnswerText] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -206,7 +206,7 @@ function GoalCard(props: {
   const [allCriteriaOpen, setAllCriteriaOpen] = useState(false);
   const nowMinute = useNowMinute();
 
-  const collapsed = compact || collapsedState;
+  const collapsed = collapsedState;
   const expanded = !collapsed;
   // Details load only for the expanded card; the list keeps collapsed cards
   // on lightweight summaries.
@@ -783,6 +783,8 @@ export function GoalModePanel(props: {
   readonly canOperate: boolean;
   /** The composer below is in Goal Mode; the card stays compact until it closes. */
   readonly goalModeOpen: boolean;
+  /** A goal is actively being driven; the card stays collapsed above the input. */
+  readonly goalIsDriven: boolean;
   readonly onGoalModeOpenChange: (open: boolean) => void;
   /** The goal this panel's thread just started; selects it for display. */
   readonly focusGoalId: string | null;
@@ -790,6 +792,7 @@ export function GoalModePanel(props: {
   const { environmentId, projectId } = props;
   const canOperateGoal = useAtomValue(serverEnvironment.createGoal.permissionAtom(environmentId));
   const canOperate = props.canOperate && canOperateGoal;
+  const goalIsDriven = props.goalIsDriven;
   const goalsQuery = useEnvironmentQuery(
     projectId === null
       ? null
@@ -874,7 +877,7 @@ export function GoalModePanel(props: {
           otherGoals={otherGoals}
           canOperate={canOperate}
           busy={busy}
-          compact={props.goalModeOpen}
+          compact={props.goalModeOpen || goalIsDriven}
           run={run}
           onHide={() => setHiddenGoalIds((hidden) => new Set([...hidden, goal.id]))}
           onSelectOther={(goalId) => setSelectedGoalId(goalId)}

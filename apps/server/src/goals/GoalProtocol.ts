@@ -46,6 +46,10 @@ export interface GoalReport {
   readonly verified: boolean | null;
   /** Conditions the agent proposes when the user gave none. */
   readonly acceptanceCriteria: ReadonlyArray<string>;
+  /** The agent's own progress estimate, 0-100. Null when not reported. */
+  readonly progress: number | null;
+  /** Human-readable label for the reported progress. */
+  readonly progressLabel: string | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -137,6 +141,11 @@ function parseReportBody(body: unknown): GoalReport | null {
   const summary = text(report.summary);
   const question = text(report.question);
   const verified = typeof report.verified === "boolean" ? report.verified : null;
+  const progress =
+    typeof report.progress === "number" && Number.isFinite(report.progress)
+      ? Math.min(100, Math.max(0, Math.round(report.progress)))
+      : null;
+  const progressLabel = text(report.progressLabel);
 
   // An empty object must not count as a report: it would look like a turn that
   // ran and reported nothing, which the runner treats as idle progress.
@@ -147,6 +156,8 @@ function parseReportBody(body: unknown): GoalReport | null {
     acceptanceCriteria.length === 0 &&
     summary === null &&
     verified === null &&
+    progress === null &&
+    progressLabel === null &&
     valueHasStatus(report) === false
   ) {
     return null;
@@ -161,6 +172,8 @@ function parseReportBody(body: unknown): GoalReport | null {
     acceptance,
     verified,
     acceptanceCriteria,
+    progress,
+    progressLabel,
   };
 }
 
@@ -423,7 +436,7 @@ export function applyGoalReport(input: {
   };
 }
 
-const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input|planning","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"pending|in_progress|completed|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptance":[{"criterion":"exact acceptance criterion text","met":true,"evidence":"the command you ran and what it proved"}],"verified":false,"acceptanceCriteria":["condition that must hold to call the goal complete"],"question":"only when status is needs_input"}}`;
+const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input|planning","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"pending|in_progress|completed|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptance":[{"criterion":"exact acceptance criterion text","met":true,"evidence":"the command you ran and what it proved"}],"verified":false,"acceptanceCriteria":["condition that must hold to call the goal complete"],"progress":0,"progressLabel":"short phrase describing progress","question":"only when status is needs_input"}}`;
 
 function criteriaSection(goal: Goal): string {
   if (goal.acceptanceCriteria.length === 0) {
@@ -444,6 +457,7 @@ function progressSection(goal: Goal): string {
 const RULES = `Rules:
 - Do the work in this workspace with your tools. Do not only describe what you would do.
 - Keep the chat update short: one plain sentence about what you changed and what happens next, no headings or bullet lists unless the task itself needs them. Put proof in the report evidence, not in prose.
+- Report real progress every turn: set "progress" to a number 0-100 for how far along the whole goal is, and "progressLabel" to a short phrase (e.g. "Planning the work", "Working on task 2 of 5", "Verifying the result"). The card shows this instead of guessing.
 - Never report a task completed unless it is actually done, and never invent test results, file changes, or command output.
 - Report real evidence: the files you changed, the commands you ran, and what they printed.
 - A task you have not started yet is "pending". Never report a task you did not attempt as "failed" or "blocked": those are only for work you actually tried this turn.

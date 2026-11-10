@@ -112,6 +112,8 @@ describe("goalProgress", () => {
       tasksCompleted: 2,
       tasksTotal: 3,
       verified: false,
+      agentProgress: null,
+      agentProgressLabel: null,
     });
   });
 
@@ -148,6 +150,8 @@ describe("goalProgress", () => {
       tasksCompleted: 0,
       tasksTotal: 0,
       verified: false,
+      agentProgress: null,
+      agentProgressLabel: null,
     });
   });
 });
@@ -160,6 +164,8 @@ describe("goalProgressLabel", () => {
     tasksCompleted: 0,
     tasksTotal: 0,
     verified: false,
+    agentProgress: null,
+    agentProgressLabel: null,
     ...overrides,
   });
 
@@ -256,6 +262,8 @@ describe("goal summary progress and headline", () => {
       tasksCompleted: 2,
       tasksTotal: 5,
       verified: false,
+      agentProgress: null,
+      agentProgressLabel: null,
     });
     expect(
       goalSummaryProgress({ completedTaskCount: 5, totalTaskCount: 5, status: "completed" }),
@@ -266,6 +274,8 @@ describe("goal summary progress and headline", () => {
       tasksCompleted: 5,
       tasksTotal: 5,
       verified: true,
+      agentProgress: null,
+      agentProgressLabel: null,
     });
     expect(
       goalSummaryProgress({ completedTaskCount: 0, totalTaskCount: 0, status: "planning" }),
@@ -276,6 +286,8 @@ describe("goal summary progress and headline", () => {
       tasksCompleted: 0,
       tasksTotal: 0,
       verified: false,
+      agentProgress: null,
+      agentProgressLabel: null,
     });
   });
 
