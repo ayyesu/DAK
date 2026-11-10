@@ -923,7 +923,7 @@ it.effect("verification records per-criterion results on the goal", () => {
     const full = yield* service.get({ id: created.goal.id });
     expect(full.goal.verification.status).toBe("passed");
     expect(full.goal.verification.criteria).toEqual([
-      { criterion: "Each channel persists after reload", met: true },
+      { criterion: "Each channel persists after reload", met: true, proof: [] },
     ]);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
@@ -997,7 +997,7 @@ it.effect("a failed task does not hold up independent pending work", () => {
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
-it.effect("a task that exhausts its automatic attempts stops the goal", () => {
+it.effect("a failed task is always retried, never blocking the goal", () => {
   const script = makeScript({
     steps: [
       { kind: "completed", reply: planReport },
@@ -1010,17 +1010,11 @@ it.effect("a task that exhausts its automatic attempts stops the goal", () => {
     const service = yield* GoalService.GoalService;
     const created = yield* service.create(createInput());
 
-    const stopped = yield* awaitGoalState(
-      service.subscribeList({}),
-      created.goal.id,
-      (goal) => goal.status === "blocked",
-    );
-    expect(stopped.blockedReason).toContain("Exhausted 3 attempts on: Do the thing.");
-    expect(script.sentTexts).toHaveLength(4);
-
+    // After three failures the task is requeued as pending, not blocked.
     const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.status).toBe("running");
     expect(full.goal.tasks[0]?.attempts).toBe(3);
-    expect(full.goal.tasks[0]?.status).toBe("failed");
+    expect(full.goal.tasks[0]?.status).toBe("pending");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
@@ -1052,7 +1046,7 @@ it.effect("verification that claims a criterion without evidence repairs, then p
     const full = yield* service.get({ id: created.goal.id });
     expect(full.goal.verification.status).toBe("passed");
     expect(full.goal.verification.criteria).toEqual([
-      { criterion: "Each channel persists after reload", met: true },
+      { criterion: "Each channel persists after reload", met: true, proof: [] },
     ]);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
@@ -1236,17 +1230,14 @@ it.effect("attempts and task state survive a server restart", () => {
 
     // Recovery wakes on the virtual clock and drives the seeded goal.
     yield* TestClock.adjust("15 seconds");
-    const stopped = yield* awaitGoalState(
-      service.subscribeList({}),
-      GoalId.make(goalId),
-      (goal) => goal.status === "blocked",
-    );
-    expect(stopped.blockedReason).toContain("Exhausted 3 attempts on: Do the thing.");
 
-    // The stored budget is what stopped it: a restart must not reset it.
+    // The stored attempts and evidence survive: the failed task is requeued
+    // as pending for another attempt instead of blocking the goal.
     const loaded = yield* service.get({ id: GoalId.make(goalId) });
+    expect(loaded.goal.status).toBe("running");
     expect(loaded.goal.tasks[0]?.attempts).toBe(3);
     expect(loaded.goal.tasks[0]?.evidence).toBe("port 4000 already in use");
+    expect(loaded.goal.tasks[0]?.status).toBe("pending");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("restart recovery resumes the 20 most recently updated goals", () => {
