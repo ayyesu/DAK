@@ -309,7 +309,7 @@ export type GoalTaskRecovery =
  * blocker may stop the task. Every rung here re-tries the work, so the ladder
  * never turns a hard problem into a surrender.
  */
-export function planGoalTaskRecovery(input: {
+function planGoalTaskRecovery(input: {
   readonly recoveryAttempts: number;
   readonly reassessments: number;
 }): GoalTaskRecovery {
@@ -322,7 +322,7 @@ export function planGoalTaskRecovery(input: {
   return { kind: "stop" };
 }
 
-export { GOAL_MAX_REASSESSMENTS, GOAL_RECOVERY_ATTEMPTS };
+export { GOAL_RECOVERY_ATTEMPTS };
 
 /**
  * The task the loop works on next.
@@ -333,7 +333,7 @@ export { GOAL_MAX_REASSESSMENTS, GOAL_RECOVERY_ATTEMPTS };
  * flight wins over untouched work, which wins over a task that is being
  * recovered: an obstacle does not hold up the rest of the plan.
  */
-export function selectNextTask(tasks: ReadonlyArray<GoalTask>): GoalTask | undefined {
+function selectNextTask(tasks: ReadonlyArray<GoalTask>): GoalTask | undefined {
   const completed = new Set(
     tasks.filter((task) => task.status === "completed").map((task) => task.id),
   );

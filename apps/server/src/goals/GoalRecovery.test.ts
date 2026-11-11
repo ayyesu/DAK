@@ -170,7 +170,7 @@ const awaitGoalState = (
   stream: Stream.Stream<GoalListResult, GoalError>,
   goalId: Goal["id"],
   predicate: (goal: GoalSummary) => boolean,
-): Effect.Effect<GoalSummary, Error | GoalError> =>
+): Effect.Effect<GoalSummary, GoalError> =>
   stream
     .pipe(
       Stream.filterMap((list) => {
@@ -183,7 +183,7 @@ const awaitGoalState = (
       Effect.map(Option.getOrNull),
       Effect.flatMap((goal) =>
         goal === null
-          ? Effect.fail(new Error("Goal never reached the awaited state."))
+          ? Effect.fail(new GoalError({ message: "Goal never reached the awaited state." }))
           : Effect.succeed(goal),
       ),
     );
