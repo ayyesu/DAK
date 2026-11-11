@@ -297,9 +297,9 @@ describe("OtelEnvironment", () => {
       },
       {
         name: "headers are comma-separated pairs with percent-encoded values",
-        env: { ...ENDPOINT, OTEL_EXPORTER_OTLP_HEADERS: "api-key=a%20b,tenant=t3" },
-        traces: { protocol: "http/protobuf", headers: { "api-key": "a b", tenant: "t3" } },
-        logs: { protocol: "http/protobuf", headers: { "api-key": "a b", tenant: "t3" } },
+        env: { ...ENDPOINT, OTEL_EXPORTER_OTLP_HEADERS: "api-key=a%20b,tenant=dak" },
+        traces: { protocol: "http/protobuf", headers: { "api-key": "a b", tenant: "dak" } },
+        logs: { protocol: "http/protobuf", headers: { "api-key": "a b", tenant: "dak" } },
         warnings: [],
       },
       {
@@ -389,7 +389,7 @@ describe("OtelEnvironment", () => {
   });
 
   describe("resolveSignalEndpoint", () => {
-    const t3Export = {
+    const dakExport = {
       protocol: "http/json",
       headers: { "x-key": "dak" },
       exportIntervalMs: 5_000,
@@ -408,19 +408,19 @@ describe("OtelEnvironment", () => {
       {
         name: "DAK_OTLP_*_URL wins over an OTEL endpoint",
         otel: withLogs(otelExport),
-        t3Url: "http://t3:4318/v1/logs",
-        expected: { url: "http://t3:4318/v1/logs", export: t3Export },
+        dakUrl: "http://dak:4318/v1/logs",
+        expected: { url: "http://dak:4318/v1/logs", export: dakExport },
       },
       {
         name: "DAK_OTLP_*_URL wins over a signal the OTEL variables turned off",
         otel: withLogs(OtelEnvironment.OtelSignal.Off()),
-        t3Url: "http://t3:4318/v1/logs",
-        expected: { url: "http://t3:4318/v1/logs", export: t3Export },
+        dakUrl: "http://dak:4318/v1/logs",
+        expected: { url: "http://dak:4318/v1/logs", export: dakExport },
       },
       {
         name: "an OTEL endpoint brings its headers and protocol over the fallback",
         otel: withLogs(otelExport),
-        t3Url: " ",
+        dakUrl: " ",
         expected: {
           url: "http://otel:4318/v1/logs",
           export: {
@@ -433,27 +433,27 @@ describe("OtelEnvironment", () => {
       {
         name: "a signal the OTEL variables turned off does not fall through",
         otel: withLogs(OtelEnvironment.OtelSignal.Off()),
-        t3Url: undefined,
+        dakUrl: undefined,
         expected: undefined,
       },
       {
         name: "an unset signal takes the first non-blank fallback",
         otel: withLogs(OtelEnvironment.OtelSignal.Unset()),
-        t3Url: undefined,
-        expected: { url: "http://settings:4318/v1/logs", export: t3Export },
+        dakUrl: undefined,
+        expected: { url: "http://settings:4318/v1/logs", export: dakExport },
       },
       {
         name: "the kill switch wins over everything",
         otel: withLogs(otelExport, true),
-        t3Url: "http://t3:4318/v1/logs",
+        dakUrl: "http://dak:4318/v1/logs",
         expected: undefined,
       },
-    ])("$name", ({ otel, t3Url, expected }) => {
+    ])("$name", ({ otel, dakUrl, expected }) => {
       assert.deepStrictEqual(
         OtelEnvironment.resolveSignalEndpoint(
           otel,
           "logs",
-          { url: t3Url, export: t3Export },
+          { url: dakUrl, export: dakExport },
           "",
           "http://settings:4318/v1/logs",
         ),

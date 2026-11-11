@@ -67,7 +67,7 @@ export function assertToolCallReadOnlyOnRequestOutput(
 }
 
 // DAK advertises no client fs or terminal to Grok, so Grok reads and writes the
-// workspace itself and gates the write with its own permission prompt: T3
+// workspace itself and gates the write with its own permission prompt: DAK
 // answers that prompt (the shared assertion pins it as the only request) and
 // never serves a file or terminal request.
 export function assertToolCallReadOnlyOnRequestGrokOutput(

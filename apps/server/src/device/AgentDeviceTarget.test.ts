@@ -93,7 +93,7 @@ if (process.env.AGENT_DEVICE_DAEMON_BASE_URL) process.exit(2);`,
     }).pipe(
       Effect.scoped,
       Effect.provideService(HostProcessIsExecutable, true),
-      Effect.provideService(HostProcessExecutablePath, "/packaged/t3"),
+      Effect.provideService(HostProcessExecutablePath, "/packaged/dak"),
       Effect.provide(NodeServices.layer),
     ),
   );

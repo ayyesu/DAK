@@ -1095,7 +1095,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
               ConfigProvider.layer(
                 ConfigProvider.fromEnv({
                   env: {
-                    DAK_OTLP_TRACES_URL: "http://t3:4318/v1/traces",
+                    DAK_OTLP_TRACES_URL: "http://dak:4318/v1/traces",
                     DAK_OTLP_HEADERS: "x-key=secret",
                     OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://otel-traces:4318/custom",
                     OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: "http://otel-metrics:4318/custom",
@@ -1110,7 +1110,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
 
         // DAK_OTLP_TRACES_URL wins over the OTEL variable for the same
         // signal, and keeps DAK's own headers since DAK still owns it.
-        expect(resolved.otlpTracesUrl).toBe("http://t3:4318/v1/traces");
+        expect(resolved.otlpTracesUrl).toBe("http://dak:4318/v1/traces");
         expect(resolved.otlpTracesExport.headers).toEqual({ "x-key": "secret" });
         // Metrics named no DAK_OTLP_METRICS_URL, so the OTEL endpoint wins
         // over the bootstrap envelope and brings the OTEL headers and protocol.
@@ -1162,7 +1162,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
               ConfigProvider.layer(
                 ConfigProvider.fromEnv({
                   env: {
-                    DAK_OTLP_TRACES_URL: "http://t3:4318/v1/traces",
+                    DAK_OTLP_TRACES_URL: "http://dak:4318/v1/traces",
                     OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel:4318",
                     OTEL_EXPORTER_OTLP_HEADERS: "x-key=%zz",
                   },
@@ -1174,7 +1174,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         );
 
         // DAK_OTLP_TRACES_URL still wins outright.
-        expect(resolved.otlpTracesUrl).toBe("http://t3:4318/v1/traces");
+        expect(resolved.otlpTracesUrl).toBe("http://dak:4318/v1/traces");
         // The OTEL endpoint claimed metrics and logs, so neither the bootstrap
         // envelope nor Settings receives them with DAK's headers.
         expect(resolved.otlpMetricsUrl).toBeUndefined();

@@ -46,7 +46,7 @@ it("formats package runner commands from their cache entry paths", () => {
 
 it("treats stable installs as direct invocations", () => {
   for (const entryPath of [
-    "/usr/local/lib/node_modules/t3/dist/bin.mjs",
+    "/usr/local/lib/node_modules/dak/dist/bin.mjs",
     "/home/theo/Code/work/dak/apps/server/dist/bin.mjs",
     "/home/theo/.dak/runtime/0.0.31/node_modules/t3/dist/bin.mjs",
     "",
@@ -96,7 +96,7 @@ it("formats serve suggestions to match the launching command", () => {
   assert.equal(
     formatCliCommand({
       subcommand: "serve",
-      entryPath: "/usr/local/lib/node_modules/t3/dist/bin.mjs",
+      entryPath: "/usr/local/lib/node_modules/dak/dist/bin.mjs",
       version: "0.0.31-nightly.20260729",
     }),
     "dak serve",
@@ -143,7 +143,7 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
       expect(
         yield* rootCommand({
           node: "/home/theo/.local/node/bin/node",
-          entry: "/home/theo/.local/lib/node_modules/t3/dist/bin.mjs",
+          entry: "/home/theo/.local/lib/node_modules/dak/dist/bin.mjs",
           path: yield* pathWithT3,
         }),
       ).toBe('sudo env "PATH=$PATH" dak browser setup');
@@ -172,11 +172,11 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
       // A standalone binary names itself.
       expect(
         yield* rootCommand({
-          node: "/opt/t3/t3",
-          entry: "/opt/t3/t3",
+          node: "/opt/dak/dak",
+          entry: "/opt/dak/dak",
           executable: true,
         }),
-      ).toBe("sudo /opt/t3/t3 browser setup");
+      ).toBe("sudo /opt/dak/dak browser setup");
       // A stale shim path, then no launcher at all, fall back to plain `dak`.
       expect(
         yield* rootCommand({ ...desktop, env: { DAK_CLI_PATH: path.join(home, "gone") } }),
@@ -193,7 +193,7 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
       const root = yield* fs.makeTempDirectoryScoped();
       for (const [relative, kind] of [
         ["npm/_npx/hash/node_modules/t3/dist/bin.mjs", "npx"],
-        ["npm/_npx/hash/node_modules/@dak/dak-linux-x64/t3", "npx"],
+        ["npm/_npx/hash/node_modules/@dak/dak-linux-x64/dak", "npx"],
         ["pnpm/dlx/hash/node_modules/t3/dist/bin.mjs", "pnpm-dlx"],
         [".bun/install/cache/t3/dist/bin.mjs", "bunx"],
       ] as const) {
@@ -203,7 +203,7 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
         const installation = yield* resolveServerInstallation.pipe(
           Effect.provideService(HostProcessArguments, ["node", entry]),
           Effect.provideService(HostProcessExecutablePath, entry),
-          Effect.provideService(HostProcessIsExecutable, entry.endsWith("/t3")),
+          Effect.provideService(HostProcessIsExecutable, entry.endsWith("/dak")),
         );
         expect(installation).toEqual({ kind });
       }
@@ -216,9 +216,9 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
       const path = yield* Path.Path;
       const root = yield* fs.makeTempDirectoryScoped();
       const prefix = path.join(root, "bunx-tools");
-      const packageRoot = path.join(prefix, "lib/node_modules/t3");
+      const packageRoot = path.join(prefix, "lib/node_modules/dak");
       const entry = path.join(packageRoot, "dist/bin.mjs");
-      const globalBin = path.join(prefix, "bin/t3");
+      const globalBin = path.join(prefix, "bin/dak");
       yield* fs.makeDirectory(path.dirname(entry), { recursive: true });
       yield* fs.makeDirectory(path.dirname(globalBin), { recursive: true });
       yield* fs.writeFileString(entry, "");
@@ -247,9 +247,9 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
       const path = yield* Path.Path;
       const root = yield* fs.makeTempDirectoryScoped();
       const prefix = path.join(root, "bunx-tools");
-      const packageRoot = path.join(prefix, "lib/node_modules/t3");
-      const launcher = path.join(packageRoot, "bin/t3.js");
-      const entry = path.join(packageRoot, "node_modules/@dak/dak-linux-x64/t3");
+      const packageRoot = path.join(prefix, "lib/node_modules/dak");
+      const launcher = path.join(packageRoot, "bin/dak.js");
+      const entry = path.join(packageRoot, "node_modules/@dak/dak-linux-x64/dak");
       yield* fs.makeDirectory(path.dirname(launcher), { recursive: true });
       yield* fs.makeDirectory(path.dirname(entry), { recursive: true });
       yield* fs.makeDirectory(path.join(prefix, "bin"));
@@ -257,9 +257,9 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
       yield* fs.writeFileString(entry, "");
       yield* fs.writeFileString(
         path.join(packageRoot, "package.json"),
-        '{"name":"dak","version":"0.0.45","bin":{"dak":"./bin/t3.js"},"optionalDependencies":{"@dak/dak-linux-x64":"0.0.45"}}',
+        '{"name":"dak","version":"0.0.45","bin":{"dak":"./bin/dak.js"},"optionalDependencies":{"@dak/dak-linux-x64":"0.0.45"}}',
       );
-      yield* fs.symlink(launcher, path.join(prefix, "bin/t3"));
+      yield* fs.symlink(launcher, path.join(prefix, "bin/dak"));
       const resolve = resolveServerInstallation.pipe(
         Effect.provideService(HostProcessExecutablePath, entry),
         Effect.provideService(HostProcessIsExecutable, true),
@@ -286,7 +286,7 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
       for (const relative of [
         "project/node_modules/t3/dist/bin.mjs",
         "project/apps/server/dist/bin.mjs",
-        ".dak/runtime/0.0.45/t3",
+        ".dak/runtime/0.0.45/dak",
         "missing/dist/bin.mjs",
       ]) {
         const entry = path.join(root, relative);

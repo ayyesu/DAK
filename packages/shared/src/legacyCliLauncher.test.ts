@@ -18,7 +18,7 @@ it.skipIf(hostPlatform === "win32")(
   "keeps service IPC, arguments, and termination connected",
   async () => {
     const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "dak-legacy-launcher-"));
-    const entry = NodePath.join(root, "node_modules/t3/dist/bin.mjs");
+    const entry = NodePath.join(root, "node_modules/dak/dist/bin.mjs");
     const executable = NodePath.join(root, `node_modules/@dak/dak-${hostPlatform}-${hostArch}/dak`);
     await NodeFSP.mkdir(NodePath.dirname(entry), { recursive: true });
     await NodeFSP.mkdir(NodePath.dirname(executable), { recursive: true });

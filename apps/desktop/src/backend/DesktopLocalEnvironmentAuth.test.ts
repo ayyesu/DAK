@@ -26,7 +26,7 @@ const config = {
     mode: "desktop",
     noBrowser: true,
     port: 3773,
-    dakHome: "/tmp/t3",
+    dakHome: "/tmp/dak",
     host: "127.0.0.1",
     desktopBootstrapToken: "desktop-bootstrap-token",
     tailscaleServeEnabled: false,

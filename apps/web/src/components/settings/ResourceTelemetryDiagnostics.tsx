@@ -138,7 +138,7 @@ function categoryLabel(category: ResourceTelemetryProcessCategory): string {
       return "Electron utility";
     case "resource-monitor":
       return "Monitor";
-    case "unknown-t3":
+    case "unknown-dak":
       return "DAK process";
   }
 }

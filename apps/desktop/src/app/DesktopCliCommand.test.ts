@@ -116,7 +116,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const command = yield* commandIn({ home });
       const theirs = path.join(home, ".local", "bin", "dak");
       yield* fs.makeDirectory(path.dirname(theirs), { recursive: true });
-      yield* fs.writeFileString(theirs, "npm's t3\n");
+      yield* fs.writeFileString(theirs, "npm's dak\n");
       // Even a broken link in the next folder is someone else's.
       yield* fs.makeDirectory(path.join(home, "bin"), { recursive: true });
       yield* fs.symlink(path.join(home, "gone"), path.join(home, "bin", "dak"));
@@ -124,7 +124,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const error = yield* Effect.flip(command.install);
       expect(error.message).toContain("Another dak command is already installed");
       yield* command.uninstall;
-      expect(yield* fs.readFileString(theirs)).toBe("npm's t3\n");
+      expect(yield* fs.readFileString(theirs)).toBe("npm's dak\n");
       expect(yield* fs.readLink(path.join(home, "bin", "dak"))).toBe(path.join(home, "gone"));
     }).pipe(Effect.scoped),
   );
@@ -134,14 +134,14 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const home = yield* fs.makeTempDirectoryScoped();
-      const before = yield* commandIn({ home, baseDir: path.join(home, "old-t3") });
+      const before = yield* commandIn({ home, baseDir: path.join(home, "old-dak") });
       const link = (yield* before.install).installedPath;
 
-      const after = yield* commandIn({ home, baseDir: path.join(home, "new-t3") });
+      const after = yield* commandIn({ home, baseDir: path.join(home, "new-dak") });
       expect((yield* after.state).installedPath).toBe(link);
       // Installing again points the link at this home's launcher.
       expect((yield* after.install).installedPath).toBe(link);
-      expect(yield* fs.readLink(link!)).toBe(path.join(home, "new-t3", "bin", "dak"));
+      expect(yield* fs.readLink(link!)).toBe(path.join(home, "new-dak", "bin", "dak"));
       yield* after.uninstall;
       expect(yield* fs.exists(path.join(home, ".local", "bin", "dak"))).toBe(false);
       expect(yield* fs.exists(path.join(home, "bin", "dak"))).toBe(false);
@@ -154,7 +154,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const path = yield* Path.Path;
       const home = yield* fs.makeTempDirectoryScoped();
       // A big executable that happens to contain the marker text is still not ours.
-      const binary = path.join(home, "native-t3");
+      const binary = path.join(home, "native-dak");
       yield* fs.writeFileString(binary, `${"\0".repeat(64 * 1024)}${DesktopCliShim.MARKER}`);
       yield* fs.makeDirectory(path.join(home, ".local", "bin"), { recursive: true });
       yield* fs.symlink(binary, path.join(home, ".local", "bin", "dak"));

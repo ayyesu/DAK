@@ -55,10 +55,10 @@ const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown
 describe("Antigravity process environment", () => {
   const profile: AntigravityProfile = {
     platform: "linux",
-    geminiHome: "/t3/userdata/providers/antigravity/profile",
-    acpDirectory: "/t3/userdata/providers/antigravity/profile/antigravity-acp",
-    tokenPath: "/t3/userdata/providers/antigravity/profile/antigravity-acp/acp_token.json",
-    tempDirectory: "/t3/userdata/providers/antigravity/profile/antigravity-acp/tmp",
+    geminiHome: "/dak/userdata/providers/antigravity/profile",
+    acpDirectory: "/dak/userdata/providers/antigravity/profile/antigravity-acp",
+    tokenPath: "/dak/userdata/providers/antigravity/profile/antigravity-acp/acp_token.json",
+    tempDirectory: "/dak/userdata/providers/antigravity/profile/antigravity-acp/tmp",
     browserCommand: "managed-browser-helper",
   };
 
@@ -571,11 +571,11 @@ it.layer(NodeServices.layer)("Antigravity profile preparation", (it) => {
         profileDirectory: path.join(directory, "profile"),
         baseEnv: { PATH: path.dirname(process.execPath) },
       });
-      expect(profile.browserCommand).not.toContain("/packaged/t3");
+      expect(profile.browserCommand).not.toContain("/packaged/dak");
       expect(yield* fs.exists(profile.acpDirectory)).toBe(true);
     }).pipe(
       Effect.provideService(HostProcessIsExecutable, true),
-      Effect.provideService(HostProcessExecutablePath, "/packaged/t3"),
+      Effect.provideService(HostProcessExecutablePath, "/packaged/dak"),
     ),
   );
 

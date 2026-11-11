@@ -93,9 +93,9 @@ describe("toolActivity", () => {
     ).toBe("Searched TODO in web");
     expect(
       formatSearchToolLabel({
-        input: { glob: "*.ts", path: "/tmp/t3chat-new" },
+        input: { glob: "*.ts", path: "/tmp/dakchat-new" },
       }),
-    ).toBe("Searched files *.ts in t3chat-new");
+    ).toBe("Searched files *.ts in dakchat-new");
     expect(
       formatSearchToolLabel({ rawInput: {}, input: { pattern: "TODO", path: "apps/web" } }),
     ).toBe("Searched TODO in web");

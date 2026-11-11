@@ -20,7 +20,7 @@ describe("electron development launcher", () => {
     const environmentScript = makeDevelopmentEnvironmentScript({
       VITE_DEV_SERVER_URL: "http://127.0.0.1:8526",
       DAK_PORT: "16566",
-      DAK_HOME: "/tmp/t3",
+      DAK_HOME: "/tmp/dak",
       DAK_OTLP_PROTOCOL: "http/protobuf",
     });
 

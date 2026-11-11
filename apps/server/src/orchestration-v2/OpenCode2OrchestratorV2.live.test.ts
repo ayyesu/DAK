@@ -739,7 +739,7 @@ describe.runIf(binaryPath !== undefined && ROOT !== "")("OpenCode 2 live orchest
         yield* git("init", "-q");
         yield* git(
           "-c",
-          "user.name=t3",
+          "user.name=dak",
           "-c",
           "user.email=dak@example.com",
           "commit",

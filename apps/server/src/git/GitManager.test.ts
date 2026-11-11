@@ -441,9 +441,7 @@ function createGitHubProviderWithFakeGh(scenario: FakeGhScenario = {}): {
 
     if (args[0] === "pr" && args[1] === "create") {
       return Effect.succeed(
-        fakeGhOutput(
-          (scenario.createdPrUrl ?? "https://github.com/ayyesu/codething-mvp/pull/101") + "\n",
-        ),
+        fakeGhOutput((scenario.createdPrUrl ?? "https://github.com/ayyesu/dak/pull/101") + "\n"),
       );
     }
 
@@ -451,7 +449,7 @@ function createGitHubProviderWithFakeGh(scenario: FakeGhScenario = {}): {
       const pullRequest: FakePullRequest = scenario.pullRequest ?? {
         number: 101,
         title: "Pull request",
-        url: "https://github.com/ayyesu/codething-mvp/pull/101",
+        url: "https://github.com/ayyesu/dak/pull/101",
         baseRefName: "main",
         headRefName: "feature/pull-request",
         state: "open",
@@ -934,7 +932,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 13,
                 title: "Existing PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/13",
+                url: "https://github.com/ayyesu/dak/pull/13",
                 baseRefName: "main",
                 headRefName: "feature/status-open-pr",
                 isDraft: true,
@@ -952,7 +950,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 13,
         title: "Existing PR",
-        url: "https://github.com/ayyesu/codething-mvp/pull/13",
+        url: "https://github.com/ayyesu/dak/pull/13",
         baseRef: "main",
         headRef: "feature/status-open-pr",
         state: "open",
@@ -978,7 +976,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 14,
                 title: "  Existing PR title  \n",
-                url: " https://github.com/ayyesu/codething-mvp/pull/14 ",
+                url: " https://github.com/ayyesu/dak/pull/14 ",
                 baseRefName: " main ",
                 headRefName: "\tfeature/status-trimmed-pr\t",
               },
@@ -992,7 +990,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 14,
         title: "Existing PR title",
-        url: "https://github.com/ayyesu/codething-mvp/pull/14",
+        url: "https://github.com/ayyesu/dak/pull/14",
         baseRef: "main",
         headRef: "feature/status-trimmed-pr",
         state: "open",
@@ -1017,14 +1015,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 0,
                 title: "invalid",
-                url: "https://github.com/ayyesu/codething-mvp/pull/0",
+                url: "https://github.com/ayyesu/dak/pull/0",
                 baseRefName: "main",
                 headRefName: "feature/invalid",
               },
               {
                 number: 15,
                 title: "  Valid PR title  ",
-                url: " https://github.com/ayyesu/codething-mvp/pull/15 ",
+                url: " https://github.com/ayyesu/dak/pull/15 ",
                 baseRefName: " main ",
                 headRefName: "\tfeature/status-valid-pr-entry\t",
                 headRepository: {
@@ -1044,7 +1042,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 15,
         title: "Valid PR title",
-        url: "https://github.com/ayyesu/codething-mvp/pull/15",
+        url: "https://github.com/ayyesu/dak/pull/15",
         baseRef: "main",
         headRef: "feature/status-valid-pr-entry",
         state: "open",
@@ -1069,7 +1067,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 16,
                 title: "Closed PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/16",
+                url: "https://github.com/ayyesu/dak/pull/16",
                 baseRefName: "main",
                 headRefName: "feature/status-lowercase-state",
                 state: "closed",
@@ -1078,7 +1076,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 17,
                 title: "Merged PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/17",
+                url: "https://github.com/ayyesu/dak/pull/17",
                 baseRefName: "main",
                 headRefName: "feature/status-lowercase-state",
                 state: "merged",
@@ -1094,7 +1092,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 17,
         title: "Merged PR",
-        url: "https://github.com/ayyesu/codething-mvp/pull/17",
+        url: "https://github.com/ayyesu/dak/pull/17",
         baseRef: "main",
         headRef: "feature/status-lowercase-state",
         state: "merged",
@@ -1172,7 +1170,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const existingPr = {
         number: 113,
         title: "Cached PR",
-        url: "https://github.com/ayyesu/codething-mvp/pull/113",
+        url: "https://github.com/ayyesu/dak/pull/113",
         baseRefName: "main",
         headRefName: "feature/status-cache",
       };
@@ -1276,7 +1274,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 114,
                 title: "Opened during the turn",
-                url: "https://github.com/ayyesu/codething-mvp/pull/114",
+                url: "https://github.com/ayyesu/dak/pull/114",
                 baseRefName: "main",
                 headRefName: "feature/turn-refresh",
               },
@@ -1431,7 +1429,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 221,
                 title: "Merged main PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/221",
+                url: "https://github.com/ayyesu/dak/pull/221",
                 baseRefName: "develop",
                 headRefName: "main",
                 state: "MERGED",
@@ -1525,13 +1523,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "origin",
-        "git@github.com:ayyesu/codething-mvp.git",
+        "git@github.com:ayyesu/dak.git",
         originDir,
       );
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "team/fork",
-        "git@github.com:contributor/codething-mvp.git",
+        "git@github.com:contributor/dak.git",
         forkDir,
       );
 
@@ -1543,13 +1541,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 218,
                 title: "Deleted fork branch PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/218",
+                url: "https://github.com/ayyesu/dak/pull/218",
                 baseRefName: "main",
                 headRefName: "feature/deleted-fork-branch",
                 state: "MERGED",
                 updatedAt: "2026-04-05T15:00:00Z",
                 isCrossRepository: true,
-                headRepository: { nameWithOwner: "contributor/codething-mvp" },
+                headRepository: { nameWithOwner: "contributor/dak" },
                 headRepositoryOwner: { login: "contributor" },
               },
             ]),
@@ -1676,7 +1674,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 220,
                 title: "Shared cache PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/220",
+                url: "https://github.com/ayyesu/dak/pull/220",
                 baseRefName: "main",
                 headRefName: "feature/shared-pr-cache",
                 headRefOid: "a".repeat(40),
@@ -1688,7 +1686,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 221,
                 title: "New PR on the same branch",
-                url: "https://github.com/ayyesu/codething-mvp/pull/221",
+                url: "https://github.com/ayyesu/dak/pull/221",
                 baseRefName: "main",
                 headRefName: "feature/shared-pr-cache",
                 headRefOid: "b".repeat(40),
@@ -1718,7 +1716,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         number: 221,
         state: "open",
         headSha: "b".repeat(40),
-        repositoryKey: "github.com/ayyesu/codething-mvp",
+        repositoryKey: "github.com/ayyesu/dak",
       });
       expect(ghCalls.filter((call) => call.startsWith("pr list "))).toHaveLength(2);
     }),
@@ -1737,7 +1735,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const pullRequest = (number: number, headRefName: string, state: string) => ({
         number,
         title: headRefName,
-        url: `https://github.com/ayyesu/codething-mvp/pull/${number}`,
+        url: `https://github.com/ayyesu/dak/pull/${number}`,
         baseRefName: "main",
         headRefName,
         state,
@@ -1795,7 +1793,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             {
               number,
               title: headRefName,
-              url: `https://github.com/ayyesu/codething-mvp/pull/${number}`,
+              url: `https://github.com/ayyesu/dak/pull/${number}`,
               baseRefName: "main",
               headRefName,
               state,
@@ -1824,8 +1822,8 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
 
         const announced = yield* Stream.runCollect(Stream.take(changes, 2));
         expect(announced).toEqual([
-          { host: "github.com", repository: "ayyesu/codething-mvp", number: 402 },
-          { host: "github.com", repository: "ayyesu/codething-mvp", number: 401 },
+          { host: "github.com", repository: "ayyesu/dak", number: 402 },
+          { host: "github.com", repository: "ayyesu/dak", number: 401 },
         ]);
       }),
     ),
@@ -2214,7 +2212,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "fork-seed",
-          "git@github.com:jasonLaster/codething-mvp.git",
+          "git@github.com:jasonLaster/dak.git",
           forkDir,
         );
 
@@ -2225,14 +2223,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 488,
                   title: "Rebase this PR on latest main",
-                  url: "https://github.com/ayyesu/codething-mvp/pull/488",
+                  url: "https://github.com/ayyesu/dak/pull/488",
                   baseRefName: "main",
                   headRefName: "statemachine",
                   state: "OPEN",
                   updatedAt: "2026-03-10T07:00:00Z",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "jasonLaster/codething-mvp",
+                    nameWithOwner: "jasonLaster/dak",
                   },
                   headRepositoryOwner: {
                     login: "jasonLaster",
@@ -2248,7 +2246,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         expect(status.pr).toEqual({
           number: 488,
           title: "Rebase this PR on latest main",
-          url: "https://github.com/ayyesu/codething-mvp/pull/488",
+          url: "https://github.com/ayyesu/dak/pull/488",
           baseRef: "main",
           headRef: "statemachine",
           state: "open",
@@ -2279,7 +2277,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "fork-seed",
-          "git@github.com:contributor/codething-mvp.git",
+          "git@github.com:contributor/dak.git",
           forkDir,
         );
 
@@ -2290,14 +2288,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 777,
                   title: "Fork PR from main",
-                  url: "https://github.com/ayyesu/codething-mvp/pull/777",
+                  url: "https://github.com/ayyesu/dak/pull/777",
                   baseRefName: "main",
                   headRefName: "main",
                   state: "OPEN",
                   updatedAt: "2026-03-10T07:00:00Z",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "contributor/codething-mvp",
+                    nameWithOwner: "contributor/dak",
                   },
                   headRepositoryOwner: {
                     login: "contributor",
@@ -2313,7 +2311,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         expect(status.pr).toEqual({
           number: 777,
           title: "Fork PR from main",
-          url: "https://github.com/ayyesu/codething-mvp/pull/777",
+          url: "https://github.com/ayyesu/dak/pull/777",
           baseRef: "main",
           headRef: "main",
           state: "open",
@@ -2343,14 +2341,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "origin",
-          "git@github.com:ayyesu/codething-mvp.git",
+          "git@github.com:ayyesu/dak.git",
           originDir,
         );
         yield* runGit(repoDir, ["config", "remote.origin.pushurl", originDir]);
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "my-org/upstream",
-          "ssh://git@github.com/ayyesu/codething-mvp.git",
+          "ssh://git@github.com/ayyesu/dak.git",
           upstreamDir,
         );
         yield* runGit(repoDir, ["config", "remote.my-org/upstream.pushurl", upstreamDir]);
@@ -2426,7 +2424,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 22,
                 title: "Merged PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/22",
+                url: "https://github.com/ayyesu/dak/pull/22",
                 baseRefName: "main",
                 headRefName: "feature/status-merged-pr",
                 state: "MERGED",
@@ -2443,7 +2441,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 22,
         title: "Merged PR",
-        url: "https://github.com/ayyesu/codething-mvp/pull/22",
+        url: "https://github.com/ayyesu/dak/pull/22",
         baseRef: "main",
         headRef: "feature/status-merged-pr",
         state: "merged",
@@ -2464,7 +2462,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 23,
                 title: "Merged PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/23",
+                url: "https://github.com/ayyesu/dak/pull/23",
                 baseRefName: "feature/status-default-branch-target",
                 headRefName: "main",
                 state: "MERGED",
@@ -2499,7 +2497,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 54,
                 title: "Reverse merge from main",
-                url: "https://github.com/ayyesu/codething-mvp/pull/54",
+                url: "https://github.com/ayyesu/dak/pull/54",
                 baseRefName: "je-filter-list",
                 headRefName: "main",
                 state: "MERGED",
@@ -2538,7 +2536,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 88,
                 title: "Pushed without -u",
-                url: "https://github.com/ayyesu/codething-mvp/pull/88",
+                url: "https://github.com/ayyesu/dak/pull/88",
                 baseRefName: "main",
                 headRefName: "feature/pushed-plain",
                 state: "OPEN",
@@ -2574,13 +2572,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "origin",
-          "git@github.com:ayyesu/codething-mvp.git",
+          "git@github.com:ayyesu/dak.git",
           originDir,
         );
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "team/fork",
-          "git@github.com:contributor/codething-mvp.git",
+          "git@github.com:contributor/dak.git",
           forkDir,
         );
 
@@ -2592,13 +2590,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 89,
                   title: "Fork PR pushed without -u",
-                  url: "https://github.com/ayyesu/codething-mvp/pull/89",
+                  url: "https://github.com/ayyesu/dak/pull/89",
                   baseRefName: "main",
                   headRefName: "feature/fork-plain",
                   state: "OPEN",
                   updatedAt: "2026-05-01T10:00:00Z",
                   isCrossRepository: true,
-                  headRepository: { nameWithOwner: "contributor/codething-mvp" },
+                  headRepository: { nameWithOwner: "contributor/dak" },
                   headRepositoryOwner: { login: "contributor" },
                 },
               ]),
@@ -2629,13 +2627,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "origin",
-        "git@github.com:ayyesu/codething-mvp.git",
+        "git@github.com:ayyesu/dak.git",
         originDir,
       );
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "team/fork",
-        "git@github.com:contributor/codething-mvp.git",
+        "git@github.com:contributor/dak.git",
         forkDir,
       );
 
@@ -2647,13 +2645,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 91,
                 title: "Fork PR to settle",
-                url: "https://github.com/ayyesu/codething-mvp/pull/91",
+                url: "https://github.com/ayyesu/dak/pull/91",
                 baseRefName: "main",
                 headRefName: "feature/fork-settle",
                 state: "MERGED",
                 updatedAt: "2026-05-02T10:00:00Z",
                 isCrossRepository: true,
-                headRepository: { nameWithOwner: "contributor/codething-mvp" },
+                headRepository: { nameWithOwner: "contributor/dak" },
                 headRepositoryOwner: { login: "contributor" },
               },
             ]),
@@ -2694,7 +2692,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 90,
                 title: "Sticky own-name PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/90",
+                url: "https://github.com/ayyesu/dak/pull/90",
                 baseRefName: "main",
                 headRefName: "feature/sticky-plain",
                 state: "OPEN",
@@ -2730,7 +2728,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 45,
                 title: "Merged PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/45",
+                url: "https://github.com/ayyesu/dak/pull/45",
                 baseRefName: "main",
                 headRefName: "feature/status-open-over-merged",
                 state: "MERGED",
@@ -2740,7 +2738,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 46,
                 title: "Open PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/46",
+                url: "https://github.com/ayyesu/dak/pull/46",
                 baseRefName: "main",
                 headRefName: "feature/status-open-over-merged",
                 state: "OPEN",
@@ -2756,7 +2754,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(status.pr).toEqual({
         number: 46,
         title: "Open PR",
-        url: "https://github.com/ayyesu/codething-mvp/pull/46",
+        url: "https://github.com/ayyesu/dak/pull/46",
         baseRef: "main",
         headRef: "feature/status-open-over-merged",
         state: "open",
@@ -2846,7 +2844,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const existingPr = {
         number: 214,
         title: "Sticky PR",
-        url: "https://github.com/ayyesu/codething-mvp/pull/214",
+        url: "https://github.com/ayyesu/dak/pull/214",
         baseRefName: "main",
         headRefName: "feature/pr-sticky",
       };
@@ -2886,7 +2884,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         const existingPr = {
           number: 214,
           title: "Sticky PR",
-          url: "https://github.com/ayyesu/codething-mvp/pull/214",
+          url: "https://github.com/ayyesu/dak/pull/214",
           baseRefName: "main",
           headRefName: "feature/pr-retarget",
         };
@@ -2931,7 +2929,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const existingPr = {
         number: 215,
         title: "Sticky first-push PR",
-        url: "https://github.com/ayyesu/codething-mvp/pull/215",
+        url: "https://github.com/ayyesu/dak/pull/215",
         baseRefName: "main",
         headRefName: "feature/pr-sticky-first-push",
       };
@@ -2967,7 +2965,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const existingPr = {
         number: 216,
         title: "Old remote PR",
-        url: "https://github.com/ayyesu/codething-mvp/pull/216",
+        url: "https://github.com/ayyesu/dak/pull/216",
         baseRefName: "main",
         headRefName: "feature/pr-repointed",
       };
@@ -3006,7 +3004,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const existingPr = {
         number: 217,
         title: "Config hiccup PR",
-        url: "https://github.com/ayyesu/codething-mvp/pull/217",
+        url: "https://github.com/ayyesu/dak/pull/217",
         baseRefName: "main",
         headRefName: "feature/pr-config-hiccup",
       };
@@ -3607,7 +3605,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 77,
                   title: "Add no-upstream PR flow",
-                  url: "https://github.com/ayyesu/codething-mvp/pull/77",
+                  url: "https://github.com/ayyesu/dak/pull/77",
                   baseRefName: "main",
                   headRefName: "feature/no-upstream-pr",
                 },
@@ -3742,7 +3740,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 303,
                 title: "Create PR only branch",
-                url: "https://github.com/ayyesu/codething-mvp/pull/303",
+                url: "https://github.com/ayyesu/dak/pull/303",
                 baseRefName: "main",
                 headRefName: "feature/create-pr-only",
               },
@@ -3788,7 +3786,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 404,
                 title: "Provider fallback",
-                url: "https://github.com/ayyesu/codething-mvp/pull/404",
+                url: "https://github.com/ayyesu/dak/pull/404",
                 baseRefName: "main",
                 headRefName: "feature/provider-fallback",
               },
@@ -3839,7 +3837,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 505,
                 title: "Master default",
-                url: "https://github.com/ayyesu/codething-mvp/pull/505",
+                url: "https://github.com/ayyesu/dak/pull/505",
                 baseRefName: "master",
                 headRefName: "feature/master-default",
               },
@@ -3878,7 +3876,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 42,
                 title: "Existing PR",
-                url: "https://github.com/ayyesu/codething-mvp/pull/42",
+                url: "https://github.com/ayyesu/dak/pull/42",
                 baseRefName: "main",
                 headRefName: "feature/existing-pr",
               },
@@ -3900,7 +3898,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         cta: {
           kind: "open_pr",
           label: "View PR",
-          url: "https://github.com/ayyesu/codething-mvp/pull/42",
+          url: "https://github.com/ayyesu/dak/pull/42",
         },
       });
       expect(ghCalls.some((call) => call.startsWith("pr view "))).toBe(false);
@@ -3920,7 +3918,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "fork-seed",
-          "git@github.com:octocat/codething-mvp.git",
+          "git@github.com:octocat/dak.git",
           forkDir,
         );
 
@@ -3931,13 +3929,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 142,
                   title: "Existing fork PR",
-                  url: "https://github.com/ayyesu/codething-mvp/pull/142",
+                  url: "https://github.com/ayyesu/dak/pull/142",
                   baseRefName: "main",
                   headRefName: "statemachine",
                   state: "OPEN",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "octocat/codething-mvp",
+                    nameWithOwner: "octocat/dak",
                   },
                   headRepositoryOwner: {
                     login: "octocat",
@@ -3982,14 +3980,14 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "origin",
-          "git@github.com:ayyesu/codething-mvp.git",
+          "git@github.com:ayyesu/dak.git",
           originDir,
         );
         yield* runGit(repoDir, ["config", "remote.origin.pushurl", originDir]);
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "my-org/upstream",
-          "ssh://git@github.com/ayyesu/codething-mvp.git",
+          "ssh://git@github.com/ayyesu/dak.git",
           upstreamDir,
         );
         yield* runGit(repoDir, ["config", "remote.my-org/upstream.pushurl", upstreamDir]);
@@ -4054,7 +4052,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "fork-seed",
-          "git@github.com:octocat/codething-mvp.git",
+          "git@github.com:octocat/dak.git",
           forkDir,
         );
 
@@ -4066,20 +4064,20 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 41,
                   title: "Unrelated same-repo PR",
-                  url: "https://github.com/ayyesu/codething-mvp/pull/41",
+                  url: "https://github.com/ayyesu/dak/pull/41",
                   baseRefName: "main",
                   headRefName: "statemachine",
                 },
                 {
                   number: 142,
                   title: "Existing fork PR",
-                  url: "https://github.com/ayyesu/codething-mvp/pull/142",
+                  url: "https://github.com/ayyesu/dak/pull/142",
                   baseRefName: "main",
                   headRefName: "statemachine",
                   state: "OPEN",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "octocat/codething-mvp",
+                    nameWithOwner: "octocat/dak",
                   },
                   headRepositoryOwner: {
                     login: "octocat",
@@ -4120,7 +4118,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* configureVisibleRemoteUrlWithLocalRewrite(
           repoDir,
           "fork-seed",
-          "git@github.com:octocat/codething-mvp.git",
+          "git@github.com:octocat/dak.git",
           forkDir,
         );
 
@@ -4131,13 +4129,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 142,
                   title: "Existing fork PR",
-                  url: "https://github.com/ayyesu/codething-mvp/pull/142",
+                  url: "https://github.com/ayyesu/dak/pull/142",
                   baseRefName: "main",
                   headRefName: "statemachine",
                   state: "OPEN",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "octocat/codething-mvp",
+                    nameWithOwner: "octocat/dak",
                   },
                   headRepositoryOwner: {
                     login: "octocat",
@@ -4179,15 +4177,15 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* runGit(repoDir, [
           "config",
           "remote.fork-seed.url",
-          "git@github.com:octocat/codething-mvp.git",
+          "git@github.com:octocat/dak.git",
         ]);
 
         const { manager, ghCalls } = yield* makeManager({
           ghScenario: {
             prListSequenceByHeadSelector: {
               statemachine: [
-                `[{"number":41,"title":"Ambiguous fork PR","url":"https://github.com/ayyesu/codething-mvp/pull/41","baseRefName":"main","headRefName":"statemachine","state":"OPEN"}]`,
-                `[{"number":142,"title":"Add stacked git actions","url":"https://github.com/ayyesu/codething-mvp/pull/142","baseRefName":"main","headRefName":"statemachine","state":"OPEN","isCrossRepository":true,"headRepository":{"nameWithOwner":"octocat/codething-mvp"},"headRepositoryOwner":{"login":"octocat"}}]`,
+                `[{"number":41,"title":"Ambiguous fork PR","url":"https://github.com/ayyesu/dak/pull/41","baseRefName":"main","headRefName":"statemachine","state":"OPEN"}]`,
+                `[{"number":142,"title":"Add stacked git actions","url":"https://github.com/ayyesu/dak/pull/142","baseRefName":"main","headRefName":"statemachine","state":"OPEN","isCrossRepository":true,"headRepository":{"nameWithOwner":"octocat/dak"},"headRepositoryOwner":{"login":"octocat"}}]`,
               ],
             },
           },
@@ -4272,7 +4270,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     Effect.sync(() => {
       const headContext = {
         headBranch: "statemachine",
-        headRepositoryNameWithOwner: "ayyesu/codething-mvp",
+        headRepositoryNameWithOwner: "ayyesu/dak",
         headRepositoryOwnerLogin: "ayyesu",
         isCrossRepository: true,
       };
@@ -4282,13 +4280,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           {
             number: 41,
             title: "Same-repo PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/41",
+            url: "https://github.com/ayyesu/dak/pull/41",
             baseRefName: "main",
             headRefName: "statemachine",
             state: "open",
             updatedAt: Option.none(),
             isCrossRepository: false,
-            headRepositoryNameWithOwner: "ayyesu/codething-mvp",
+            headRepositoryNameWithOwner: "ayyesu/dak",
             headRepositoryOwnerLogin: "ayyesu",
           },
           headContext,
@@ -4300,13 +4298,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           {
             number: 142,
             title: "Fork PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/142",
+            url: "https://github.com/ayyesu/dak/pull/142",
             baseRefName: "main",
             headRefName: "statemachine",
             state: "open",
             updatedAt: Option.none(),
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "ayyesu/codething-mvp",
+            headRepositoryNameWithOwner: "ayyesu/dak",
             headRepositoryOwnerLogin: "ayyesu",
           },
           headContext,
@@ -4390,7 +4388,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 88,
                 title: "Add stacked git actions",
-                url: "https://github.com/ayyesu/codething-mvp/pull/88",
+                url: "https://github.com/ayyesu/dak/pull/88",
                 baseRefName: "main",
                 headRefName: "feature-create-pr",
               },
@@ -4527,7 +4525,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 188,
                   title: "Add stacked git actions",
-                  url: "https://github.com/ayyesu/codething-mvp/pull/188",
+                  url: "https://github.com/ayyesu/dak/pull/188",
                   baseRefName: "main",
                   headRefName: "feature/no-fork-match",
                   state: "OPEN",
@@ -4550,7 +4548,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           cta: {
             kind: "open_pr",
             label: "View PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/188",
+            url: "https://github.com/ayyesu/dak/pull/188",
           },
         });
         expect(
@@ -4577,7 +4575,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* configureVisibleRemoteUrlWithLocalRewrite(
         repoDir,
         "fork-seed",
-        "git@github.com:octocat/codething-mvp.git",
+        "git@github.com:octocat/dak.git",
         forkDir,
       );
 
@@ -4590,13 +4588,13 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 188,
                   title: "Add stacked git actions",
-                  url: "https://github.com/ayyesu/codething-mvp/pull/188",
+                  url: "https://github.com/ayyesu/dak/pull/188",
                   baseRefName: "main",
                   headRefName: "statemachine",
                   state: "OPEN",
                   isCrossRepository: true,
                   headRepository: {
-                    nameWithOwner: "octocat/codething-mvp",
+                    nameWithOwner: "octocat/dak",
                   },
                   headRepositoryOwner: {
                     login: "octocat",
@@ -4707,7 +4705,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 42,
             title: "Resolve PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/42",
+            url: "https://github.com/ayyesu/dak/pull/42",
             baseRefName: "main",
             headRefName: "feature/resolve-pr",
             state: "open",
@@ -4723,7 +4721,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(result.pullRequest).toEqual({
         number: 42,
         title: "Resolve PR",
-        url: "https://github.com/ayyesu/codething-mvp/pull/42",
+        url: "https://github.com/ayyesu/dak/pull/42",
         baseBranch: "main",
         headBranch: "feature/resolve-pr",
         state: "open",
@@ -4746,7 +4744,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 64,
             title: "Local PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/64",
+            url: "https://github.com/ayyesu/dak/pull/64",
             baseRefName: "main",
             headRefName: "feature/pr-local",
             state: "open",
@@ -4795,16 +4793,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             pullRequest: {
               number: 65,
               title: "Local upstream PR",
-              url: "https://github.com/ayyesu/codething-mvp/pull/65",
+              url: "https://github.com/ayyesu/dak/pull/65",
               baseRefName: "main",
               headRefName: "feature/pr-local-upstream",
               state: "open",
               isCrossRepository: false,
-              headRepositoryNameWithOwner: "ayyesu/codething-mvp",
+              headRepositoryNameWithOwner: "ayyesu/dak",
               headRepositoryOwnerLogin: "ayyesu",
             },
             repositoryCloneUrls: {
-              "ayyesu/codething-mvp": {
+              "ayyesu/dak": {
                 url: remoteDir,
                 sshUrl: remoteDir,
               },
@@ -4853,7 +4851,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             pullRequest: {
               number: 66,
               title: "Local upstream PR without repo metadata",
-              url: "https://github.com/ayyesu/codething-mvp/pull/66",
+              url: "https://github.com/ayyesu/dak/pull/66",
               baseRefName: "main",
               headRefName: "feature/pr-local-no-head-repo",
               state: "open",
@@ -4895,7 +4893,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 77,
             title: "Worktree PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/77",
+            url: "https://github.com/ayyesu/dak/pull/77",
             baseRefName: "main",
             headRefName: "feature/pr-worktree",
             state: "open",
@@ -4934,16 +4932,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 93,
             title: "Missing fork branch",
-            url: "https://github.com/ayyesu/codething-mvp/pull/93",
+            url: "https://github.com/ayyesu/dak/pull/93",
             baseRefName: "main",
             headRefName: "feature/missing-fork-branch",
             state: "open",
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "octocat/codething-mvp",
+            headRepositoryNameWithOwner: "octocat/dak",
             headRepositoryOwnerLogin: "octocat",
           },
           repositoryCloneUrls: {
-            "octocat/codething-mvp": {
+            "octocat/dak": {
               url: missingForkDir,
               sshUrl: missingForkDir,
             },
@@ -4963,7 +4961,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(error).toMatchObject({
         cwd: repoDir,
         pullRequestNumber: 93,
-        headRepository: "octocat/codething-mvp",
+        headRepository: "octocat/dak",
         headBranch: "feature/missing-fork-branch",
         localBranch: "dak/pr-93/feature/missing-fork-branch",
       });
@@ -5000,7 +4998,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 177,
             title: "Worktree setup PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/177",
+            url: "https://github.com/ayyesu/dak/pull/177",
             baseRefName: "main",
             headRefName: "feature/pr-worktree-setup",
             state: "open",
@@ -5053,16 +5051,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 81,
             title: "Fork PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/81",
+            url: "https://github.com/ayyesu/dak/pull/81",
             baseRefName: "main",
             headRefName: "feature/pr-fork",
             state: "open",
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "octocat/codething-mvp",
+            headRepositoryNameWithOwner: "octocat/dak",
             headRepositoryOwnerLogin: "octocat",
           },
           repositoryCloneUrls: {
-            "octocat/codething-mvp": {
+            "octocat/dak": {
               url: forkDir,
               sshUrl: forkDir,
             },
@@ -5116,16 +5114,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 82,
             title: "Local Fork PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/82",
+            url: "https://github.com/ayyesu/dak/pull/82",
             baseRefName: "main",
             headRefName: "feature/pr-local-fork",
             state: "open",
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "octocat/codething-mvp",
+            headRepositoryNameWithOwner: "octocat/dak",
             headRepositoryOwnerLogin: "octocat",
           },
           repositoryCloneUrls: {
-            "octocat/codething-mvp": {
+            "octocat/dak": {
               url: forkDir,
               sshUrl: forkDir,
             },
@@ -5226,7 +5224,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 78,
             title: "Existing worktree PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/78",
+            url: "https://github.com/ayyesu/dak/pull/78",
             baseRefName: "main",
             headRefName: "feature/pr-existing-worktree",
             state: "open",
@@ -5292,7 +5290,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 84,
             title: "Reused stale PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/84",
+            url: "https://github.com/ayyesu/dak/pull/84",
             baseRefName: "main",
             headRefName: "feature/pr-reused-stale",
             state: "open",
@@ -5347,7 +5345,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 85,
             title: "Reused setup PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/85",
+            url: "https://github.com/ayyesu/dak/pull/85",
             baseRefName: "main",
             headRefName: "feature/pr-reused-setup",
             state: "open",
@@ -5406,7 +5404,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 95,
             title: "Reused current PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/95",
+            url: "https://github.com/ayyesu/dak/pull/95",
             baseRefName: "main",
             headRefName: "feature/pr-reused-current",
             state: "open",
@@ -5480,7 +5478,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 86,
             title: "Force-pushed PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/86",
+            url: "https://github.com/ayyesu/dak/pull/86",
             baseRefName: "main",
             headRefName: "feature/pr-force-pushed",
             state: "open",
@@ -5557,7 +5555,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 87,
             title: "Local commit PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/87",
+            url: "https://github.com/ayyesu/dak/pull/87",
             baseRefName: "main",
             headRefName: "feature/pr-local-commit",
             state: "open",
@@ -5632,7 +5630,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 89,
             title: "Dirty worktree PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/89",
+            url: "https://github.com/ayyesu/dak/pull/89",
             baseRefName: "main",
             headRefName: "feature/pr-dirty-worktree",
             state: "open",
@@ -5684,7 +5682,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 90,
             title: "Pull ref only PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/90",
+            url: "https://github.com/ayyesu/dak/pull/90",
             baseRefName: "main",
             headRefName: "feature/pr-ref-only",
             state: "open",
@@ -5756,16 +5754,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 94,
             title: "Fork main collision PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/94",
+            url: "https://github.com/ayyesu/dak/pull/94",
             baseRefName: "main",
             headRefName: "main",
             state: "open",
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "octocat/codething-mvp",
+            headRepositoryNameWithOwner: "octocat/dak",
             headRepositoryOwnerLogin: "octocat",
           },
           repositoryCloneUrls: {
-            "octocat/codething-mvp": {
+            "octocat/dak": {
               url: forkDir,
               sshUrl: forkDir,
             },
@@ -5821,16 +5819,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             pullRequest: {
               number: 91,
               title: "Fork main PR",
-              url: "https://github.com/ayyesu/codething-mvp/pull/91",
+              url: "https://github.com/ayyesu/dak/pull/91",
               baseRefName: "main",
               headRefName: "main",
               state: "open",
               isCrossRepository: true,
-              headRepositoryNameWithOwner: "octocat/codething-mvp",
+              headRepositoryNameWithOwner: "octocat/dak",
               headRepositoryOwnerLogin: "octocat",
             },
             repositoryCloneUrls: {
-              "octocat/codething-mvp": {
+              "octocat/dak": {
                 url: forkDir,
                 sshUrl: forkDir,
               },
@@ -5882,16 +5880,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             pullRequest: {
               number: 92,
               title: "Fork main overwrite PR",
-              url: "https://github.com/ayyesu/codething-mvp/pull/92",
+              url: "https://github.com/ayyesu/dak/pull/92",
               baseRefName: "main",
               headRefName: "main",
               state: "open",
               isCrossRepository: true,
-              headRepositoryNameWithOwner: "octocat/codething-mvp",
+              headRepositoryNameWithOwner: "octocat/dak",
               headRepositoryOwnerLogin: "octocat",
             },
             repositoryCloneUrls: {
-              "octocat/codething-mvp": {
+              "octocat/dak": {
                 url: forkDir,
                 sshUrl: forkDir,
               },
@@ -5945,16 +5943,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 83,
             title: "Reused Fork PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/83",
+            url: "https://github.com/ayyesu/dak/pull/83",
             baseRefName: "main",
             headRefName: "feature/pr-reused-fork",
             state: "open",
             isCrossRepository: true,
-            headRepositoryNameWithOwner: "octocat/codething-mvp",
+            headRepositoryNameWithOwner: "octocat/dak",
             headRepositoryOwnerLogin: "octocat",
           },
           repositoryCloneUrls: {
-            "octocat/codething-mvp": {
+            "octocat/dak": {
               url: forkDir,
               sshUrl: forkDir,
             },
@@ -5997,7 +5995,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 184,
             title: "Setup failure PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/184",
+            url: "https://github.com/ayyesu/dak/pull/184",
             baseRefName: "main",
             headRefName: "feature/pr-setup-failure",
             state: "open",
@@ -6040,7 +6038,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           pullRequest: {
             number: 79,
             title: "Root-only PR",
-            url: "https://github.com/ayyesu/codething-mvp/pull/79",
+            url: "https://github.com/ayyesu/dak/pull/79",
             baseRefName: "main",
             headRefName: "feature/pr-root-only",
             state: "open",
@@ -6199,7 +6197,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 201,
                 title: "PR only branch",
-                url: "https://github.com/ayyesu/codething-mvp/pull/201",
+                url: "https://github.com/ayyesu/dak/pull/201",
                 baseRefName: "main",
                 headRefName: "feature/pr-only-follow-up",
                 state: "OPEN",

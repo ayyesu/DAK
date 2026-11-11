@@ -11,7 +11,7 @@
  *
  *   @dak/dak-<platformKey>/      archive contents flattened + package.json
  *   @dak/dak-<platformKey>.tgz   the same tree as an npm tarball
- *   dak/                             launcher: package.json, bin/t3.js, README.md
+ *   dak/                             launcher: package.json, bin/dak.js, README.md
  *   dak.tgz                          the launcher as an npm tarball
  *
  * The tarballs are what gets published. `npm publish <dir>` always drops
@@ -168,7 +168,7 @@ export function npmPlatformPackageReadme(platformKey: CliArchivePlatformKey): st
   ].join("\n");
 }
 
-/** package.json for the `dak` launcher. No engines: bin/t3.js is trivial CJS. */
+/** package.json for the `dak` launcher. No engines: bin/dak.js is trivial CJS. */
 export function npmLauncherPackageManifest(
   version: string,
   platformKeys: ReadonlyArray<CliArchivePlatformKey>,
@@ -179,7 +179,7 @@ export function npmLauncherPackageManifest(
     description: "DAK CLI. Installs the self-contained executable for this platform.",
     license: serverPackageJson.license,
     repository: serverPackageJson.repository,
-    bin: { dak: "./bin/t3.js" },
+    bin: { dak: "./bin/dak.js" },
     files: ["bin", "dist"],
     optionalDependencies: Object.fromEntries(
       platformKeys.map((key) => [npmPlatformPackageName(key), version]),
@@ -365,7 +365,7 @@ const stagePlatformPackage = Effect.fn("stagePlatformPackage")(function* (input:
   return output;
 }, Effect.scoped);
 
-/** Writes the launcher package (package.json, bin/t3.js, README) and its tarball. */
+/** Writes the launcher package (package.json, bin/dak.js, README) and its tarball. */
 const stageLauncherPackage = Effect.fn("stageLauncherPackage")(function* (input: {
   readonly outputDir: string;
   readonly version: string;
@@ -383,7 +383,7 @@ const stageLauncherPackage = Effect.fn("stageLauncherPackage")(function* (input:
     path.join(stageDir, "package.json"),
     `${yield* encodePackageJson(npmLauncherPackageManifest(input.version, input.platformKeys))}\n`,
   );
-  const launcherScript = path.join(stageDir, "bin/t3.js");
+  const launcherScript = path.join(stageDir, "bin/dak.js");
   yield* fs.writeFileString(launcherScript, NPM_LAUNCHER_SCRIPT);
   yield* fs.chmod(launcherScript, 0o755);
   // Older service updaters and launchers run this exact path with Node.

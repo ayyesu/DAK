@@ -83,7 +83,7 @@ it("updates a visible warning on revocation and blocks its retained action until
       <RegistryContext.Provider value={state.registry!}>
         <KeybindingsConfigWarning
           environmentId={environmentId}
-          configPath="/t3/keybindings.json"
+          configPath="/dak/keybindings.json"
           availableEditors={["vscode"]}
           message="Invalid shortcut"
         />
@@ -114,6 +114,6 @@ it("updates a visible warning on revocation and blocks its retained action until
   await act(async () => open());
   expect(state.run).toHaveBeenCalledExactlyOnceWith({
     environmentId,
-    input: { cwd: "/t3/keybindings.json", editor: "vscode" },
+    input: { cwd: "/dak/keybindings.json", editor: "vscode" },
   });
 });

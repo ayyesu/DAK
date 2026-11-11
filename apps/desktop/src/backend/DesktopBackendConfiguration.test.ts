@@ -1030,7 +1030,7 @@ describe("DesktopBackendConfiguration", () => {
         const standard = {
           OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector.example.com:4318/base?api_key=secret",
           OTEL_EXPORTER_OTLP_LOGS_HEADERS: "authorization=Bearer%20token",
-          DAK_OTLP_TRACES_URL: "http://t3.example.com:4318/v1/traces",
+          DAK_OTLP_TRACES_URL: "http://dak.example.com:4318/v1/traces",
         };
         const previousWslEnv = process.env.WSLENV;
         // A developer's own OTLP variables would be forwarded too.
@@ -1058,7 +1058,7 @@ describe("DesktopBackendConfiguration", () => {
             const wslEnv = (config.env.WSLENV ?? "").split(":");
             assert.include(wslEnv, "OTEL_EXPORTER_OTLP_ENDPOINT");
             assert.include(wslEnv, "OTEL_EXPORTER_OTLP_LOGS_HEADERS");
-            assert.equal(config.env.DAK_OTLP_TRACES_URL, "http://t3.example.com:4318/v1/traces");
+            assert.equal(config.env.DAK_OTLP_TRACES_URL, "http://dak.example.com:4318/v1/traces");
             assert.include(wslEnv, "DAK_OTLP_TRACES_URL");
           }).pipe(
             Effect.provide(

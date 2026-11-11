@@ -546,8 +546,8 @@ PORT_FILE="$STATE_DIR/port"
 PID_FILE="$STATE_DIR/pid"
 MANAGED_FILE="$STATE_DIR/managed"
 LOG_FILE="$STATE_DIR/server.log"
-RUNNER_FILE="$STATE_DIR/run-t3.sh"
-RUNNER_NEXT="$STATE_DIR/run-t3.next.$$"
+RUNNER_FILE="$STATE_DIR/run-dak.sh"
+RUNNER_NEXT="$STATE_DIR/run-dak.next.$$"
 mkdir -p "$STATE_DIR"
 cleanup_runner_next() {
   rm -f "$RUNNER_NEXT"
@@ -720,7 +720,7 @@ printf '{"remotePort":%s,"serverKind":"%s"}\\n' "$REMOTE_PORT" "\${REMOTE_MANAGE
 const REMOTE_PAIRING_SCRIPT = `set -eu
 STATE_DIR="$HOME/.dak/ssh-launch/@@DAK_STATE_KEY@@"
 DEFAULT_SERVER_HOME="$HOME/.dak"
-RUNNER_FILE="$STATE_DIR/run-t3.sh"
+RUNNER_FILE="$STATE_DIR/run-dak.sh"
 mkdir -p "$STATE_DIR"
 cat >"$RUNNER_FILE" <<'SH'
 @@DAK_RUNNER_SCRIPT@@

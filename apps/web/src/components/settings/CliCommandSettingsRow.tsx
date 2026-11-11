@@ -55,7 +55,7 @@ export function CliCommandSettingsRow() {
     ? "Run DAK's CLI as `dak` from any terminal."
     : state.onPath
       ? `Installed at ${state.installedPath}. Open a new terminal to use it.`
-      : `Installed at ${state.installedPath}, which is not on your PATH yet. Add its folder to your PATH to run \`t3\`.`;
+      : `Installed at ${state.installedPath}, which is not on your PATH yet. Add its folder to your PATH to run \`dak\`.`;
 
   return (
     <SettingsRow
