@@ -1409,7 +1409,7 @@ export function assertNoAcpClientFileOrTerminalRequests(transcript: ProviderRepl
         : [],
     ),
     [],
-    "the agent must not route file or terminal work through T3",
+    "the agent must not route file or terminal work through DAK",
   );
 }
 

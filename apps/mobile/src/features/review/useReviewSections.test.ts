@@ -75,7 +75,7 @@ beforeEach(() => {
     {
       runId: RunId.make("turn-1"),
       checkpointTurnCount: 1,
-      checkpointRef: CheckpointRef.make("refs/t3/checkpoints/thread/1"),
+      checkpointRef: CheckpointRef.make("refs/dak/checkpoints/thread/1"),
       status: "ready",
       files: [],
       assistantMessageId: MessageId.make("message-1"),

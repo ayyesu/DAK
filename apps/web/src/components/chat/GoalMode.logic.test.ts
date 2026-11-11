@@ -103,7 +103,7 @@ describe("goalProgress", () => {
       tasks: [
         task({ id: "t1", title: "one", status: "completed" }),
         task({ id: "t2", title: "two", status: "completed" }),
-        task({ id: "t3", title: "three", status: "in_progress" }),
+        task({ id: "d3", title: "three", status: "in_progress" }),
       ],
       verification: unchecked,
     });

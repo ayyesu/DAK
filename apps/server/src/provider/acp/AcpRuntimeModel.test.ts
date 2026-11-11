@@ -1437,7 +1437,7 @@ describe("extractMcpToolCallIdentity", () => {
     expect(
       extractMcpToolCallIdentity(toolCall, {
         embeddedTerminalCommands: [
-          '/usr/bin/node /srv/t3/bin.ts acp-mcp-call delegate_task {"task":"x"}',
+          '/usr/bin/node /srv/dak/bin.ts acp-mcp-call delegate_task {"task":"x"}',
         ],
       }),
     ).toEqual({ server: "dak", tool: "delegate_task", input: { task: "x" } });

@@ -44,7 +44,7 @@ describe("DesktopEnvironment", () => {
       const environment = yield* makeEnvironment(
         {},
         {
-          DAK_HOME: " /tmp/t3 ",
+          DAK_HOME: " /tmp/dak ",
           DAK_COMMIT_HASH: " 0123456789abcdef ",
           DAK_PORT: "4949",
           VITE_DEV_SERVER_URL: "http://localhost:5173",
@@ -60,17 +60,17 @@ describe("DesktopEnvironment", () => {
 
       assert.equal(environment.isDevelopment, true);
       assert.equal(environment.appDataDirectory, "/Users/alice/Library/Application Support");
-      assert.equal(environment.baseDir, "/tmp/t3");
-      assert.equal(environment.stateDir, "/tmp/t3/userdata");
-      assert.equal(environment.desktopSettingsPath, "/tmp/t3/userdata/desktop-settings.json");
-      assert.equal(environment.clientSettingsPath, "/tmp/t3/userdata/client-settings.json");
+      assert.equal(environment.baseDir, "/tmp/dak");
+      assert.equal(environment.stateDir, "/tmp/dak/userdata");
+      assert.equal(environment.desktopSettingsPath, "/tmp/dak/userdata/desktop-settings.json");
+      assert.equal(environment.clientSettingsPath, "/tmp/dak/userdata/client-settings.json");
       assert.equal(
         environment.savedEnvironmentRegistryPath,
-        "/tmp/t3/userdata/saved-environments.json",
+        "/tmp/dak/userdata/saved-environments.json",
       );
-      assert.equal(environment.serverSettingsPath, "/tmp/t3/userdata/settings.json");
-      assert.equal(environment.logDir, "/tmp/t3/userdata/logs");
-      assert.equal(environment.browserArtifactsDir, "/tmp/t3/userdata/browser-artifacts");
+      assert.equal(environment.serverSettingsPath, "/tmp/dak/userdata/settings.json");
+      assert.equal(environment.logDir, "/tmp/dak/userdata/logs");
+      assert.equal(environment.browserArtifactsDir, "/tmp/dak/userdata/browser-artifacts");
       assert.equal(environment.rootDir, "/repo");
       assert.equal(environment.appRoot, "/repo");
       assert.equal(environment.serverRoot, "/repo");
@@ -106,15 +106,15 @@ describe("DesktopEnvironment", () => {
       const environment = yield* makeEnvironment(
         {},
         {
-          DAK_HOME: "/tmp/t3",
+          DAK_HOME: "/tmp/dak",
         },
       );
 
       assert.equal(environment.isDevelopment, false);
-      assert.equal(environment.stateDir, "/tmp/t3/userdata");
-      assert.equal(environment.logDir, "/tmp/t3/userdata/logs");
-      assert.equal(environment.browserArtifactsDir, "/tmp/t3/userdata/browser-artifacts");
-      assert.equal(environment.serverSettingsPath, "/tmp/t3/userdata/settings.json");
+      assert.equal(environment.stateDir, "/tmp/dak/userdata");
+      assert.equal(environment.logDir, "/tmp/dak/userdata/logs");
+      assert.equal(environment.browserArtifactsDir, "/tmp/dak/userdata/browser-artifacts");
+      assert.equal(environment.serverSettingsPath, "/tmp/dak/userdata/settings.json");
       assert.equal(environment.otlpProtocol, "http/json");
     }),
   );

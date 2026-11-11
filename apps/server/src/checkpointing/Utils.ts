@@ -1,7 +1,7 @@
 import * as Base64Url from "effect/encoding/Base64Url";
 import { CheckpointRef, ProjectId, type ThreadId } from "@dak/contracts";
 
-const CHECKPOINT_REFS_PREFIX = "refs/t3/checkpoints";
+const CHECKPOINT_REFS_PREFIX = "refs/dak/checkpoints";
 
 export function checkpointRefForThreadTurn(threadId: ThreadId, turnCount: number): CheckpointRef {
   return CheckpointRef.make(

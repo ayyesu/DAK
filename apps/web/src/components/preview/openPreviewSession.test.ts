@@ -27,7 +27,7 @@ const snapshot: PreviewSessionSnapshot = {
   tabId: "tab-1",
   navStatus: {
     _tag: "Loading",
-    url: "https://t3.chat/",
+    url: "https://example.com/",
     title: "",
   },
   canGoBack: false,
@@ -83,7 +83,7 @@ describe("openPreviewSession", () => {
       profileId: DEFAULT_BROWSER_PROFILE_ID,
     });
     expect(readThreadPreviewState(threadRef).snapshot).toEqual(snapshot);
-    expect(readThreadPreviewState(threadRef).recentlySeenUrls).toEqual(["https://t3.chat/"]);
+    expect(readThreadPreviewState(threadRef).recentlySeenUrls).toEqual(["https://example.com/"]);
   });
 
   it("returns failures without mutating preview state", async () => {
@@ -113,7 +113,7 @@ describe("openPreviewSession", () => {
         browserProfiles: [{ id: "work", name: "Work", kind: "persistent" }],
       });
       const openPreview = vi.fn(async () => AsyncResult.success(snapshot));
-      const input = { openPreview, threadRef, url: "https://t3.chat/" };
+      const input = { openPreview, threadRef, url: "https://example.com/" };
       const open = entryPoint === "session" ? openPreviewSession : openUrlInPreview;
 
       const result = await open(input);

@@ -24,7 +24,7 @@ import {
   serviceStateHasPendingUpdate,
 } from "./serviceProtocol.ts";
 
-const linuxRuntime = "/home/theo/.dak/runtime/versions/1.2.3/t3";
+const linuxRuntime = "/home/theo/.dak/runtime/versions/1.2.3/dak";
 const linuxPlan = {
   program: [linuxRuntime, "__service-launcher"],
   baseDir: "/home/theo/.dak",
@@ -42,7 +42,7 @@ it("runs the pinned runtime's own executable as the systemd launcher", () => {
 
 it("reads the served DAK home back out of a rendered unit or plist", () => {
   const plan = (baseDir: string) => ({
-    program: [`${baseDir}/runtime/versions/1.2.3/t3`, "__service-launcher"],
+    program: [`${baseDir}/runtime/versions/1.2.3/dak`, "__service-launcher"],
     baseDir,
     logPath: `${baseDir}/userdata/logs/boot-service.log`,
     unitPath: "/home/theo/.config/systemd/user/dak.service",
@@ -74,7 +74,7 @@ it("survives the kernel OOM-killing a greedy agent child", () => {
   expect(unit).toContain("OOMPolicy=continue");
 });
 
-const macRuntime = "/Users/theo/.dak/runtime/versions/1.2.3/t3";
+const macRuntime = "/Users/theo/.dak/runtime/versions/1.2.3/dak";
 const macPlan = {
   program: [macRuntime, "__service-launcher"],
   baseDir: "/Users/theo/.dak",
@@ -220,7 +220,7 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
         baseDir: serviceBaseDir,
         logsDir: path.join(serviceBaseDir, "userdata", "logs"),
         cliVersion,
-        host: { execPath: "/usr/bin/t3" },
+        host: { execPath: "/usr/bin/dak" },
       });
     }).pipe(
       Effect.provideService(ProcessRunner.ProcessRunner, runner),
@@ -228,7 +228,7 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
         Layer.mergeAll(
           Layer.succeed(HostProcessPlatform, platform),
           Layer.succeed(HostProcessUserId, 501),
-          Layer.succeed(HostProcessExecutablePath, "/usr/bin/t3"),
+          Layer.succeed(HostProcessExecutablePath, "/usr/bin/dak"),
           Layer.succeed(
             HttpClient.HttpClient,
             HttpClient.make(() => Effect.die("no release download expected")),

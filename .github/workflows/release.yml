@@ -582,8 +582,8 @@ jobs:
     name: Publish GitHub Release
     needs: [preflight, desktop_mac_arm64, desktop_mac_x64, desktop_linux_x64, desktop_win_x64]
     # This fork publishes on the build jobs alone. The quality and test jobs still
-    # run and still report, but they are red for rename fallout inside the app
-    # (t3 -> DAK), and holding every release on that debt would mean no release
+    # run and still report, but they are red for rename fallout inside the app,
+    # and holding every release on that debt would mean no release
     # at all. Add quality, test and test_server back to `needs` once the app's
     # suite is green again; upstream's rule is that publishing waits for every
     # check.

@@ -66,7 +66,7 @@ export const resolveServerInstallation = Effect.gen(function* () {
   const platform = yield* HostProcessPlatform;
   const entry = yield* fs.realPath(executable ? executablePath : (args[1] ?? ""));
   const match =
-    /^(.*)\/lib\/node_modules\/t3\/(?:dist\/bin\.mjs|bin\/t3\.js|node_modules\/@dak\/dak-[^/]+\/t3)$/.exec(
+    /^(.*)\/lib\/node_modules\/dak\/(?:dist\/bin\.mjs|bin\/dak\.js|node_modules\/@dak\/dak-[^/]+\/dak)$/.exec(
       entry,
     );
   if (!match) {
@@ -86,20 +86,20 @@ export const resolveServerInstallation = Effect.gen(function* () {
   )
     return null;
 
-  const packageRoot = path.join(prefix, "lib/node_modules/t3");
+  const packageRoot = path.join(prefix, "lib/node_modules/dak");
   const manifest = yield* fs
     .readFileString(path.join(packageRoot, "package.json"))
     .pipe(Effect.flatMap(decodeInstallManifest));
   if (manifest.name !== "dak" || !manifest.bin) return null;
   const bin = yield* fs.realPath(path.join(packageRoot, manifest.bin.dak));
-  const globalBin = yield* fs.realPath(path.join(prefix, "bin/t3"));
+  const globalBin = yield* fs.realPath(path.join(prefix, "bin/dak"));
   if (globalBin !== bin) return null;
   if (executable) {
     const nativeManifest = yield* fs
       .readFileString(path.join(path.dirname(entry), "package.json"))
       .pipe(Effect.flatMap(decodeInstallManifest));
     if (
-      manifest.bin.dak !== "./bin/t3.js" ||
+      manifest.bin.dak !== "./bin/dak.js" ||
       manifest.optionalDependencies?.[nativeManifest.name] !== nativeManifest.version ||
       nativeManifest.version !== manifest.version
     )

@@ -76,7 +76,7 @@ it("rejects contradictory service state", () => {
   );
 });
 
-// A pinned runtime is an executable at <versionDir>/t3. The tests stand one up
+// A pinned runtime is an executable at <versionDir>/dak. The tests stand one up
 // as a Node shebang script so the launcher spawns it the way it spawns the
 // real single-executable, IPC channel included.
 const writeFakeRuntime = (

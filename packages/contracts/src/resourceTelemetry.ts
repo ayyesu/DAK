@@ -34,7 +34,7 @@ export const ResourceTelemetryProcessCategory = Schema.Literals([
   "electron-gpu",
   "electron-utility",
   "resource-monitor",
-  "unknown-t3",
+  "unknown-dak",
 ]);
 export type ResourceTelemetryProcessCategory = typeof ResourceTelemetryProcessCategory.Type;
 

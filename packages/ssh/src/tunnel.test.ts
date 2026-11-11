@@ -94,7 +94,7 @@ function commandArgs(command: ChildProcess.Command): ReadonlyArray<string> {
 
 const ARCHIVE = { archiveVersion: "1.2.3-preview.20260911.4" } as const;
 const NODE_SCRIPT = {
-  nodeScriptPath: "/Users/julius/Development/Work/codething-mvp/apps/server/dist/bin.mjs",
+  nodeScriptPath: "/Users/julius/Development/Work/dak/apps/server/dist/bin.mjs",
 } as const;
 
 describe("ssh tunnel scripts", () => {
@@ -134,7 +134,7 @@ describe("ssh tunnel scripts", () => {
     assert.notInclude(script, "-mmin");
     assert.equal(script.split("if ! dak_runtime_ready; then").length - 1, 2);
     assert.isBelow(
-      script.indexOf('"$DAK_STAGING/t3" --version'),
+      script.indexOf('"$DAK_STAGING/dak" --version'),
       script.indexOf('> "$DAK_STAGING/.install-complete"'),
     );
     // Node discovery is defined for the dev path but only ever invoked inside
@@ -151,10 +151,10 @@ describe("ssh tunnel scripts", () => {
 
     const launch = SshTunnel.buildRemoteLaunchScript({
       ...ARCHIVE,
-      releaseBaseUrl: "https://mirror.example/t3/",
+      releaseBaseUrl: "https://mirror.example/dak/",
     });
     assert.include(launch, "DAK_ARCHIVE_MODE=1");
-    assert.include(launch, "DAK_RELEASE_BASE_URL='https://mirror.example/t3'");
+    assert.include(launch, "DAK_RELEASE_BASE_URL='https://mirror.example/dak'");
     assert.include(launch, '"$RUNNER_FILE" __ssh-helper pick-port "$PORT_FILE"');
     assert.include(launch, '"$RUNNER_FILE" __ssh-helper wait-ready "$REMOTE_PORT"');
     assert.include(launch, '"$RUNNER_FILE" __ssh-helper runtime-port "$DEFAULT_RUNTIME_FILE"');
@@ -208,7 +208,7 @@ describe("ssh tunnel scripts", () => {
 
     assert.include(
       script,
-      "DAK_NODE_SCRIPT_PATH='/Users/julius/Development/Work/codething-mvp/apps/server/dist/bin.mjs'",
+      "DAK_NODE_SCRIPT_PATH='/Users/julius/Development/Work/dak/apps/server/dist/bin.mjs'",
     );
     assert.include(script, 'exec node "$DAK_NODE_SCRIPT_PATH" "$@"');
     assert.include(script, "DAK_ARCHIVE_VERSION=''");

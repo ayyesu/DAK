@@ -185,7 +185,7 @@ it.effect.each([
     );
     const response = yield* Effect.promise(() =>
       handler.handler(
-        new Request("http://t3.test/api/preview-stream/ws?threadId=thread&tabId=tab", {
+        new Request("http://dak.test/api/preview-stream/ws?threadId=thread&tabId=tab", {
           headers: { upgrade: "websocket" },
         }),
       ),
@@ -230,7 +230,7 @@ it.effect("serves a tab's download only to an authorized session", () =>
         );
         return yield* Effect.promise(() => handler.handler(new Request(url)));
       });
-    const base = "http://t3.test/api/preview-stream/download?threadId=thread&tabId=tab";
+    const base = "http://dak.test/api/preview-stream/download?threadId=thread&tabId=tab";
     const denied = yield* serve([], `${base}&id=download-1`);
     expect(denied.status).toBe(403);
     expect(requests).toEqual([]);
@@ -281,7 +281,7 @@ it.effect("passes uploaded files to the page's open picker and needs operate sco
         return yield* Effect.promise(() =>
           handler.handler(
             new Request(
-              `http://t3.test/api/preview-stream/upload?threadId=thread&tabId=tab&chooser=${chooser}`,
+              `http://dak.test/api/preview-stream/upload?threadId=thread&tabId=tab&chooser=${chooser}`,
               { method: "POST", body },
             ),
           ),

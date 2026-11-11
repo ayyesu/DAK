@@ -1,4 +1,4 @@
-﻿// @effect-diagnostics nodeBuiltinImport:off - A design is a directory of files, so this module is
+// @effect-diagnostics nodeBuiltinImport:off - A design is a directory of files, so this module is
 // deliberately the filesystem boundary for Canvas, the same shape as attachmentStore.
 // @effect-diagnostics globalDate:off - Timestamps are wall-clock strings written into those files,
 // and the store already takes an injectable clock for tests.

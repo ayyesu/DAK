@@ -80,7 +80,7 @@ update fails. Download the new `.deb` and install it the same way.
 
 The desktop app includes the `dak` command-line tool. To run it from any
 terminal, open **Settings → General → About** and choose **Install** next to
-**t3 command**. On macOS and Linux it adds a `dak` link to a folder on your
+**dak command**. On macOS and Linux it adds a `dak` link to a folder on your
 `PATH`; on Windows it adds the app's command folder to your `PATH`. Open a new
 terminal afterwards. **Remove** takes it off again. If you already have `dak`
 from npm, it stays as it is.

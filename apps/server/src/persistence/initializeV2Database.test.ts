@@ -158,7 +158,7 @@ it.effect("uses statev2.sqlite for default and explicit development paths", () =
   Effect.gen(function* () {
     for (const devUrl of [undefined, new URL("http://localhost:5173")]) {
       for (const baseDirIsExplicit of [false, true]) {
-        const paths = yield* ServerConfig.deriveServerPaths("/tmp/t3", devUrl, {
+        const paths = yield* ServerConfig.deriveServerPaths("/tmp/dak", devUrl, {
           baseDirIsExplicit,
         });
         assert.equal(NodePath.basename(paths.dbPath), "statev2.sqlite");

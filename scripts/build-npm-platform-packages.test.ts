@@ -171,14 +171,14 @@ it.layer(NodeServices.layer)("build-npm-platform-packages", (it) => {
       );
       assert.equal(launcherManifest.name, "dak");
       assert.equal(launcherManifest.version, VERSION);
-      assert.deepStrictEqual(launcherManifest.bin, { dak: "./bin/t3.js" });
+      assert.deepStrictEqual(launcherManifest.bin, { dak: "./bin/dak.js" });
       assert.deepStrictEqual(launcherManifest.files, ["bin", "dist"]);
       assert.deepStrictEqual(launcherManifest.optionalDependencies, {
         "@dak/dak-darwin-arm64": VERSION,
         "@dak/dak-linux-x64": VERSION,
       });
       assert.isUndefined(launcherManifest.engines);
-      assert.isTrue(yield* fs.exists(path.join(launcherDir, "bin/t3.js")));
+      assert.isTrue(yield* fs.exists(path.join(launcherDir, "bin/dak.js")));
 
       // The scratch dirs must not be left behind next to the packages.
       const outputEntries = yield* fs.readDirectory(fixture.outputDir);
@@ -207,10 +207,14 @@ it.layer(NodeServices.layer)("build-npm-platform-packages", (it) => {
       const hostArch = yield* HostProcessArchitecture;
       const env = { ...process.env, NODE_PATH: fixture.outputDir } as Record<string, string>;
       if (KEYS.some((key) => key === `${hostPlatform}-${hostArch}`)) {
-        const passthrough = yield* run(process.execPath, ["bin/t3.js", "serve", "--port", "1234"], {
-          cwd: launcherDir,
-          env,
-        });
+        const passthrough = yield* run(
+          process.execPath,
+          ["bin/dak.js", "serve", "--port", "1234"],
+          {
+            cwd: launcherDir,
+            env,
+          },
+        );
         assert.equal(
           passthrough.stdout.trim(),
           `stub ${hostPlatform}-${hostArch} serve --port 1234`,
@@ -248,7 +252,7 @@ it.layer(NodeServices.layer)("build-npm-platform-packages", (it) => {
         assert.equal(legacy.exitCode, 7);
       }
 
-      const unsupported = yield* run(process.execPath, ["bin/t3.js", "--version"], {
+      const unsupported = yield* run(process.execPath, ["bin/dak.js", "--version"], {
         cwd: launcherDir,
         env: { ...env, NODE_PATH: path.join(fixture.root, "nowhere") },
       });

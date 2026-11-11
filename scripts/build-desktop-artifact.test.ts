@@ -2109,8 +2109,8 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
   it("parses Windows bsdtar member listings with CRLF line endings", () => {
     assert.deepStrictEqual(
-      parseWslRuntimeArchiveMembers("./dak-1.2.3-linux-x64/t3\r\ndak-1.2.3-linux-x64/client/\r\n"),
-      ["dak-1.2.3-linux-x64/t3", "dak-1.2.3-linux-x64/client"],
+      parseWslRuntimeArchiveMembers("./dak-1.2.3-linux-x64/dak\r\ndak-1.2.3-linux-x64/client/\r\n"),
+      ["dak-1.2.3-linux-x64/dak", "dak-1.2.3-linux-x64/client"],
     );
   });
 
