@@ -44,6 +44,7 @@ describe("V2 preview upgrade", () => {
         [61, "Goals"],
         [62, "GoalTurnStartedAt"],
         [63, "GoalProgress"],
+        [64, "GoalRecovery"],
       ]);
       assert.deepStrictEqual(yield* runMigrations(), []);
       assert.deepStrictEqual(yield* sql`SELECT * FROM orchestration_v2_legacy_imports`, imports);
@@ -130,6 +131,7 @@ describe("V2 preview upgrade", () => {
         [61, "Goals"],
         [62, "GoalTurnStartedAt"],
         [63, "GoalProgress"],
+        [64, "GoalRecovery"],
       ]);
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );

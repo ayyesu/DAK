@@ -2,6 +2,10 @@ import {
   CommandId,
   GOAL_ACTIVITY_LIMIT,
   GOAL_MAX_IDLE_CYCLES,
+  GOAL_MAX_REASSESSMENTS,
+  GOAL_MAX_VERIFY_REPAIR_ROUNDS,
+  GOAL_RECOVERY_ATTEMPTS,
+  GoalBlocker,
   GoalError,
   GoalId,
   GoalStatus,
@@ -53,6 +57,8 @@ import {
   buildGoalEditPrompt,
   buildGoalExecutionPrompt,
   buildGoalPlanningPrompt,
+  buildGoalReassessmentPrompt,
+  buildGoalRecoveryPrompt,
   buildGoalRepairPrompt,
   buildGoalVerificationPrompt,
   parseGoalReport,
@@ -76,11 +82,30 @@ const GOAL_STUCK_THRESHOLD = Duration.seconds(10);
 const GOAL_STUCK_SWEEP_INTERVAL = Duration.seconds(60);
 const ACTIVITY_DETAIL_LIMIT = 2_000;
 
-const DRIVEN_STATUSES: ReadonlySet<Goal["status"]> = new Set(["planning", "running", "verifying"]);
+const DRIVEN_STATUSES: ReadonlySet<Goal["status"]> = new Set([
+  "planning",
+  "running",
+  "recovering",
+  "verifying",
+]);
 /** Terminal states. `failed` is deliberately absent: resume or edit recovers it. */
 const ENDED_STATUSES: ReadonlySet<Goal["status"]> = new Set(["completed", "cancelled"]);
 
-type TurnPhase = "plan" | "task" | "verify" | "repair" | "answer" | "edit";
+type TurnPhase = "plan" | "task" | "verify" | "repair" | "answer" | "edit" | "recover" | "reassess";
+
+/**
+ * Which kind of turn produced a report. It decides how the report is read: a
+ * blocker only counts as evidence when it came from a reassessment.
+ */
+type GoalTurnMode =
+  | "plan"
+  | "task"
+  | "verify"
+  | "repair"
+  | "answer"
+  | "edit"
+  | "recover"
+  | "reassess";
 
 interface GoalRow {
   readonly goal_id: string;
@@ -100,6 +125,9 @@ interface GoalRow {
   readonly verification_json: string;
   readonly blocked_reason: string | null;
   readonly failure_reason: string | null;
+  readonly question: string | null;
+  readonly question_task_id: string | null;
+  readonly blocker_json: string | null;
   readonly progress: number | null;
   readonly progress_label: string | null;
   readonly pending_edit: number;
@@ -124,7 +152,12 @@ interface GoalTaskRow {
   readonly started_at: string | null;
   readonly completed_at: string | null;
   readonly evidence: string | null;
+  readonly question: string | null;
+  readonly blocker_json: string | null;
   readonly attempts: number;
+  readonly recovery_attempts: number;
+  readonly reassessments: number;
+  readonly depends_on_json: string;
 }
 
 interface GoalActivityRow {
@@ -169,6 +202,18 @@ const encodeWorkspaceStrategy = Schema.encodeSync(
 );
 const decodeVerification = Schema.decodeUnknownEffect(Schema.fromJsonString(GoalVerification));
 const encodeVerification = Schema.encodeSync(Schema.fromJsonString(GoalVerification));
+const decodeBlocker = Schema.decodeUnknownOption(Schema.fromJsonString(GoalBlocker));
+const encodeBlocker = Schema.encodeSync(Schema.fromJsonString(GoalBlocker));
+const decodeDependsOn = (value: string): ReadonlyArray<string> => {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item) => (typeof item === "string" && item !== "" ? [item] : []));
+  } catch {
+    return [];
+  }
+};
+const encodeDependsOn = (value: ReadonlyArray<string>): string => JSON.stringify([...value]);
 const decodeGoalStatus = Schema.decodeUnknownOption(GoalStatus);
 const decodeTaskStatus = Schema.decodeUnknownOption(GoalTaskStatus);
 const decodeActor = Schema.decodeUnknownOption(
@@ -184,10 +229,14 @@ const decodeActivityKind = Schema.decodeUnknownOption(
     "task_started",
     "task_completed",
     "task_failed",
+    "task_recovering",
+    "task_waiting_input",
     "task_blocked",
     "status",
     "prompt",
     "user",
+    "recovery",
+    "reassessment",
     "verification",
     "error",
   ] as const),
@@ -225,12 +274,82 @@ function normalizedCriterion(value: string): string {
   return value.trim().toLowerCase().replaceAll(/\s+/g, " ");
 }
 
+function normalizedTitle(value: string): string {
+  return value.trim().toLowerCase().replaceAll(/\s+/g, " ");
+}
+
 function isDriven(status: Goal["status"]): boolean {
   return DRIVEN_STATUSES.has(status);
 }
 
 function hasEnded(status: Goal["status"]): boolean {
   return ENDED_STATUSES.has(status);
+}
+
+/**
+ * What the driver does with a task that reported an obstacle.
+ *
+ * `recover` sends another turn with the failure as context, `reassess` asks
+ * the agent for an evidence-based assessment before anything is given up on,
+ * and `stop` means the task itself is finished and the plan moves on. A
+ * reassessment that comes back without usable evidence is treated as another
+ * failure, so a vague answer never ends the loop.
+ */
+export type GoalTaskRecovery =
+  | { readonly kind: "recover"; readonly attempt: number }
+  | { readonly kind: "reassess"; readonly attempt: number }
+  | { readonly kind: "stop" };
+
+/**
+ * The recovery ladder for one task.
+ *
+ * The first few failures get a recovery turn: the agent is told what broke
+ * and asked to work it out. Only after that budget is spent does the server
+ * ask for a reassessment, and only a reassessment that names a real external
+ * blocker may stop the task. Every rung here re-tries the work, so the ladder
+ * never turns a hard problem into a surrender.
+ */
+export function planGoalTaskRecovery(input: {
+  readonly recoveryAttempts: number;
+  readonly reassessments: number;
+}): GoalTaskRecovery {
+  if (input.recoveryAttempts < GOAL_RECOVERY_ATTEMPTS) {
+    return { kind: "recover", attempt: input.recoveryAttempts + 1 };
+  }
+  if (input.reassessments < GOAL_MAX_REASSESSMENTS) {
+    return { kind: "reassess", attempt: input.reassessments + 1 };
+  }
+  return { kind: "stop" };
+}
+
+export { GOAL_MAX_REASSESSMENTS, GOAL_RECOVERY_ATTEMPTS };
+
+/**
+ * The task the loop works on next.
+ *
+ * A task waiting on the user is skipped, so an open question never stops
+ * independent work. A task whose prerequisites are unresolved is skipped too,
+ * and becomes runnable again the moment they are satisfied. Work already in
+ * flight wins over untouched work, which wins over a task that is being
+ * recovered: an obstacle does not hold up the rest of the plan.
+ */
+export function selectNextTask(tasks: ReadonlyArray<GoalTask>): GoalTask | undefined {
+  const completed = new Set(
+    tasks.filter((task) => task.status === "completed").map((task) => task.id),
+  );
+  const runnable = tasks.filter(
+    (task) =>
+      task.status !== "completed" &&
+      task.status !== "waiting_input" &&
+      task.status !== "failed" &&
+      task.dependsOn.every((dependency) => completed.has(dependency)),
+  );
+  return (
+    runnable.find((task) => task.status === "in_progress") ??
+    runnable.find((task) => task.status === "pending" && task.startedAt === null) ??
+    runnable.find((task) => task.status === "recovering") ??
+    runnable.find((task) => task.status === "pending")
+  );
 }
 
 export class GoalService extends Context.Service<
@@ -291,7 +410,12 @@ export const layer = Layer.effect(
       startedAt: row.started_at,
       completedAt: row.completed_at,
       evidence: row.evidence,
+      question: row.question,
+      blocker: Option.getOrElse(decodeBlocker(row.blocker_json), () => null),
       attempts: row.attempts,
+      recoveryAttempts: row.recovery_attempts,
+      reassessments: row.reassessments,
+      dependsOn: decodeDependsOn(row.depends_on_json),
     });
 
     const decodeActivity = (row: GoalActivityRow): GoalActivity => ({
@@ -329,6 +453,9 @@ export const layer = Layer.effect(
         verification,
         blockedReason: row.blocked_reason,
         failureReason: row.failure_reason,
+        question: row.question,
+        questionTaskId: row.question_task_id,
+        blocker: Option.getOrElse(decodeBlocker(row.blocker_json), () => null),
         progress: row.progress,
         progressLabel: row.progress_label,
         createdAt: row.created_at,
@@ -381,8 +508,8 @@ export const layer = Layer.effect(
           goal_id, project_id, thread_id, title, objective, acceptance_criteria_json, status,
           current_task_id, model_selection_json, runtime_mode, interaction_mode,
           workspace_strategy_json, revision, cycle_count, verification_json, blocked_reason,
-          failure_reason, pending_edit, pending_answer, created_by,
-          creation_source, created_at, updated_at, started_at, turn_started_at,
+          failure_reason, question, question_task_id, blocker_json, pending_edit, pending_answer,
+          created_by, creation_source, created_at, updated_at, started_at, turn_started_at,
           completed_at, last_activity_at, progress, progress_label
         ) VALUES (
           ${goal.id}, ${goal.projectId}, ${goal.threadId}, ${goal.title}, ${goal.objective},
@@ -390,7 +517,9 @@ export const layer = Layer.effect(
           ${encodeModelSelection(goal.modelSelection)}, ${goal.runtimeMode},
           ${goal.interactionMode}, ${encodeWorkspaceStrategy(record.workspaceStrategy)},
           ${goal.revision}, ${goal.cycleCount}, ${encodeVerification(goal.verification)},
-          ${goal.blockedReason}, ${goal.failureReason}, ${record.pendingEdit ? 1 : 0},
+          ${goal.blockedReason}, ${goal.failureReason}, ${goal.question}, ${goal.questionTaskId},
+          ${goal.blocker === null ? null : encodeBlocker(goal.blocker)},
+          ${record.pendingEdit ? 1 : 0},
           ${record.pendingAnswer}, ${goal.createdBy},
           ${goal.creationSource}, ${goal.createdAt}, ${goal.updatedAt}, ${goal.startedAt},
           ${goal.turnStartedAt}, ${goal.completedAt}, ${goal.lastActivityAt},
@@ -413,6 +542,9 @@ export const layer = Layer.effect(
           verification_json = excluded.verification_json,
           blocked_reason = excluded.blocked_reason,
           failure_reason = excluded.failure_reason,
+          question = excluded.question,
+          question_task_id = excluded.question_task_id,
+          blocker_json = excluded.blocker_json,
           pending_edit = excluded.pending_edit,
           pending_answer = excluded.pending_answer,
           created_at = excluded.created_at,
@@ -431,10 +563,14 @@ export const layer = Layer.effect(
         (task) => sql`
           INSERT INTO goal_tasks (
             goal_id, task_id, title, detail, status, task_order, started_at, completed_at,
-            evidence, attempts
+            evidence, question, blocker_json, attempts, recovery_attempts, reassessments,
+            depends_on_json
           ) VALUES (
             ${goal.id}, ${task.id}, ${task.title}, ${task.detail}, ${task.status},
-            ${task.order}, ${task.startedAt}, ${task.completedAt}, ${task.evidence}, ${task.attempts}
+            ${task.order}, ${task.startedAt}, ${task.completedAt}, ${task.evidence},
+            ${task.question}, ${task.blocker === null ? null : encodeBlocker(task.blocker)},
+            ${task.attempts},
+            ${task.recoveryAttempts}, ${task.reassessments}, ${encodeDependsOn(task.dependsOn)}
           )
         `,
         { discard: true, concurrency: 1 },
@@ -500,6 +636,7 @@ export const layer = Layer.effect(
         readonly detail?: string | null;
         readonly blockedReason?: string | null;
         readonly failureReason?: string | null;
+        readonly blocker?: GoalBlocker | null;
       },
     ) {
       return yield* commit(
@@ -510,6 +647,9 @@ export const layer = Layer.effect(
             status,
             blockedReason: options?.blockedReason ?? null,
             failureReason: options?.failureReason ?? null,
+            blocker: options?.blocker ?? null,
+            // The open question survives every status change: it belongs to the
+            // task that asked it, and the user still has to answer it.
             completedAt: status === "completed" ? yield* nowIso : record.goal.completedAt,
             currentTaskId:
               status === "completed" || status === "cancelled" ? null : record.goal.currentTaskId,
@@ -518,6 +658,50 @@ export const layer = Layer.effect(
         { kind: "status", summary, detail: options?.detail ?? null },
       );
     });
+
+    /**
+     * Ends the goal when nothing else can move it.
+     *
+     * A goal is only blocked when a task produced a full assessment of the
+     * deadlock; without one the goal failed, because a conclusion without
+     * evidence is not a conclusion.
+     */
+    const concludeBlocked = (record: GoalRecord, blocker: GoalBlocker | null) =>
+      Effect.gen(function* () {
+        const goal = record.goal;
+        const stuck = goal.tasks.filter((task) => task.status === "failed");
+        const evidence =
+          blocker ?? goal.blocker ?? stuck.find((task) => task.blocker !== null)?.blocker ?? null;
+        if (evidence !== null) {
+          yield* setStatus(
+            record,
+            "blocked",
+            `Blocked: ${stuck.map((task) => task.title).join(", ") || "the goal"}`,
+            {
+              blockedReason: evidence.reason,
+              detail: [
+                evidence.rootCause,
+                evidence.investigation,
+                evidence.attempts.length > 0 ? `Tried: ${evidence.attempts.join("; ")}` : null,
+                evidence.alternatives.length > 0
+                  ? `Also considered: ${evidence.alternatives.join("; ")}`
+                  : null,
+                `Needs: ${evidence.intervention}`,
+              ]
+                .filter((part): part is string => part !== null)
+                .join("\n"),
+              blocker: evidence,
+            },
+          );
+          return;
+        }
+        yield* setStatus(record, "failed", "No runnable task remains", {
+          failureReason:
+            stuck.length === 0
+              ? "Every task ended without a runnable next step. Edit the goal to describe what should happen."
+              : `No runnable task remains on: ${stuck.map((task) => task.title).join("; ")}. Retry a task or edit the goal.`,
+        });
+      });
 
     const interruptGoal = (record: GoalRecord, reason: string) =>
       record.goal.threadId === null
@@ -560,9 +744,10 @@ export const layer = Layer.effect(
      * One dispatched turn, from writing the cycle through reading its report.
      *
      * Besides `report`/`no_report`/`stopped`, the outcome can be `interrupted`
-     * (the run ended while the goal is still driven) or `relaunch` (the thread
-     * vanished); the drive loop continues on both instead of blocking. Pause
-     * and cancel set the goal's status before they end the run, so they are
+     * (the run ended while the goal is still driven), `relaunch` (the thread
+     * vanished) or `failed` (the turn did not produce a usable result). The
+     * drive loop recovers from all of them instead of blocking. Pause and
+     * cancel set the goal's status before they end the run, so they are
      * filtered by the authoritative read and surface as `stopped`.
      */
     const runTurn = (
@@ -661,16 +846,11 @@ export const layer = Layer.effect(
         );
 
         if (dispatched === "archived") {
-          const blocked = yield* setStatus(
-            yield* readRecordOrFail(goal.id),
-            "blocked",
-            "The goal's thread is archived",
-            {
-              blockedReason:
-                "The goal's thread was archived and cannot receive messages. Resume to continue in a new thread.",
-            },
-          );
-          return { kind: "stopped", record: blocked, report: null };
+          // An archived thread cannot receive turns, but a new one can. Drop
+          // the binding and let the loop launch a replacement instead of
+          // parking the goal on something the server can fix on its own.
+          const current = yield* readRecordOrFail(goal.id);
+          return { kind: "relaunch", record: current, report: null };
         }
         if (dispatched === null) {
           // The thread is gone; the drive loop dispatches again and launches
@@ -696,12 +876,10 @@ export const layer = Layer.effect(
         const runId = dispatched.runId;
 
         if (runId === null) {
-          // setStatus writes the record it is given, so it must carry the
-          // launched thread or the blocked goal would forget it.
-          const blocked = yield* setStatus(launched, "blocked", "The agent turn did not start", {
-            blockedReason: "The thread launched without a run. Resume to try again.",
-          });
-          return { kind: "stopped", record: blocked, report: null };
+          // The thread launched but the turn never started. That is an
+          // obstacle, not a dead end: the turn is retried as a recovery
+          // attempt rather than parking the goal.
+          return { kind: "failed", record: launched, report: null };
         }
 
         const forgetThreadDuringTurn = (summary: string) =>
@@ -744,15 +922,9 @@ export const layer = Layer.effect(
             if (!isDriven(timedOutRecord.goal.status)) {
               return { kind: "stopped", record: timedOutRecord, report: null };
             }
-            const blocked = yield* setStatus(
-              timedOutRecord,
-              "blocked",
-              "The agent turn ran too long",
-              {
-                blockedReason: `No turn result after ${Math.round(GOAL_TURN_TIMEOUT_MS / 60_000)} minutes. Resume when the thread is idle.`,
-              },
-            );
-            return { kind: "stopped", record: blocked, report: null };
+            // A turn that ran too long is an obstacle: the task goes into
+            // recovery so the agent retries it with the timeout as context.
+            return { kind: "failed", record: timedOutRecord, report: null };
           }
 
           const completed = waited.run?.status === "completed";
@@ -777,13 +949,9 @@ export const layer = Layer.effect(
           if (!completed) {
             const runStatus = waited.run?.status ?? null;
             if (runStatus === "failed") {
-              const failed = yield* setStatus(
-                afterWait,
-                "failed",
-                "The agent turn ended as failed",
-                { failureReason: "The provider turn failed." },
-              );
-              return { kind: "stopped", record: failed, report: null };
+              // The provider failed the turn. That is an obstacle the agent
+              // can often work around, so the task goes into recovery.
+              return { kind: "failed", record: afterWait, report: null };
             }
             if (
               runStatus === "interrupted" ||
@@ -795,15 +963,7 @@ export const layer = Layer.effect(
               // re-dispatching on the next cycle rather than blocking.
               return { kind: "interrupted", record: afterWait, report: null };
             }
-            const blocked = yield* setStatus(
-              afterWait,
-              "blocked",
-              `The agent turn ended as ${runStatus ?? "no run"}`,
-              {
-                blockedReason: `The last turn ended as ${runStatus ?? "no run"}. Resume to continue from here.`,
-              },
-            );
-            return { kind: "stopped", record: blocked, report: null };
+            return { kind: "failed", record: afterWait, report: null };
           }
 
           const report = parseGoalReport(reply);
@@ -822,18 +982,17 @@ export const layer = Layer.effect(
                 if (!isDriven(current.goal.status)) {
                   return { kind: "stopped", record: current, report: null };
                 }
-                // Drop the binding so Resume continues in a new thread instead
-                // of re-hitting the archive on every attempt.
-                const blocked = yield* setStatus(
+                // Drop the binding so the next cycle launches a fresh thread
+                // instead of re-hitting the archive on every attempt.
+                const forgot = yield* commit(
                   { ...current, goal: { ...current.goal, threadId: null } },
-                  "blocked",
-                  "The goal's thread is archived",
                   {
-                    blockedReason:
-                      "The goal's thread was archived mid-turn. Resume to continue in a new thread.",
+                    kind: "error",
+                    summary: "The goal's thread was archived; starting a new one",
+                    detail: null,
                   },
                 );
-                return { kind: "stopped", record: blocked, report: null };
+                return { kind: "relaunch", record: forgot, report: null };
               }),
           }),
         );
@@ -842,10 +1001,23 @@ export const layer = Layer.effect(
         Effect.withSpan("GoalService.runTurn"),
       );
 
+    /**
+     * Folds a turn's report into the stored plan.
+     *
+     * The server owns the outcome: a report that says a task failed is an
+     * obstacle to recover from, not a dead end, so the task moves to
+     * `recovering` and keeps its recovery budget. A report that asks a
+     * question parks only the task that asked it.
+     */
     const applyReport = Effect.fn("GoalService.applyReport")(function* (
       record: GoalRecord,
       report: GoalReport,
-      options?: { readonly repair?: boolean; readonly planHandling?: GoalPlanHandling },
+      options?: {
+        readonly repair?: boolean;
+        readonly planHandling?: GoalPlanHandling;
+        /** Which kind of turn produced the report. */
+        readonly mode?: GoalTurnMode;
+      },
     ) {
       const at = yield* nowIso;
       let counter = 0;
@@ -868,23 +1040,86 @@ export const layer = Layer.effect(
           : applied.status === "verifying"
             ? { status: "pending", summary: null, checkedAt: null }
             : record.goal.verification;
+
+      // The task this turn was about.
+      const currentTaskId = record.goal.currentTaskId;
+
+      // A question pauses one task, not the whole goal: the rest of the plan
+      // keeps running while the user answers.
+      const asksForInput = report.status === "needs_input";
+      // An obstacle is not a dead end. The task goes into recovery and the
+      // driver sends a recovery turn with the failure as its context.
+      const hitObstacle = report.status === "blocked" || report.status === "recovering";
+
+      const previous = new Map(record.goal.tasks.map((task) => [task.id, task]));
+      const tasks = applied.tasks.map((task) => {
+        const before = previous.get(task.id);
+        // A task that made progress out of recovery starts a fresh budget: the
+        // obstacle was worked through, so the next one does not inherit a
+        // spent recovery allowance.
+        if (
+          before?.status === "recovering" &&
+          (task.status === "in_progress" || task.status === "completed")
+        ) {
+          return { ...task, recoveryAttempts: 0, reassessments: 0 };
+        }
+        if (task.id !== currentTaskId) return task;
+        if (task.status === "completed") return task;
+        if (asksForInput) {
+          return {
+            ...task,
+            status: "waiting_input" as const,
+            question: task.question ?? applied.question,
+          };
+        }
+        if (hitObstacle) {
+          return { ...task, status: "recovering" as const };
+        }
+        return task;
+      });
+      // A task the agent named as waiting for the user carries the question
+      // too, so several tasks can each be waiting without losing any of them.
+      const withQuestions = tasks.map((task) =>
+        task.status === "waiting_input" && task.question === null && applied.question !== null
+          ? { ...task, question: applied.question }
+          : task,
+      );
+
+      // The user is asked one question at a time. The first task waiting on
+      // them owns it; the rest keep theirs for when it is answered.
+      const asked = withQuestions.find(
+        (task) => task.status === "waiting_input" && task.question !== null,
+      );
+
+      // The agent's own blocked verdict is a claim, not a conclusion: it
+      // becomes another obstacle to recover from unless the turn was the
+      // reassessment that was asked for a full assessment.
+      const blocker =
+        options?.mode === "reassess" && applied.blocker !== null ? applied.blocker : null;
+
+      // A task that produced a full assessment carries it, so the reason a
+      // task stopped is the task's own evidence.
+      const withBlockers = withQuestions.map((task) =>
+        blocker !== null && task.id === currentTaskId
+          ? { ...task, blocker, evidence: blocker.reason }
+          : task,
+      );
+
       const goal: Goal = {
         ...record.goal,
-        tasks: [...applied.tasks],
+        tasks: [...withBlockers],
         acceptanceCriteria: [...applied.acceptanceCriteria],
         currentTaskId: applied.currentTaskId,
         // A turn that reports no work yet leaves a task-less goal in planning
-        // so the loop re-plans instead of blocking on an empty plan.
+        // so the loop re-plans instead of giving up on an empty plan.
         status:
           applied.status === "running" && applied.tasks.length === 0 ? "planning" : applied.status,
         verification,
-        blockedReason:
-          applied.status === "blocked"
-            ? (report.summary ?? "The agent reported being blocked.")
-            : applied.status === "needs_input"
-              ? (report.question ?? "The agent needs information to continue.")
-              : null,
+        blockedReason: null,
         failureReason: null,
+        question: asked?.question ?? null,
+        questionTaskId: asked?.id ?? null,
+        blocker: record.goal.blocker ?? blocker,
         progress: report.progress ?? null,
         progressLabel: report.progressLabel ?? null,
       };
@@ -912,7 +1147,14 @@ export const layer = Layer.effect(
         });
       }
       yield* notifyChanged;
-      return { record: next, allCompleted, status: goal.status };
+      return {
+        record: next,
+        allCompleted,
+        status: goal.status,
+        question: goal.question,
+        questionTaskId: goal.questionTaskId,
+        blocker,
+      };
     });
 
     const verifyCompletion = Effect.fn("GoalService.verifyCompletion")(function* (
@@ -997,6 +1239,15 @@ export const layer = Layer.effect(
       return { done: false as const, record: repair };
     });
 
+    /**
+     * The goal's execution loop.
+     *
+     * The loop is autonomous by default: an obstacle sends the affected task
+     * through recovery, recovery turns are bounded, and the ladder ends in a
+     * reassessment that has to produce evidence before anything is called
+     * blocked. Work the agent reported as recoverable never stops the goal;
+     * only a task that waits on the user pauses, and only that task.
+     */
     const drive = (goalId: GoalId) =>
       Effect.gen(function* () {
         let idleCycles = 0;
@@ -1006,21 +1257,40 @@ export const layer = Layer.effect(
           if (!isDriven(goal.status)) return;
 
           if (record.pendingAnswer !== null) {
-            const question = goal.blockedReason ?? "You asked the user for clarification.";
+            const question = goal.question ?? "You asked the user for clarification.";
+            const questionTask = goal.tasks.find((task) => task.id === goal.questionTaskId) ?? null;
             // The answer stays stored until its turn completes, so a pause or
             // an interrupted turn cannot swallow the user's reply.
             const outcome = yield* runTurn(
               record,
-              buildGoalAnswerPrompt({ goal, question, answer: record.pendingAnswer }),
+              buildGoalAnswerPrompt({
+                goal,
+                question,
+                answer: record.pendingAnswer,
+                task: questionTask,
+              }),
               "answer",
             );
             if (outcome.kind === "stopped") return;
             if (outcome.kind === "interrupted" || outcome.kind === "relaunch") continue;
-            const cleared = yield* commit(
+            // The answered task resumes where it stopped: it goes back to
+            // working, with everything it had already done kept.
+            const answered = yield* commit(
               {
                 ...outcome.record,
                 pendingAnswer: null,
-                goal: { ...outcome.record.goal, blockedReason: null },
+                goal: {
+                  ...outcome.record.goal,
+                  question: null,
+                  questionTaskId: null,
+                  status: "running",
+                  currentTaskId: questionTask?.id ?? outcome.record.goal.currentTaskId,
+                  tasks: outcome.record.goal.tasks.map((task) =>
+                    task.id === questionTask?.id && task.status === "waiting_input"
+                      ? { ...task, status: "in_progress" as const, question: null }
+                      : task,
+                  ),
+                },
               },
               { kind: "user", summary: "Continued with the user's answer", detail: null },
             );
@@ -1029,10 +1299,11 @@ export const layer = Layer.effect(
               continue;
             }
             idleCycles = 0;
-            const applied = yield* applyReport(cleared, outcome.report, {
+            const applied = yield* applyReport(answered, outcome.report, {
               planHandling: "ignore",
+              mode: "answer",
             });
-            if (applied.status === "needs_input" || applied.status === "blocked") return;
+            if (applied.status === "completed") return;
             continue;
           }
 
@@ -1056,8 +1327,9 @@ export const layer = Layer.effect(
             idleCycles = 0;
             const applied = yield* applyReport(cleared, outcome.report, {
               planHandling: "extend",
+              mode: "edit",
             });
-            if (applied.status === "needs_input" || applied.status === "blocked") return;
+            if (applied.status === "completed") return;
             continue;
           }
 
@@ -1068,20 +1340,48 @@ export const layer = Layer.effect(
             if (outcome.report === null) {
               idleCycles += 1;
               if (idleCycles >= GOAL_MAX_IDLE_CYCLES) {
-                yield* setStatus(outcome.record, "blocked", "The agent did not produce a plan", {
-                  blockedReason:
-                    "The planning turn finished without a plan report. Resume to try planning again.",
+                // Planning that keeps producing nothing is an obstacle, not a
+                // dead end: the agent is asked why before anything is given up.
+                const recovery = yield* runTurn(
+                  outcome.record,
+                  buildGoalRecoveryPrompt({
+                    goal: outcome.record.goal,
+                    task: null,
+                    failure: "The planning turn produced no plan.",
+                    recoveryAttempt: idleCycles,
+                  }),
+                  "recover",
+                );
+                if (recovery.kind === "stopped") return;
+                if (recovery.kind === "interrupted" || recovery.kind === "relaunch") continue;
+                if (recovery.report === null) {
+                  yield* setStatus(outcome.record, "failed", "The agent produced no plan", {
+                    failureReason:
+                      "The agent did not produce a plan after repeated attempts. Edit the goal to describe the work directly.",
+                  });
+                  return;
+                }
+                const recovered = yield* applyReport(outcome.record, recovery.report, {
+                  mode: "recover",
                 });
-                return;
+                if (recovered.record.goal.tasks.length === 0) {
+                  yield* setStatus(recovered.record, "failed", "The agent produced no plan", {
+                    failureReason:
+                      "The agent did not produce a plan after repeated attempts. Edit the goal to describe the work directly.",
+                  });
+                  return;
+                }
+                idleCycles = 0;
+                continue;
               }
               continue;
             }
             idleCycles = 0;
-            const applied = yield* applyReport(outcome.record, outcome.report);
-            if (applied.status === "needs_input" || applied.status === "blocked") return;
+            const applied = yield* applyReport(outcome.record, outcome.report, { mode: "plan" });
             if (applied.record.goal.tasks.length === 0) {
-              yield* setStatus(applied.record, "blocked", "The agent did not produce a plan", {
-                blockedReason: "The planning turn reported no tasks. Resume to try planning again.",
+              yield* setStatus(applied.record, "failed", "The agent produced no plan", {
+                failureReason:
+                  "The agent did not produce a plan. Edit the goal to describe the work directly.",
               });
               return;
             }
@@ -1095,9 +1395,9 @@ export const layer = Layer.effect(
             if (outcome.report === null) {
               idleCycles += 1;
               if (idleCycles >= GOAL_MAX_IDLE_CYCLES) {
-                yield* setStatus(outcome.record, "blocked", "Verification never reported back", {
-                  blockedReason:
-                    "The verification turn finished without a report. Resume to verify again.",
+                yield* setStatus(outcome.record, "failed", "Verification never reported back", {
+                  failureReason:
+                    "The verification turn finished without a report. Resume the goal to verify again.",
                 });
                 return;
               }
@@ -1110,8 +1410,8 @@ export const layer = Layer.effect(
           }
 
           if (goal.tasks.length === 0) {
-            yield* setStatus(record, "blocked", "This goal has no tasks", {
-              blockedReason: "The plan is empty. Edit the goal to define what should happen.",
+            yield* setStatus(record, "failed", "This goal has no tasks", {
+              failureReason: "The plan is empty. Edit the goal to define what should happen.",
             });
             return;
           }
@@ -1125,8 +1425,9 @@ export const layer = Layer.effect(
               if (outcome.report === null) {
                 idleCycles += 1;
                 if (idleCycles >= GOAL_MAX_IDLE_CYCLES) {
-                  yield* setStatus(outcome.record, "blocked", "Repair did not report back", {
-                    blockedReason: "The repair turn finished without a report. Resume to continue.",
+                  yield* setStatus(outcome.record, "failed", "Repair did not report back", {
+                    failureReason:
+                      "The repair turn finished without a report. Resume the goal to continue.",
                   });
                   return;
                 }
@@ -1136,8 +1437,9 @@ export const layer = Layer.effect(
               const applied = yield* applyReport(outcome.record, outcome.report, {
                 repair: true,
                 planHandling: "extend",
+                mode: "repair",
               });
-              if (applied.status !== "running" && applied.status !== "verifying") return;
+              if (applied.status === "completed") return;
               continue;
             }
             yield* setStatus(record, "verifying", "Verifying the result against the goal", {
@@ -1146,56 +1448,61 @@ export const layer = Layer.effect(
             continue;
           }
 
-          const nextTask =
-            goal.tasks.find((task) => task.status === "in_progress") ??
-            // Unstarted work first: a task that already failed must not hold up
-            // the rest of the plan while it spends its recovery budget.
-            goal.tasks.find((task) => task.status === "pending" && task.startedAt === null) ??
-            goal.tasks.find((task) => task.status === "pending");
+          // The task the loop works on next. A task that waits for the user is
+          // skipped, so one question never stops independent work; a task in
+          // recovery is picked up again so its recovery turn happens.
+          const nextTask = selectNextTask(goal.tasks);
           if (nextTask === undefined) {
-            const stuck = goal.tasks.filter(
-              (task) => task.status === "failed" || task.status === "blocked",
-            );
-            if (stuck.length > 0) {
-              // Failed and blocked tasks are always requeued: the agent decides
-              // its own approach, with no attempt cap. Their startedAt survives,
-              // which puts them behind any fresh pending task and marks them as
-              // recoveries rather than first attempts.
-              yield* commit(
-                {
-                  ...record,
-                  goal: {
-                    ...goal,
-                    status: "running",
-                    blockedReason: null,
-                    currentTaskId: null,
-                    tasks: goal.tasks.map((task) =>
-                      task.status === "failed" || task.status === "blocked"
-                        ? { ...task, status: "pending" as const, completedAt: null }
-                        : task,
-                    ),
-                  },
-                },
-                {
-                  kind: "status",
-                  summary: `Requeued ${stuck.length} failed task${stuck.length === 1 ? "" : "s"} for another attempt`,
-                  detail: stuck
-                    .map(
-                      (task) =>
-                        `${task.title} (attempt ${task.attempts}): ${task.evidence ?? "no reason recorded"}`,
-                    )
-                    .join("\n"),
-                },
-              );
-              continue;
+            // Nothing is runnable. The only way out is the user: either a
+            // question is open, or the goal needs a decision.
+            const waiting = goal.tasks.find((task) => task.status === "waiting_input");
+            if (waiting !== undefined) {
+              yield* setStatus(record, "needs_input", "Waiting for your answer", {
+                detail: waiting.question ?? goal.question ?? null,
+              });
+              return;
             }
-            yield* setStatus(record, "blocked", "No runnable task remains", {
-              blockedReason:
-                stuck.length === 0
-                  ? "Every task ended without a runnable next step."
-                  : `No runnable task remains on: ${stuck.map((task) => task.title).join("; ")}. Retry a task or edit the goal.`,
-            });
+            yield* concludeBlocked(record, null);
             return;
+          }
+
+          // A task that reported an obstacle is recovered from first: the
+          // failure is the context, and the agent is asked to work it out
+          // rather than to try the same thing again.
+          const recovering = nextTask.status === "recovering";
+          const ladder = recovering
+            ? planGoalTaskRecovery({
+                recoveryAttempts: nextTask.recoveryAttempts,
+                reassessments: nextTask.reassessments,
+              })
+            : null;
+
+          if (ladder?.kind === "stop") {
+            // The recovery budget is spent and the reassessment did not
+            // produce a conclusion. The task is finished for now; the goal
+            // keeps whatever else it can do.
+            yield* commit(
+              {
+                ...record,
+                goal: {
+                  ...goal,
+                  status: "running",
+                  currentTaskId: null,
+                  tasks: goal.tasks.map((task) =>
+                    task.id === nextTask.id ? { ...task, status: "failed" as const } : task,
+                  ),
+                },
+              },
+              {
+                kind: "task_failed",
+                summary: `Could not finish: ${nextTask.title}`,
+                detail:
+                  nextTask.evidence ??
+                  "The agent could not make progress on this task and did not report a specific blocker.",
+                taskId: nextTask.id,
+              },
+            );
+            continue;
           }
 
           const markedAt = yield* nowIso;
@@ -1203,13 +1510,24 @@ export const layer = Layer.effect(
             ...record,
             goal: {
               ...goal,
+              // The goal reads as recovering while a task is being worked
+              // through, so the card shows what is happening.
+              status: recovering ? "recovering" : "running",
               tasks: goal.tasks.map((task) =>
-                task.id === nextTask.id && task.status === "pending"
+                task.id === nextTask.id
                   ? {
                       ...task,
-                      status: "in_progress",
+                      status: recovering ? ("recovering" as const) : ("in_progress" as const),
                       startedAt: task.startedAt ?? markedAt,
+                      // Every turn spent on the task is an attempt, whether it
+                      // did the work, recovered from a failure, or reassessed.
                       attempts: task.attempts + 1,
+                      recoveryAttempts:
+                        ladder?.kind === "recover"
+                          ? task.recoveryAttempts + 1
+                          : task.recoveryAttempts,
+                      reassessments:
+                        ladder?.kind === "reassess" ? task.reassessments + 1 : task.reassessments,
                     }
                   : task,
               ),
@@ -1217,26 +1535,89 @@ export const layer = Layer.effect(
             },
           };
           yield* commit(marked, {
-            kind: "task_started",
-            summary: `Working on: ${nextTask.title}`,
+            kind: ladder?.kind === "reassess" ? "reassessment" : "task_started",
+            summary:
+              ladder?.kind === "reassess"
+                ? `Reassessing: ${nextTask.title}`
+                : ladder?.kind === "recover"
+                  ? `Recovering: ${nextTask.title}`
+                  : `Working on: ${nextTask.title}`,
             detail: nextTask.detail,
             taskId: nextTask.id,
           });
 
           const outcome = yield* runTurn(
             marked,
-            buildGoalExecutionPrompt({ goal: marked.goal, task: nextTask, edited: false }),
-            "task",
+            ladder?.kind === "reassess"
+              ? buildGoalReassessmentPrompt({
+                  goal: marked.goal,
+                  task: nextTask,
+                  reason: nextTask.evidence ?? "The agent could not make progress on this task.",
+                  failure: nextTask.evidence,
+                })
+              : ladder?.kind === "recover"
+                ? buildGoalRecoveryPrompt({
+                    goal: marked.goal,
+                    task: nextTask,
+                    failure: nextTask.evidence,
+                    recoveryAttempt: nextTask.recoveryAttempts + 1,
+                  })
+                : buildGoalExecutionPrompt({
+                    goal: marked.goal,
+                    task: nextTask,
+                    edited: false,
+                  }),
+            ladder?.kind === "reassess"
+              ? "reassess"
+              : ladder?.kind === "recover"
+                ? "recover"
+                : "task",
             { taskId: nextTask.id },
           );
           if (outcome.kind === "stopped") return;
           if (outcome.kind === "interrupted" || outcome.kind === "relaunch") continue;
           if (outcome.report === null) {
+            // A turn that produced no usable result is an obstacle like any
+            // other: the task goes back into recovery rather than the goal
+            // stopping. The recovery ladder bounds how often that repeats.
             idleCycles += 1;
-            if (idleCycles >= GOAL_MAX_IDLE_CYCLES) {
-              yield* setStatus(outcome.record, "blocked", "The agent stopped reporting progress", {
-                blockedReason:
-                  "Two consecutive turns produced no progress report. Check the thread, then resume or edit the goal.",
+            const stalled = yield* commit(
+              {
+                ...outcome.record,
+                goal: {
+                  ...outcome.record.goal,
+                  tasks: outcome.record.goal.tasks.map((task) =>
+                    task.id === nextTask.id
+                      ? {
+                          ...task,
+                          status: "recovering" as const,
+                          evidence:
+                            task.evidence ??
+                            (outcome.kind === "failed"
+                              ? "The agent turn did not complete."
+                              : "The turn finished without a goal report."),
+                        }
+                      : task,
+                  ),
+                },
+              },
+              {
+                kind: "recovery",
+                summary:
+                  outcome.kind === "failed"
+                    ? `The turn did not complete: ${nextTask.title}`
+                    : `No progress report: ${nextTask.title}`,
+                detail:
+                  outcome.kind === "failed"
+                    ? "The agent turn failed or never started, so the task went back into recovery."
+                    : "The turn finished without a goal report, so the task went back into recovery.",
+                taskId: nextTask.id,
+              },
+            );
+            if (idleCycles >= GOAL_MAX_IDLE_CYCLES * 4) {
+              yield* setStatus(stalled, "failed", "The agent stopped reporting progress", {
+                failureReason:
+                  "Repeated turns produced no progress report. Check the thread, then resume or edit the goal.",
               });
               return;
             }
@@ -1245,9 +1626,41 @@ export const layer = Layer.effect(
           idleCycles = 0;
           const applied = yield* applyReport(outcome.record, outcome.report, {
             planHandling: "ignore",
+            mode:
+              ladder?.kind === "reassess"
+                ? "reassess"
+                : ladder?.kind === "recover"
+                  ? "recover"
+                  : "task",
           });
-          if (applied.status === "needs_input" || applied.status === "blocked") return;
           if (applied.status === "completed") return;
+          // A reassessment that produced a full assessment ends this task.
+          // The task is finished as far as the plan is concerned, but the
+          // goal keeps working whatever else it can.
+          if (applied.blocker !== null) {
+            const blocker = applied.blocker;
+            yield* commit(
+              {
+                ...applied.record,
+                goal: {
+                  ...applied.record.goal,
+                  currentTaskId: null,
+                  tasks: applied.record.goal.tasks.map((task) =>
+                    task.id === nextTask.id
+                      ? { ...task, status: "failed" as const, evidence: blocker.reason }
+                      : task,
+                  ),
+                },
+              },
+              {
+                kind: "task_failed",
+                summary: `Blocked: ${nextTask.title}`,
+                detail: blocker.reason,
+                taskId: nextTask.id,
+              },
+            );
+          }
+          continue;
         }
       }).pipe(
         Effect.catchCause((cause) =>
@@ -1333,12 +1746,14 @@ export const layer = Layer.effect(
       currentTaskTitle:
         goal.tasks.find((task) => task.id === goal.currentTaskId)?.title ??
         goal.tasks.find((task) => task.status === "in_progress")?.title ??
+        goal.tasks.find((task) => task.status === "recovering")?.title ??
         null,
       completedTaskCount: goal.tasks.filter((task) => task.status === "completed").length,
       totalTaskCount: goal.tasks.length,
       turnStartedAt: goal.turnStartedAt,
       blockedReason: goal.blockedReason,
       failureReason: goal.failureReason,
+      question: goal.question,
       progress: goal.progress,
       progressLabel: goal.progressLabel,
       updatedAt: goal.updatedAt,
@@ -1411,6 +1826,9 @@ export const layer = Layer.effect(
           verification: { status: "pending", summary: null, checkedAt: null },
           blockedReason: null,
           failureReason: null,
+          question: null,
+          questionTaskId: null,
+          blocker: null,
           progress: null,
           progressLabel: null,
           createdAt: at,
@@ -1501,14 +1919,8 @@ export const layer = Layer.effect(
         if (hasEnded(record.goal.status) || record.goal.status === "paused") {
           return { goal: record.goal };
         }
-        // The question lives only in blockedReason, which pausing would clear;
-        // refuse instead of silently dropping an answer the agent is waiting on.
-        if (record.goal.status === "needs_input") {
-          return yield* new GoalError({
-            message: "This goal is waiting for an answer. Answer the question to continue.",
-            goalId: input.id,
-          });
-        }
+        // The open question lives in its own field, so pausing keeps it and
+        // the answer still lands when the goal is resumed.
         const paused = yield* setStatus(record, "paused", "Paused by the user");
         yield* interruptGoal(record, "The user paused this goal.");
         return { goal: paused.goal };
@@ -1523,8 +1935,8 @@ export const layer = Layer.effect(
             goalId: input.id,
           });
         }
-        // Resuming from needs_input would null blockedReason (the question)
-        // while pendingAnswer is still null, losing the agent's ask entirely.
+        // Resuming a goal parked on an answer would leave the question
+        // unanswered, so the answer stays the way through.
         if (record.goal.status === "needs_input") {
           return yield* new GoalError({
             message: "This goal is waiting for an answer. Answer the question to continue.",
@@ -1543,6 +1955,7 @@ export const layer = Layer.effect(
               status: record.goal.tasks.length === 0 ? "planning" : "running",
               blockedReason: null,
               failureReason: null,
+              blocker: null,
             },
           },
           { kind: "status", summary: "Resumed by the user", detail: null },
@@ -1569,7 +1982,10 @@ export const layer = Layer.effect(
     const answer: GoalService["Service"]["answer"] = (input) =>
       Effect.gen(function* () {
         const record = yield* readRecordOrFail(input.id);
-        if (record.goal.status !== "needs_input") {
+        // A question may be open while other tasks keep working, so the goal
+        // does not have to be parked on it. What matters is that a question
+        // exists and nobody has answered it yet.
+        if (record.goal.question === null || record.pendingAnswer !== null) {
           return yield* new GoalError({
             message: "This goal is not waiting for an answer.",
             goalId: input.id,
@@ -1581,8 +1997,9 @@ export const layer = Layer.effect(
             pendingAnswer: input.text,
             goal: {
               ...record.goal,
+              // Answering is the user saying "go on": the goal resumes and
+              // the answered task picks up where it stopped.
               status: "running",
-              blockedReason: record.goal.blockedReason,
             },
           },
           { kind: "user", summary: "You answered the agent's question", detail: input.text },
@@ -1624,9 +2041,12 @@ export const layer = Layer.effect(
                       startedAt: null,
                       completedAt: null,
                       evidence: null,
+                      question: null,
                       // A person asked for this retry, so it starts a new
                       // recovery budget rather than inheriting the spent one.
                       attempts: 0,
+                      recoveryAttempts: 0,
+                      reassessments: 0,
                     }
                   : candidate,
               ),
@@ -1639,17 +2059,22 @@ export const layer = Layer.effect(
             taskId: task.id,
           },
         );
-        if (retried.goal.status === "running") yield* startDriver(retried.goal.id);
+        if (retried.goal.status === "running" || retried.goal.status === "recovering") {
+          yield* startDriver(retried.goal.id);
+        }
         return { goal: retried.goal };
       }).pipe(Effect.mapError((cause) => toGoalError(cause, input.id)));
 
     /**
      * A driven goal with nobody driving it looks live forever: restart recovery
      * only claims the 20 most recent, and a driver that cannot persist its own
-     * failure leaves the goal as it stood. Block those so the card offers
-     * Resume. Goals an active driver or a queued restart holds are skipped, and
-     * the refs are re-read after the record so a driver that started mid-sweep
-     * keeps the goal.
+     * failure leaves the goal as it stood.
+     *
+     * The goal is picked back up instead of being blocked. A goal that nobody
+     * is driving has lost its driver, not its way forward, so restarting the
+     * driver is the recovery. Goals an active driver or a queued restart holds
+     * are skipped, and the refs are re-read after the record so a driver that
+     * started mid-sweep keeps the goal.
      */
     const sweepStuckGoals: GoalService["Service"]["sweepStuckGoals"] = () =>
       Effect.gen(function* () {
@@ -1661,7 +2086,7 @@ export const layer = Layer.effect(
         );
         const rows = yield* sql<{ goal_id: string }>`
           SELECT goal_id FROM goals
-          WHERE status IN ('planning', 'running', 'verifying')
+          WHERE status IN ('planning', 'running', 'recovering', 'verifying')
             AND updated_at <= ${cutoff}
           ORDER BY updated_at ASC
           LIMIT 100
@@ -1683,9 +2108,12 @@ export const layer = Layer.effect(
               if (stillActive.has(goalId)) return;
               const stillQueued = yield* Ref.get(pendingDrives);
               if (stillQueued.has(goalId)) return;
-              yield* setStatus(record, "blocked", "The goal stopped making progress", {
-                blockedReason: "The goal stopped making progress. Resume to continue.",
+              yield* commit(record, {
+                kind: "status",
+                summary: "Picking the goal back up",
+                detail: null,
               });
+              yield* startDriver(goalId);
             }),
           { discard: true, concurrency: 1 },
         );
@@ -1697,7 +2125,7 @@ export const layer = Layer.effect(
       yield* Effect.sleep(GOAL_RECOVERY_DELAY);
       const interrupted = yield* sql<{ goal_id: string }>`
         SELECT goal_id FROM goals
-        WHERE status IN ('planning', 'running', 'verifying')
+        WHERE status IN ('planning', 'running', 'recovering', 'verifying')
         ORDER BY updated_at DESC
         LIMIT 20
       `;

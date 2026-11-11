@@ -63,6 +63,7 @@ import {
   formatGoalActivityTime,
   formatGoalTurnElapsed,
   goalCriterionStates,
+  goalHasOpenQuestion,
   goalNeedsAttention,
   goalProgress,
   goalProgressLabel,
@@ -117,7 +118,10 @@ function GoalTaskIcon({ task }: { readonly task: GoalTask }) {
   if (task.status === "in_progress") {
     return <Spinner aria-hidden size="xs" />;
   }
-  if (task.status === "failed" || task.status === "blocked") {
+  if (task.status === "recovering") {
+    return <RotateCcwIcon aria-hidden className="size-4 text-info" />;
+  }
+  if (task.status === "waiting_input" || task.status === "failed") {
     return <TriangleAlertIcon aria-hidden className="size-4 text-warning" />;
   }
   return <CircleIcon aria-hidden className="size-4 text-muted-foreground/40" />;
@@ -262,7 +266,7 @@ function GoalCard(props: {
 
   const progress = goalDetail ? goalProgress(goalDetail) : goalSummaryProgress(goal);
   const tone = goalStatusTone(goal.status);
-  const attention = goalNeedsAttention(goal.status);
+  const attention = goalNeedsAttention(goal.status) || goalHasOpenQuestion(goal);
   const active = isGoalActive(goal.status);
   const current = goalDetail ? currentGoalTask(goalDetail) : null;
   const tasks = goalDetail?.tasks ?? [];
@@ -292,6 +296,9 @@ function GoalCard(props: {
         ? { text: goal.failureReason, tone: "danger" as const }
         : null;
 
+  // The agent's question is asked of the user, so it shows whether the goal
+  // is running other work or parked on the answer.
+  const question = goal.question ?? goalDetail?.question ?? null;
   return (
     <>
       <div className="flex shrink-0 items-start gap-2 px-3.5 pt-3">
@@ -486,7 +493,7 @@ function GoalCard(props: {
                           ) : null}
                           {canOperate &&
                           canRetryGoal(goal.status) &&
-                          (task.status === "failed" || task.status === "blocked") &&
+                          (task.status === "failed" || task.status === "waiting_input") &&
                           !busy ? (
                             <button
                               type="button"
@@ -594,9 +601,9 @@ function GoalCard(props: {
               </div>
             ) : null}
 
-            {goal.status === "needs_input" ? (
+            {question !== null ? (
               <div className="mx-3.5 mb-2 rounded-xl border border-warning/30 bg-warning/5 p-2">
-                <p className="text-xs text-foreground">{goal.blockedReason}</p>
+                <p className="text-xs text-foreground">{question}</p>
                 <div className="mt-1.5 flex items-end gap-1.5">
                   <Textarea
                     aria-label="Answer the agent's question"

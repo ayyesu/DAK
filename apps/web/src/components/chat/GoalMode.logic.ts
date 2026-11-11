@@ -12,6 +12,7 @@ import type {
 const GOAL_ACTIVE_STATUSES: ReadonlySet<GoalStatus> = new Set([
   "planning",
   "running",
+  "recovering",
   "verifying",
   "paused",
   "needs_input",
@@ -31,14 +32,18 @@ export function isGoalEnded(status: GoalStatus): boolean {
 
 /** Statuses with a driver dispatching turns; the card spins and counts turn age here. */
 export function isGoalDriven(status: GoalStatus): boolean {
-  return status === "planning" || status === "running" || status === "verifying";
+  return (
+    status === "planning" ||
+    status === "running" ||
+    status === "recovering" ||
+    status === "verifying"
+  );
 }
 
 /** The server only pauses a goal its driver is actively working on. */
 export function canPauseGoal(status: GoalStatus): boolean {
   return isGoalDriven(status);
 }
-
 /** Recoverable states; `failed` and `blocked` resume rather than restart. */
 export function canResumeGoal(status: GoalStatus): boolean {
   return status === "paused" || status === "blocked" || status === "failed" || status === "draft";
@@ -62,6 +67,14 @@ export function goalNeedsAttention(status: GoalStatus): boolean {
   );
 }
 
+/**
+ * Whether the agent is waiting on the user. The question can be open while
+ * the goal keeps working on other tasks, so the card shows the question even
+ * when the goal's status is still "running".
+ */
+export function goalHasOpenQuestion(goal: Pick<GoalSummary, "question">): boolean {
+  return goal.question !== null;
+}
 export interface GoalProgress {
   /** Completed units over all units; verification is the last unit. */
   readonly completed: number;
@@ -228,6 +241,8 @@ export function goalStatusLabel(status: GoalStatus): string {
       return "Planning";
     case "running":
       return "Working";
+    case "recovering":
+      return "Recovering";
     case "paused":
       return "Paused";
     case "needs_input":
@@ -269,6 +284,7 @@ export function goalStatusTone(status: GoalStatus): GoalTone {
   switch (status) {
     case "planning":
     case "running":
+    case "recovering":
     case "verifying":
       return "active";
     case "paused":
@@ -287,7 +303,7 @@ export function goalStatusTone(status: GoalStatus): GoalTone {
 
 /** One line that answers "what is happening right now?" for the collapsed card. */
 export function goalHeadline(
-  goal: Pick<Goal, "status" | "tasks" | "currentTaskId" | "blockedReason">,
+  goal: Pick<Goal, "status" | "tasks" | "currentTaskId" | "blockedReason" | "question">,
 ): string {
   switch (goal.status) {
     case "draft":
@@ -304,6 +320,12 @@ export function goalHeadline(
       return current === undefined
         ? `Working${progressSuffix}`
         : `Working on: ${current.title}${progressSuffix}`;
+    }
+    case "recovering": {
+      const current =
+        goal.tasks.find((task) => task.id === goal.currentTaskId) ??
+        goal.tasks.find((task) => task.status === "recovering");
+      return current === undefined ? "Working through a problem" : `Recovering: ${current.title}`;
     }
     case "paused":
       return "Paused";
@@ -326,7 +348,12 @@ export function goalHeadline(
 export function goalSummaryHeadline(
   summary: Pick<
     GoalSummary,
-    "status" | "currentTaskTitle" | "completedTaskCount" | "totalTaskCount" | "blockedReason"
+    | "status"
+    | "currentTaskTitle"
+    | "completedTaskCount"
+    | "totalTaskCount"
+    | "blockedReason"
+    | "question"
   >,
 ): string {
   switch (summary.status) {
@@ -343,6 +370,10 @@ export function goalSummaryHeadline(
         ? `Working${progressSuffix}`
         : `Working on: ${summary.currentTaskTitle}${progressSuffix}`;
     }
+    case "recovering":
+      return summary.currentTaskTitle === null
+        ? "Working through a problem"
+        : `Recovering: ${summary.currentTaskTitle}`;
     case "paused":
       return "Paused";
     case "needs_input":
@@ -366,12 +397,14 @@ export function goalTaskStatusLabel(status: GoalTaskStatus): string {
       return "Pending";
     case "in_progress":
       return "Currently executing";
+    case "recovering":
+      return "Recovering";
+    case "waiting_input":
+      return "Waiting for you";
     case "completed":
       return "Completed";
-    case "blocked":
-      return "Blocked";
     case "failed":
-      return "Failed";
+      return "Could not finish";
   }
 }
 

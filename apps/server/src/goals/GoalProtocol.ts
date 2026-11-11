@@ -2,6 +2,7 @@ import {
   GOAL_MAX_TASKS,
   type Goal,
   type GoalActivityKind,
+  type GoalBlocker,
   type GoalProof,
   type GoalStatus,
   type GoalTask,
@@ -18,11 +19,22 @@ import {
 const REPORT_FENCE = /\n?```([A-Za-z0-9_-]*)\s*\n([\s\S]*?)```/g;
 const MAX_REPORT_TEXT = 2_000;
 
-export type GoalReportStatus = "running" | "needs_input" | "blocked" | "completed" | "planning";
+export type GoalReportStatus =
+  | "running"
+  | "recovering"
+  | "needs_input"
+  | "blocked"
+  | "completed"
+  | "planning";
 
 export interface GoalReportPlanItem {
   readonly title: string;
   readonly detail: string | null;
+  /**
+   * Titles of earlier plan items this one needs. The server resolves them to
+   * task ids, so a task waiting on the user never holds up independent work.
+   */
+  readonly dependsOn: ReadonlyArray<string>;
 }
 
 export interface GoalReportTaskUpdate {
@@ -35,8 +47,20 @@ export interface GoalReportAcceptance {
   readonly criterion: string;
   readonly met: boolean;
   readonly evidence: string | null;
-  /** Rich proof backing this criterion: images, screenshots, canvas, test results, run output. */
+  /** Rich proof backing this criterion: images, screenshots, canvas, test results, etc. */
   readonly proof: ReadonlyArray<GoalProof>;
+}
+
+/**
+ * What the agent needs from the user. The question alone is not enough to
+ * act on: the reason, what was already tried, and the recommendation tell the
+ * user whether they can answer without reading the thread.
+ */
+export interface GoalReportInput {
+  readonly question: string;
+  readonly reason: string | null;
+  readonly attempted: string | null;
+  readonly recommendation: string | null;
 }
 
 export interface GoalReport {
@@ -45,6 +69,8 @@ export interface GoalReport {
   readonly status: GoalReportStatus;
   readonly summary: string | null;
   readonly question: string | null;
+  /** The structured ask, when the agent explained what it needs. */
+  readonly input: GoalReportInput | null;
   readonly acceptance: ReadonlyArray<GoalReportAcceptance>;
   readonly verified: boolean | null;
   /** Conditions the agent proposes when the user gave none. */
@@ -53,6 +79,8 @@ export interface GoalReport {
   readonly progress: number | null;
   /** Human-readable label for the reported progress. */
   readonly progressLabel: string | null;
+  /** The evidence behind a deadlock, when the agent reports one. */
+  readonly blocker: GoalBlocker | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -66,26 +94,41 @@ function text(value: unknown): string | null {
   return trimmed.slice(0, MAX_REPORT_TEXT);
 }
 
+/**
+ * The statuses an agent may report for a task.
+ *
+ * There is no "failed" here: an agent that hits an obstacle reports
+ * `recovering` and lets the server decide whether to try again. The server
+ * owns the terminal states, so an agent cannot strand a task.
+ */
 const TASK_STATUSES: ReadonlyArray<GoalTaskStatus> = [
   "pending",
   "in_progress",
+  "recovering",
+  "waiting_input",
   "completed",
-  "blocked",
-  "failed",
 ];
 
 const REPORT_STATUSES: ReadonlyArray<GoalReportStatus> = [
   "running",
+  "recovering",
   "needs_input",
   "blocked",
   "completed",
   "planning",
 ];
 
+/**
+ * Both "failed" and "blocked" describe an obstacle the agent ran into, which
+ * is exactly what `recovering` means: work that continues. Reports written
+ * before this vocabulary existed still land in the right state.
+ */
 function asTaskStatus(value: unknown): GoalTaskStatus | null {
-  return typeof value === "string" && (TASK_STATUSES as ReadonlyArray<string>).includes(value)
-    ? (value as GoalTaskStatus)
-    : null;
+  if (typeof value !== "string") return null;
+  if ((TASK_STATUSES as ReadonlyArray<string>).includes(value)) {
+    return value as GoalTaskStatus;
+  }
+  return value === "failed" || value === "blocked" ? "recovering" : null;
 }
 
 function asReportStatus(value: unknown): GoalReportStatus | null {
@@ -103,7 +146,15 @@ function parseReportBody(body: unknown): GoalReport | null {
         .flatMap((item): ReadonlyArray<GoalReportPlanItem> => {
           if (!isRecord(item)) return [];
           const title = text(item.title);
-          return title === null ? [] : [{ title, detail: text(item.detail) }];
+          if (title === null) return [];
+          const dependsOn = Array.isArray(item.dependsOn)
+            ? item.dependsOn.flatMap((dependency): ReadonlyArray<string> => {
+                if (typeof dependency !== "string") return [];
+                const trimmed = dependency.trim();
+                return trimmed === "" ? [] : [trimmed.slice(0, MAX_REPORT_TEXT)];
+              })
+            : [];
+          return [{ title, detail: text(item.detail), dependsOn }];
         })
         .slice(0, GOAL_MAX_TASKS)
     : [];
@@ -168,7 +219,9 @@ function parseReportBody(body: unknown): GoalReport | null {
   const status = asReportStatus(report.status) ?? "running";
   const summary = text(report.summary);
   const question = text(report.question);
+  const input = parseInput(report.input);
   const verified = typeof report.verified === "boolean" ? report.verified : null;
+  const blocker = parseBlocker(report.blocker);
   const progress =
     typeof report.progress === "number" && Number.isFinite(report.progress)
       ? Math.min(100, Math.max(0, Math.round(report.progress)))
@@ -186,6 +239,8 @@ function parseReportBody(body: unknown): GoalReport | null {
     verified === null &&
     progress === null &&
     progressLabel === null &&
+    blocker === null &&
+    input === null &&
     valueHasStatus(report) === false
   ) {
     return null;
@@ -196,12 +251,63 @@ function parseReportBody(body: unknown): GoalReport | null {
     tasks,
     status,
     summary,
-    question,
+    question: input?.question ?? question,
+    input,
     acceptance,
     verified,
     acceptanceCriteria,
     progress,
     progressLabel,
+    blocker,
+  };
+}
+
+/**
+ * Reads the agent's structured ask. A question without the surrounding
+ * context is still usable, so the missing parts stay null rather than
+ * discarding the whole thing.
+ */
+function parseInput(value: unknown): GoalReportInput | null {
+  if (!isRecord(value)) return null;
+  const question = text(value.question);
+  if (question === null) return null;
+  return {
+    question,
+    reason: text(value.reason),
+    attempted: text(value.attempted),
+    recommendation: text(value.recommendation),
+  };
+}
+
+/**
+ * Reads the evidence behind a reported deadlock. A partial assessment is
+ * dropped: without every part, the server cannot tell a real deadlock from a
+ * shrug, and the goal stays in recovery instead.
+ */
+function parseBlocker(value: unknown): GoalBlocker | null {
+  if (!isRecord(value)) return null;
+  const reason = text(value.reason);
+  const rootCause = text(value.rootCause);
+  const investigation = text(value.investigation);
+  const intervention = text(value.intervention);
+  if (reason === null || rootCause === null || investigation === null || intervention === null) {
+    return null;
+  }
+  const strings = (input: unknown): ReadonlyArray<string> =>
+    Array.isArray(input)
+      ? input.flatMap((item) => {
+          const parsed = text(item);
+          return parsed === null ? [] : [parsed];
+        })
+      : [];
+  return {
+    reason,
+    rootCause,
+    investigation,
+    attempts: strings(value.attempts),
+    alternatives: strings(value.alternatives),
+    intervention,
+    otherTasksCanContinue: value.otherTasksCanContinue !== false,
   };
 }
 
@@ -272,7 +378,13 @@ export function stripGoalReport(message: string): string {
 export interface GoalReportTaskChange {
   readonly kind: Extract<
     GoalActivityKind,
-    "plan" | "task_started" | "task_completed" | "task_failed" | "task_blocked"
+    | "plan"
+    | "task_started"
+    | "task_completed"
+    | "task_failed"
+    | "task_recovering"
+    | "task_waiting_input"
+    | "task_blocked"
   >;
   readonly summary: string;
   readonly taskId: string | null;
@@ -286,6 +398,12 @@ export interface GoalReportApplication {
   readonly changes: ReadonlyArray<GoalReportTaskChange>;
   /** The agent reported completion but tasks remain; the UI should say so. */
   readonly prematureCompletion: boolean;
+  /** The agent asked the user a question; only the affected task pauses. */
+  readonly question: string | null;
+  /** The task the agent asked about, when the report named one. */
+  readonly questionTaskTitle: string | null;
+  /** The evidence the agent supplied for a deadlock, when it supplied any. */
+  readonly blocker: GoalBlocker | null;
 }
 
 function normalizedTitle(title: string): string {
@@ -321,6 +439,9 @@ export function applyGoalReport(input: {
     task.status === "pending" && task.attempts === 0 && task.startedAt === null;
 
   const planHandling = input.planHandling ?? "replace";
+  // The dependencies a plan declared, by task title. They are resolved to ids
+  // once every task exists, so a plan may depend on a later item.
+  const plannedDependencies = new Map<string, ReadonlyArray<string>>();
   if (
     report.plan.length > 0 &&
     planHandling !== "ignore" &&
@@ -340,6 +461,7 @@ export function applyGoalReport(input: {
       if (existing !== undefined) {
         const index = tasks.indexOf(existing);
         tasks[index] = { ...existing, detail: item.detail ?? existing.detail };
+        plannedDependencies.set(key, item.dependsOn);
         continue;
       }
       tasks.push({
@@ -351,14 +473,33 @@ export function applyGoalReport(input: {
         startedAt: null,
         completedAt: null,
         evidence: null,
+        question: null,
+        blocker: null,
         attempts: 0,
+        recoveryAttempts: 0,
+        reassessments: 0,
+        dependsOn: [],
       });
+      plannedDependencies.set(key, item.dependsOn);
       nextOrder += 1;
     }
     changes.push({
       kind: "plan",
       summary: `Plan set: ${tasks.length} task${tasks.length === 1 ? "" : "s"}`,
       taskId: null,
+    });
+
+    // Resolve declared dependencies to task ids now that the plan exists. A
+    // dependency on a task that is not in the plan is dropped rather than
+    // stranding the task that waits on it.
+    const idByTitle = new Map(tasks.map((task) => [normalizedTitle(task.title), task.id]));
+    tasks = tasks.map((task) => {
+      const declared = plannedDependencies.get(normalizedTitle(task.title));
+      if (declared === undefined) return task;
+      const dependsOn = declared
+        .map((title) => idByTitle.get(normalizedTitle(title)))
+        .filter((id): id is string => id !== undefined && id !== task.id);
+      return dependsOn.length === 0 ? task : { ...task, dependsOn };
     });
   }
 
@@ -367,9 +508,9 @@ export function applyGoalReport(input: {
     const index = tasks.findIndex((task) => normalizedTitle(task.title) === key);
     if (index === -1) {
       if (tasks.length >= GOAL_MAX_TASKS) continue;
-      // A task introduced by a report cannot already be failed or blocked: it
-      // has never been attempted, so it stays runnable work.
-      const stranded = update.status === "failed" || update.status === "blocked";
+      // A task introduced by a report has never been attempted, so it cannot
+      // already be recovering or waiting on the user: it stays runnable work.
+      const stranded = update.status === "recovering" || update.status === "waiting_input";
       tasks.push({
         id: input.makeTaskId(),
         title: update.title,
@@ -379,7 +520,12 @@ export function applyGoalReport(input: {
         startedAt: update.status === "completed" ? nowIso : null,
         completedAt: update.status === "completed" ? nowIso : null,
         evidence: update.evidence,
+        question: null,
+        blocker: null,
         attempts: stranded ? 0 : 1,
+        recoveryAttempts: 0,
+        reassessments: 0,
+        dependsOn: [],
       });
       nextOrder += 1;
       continue;
@@ -388,10 +534,13 @@ export function applyGoalReport(input: {
     // A completed task is terminal until the user retries it explicitly, so a
     // sloppy later report cannot un-complete verified work.
     if (current.status === "completed" && update.status !== "completed") continue;
-    // Work nobody started cannot be failed or blocked. Reporting it that way
+    // Work nobody started cannot have hit an obstacle. Reporting it that way
     // would strand a task the loop never ran, leaving no runnable task while
     // the plan still has work to do.
-    if (replaceable(current) && (update.status === "blocked" || update.status === "failed")) {
+    if (
+      replaceable(current) &&
+      (update.status === "recovering" || update.status === "waiting_input")
+    ) {
       continue;
     }
     const next: GoalTask =
@@ -403,35 +552,51 @@ export function applyGoalReport(input: {
             startedAt: current.startedAt ?? nowIso,
             evidence: update.evidence ?? current.evidence,
             attempts: Math.max(current.attempts, 1),
+            recoveryAttempts: 0,
+            reassessments: 0,
           }
         : update.status === "in_progress"
           ? {
               ...current,
               status: "in_progress",
               startedAt: current.startedAt ?? nowIso,
-              // Only a pending task becoming active starts a new attempt. A
-              // repeat "still working" report must not spend recovery budget.
-              attempts: current.status === "in_progress" ? current.attempts : current.attempts + 1,
             }
-          : { ...current, status: update.status, evidence: update.evidence ?? current.evidence };
+          : update.status === "recovering"
+            ? {
+                ...current,
+                status: "recovering",
+                startedAt: current.startedAt ?? nowIso,
+                evidence: update.evidence ?? current.evidence,
+              }
+            : {
+                ...current,
+                status: update.status,
+                evidence: update.evidence ?? current.evidence,
+                // Re-entering a state the task is already in is a progress
+                // report, not another attempt.
+                startedAt:
+                  update.status === "waiting_input"
+                    ? (current.startedAt ?? nowIso)
+                    : current.startedAt,
+              };
     tasks[index] = next;
     if (next.status !== current.status) {
       changes.push({
         kind:
           next.status === "completed"
             ? "task_completed"
-            : next.status === "failed"
-              ? "task_failed"
-              : next.status === "blocked"
-                ? "task_blocked"
+            : next.status === "recovering"
+              ? "task_recovering"
+              : next.status === "waiting_input"
+                ? "task_waiting_input"
                 : "task_started",
         summary:
           next.status === "completed"
             ? `Completed: ${next.title}`
-            : next.status === "failed"
-              ? `Failed: ${next.title}`
-              : next.status === "blocked"
-                ? `Blocked: ${next.title}`
+            : next.status === "recovering"
+              ? `Recovering: ${next.title}`
+              : next.status === "waiting_input"
+                ? `Waiting for input: ${next.title}`
                 : `Started: ${next.title}`,
         taskId: next.id,
       });
@@ -440,7 +605,10 @@ export function applyGoalReport(input: {
 
   tasks = tasks.toSorted((left, right) => left.order - right.order);
   const allCompleted = tasks.length > 0 && tasks.every((task) => task.status === "completed");
-  const active = tasks.find((task) => task.status === "in_progress") ?? null;
+  const active =
+    tasks.find((task) => task.status === "in_progress") ??
+    tasks.find((task) => task.status === "recovering") ??
+    null;
   const acceptanceCriteria =
     input.acceptanceCriteria.length > 0
       ? input.acceptanceCriteria
@@ -448,10 +616,12 @@ export function applyGoalReport(input: {
         ? [...report.acceptanceCriteria]
         : [];
 
+  // The server owns the goal-level state. A report that asks for input or
+  // declares a blocker is handled by the drive loop, which pauses the task
+  // and keeps the rest of the plan moving, so it never maps straight onto a
+  // goal status here.
   let status: GoalStatus = "running";
   if (report.status === "planning") status = "planning";
-  else if (report.status === "needs_input") status = "needs_input";
-  else if (report.status === "blocked") status = "blocked";
   else if (report.status === "completed") status = allCompleted ? "verifying" : "running";
 
   return {
@@ -461,10 +631,16 @@ export function applyGoalReport(input: {
     currentTaskId: active?.id ?? null,
     changes,
     prematureCompletion: report.status === "completed" && !allCompleted,
+    question: report.status === "needs_input" ? (report.question ?? null) : null,
+    questionTaskTitle:
+      report.status === "needs_input"
+        ? (report.tasks.find((task) => task.status === "waiting_input")?.title ?? null)
+        : null,
+    blocker: report.blocker,
   };
 }
 
-const REPORT_SHAPE = `{"goal_report":{"status":"running|completed|blocked|needs_input|planning","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers"}],"tasks":[{"title":"exact existing task title","status":"pending|in_progress|completed|failed|blocked","evidence":"files changed, commands run, or test output that proves it"}],"acceptance":[{"criterion":"exact acceptance criterion text","met":true,"evidence":"the command you ran and what it proved","proof":[{"type":"image|screenshot|canvas|test|check|run|text","url":"https://...","thumbnailUrl":"https://...","caption":"what this proof shows","createdAt":"ISO timestamp"}]}],"verified":false,"acceptanceCriteria":["condition that must hold to call the goal complete"],"progress":0,"progressLabel":"short phrase describing progress","question":"only when status is needs_input"}}`;
+const REPORT_SHAPE = `{"goal_report":{"status":"running|recovering|completed|blocked|needs_input|planning","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers","dependsOn":["title of a task that must finish first"]}],"tasks":[{"title":"exact existing task title","status":"pending|in_progress|recovering|waiting_input|completed|failed","evidence":"files changed, commands run, or test output that proves it"}],"acceptance":[{"criterion":"exact acceptance criterion text","met":true,"evidence":"the command you ran and what it proved","proof":[{"type":"image|screenshot|canvas|test|check|run|text","url":"https://...","thumbnailUrl":"https://...","caption":"what this proof shows","createdAt":"ISO timestamp"}]}],"verified":false,"acceptanceCriteria":["condition that must hold to call the goal complete"],"progress":0,"progressLabel":"short phrase describing progress","input":{"question":"the one thing you need from the user","reason":"why you cannot proceed without it","attempted":"what you already tried","recommendation":"the option you suggest"},"question":"only when status is needs_input","blocker":{"reason":"the exact thing that stopped you","rootCause":"why it is true","investigation":"what you inspected to find it","attempts":["what you tried"],"alternatives":["what else you considered and why it did not work"],"intervention":"the one thing only the user or an external system can provide","otherTasksCanContinue":true}}`;
 
 function criteriaSection(goal: Goal): string {
   if (goal.acceptanceCriteria.length === 0) {
@@ -488,12 +664,14 @@ const RULES = `Rules:
 - Report real progress every turn: set "progress" to a number 0-100 for how far along the whole goal is, and "progressLabel" to a short phrase (e.g. "Planning the work", "Working on task 2 of 5", "Verifying the result"). The card shows this instead of guessing.
 - Never report a task completed unless it is actually done, and never invent test results, file changes, or command output.
 - Report real evidence: the files you changed, the commands you ran, and what they printed.
-- A task you have not started yet is "pending". Never report a task you did not attempt as "failed" or "blocked": those are only for work you actually tried this turn.
-- A retry must first say why the previous attempt failed, then take a different approach. Never repeat the same failing operation unchanged.
+- A task you have not started yet is "pending". Never report a task you did not attempt as "failed": that is only for work you actually tried this turn.
+- Work through obstacles yourself. When something fails, read the output, find the cause, fix it, and run it again in this same turn. A build error, a failing test, a missing import, or a bad assumption is your problem to solve, not the user's.
+- Set a task to "recovering" when you hit an obstacle you are actively working through: say what failed, what you found, and what you are trying next. Keep working on it in the same turn when you can.
+- A retry must first say why the previous attempt failed, then take a different approach. Never repeat the same failing operation unchanged. If the evidence says your approach is wrong, change the approach.
 - When you report "verified", every entry in "acceptance" must carry proof that proves it. Proof can be images, screenshots, canvas output, test results, check output, or run output. A criterion without proof counts as not met. Attach screenshots, images, or canvas exports with a URL and a caption describing what they show.
-- Ask for clarification only when you cannot proceed without information only the user has; then set status "needs_input" with a single question.
+- Ask for clarification only when you cannot proceed without information only the user has (a credential, a business decision, access you cannot get yourself); then set status "needs_input" with one specific question and say what you already tried. Everything else is yours to solve.
 - Set status "planning" only while you are still deciding what to do; use "running" once you are executing the plan, so the card shows what is happening.
-- If you are blocked (missing access, failing dependency, contradictory requirement), set status "blocked" and explain precisely what stopped you. Do not retry the same failing action forever.
+- Use status "blocked" only as a last resort, after you have already tried and ruled out the reasonable approaches: set the task to "recovering" and describe the exact blocker, its root cause, what you investigated, what you tried, which alternatives you rejected and why, and what only the user can unblock. A vague reason is not accepted and the goal will be sent back to you.
 - End your reply with exactly one fenced JSON block tagged goal, in this shape:
 \`\`\`goal
 ${REPORT_SHAPE}
@@ -540,8 +718,100 @@ ${progressSection(goal)}
 
 ${input.edited ? "The user edited this goal since the last turn. Keep every completed task as done, revise only what remains, and follow the updated objective above.\n" : ""}Your task this turn: "${task.title}"${task.detail === null ? "" : `\nWhat it covers: ${task.detail}`}
 
-${recovery}Do the actual work now. When you finish it, report it completed with evidence; if it fails, report it failed with the error; if it needs the user, report needs_input with the question. Do not start other tasks in this turn beyond what this one requires.
+${recovery}Do the actual work now. When you finish it, report it completed with evidence. If you hit an obstacle, work through it in this turn: report the task as "recovering" with what failed, what you found, and what you changed, then keep going. If it truly cannot move without the user, report needs_input with the question. Do not start other tasks in this turn beyond what this one requires.
 Still open after this: ${remaining.length === 0 ? "nothing" : remaining.map((candidate) => candidate.title).join("; ")}
+
+${RULES}`;
+}
+
+/**
+ * The turn that follows a failed attempt. It hands the agent the evidence of
+ * what failed and asks for a diagnosis and a different approach, because the
+ * default reaction to a failure is to repeat it.
+ */
+export function buildGoalRecoveryPrompt(input: {
+  readonly goal: Goal;
+  readonly task: GoalTask | null;
+  /** What the previous attempt reported as the cause. */
+  readonly failure: string | null;
+  /** Which recovery attempt this is, counting from one. */
+  readonly recoveryAttempt: number;
+}): string {
+  const { goal, task } = input;
+  const failure =
+    input.failure === null || input.failure.trim() === ""
+      ? "The previous attempt failed without recording a reason."
+      : `The previous attempt failed with: ${input.failure}`;
+  const taskLine =
+    task === null
+      ? "The goal as a whole could not make progress."
+      : `Your task this turn: "${task.title}"${task.detail === null ? "" : `\nWhat it covers: ${task.detail}`}`;
+  const remaining = goal.tasks.filter((candidate) => candidate.status !== "completed");
+  return `You are recovering a persistent goal in Goal Mode.
+
+Objective from the user:
+${goal.objective}
+
+${criteriaSection(goal)}
+
+${progressSection(goal)}
+
+${taskLine}
+
+${failure}
+
+This is recovery attempt ${input.recoveryAttempt}. Work the problem before asking anyone:
+1. Read the actual output and locate the cause. Do not guess from the summary.
+2. Decide whether you can fix it yourself. Missing details, a wrong assumption, a broken build, a failing test, or a dependency conflict are yours to resolve.
+3. Try a different approach than the one that failed, and validate it by running the check again.
+4. Only if you truly cannot proceed without the user, report needs_input with one specific question naming what you need and what you already tried.
+
+Do not repeat the same failing operation unchanged. Report the task as "recovering" while you work on it, and "completed" with evidence when the check passes.
+Still open after this: ${remaining.length === 0 ? "nothing" : remaining.map((candidate) => candidate.title).join("; ")}
+
+${RULES}`;
+}
+
+/**
+ * The turn that follows an exhausted recovery budget. It asks for an
+ * evidence-based assessment instead of another attempt, so the goal only
+ * stops when the reason is a real deadlock.
+ */
+export function buildGoalReassessmentPrompt(input: {
+  readonly goal: Goal;
+  readonly task: GoalTask | null;
+  /** Why the server asked for a reassessment. */
+  readonly reason: string;
+  /** The failure evidence collected so far. */
+  readonly failure: string | null;
+}): string {
+  const { goal } = input;
+  const taskLine =
+    input.task === null
+      ? "The whole goal is being reassessed."
+      : `The task being reassessed is "${input.task.title}"${input.task.detail === null ? "" : ` (${input.task.detail})`}.`;
+  const failure =
+    input.failure === null || input.failure.trim() === ""
+      ? ""
+      : `\nWhat failed so far:\n${input.failure}\n`;
+  return `You are reassessing a persistent goal in Goal Mode.
+
+Objective from the user:
+${goal.objective}
+
+${criteriaSection(goal)}
+
+${progressSection(goal)}
+
+${taskLine}
+
+Why the server asked for this: ${input.reason}
+${failure}
+Recovery attempts have not produced a result, so repeating them is not useful. Assess the situation and pick one of these outcomes:
+
+1. A different approach exists. Describe it concretely and start it now in this same turn: report the task as "in_progress" or "recovering" with the new approach in the evidence, and keep working.
+2. The goal needs the user. Report needs_input with one specific question, and say what you already tried and what the answer unblocks.
+3. This is a real deadlock. Report status "blocked" and the task as "recovering", and state all of it in the evidence: the exact blocker, its root cause, what you investigated, what you tried, the alternatives you rejected and why, and the one thing only the user or an external system can provide. A vague reason is rejected and the goal comes straight back to you.
 
 ${RULES}`;
 }
@@ -590,6 +860,7 @@ ${unmetSection}${criteriaSection(goal)}
 ${progressSection(goal)}
 
 Fix only what is needed to satisfy the criteria, then re-run the checks that prove it. Report what you changed with real evidence. Every criterion you claim is met must carry proof in its "proof" array: images, screenshots, canvas exports, test results, check output, or run output with a URL and caption. Do not claim success without proof.
+If a check keeps failing, find out why and fix the cause instead of re-running the same command: report the task as "recovering" with what the failure actually is and what you changed.
 
 ${RULES}`;
 }
@@ -598,7 +869,11 @@ export function buildGoalAnswerPrompt(input: {
   readonly goal: Goal;
   readonly question: string;
   readonly answer: string;
+  /** The task the question belongs to, when the goal named one. */
+  readonly task: GoalTask | null;
 }): string {
+  const taskLine =
+    input.task === null ? "" : `\nThe task you asked about is "${input.task.title}".\n`;
   return `You are continuing a persistent goal in Goal Mode.
 
 Objective from the user:
@@ -606,8 +881,8 @@ ${input.goal.objective}
 
 You previously asked: ${input.question}
 The user answered: ${input.answer}
-
-Continue the plan with that answer. Do not repeat completed work.
+${taskLine}
+Continue the plan with that answer. Do not repeat completed work. Everything else in the plan stayed as it was, so pick up where you left off.
 
 ${progressSection(input.goal)}
 

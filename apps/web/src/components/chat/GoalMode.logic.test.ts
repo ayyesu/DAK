@@ -12,6 +12,7 @@ import {
   formatGoalTurnElapsed,
   getGoalSlashObjective,
   goalCriterionStates,
+  goalHasOpenQuestion,
   goalHeadline,
   goalNeedsAttention,
   goalNoticeTitle,
@@ -22,6 +23,7 @@ import {
   goalSummaryProgress,
   goalStatusLabel,
   goalStatusTone,
+  goalTaskStatusLabel,
   goalVerificationStatusLabel,
   isGoalEnded,
   isGoalDriven,
@@ -42,7 +44,12 @@ function task(overrides: Partial<GoalTask> & Pick<GoalTask, "id" | "title">): Go
     startedAt: null,
     completedAt: null,
     evidence: null,
+    question: null,
+    blocker: null,
     attempts: 0,
+    recoveryAttempts: 0,
+    reassessments: 0,
+    dependsOn: [],
     ...overrides,
   };
 }
@@ -64,6 +71,9 @@ const baseGoal: Omit<Goal, "id" | "status" | "updatedAt"> = {
   verification: { status: "pending", summary: null, checkedAt: null },
   blockedReason: null,
   failureReason: null,
+  question: null,
+  questionTaskId: null,
+  blocker: null,
   progress: null,
   progressLabel: null,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -324,6 +334,34 @@ describe("goal status presentation", () => {
     expect(goalStatusTone("completed")).toBe("success");
     expect(goalStatusTone("failed")).toBe("danger");
     expect(goalStatusTone("cancelled")).toBe("muted");
+  });
+
+  it("labels the recovering state as work in progress", () => {
+    expect(goalStatusLabel("recovering")).toBe("Recovering");
+    expect(goalStatusTone("recovering")).toBe("active");
+    expect(isGoalDriven("recovering")).toBe(true);
+  });
+
+  it("names the task being recovered on the headline", () => {
+    const recovering = goal({
+      id: "g",
+      status: "recovering",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      currentTaskId: "t1",
+      tasks: [task({ id: "t1", title: "Build the API", status: "recovering" })],
+    });
+    expect(goalHeadline(recovering)).toBe("Recovering: Build the API");
+  });
+
+  it("labels a task that waits on the user and one that could not finish", () => {
+    expect(goalTaskStatusLabel("waiting_input")).toBe("Waiting for you");
+    expect(goalTaskStatusLabel("recovering")).toBe("Recovering");
+    expect(goalTaskStatusLabel("failed")).toBe("Could not finish");
+  });
+
+  it("shows an open question even while the goal keeps working", () => {
+    expect(goalHasOpenQuestion({ question: "Which credential do I use?" })).toBe(true);
+    expect(goalHasOpenQuestion({ question: null })).toBe(false);
   });
 
   it("flags the statuses that want the user", () => {
