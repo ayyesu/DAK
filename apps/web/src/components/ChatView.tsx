@@ -11781,6 +11781,8 @@ export default function ChatView(props: ChatViewProps) {
                     goalIsDriven={goalIsDriven}
                     onGoalModeOpenChange={setGoalComposerOpen}
                     focusGoalId={focusGoalId}
+                    turnDiffSummaries={turnDiffSummaries}
+                    onOpenTurnDiff={onOpenTurnDiff}
                   />
                   <div
                     ref={draftHeroTransition.composerAnchorRef}

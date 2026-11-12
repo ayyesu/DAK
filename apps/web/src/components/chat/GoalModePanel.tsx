@@ -9,6 +9,7 @@ import type {
   GoalSummary,
   GoalTask,
   ProjectId,
+  RunId,
   ThreadId,
 } from "@dak/contracts";
 import { scopeThreadRef } from "@dak/client-runtime/environment";
@@ -20,6 +21,7 @@ import {
   ChevronUpIcon,
   CircleIcon,
   ExternalLinkIcon,
+  HistoryIcon,
   ListTreeIcon,
   PauseIcon,
   PencilIcon,
@@ -38,6 +40,7 @@ import { buildThreadRouteParams } from "../../threadRoutes";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
+import type { TurnDiffSummary } from "../../types";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -52,7 +55,11 @@ import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Spinner } from "../ui/spinner";
 import { Textarea } from "../ui/textarea";
 import { toastManager } from "../ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { onOpenGoalComposer } from "../../goalModeBus";
+import { GoalBlockerPanel } from "./GoalBlockerPanel";
+import { GoalChangedFiles } from "./GoalChangedFiles";
+import { goalChangedFiles } from "./GoalChanges.logic";
 import {
   canCancelGoal,
   canEditGoal,
@@ -64,7 +71,9 @@ import {
   formatGoalTurnElapsed,
   goalCriterionStates,
   goalHasOpenQuestion,
+  goalMetaLine,
   goalNeedsAttention,
+  goalObjectiveText,
   goalProgress,
   goalProgressLabel,
   goalSummaryHeadline,
@@ -73,6 +82,7 @@ import {
   goalStatusTone,
   goalTaskStatusLabel,
   goalVerificationStatusLabel,
+  goalWaitingTask,
   isGoalActive,
   isGoalDriven,
   selectGoalForThread,
@@ -225,11 +235,15 @@ function GoalCard(props: {
   /** The composer above is open; the card stays compact until it closes. */
   readonly compact: boolean;
   readonly run: GoalRun;
+  /** The thread's changed files, for the goal's own file summary. */
+  readonly turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
+  /** Opens the diff panel on a turn's file. */
+  readonly onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
   readonly onHide: () => void;
   readonly onSelectOther: (goalId: GoalSummary["id"]) => void;
   readonly onStartAnother: () => void;
 }) {
-  const { environmentId, goal, canOperate, busy, compact, run } = props;
+  const { environmentId, goal, canOperate, busy } = props;
   const updateGoal = useAtomCommand(serverEnvironment.updateGoal, { label: "update goal" });
   const pauseGoal = useAtomCommand(serverEnvironment.pauseGoal, { label: "pause goal" });
   const resumeGoal = useAtomCommand(serverEnvironment.resumeGoal, { label: "resume goal" });
@@ -249,6 +263,7 @@ function GoalCard(props: {
   const [activityOpen, setActivityOpen] = useState(false);
   const [allTasksOpen, setAllTasksOpen] = useState(false);
   const [allCriteriaOpen, setAllCriteriaOpen] = useState(false);
+  const [otherGoalsOpen, setOtherGoalsOpen] = useState(false);
   const nowMinute = useNowMinute();
 
   const collapsed = collapsedState;
@@ -264,11 +279,21 @@ function GoalCard(props: {
     if (expanded) detailRefresh();
   }, [detailRefresh, expanded]);
 
+  // Every mutation changes the goal, so the card reads the new state instead
+  // of waiting for the next live push.
+  const run: GoalRun = async (title, effect, onSuccess) => {
+    await props.run(title, effect, (value) => {
+      onSuccess?.(value);
+      detailRefresh();
+    });
+  };
+
   const progress = goalDetail ? goalProgress(goalDetail) : goalSummaryProgress(goal);
   const tone = goalStatusTone(goal.status);
   const attention = goalNeedsAttention(goal.status) || goalHasOpenQuestion(goal);
   const active = isGoalActive(goal.status);
   const current = goalDetail ? currentGoalTask(goalDetail) : null;
+  const waitingTask = goalDetail ? goalWaitingTask(goalDetail) : null;
   const tasks = goalDetail?.tasks ?? [];
   const hiddenTasks = allTasksOpen ? 0 : Math.max(0, tasks.length - VISIBLE_TASK_LIMIT);
   const shownTasks = allTasksOpen ? tasks : tasks.slice(0, VISIBLE_TASK_LIMIT);
@@ -299,24 +324,29 @@ function GoalCard(props: {
   // The agent's question is asked of the user, so it shows whether the goal
   // is running other work or parked on the answer.
   const question = goal.question ?? goalDetail?.question ?? null;
+  // The user asked for this in their own words; the server's title is a
+  // summary of it.
+  const objective = goalDetail === null ? null : goalObjectiveText(goalDetail);
+  const meta = goalDetail === null ? null : goalMetaLine(goalDetail);
+  // The file changes belong to the goal's own thread; another thread's
+  // checkpoints would describe work this goal never did.
+  const showChanges = goal.threadId !== null && goal.threadId === props.threadId;
+  const changes = goalChangedFiles({
+    summaries: showChanges ? props.turnDiffSummaries : [],
+    startedAt: goalDetail?.startedAt ?? null,
+  });
   return (
     <>
       <div className="flex shrink-0 items-start gap-2 px-3.5 pt-3">
-        {compact ? (
-          <span className="mt-0.5 shrink-0 text-muted-foreground">
-            <TargetIcon aria-hidden className="size-4" />
-          </span>
-        ) : (
-          <button
-            type="button"
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? "Expand goal details" : "Collapse goal details"}
-            className="mt-0.5 shrink-0 rounded-md text-muted-foreground transition-colors hover:text-foreground"
-            onClick={() => setCollapsedState((value) => !value)}
-          >
-            <TargetIcon aria-hidden className="size-4" />
-          </button>
-        )}
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Expand goal details" : "Collapse goal details"}
+          className="mt-0.5 shrink-0 rounded-md text-muted-foreground transition-colors hover:text-foreground"
+          onClick={() => setCollapsedState((value) => !value)}
+        >
+          <TargetIcon aria-hidden className="size-4" />
+        </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
@@ -336,6 +366,11 @@ function GoalCard(props: {
               {goalSummaryHeadline(goal)}
             </p>
           ) : null}
+          {objective === null ? null : (
+            <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-muted-foreground/80">
+              {objective}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-0.5">
           {goal.threadId !== null && goal.threadId !== props.threadId ? (
@@ -366,7 +401,7 @@ function GoalCard(props: {
             </Button>
           )}
           {props.otherGoals.length > 0 ? (
-            <Popover>
+            <Popover open={otherGoalsOpen} onOpenChange={setOtherGoalsOpen}>
               <PopoverTrigger
                 render={
                   <Button
@@ -385,7 +420,12 @@ function GoalCard(props: {
                     key={candidate.id}
                     type="button"
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
-                    onClick={() => props.onSelectOther(candidate.id)}
+                    onClick={() => {
+                      // The list is a picker: staying open over the card it
+                      // just replaced reads as a menu that ignored the click.
+                      setOtherGoalsOpen(false);
+                      props.onSelectOther(candidate.id);
+                    }}
                   >
                     <span className="min-w-0 flex-1 truncate">{candidate.title}</span>
                     <span className="shrink-0 text-2xs text-muted-foreground">
@@ -435,6 +475,9 @@ function GoalCard(props: {
             <span className="text-2xs text-muted-foreground">{goalProgressLabel(progress)}</span>
           </div>
         )}
+        {collapsed || meta === null ? null : (
+          <p className="mt-0.5 truncate text-2xs text-muted-foreground/80">{meta}</p>
+        )}
       </div>
 
       {reasonBox === null ? null : (
@@ -455,6 +498,12 @@ function GoalCard(props: {
             )}
           />
           <p className="line-clamp-3 min-w-0 text-xs leading-5 text-foreground">{reasonBox.text}</p>
+        </div>
+      )}
+
+      {collapsed || goalDetail?.blocker == null ? null : (
+        <div className="mx-3.5 mt-2.5 shrink-0 overflow-y-auto">
+          <GoalBlockerPanel blocker={goalDetail.blocker} className="max-h-40 overflow-y-auto" />
         </div>
       )}
 
@@ -515,6 +564,16 @@ function GoalCard(props: {
                         <p className="truncate text-2xs text-muted-foreground">
                           {task.evidence ?? goalTaskStatusLabel(task.status)}
                         </p>
+                        {task.question === null ? null : (
+                          <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-warning">
+                            {task.question}
+                          </p>
+                        )}
+                        {task.blocker === null ? null : (
+                          <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-destructive/90">
+                            {task.blocker.reason}
+                          </p>
+                        )}
                       </div>
                     </li>
                   );
@@ -534,6 +593,10 @@ function GoalCard(props: {
               >
                 {allTasksOpen ? "Show fewer tasks" : `Show ${hiddenTasks} more tasks`}
               </button>
+            ) : null}
+
+            {showChanges ? (
+              <GoalChangedFiles changes={changes} onOpenTurnDiff={props.onOpenTurnDiff} />
             ) : null}
 
             {showVerification ? (
@@ -604,6 +667,11 @@ function GoalCard(props: {
             {question !== null ? (
               <div className="mx-3.5 mb-2 rounded-xl border border-warning/30 bg-warning/5 p-2">
                 <p className="text-xs text-foreground">{question}</p>
+                {waitingTask === null ? null : (
+                  <p className="mt-0.5 text-2xs text-muted-foreground">
+                    Answering resumes “{waitingTask.title}”. The rest of the plan keeps going.
+                  </p>
+                )}
                 <div className="mt-1.5 flex items-end gap-1.5">
                   <Textarea
                     aria-label="Answer the agent's question"
@@ -759,15 +827,26 @@ function GoalCard(props: {
                 </Button>
               ) : null}
               {canEditGoal(goal.status) && editText === null ? (
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  disabled={!canOperate || busy}
-                  onClick={() => setEditText(goalDetail?.objective ?? "")}
-                >
-                  <PencilIcon aria-hidden className="size-3.5" />
-                  Edit
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        // The objective only arrives with the goal's details, so
+                        // editing before they land would open an empty goal.
+                        disabled={!canOperate || busy || goalDetail === null}
+                        onClick={() => setEditText(goalDetail?.objective ?? "")}
+                      />
+                    }
+                  >
+                    <PencilIcon aria-hidden className="size-3.5" />
+                    Edit
+                  </TooltipTrigger>
+                  <TooltipPopup side="top">
+                    {goalDetail === null ? "Loading the goal…" : "Change what the goal is for"}
+                  </TooltipPopup>
+                </Tooltip>
               ) : null}
               {canCancelGoal(goal.status) ? (
                 <Button
@@ -848,6 +927,10 @@ export function GoalModePanel(props: {
   readonly onGoalModeOpenChange: (open: boolean) => void;
   /** The goal this panel's thread just started; selects it for display. */
   readonly focusGoalId: string | null;
+  /** The thread's changed files, so a goal can report what it changed. */
+  readonly turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
+  /** Opens the diff panel on a turn's file. */
+  readonly onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
 }) {
   const { environmentId, projectId } = props;
   const canOperateGoal = useAtomValue(serverEnvironment.createGoal.permissionAtom(environmentId));
@@ -863,6 +946,7 @@ export function GoalModePanel(props: {
   // A finished goal stays visible so its result can be read; hiding it is a
   // session choice, not a server change.
   const [hiddenGoalIds, setHiddenGoalIds] = useState<ReadonlySet<string>>(new Set());
+  const [hiddenGoalsOpen, setHiddenGoalsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   // The selection belongs to one thread; switching threads must not keep
@@ -880,12 +964,20 @@ export function GoalModePanel(props: {
   // state; subscribe here, next to the consumer.
   useEffect(() => onOpenGoalComposer(() => props.onGoalModeOpenChange(true)), [props]);
 
-  const goals = useMemo(
+  const allGoals = useMemo(
     () =>
-      [...(goalsQuery.data?.goals ?? [])]
-        .filter((candidate) => !hiddenGoalIds.has(candidate.id))
-        .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [goalsQuery.data, hiddenGoalIds],
+      [...(goalsQuery.data?.goals ?? [])].toSorted((a, b) =>
+        b.updatedAt.localeCompare(a.updatedAt),
+      ),
+    [goalsQuery.data],
+  );
+  const goals = useMemo(
+    () => allGoals.filter((candidate) => !hiddenGoalIds.has(candidate.id)),
+    [allGoals, hiddenGoalIds],
+  );
+  const hiddenGoals = useMemo(
+    () => allGoals.filter((candidate) => hiddenGoalIds.has(candidate.id)),
+    [allGoals, hiddenGoalIds],
   );
   const goal =
     goals.find((candidate) => candidate.id === selectedGoalId) ??
@@ -893,7 +985,9 @@ export function GoalModePanel(props: {
   const otherGoals = goals.filter((candidate) => candidate.id !== goal?.id);
 
   if (projectId === null) return null;
-  if (goal === null && goalsQuery.error === null) return null;
+  // Hiding the last goal must not take the panel away with it: the hidden
+  // goals are the only way back to them.
+  if (goal === null && goalsQuery.error === null && hiddenGoals.length === 0) return null;
 
   const reportFailure = (title: string, error: unknown) => {
     toastManager.add({
@@ -936,6 +1030,8 @@ export function GoalModePanel(props: {
           busy={busy}
           compact={props.goalModeOpen || goalIsDriven}
           run={run}
+          turnDiffSummaries={props.turnDiffSummaries}
+          onOpenTurnDiff={props.onOpenTurnDiff}
           onHide={() => setHiddenGoalIds((hidden) => new Set([...hidden, goal.id]))}
           onSelectOther={(goalId) => setSelectedGoalId(goalId)}
           onStartAnother={() => {
@@ -944,6 +1040,48 @@ export function GoalModePanel(props: {
           }}
         />
       )}
+
+      {hiddenGoals.length > 0 ? (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/60 px-3.5 py-1.5">
+          <Popover open={hiddenGoalsOpen} onOpenChange={setHiddenGoalsOpen}>
+            <PopoverTrigger
+              render={
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  aria-label={`Show ${hiddenGoals.length} hidden goals`}
+                />
+              }
+            >
+              <HistoryIcon aria-hidden className="size-3.5" />
+              {hiddenGoals.length} hidden goal{hiddenGoals.length === 1 ? "" : "s"}
+            </PopoverTrigger>
+            <PopoverPopup align="start" className="w-64">
+              {hiddenGoals.map((candidate) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+                  onClick={() => {
+                    setHiddenGoalsOpen(false);
+                    setHiddenGoalIds((hidden) => {
+                      const next = new Set(hidden);
+                      next.delete(candidate.id);
+                      return next;
+                    });
+                    setSelectedGoalId(candidate.id);
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate">{candidate.title}</span>
+                  <span className="shrink-0 text-2xs text-muted-foreground">
+                    {goalStatusLabel(candidate.status)}
+                  </span>
+                </button>
+              ))}
+            </PopoverPopup>
+          </Popover>
+        </div>
+      ) : null}
 
       {goalsQuery.error !== null ? (
         <p

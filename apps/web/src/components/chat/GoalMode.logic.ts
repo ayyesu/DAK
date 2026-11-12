@@ -446,6 +446,41 @@ export function currentGoalTask(
   return goal.tasks.find((task) => task.id === goal.currentTaskId) ?? null;
 }
 
+/**
+ * The task parked on the user.
+ *
+ * A question parks one task, not the goal, so the card names the task the
+ * answer unblocks instead of leaving the user to hunt for it.
+ */
+export function goalWaitingTask(goal: Pick<Goal, "tasks">): GoalTask | null {
+  return goal.tasks.find((task) => task.status === "waiting_input") ?? null;
+}
+
+/**
+ * The user's own words for the goal, when they add something to the title.
+ *
+ * The server names the goal from the objective, so the two usually differ
+ * in wording. Showing the objective keeps the user's request visible.
+ */
+export function goalObjectiveText(goal: Pick<Goal, "objective" | "title">): string | null {
+  const objective = goal.objective.trim();
+  if (objective === "") return null;
+  if (objective === goal.title.trim()) return null;
+  return objective;
+}
+
+/**
+ * The meta line under the progress bar: which model runs the goal and how
+ * much work it has already done.
+ */
+export function goalMetaLine(goal: Pick<Goal, "modelSelection" | "cycleCount">): string | null {
+  const model = goal.modelSelection.model.trim();
+  const turns = goal.cycleCount;
+  const turnPart = turns === 1 ? "1 turn" : `${turns} turns`;
+  if (model === "") return turnPart;
+  return `${model} · ${turnPart}`;
+}
+
 /** Mirrors the server's acceptance-criteria bounds so input never trips the schema. */
 const GOAL_CRITERIA_MAX_LINES = 20;
 const GOAL_CRITERIA_MAX_LENGTH = 500;

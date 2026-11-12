@@ -12,8 +12,12 @@ After the space, the composer shows a goal-mode hint bar (`/goal` chip +
 “Describe the outcome…”) and a **Done when** criteria field appears below
 the prompt; the send button reads **Start goal**. The same composer is the
 goal input — there is no separate goal form, and the provider’s native
-`/goal` command is not used. **New goal** in the command palette (`Cmd+K`)
-and the `chat.goal` key command open the same composer in goal mode.
+`/goal` command is not used.
+
+The composer also has a **Goal** control next to the build and plan modes, in
+the same _Mode & Access_ menu. It switches the composer into goal mode, and
+turns it back off when you press it again. **New goal** in the command palette
+(`Cmd+K`) and the `chat.goal` key command open the same composer in goal mode.
 
 Optionally add **Done when** criteria, one per line — for example:
 
@@ -45,7 +49,15 @@ While a turn is running, the status shows a spinner and counts the current
 turn's age. A goal working through a problem shows **Recovering**, and a task
 waiting on you shows **Waiting for you**. Expand it for the objective, the
 current step, the full plan with each task's status, and the progress
-percentage. When criteria were given, the expanded card also shows **Done
+percentage. Under the progress bar the card names the model running the goal
+and how many turns it has spent.
+
+The card also shows what the goal changed on disk: the number of changed
+files and a `+n -m` line count, the same summary the timeline shows for a
+turn. Expand it to list the files, and pick one to open that file's diff in
+the diff panel.
+
+When criteria were given, the expanded card also shows **Done
 when** with each criterion's state and the verification result. **View
 activity** opens the recent history: what the agent planned, what it
 finished, what it is checking, and what it is recovering from. The card stays
@@ -54,7 +66,8 @@ keeps running while the browser is closed because the environment drives it.
 
 **Hide this finished goal** clears a completed goal from the card; **Start
 another goal** turns the composer back to the goal input while the current
-goal keeps running.
+goal keeps running. Hidden goals stay reachable: the card keeps a count of
+them, and picking one there brings it back.
 
 ## Controlling a goal
 
@@ -96,9 +109,16 @@ Concretely:
 ## When the agent asks or gets stuck
 
 The agent stops for you only when it cannot decide on its own. A question
-shows as **Needs input** with an answer box in the card. A goal that cannot
+shows as **Needs input** with an answer box in the card, naming the task your
+answer unblocks. A goal that cannot
 continue shows **Blocked** (or **Failed**) with the reason in the card, so you
 can remove the obstacle and resume, edit the goal, retry, or cancel it.
+
+When the agent blocks a goal it also reports its assessment: what stopped the
+work, why that is true, what was inspected to find it, what was tried, what
+else was considered, and what only you can provide. That is the evidence
+behind the verdict, and it is what tells you whether to clear the obstacle or
+redirect the goal.
 
 ## Notifications
 

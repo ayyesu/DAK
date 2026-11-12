@@ -14,8 +14,10 @@ import {
   goalCriterionStates,
   goalHasOpenQuestion,
   goalHeadline,
+  goalMetaLine,
   goalNeedsAttention,
   goalNoticeTitle,
+  goalObjectiveText,
   goalProgress,
   goalProgressLabel,
   goalSlashPrefixLength,
@@ -25,6 +27,7 @@ import {
   goalStatusTone,
   goalTaskStatusLabel,
   goalVerificationStatusLabel,
+  goalWaitingTask,
   isGoalEnded,
   isGoalDriven,
   isGoalSlashCommand,
@@ -656,5 +659,77 @@ describe("goalCriterionStates", () => {
       { criterion: "Checked", met: true, proof: [] },
       { criterion: "Never judged", met: null, proof: [] },
     ]);
+  });
+});
+
+describe("goalWaitingTask", () => {
+  it("names the task parked on the user", () => {
+    const waiting = goalWaitingTask(
+      goal({
+        id: "g",
+        status: "running",
+        tasks: [
+          task({ id: "t1", title: "one", status: "completed" }),
+          task({ id: "t2", title: "two", status: "waiting_input" }),
+        ],
+      }),
+    );
+    expect(waiting?.id).toBe("t2");
+  });
+
+  it("reports nothing while every task is running", () => {
+    const waiting = goalWaitingTask(
+      goal({
+        id: "g",
+        status: "running",
+        tasks: [task({ id: "t1", title: "one", status: "in_progress" })],
+      }),
+    );
+    expect(waiting).toBeNull();
+  });
+});
+
+describe("goalObjectiveText", () => {
+  it("keeps the user's own wording when it differs from the title", () => {
+    expect(goalObjectiveText({ objective: "Ship the settings page", title: "Settings page" })).toBe(
+      "Ship the settings page",
+    );
+  });
+
+  it("stays quiet when the objective only repeats the title", () => {
+    expect(goalObjectiveText({ objective: "A goal", title: "A goal" })).toBeNull();
+  });
+
+  it("stays quiet when there is no objective", () => {
+    expect(goalObjectiveText({ objective: "   ", title: "A goal" })).toBeNull();
+  });
+});
+
+describe("goalMetaLine", () => {
+  it("names the model and the turns spent", () => {
+    expect(
+      goalMetaLine({
+        modelSelection: { model: "gpt-5.4" } as Goal["modelSelection"],
+        cycleCount: 7,
+      }),
+    ).toBe("gpt-5.4 · 7 turns");
+  });
+
+  it("counts a single turn in the singular", () => {
+    expect(
+      goalMetaLine({
+        modelSelection: { model: "gpt-5.4" } as Goal["modelSelection"],
+        cycleCount: 1,
+      }),
+    ).toBe("gpt-5.4 · 1 turn");
+  });
+
+  it("still reports the turns without a model", () => {
+    expect(
+      goalMetaLine({
+        modelSelection: { model: "" } as Goal["modelSelection"],
+        cycleCount: 3,
+      }),
+    ).toBe("3 turns");
   });
 });

@@ -2255,8 +2255,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   // plan follow-up reuses this input and keeps its send meaning. It is
   // entered two ways that share this one input: typing `/goal ` at the
   // start of the prompt, or the palette / chat.goal key command flipping
-  // `goalModeOpen`. The standalone Goal toggle is hidden so there is a
-  // single visible entry point.
+  // `goalModeOpen`.
   const slashGoalActive = isGoalSlashPrompt(prompt);
   const slashGoalObjective = slashGoalActive ? getGoalSlashObjective(prompt) : "";
   const goalModeActive =
@@ -4026,6 +4025,20 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     ],
   );
 
+  // The footer toggle turns Goal Mode on and off. When the goal was entered
+  // by typing `/goal `, the prefix is what holds the mode open, so leaving
+  // strips it rather than flipping a flag nothing is reading.
+  const toggleGoalMode = () => {
+    if (slashGoalActive) {
+      const prefixLength = goalSlashPrefixLength(promptRef.current);
+      if (prefixLength > 0) {
+        applyPromptReplacement(0, prefixLength, "");
+        return;
+      }
+    }
+    props.onToggleGoalMode();
+  };
+
   const readComposerSnapshot = useCallback((): {
     value: string;
     cursor: number;
@@ -5617,11 +5630,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               runtimeMode={compatibleRuntimeMode}
               runtimeModeOptions={compatibleRuntimeModeOptions}
               size="sm"
-              // Entry to goal mode is typing `/goal ` in the composer; the
-              // toggle is hidden so the composer stays the one input.
-              showGoalModeToggle={false}
+              // Goal Mode is a mode of this composer, so it belongs beside
+              // the other mode controls. Typing `/goal ` still works; the
+              // toggle is how a user finds the feature in the first place.
+              showGoalModeToggle={props.canOperateGoal}
               goalModeOpen={props.goalModeOpen || slashGoalActive}
-              onToggleGoalMode={props.onToggleGoalMode}
+              onToggleGoalMode={toggleGoalMode}
               onToggleInteractionMode={toggleInteractionMode}
               onRuntimeModeChange={handleRuntimeModeChange}
             />
