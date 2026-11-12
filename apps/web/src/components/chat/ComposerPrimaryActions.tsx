@@ -12,6 +12,7 @@ import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { composerFloatingLayerProps } from "./composerEventScope";
+import { goalDeliveryNotice, goalSendLabel } from "./GoalMode.logic";
 import {
   alternateComposerDispatchAction,
   resolveComposerDispatchMode,
@@ -44,6 +45,8 @@ interface ComposerPrimaryActionsProps {
   isPreparingWorktree: boolean;
   /** The composer's send starts a goal instead of dispatching a turn. */
   goalModeActive?: boolean;
+  /** A goal is working in this thread, so the send joins the goal's work. */
+  goalDrivesThread?: boolean;
   hasSendableContent: boolean;
   canResume?: boolean;
   preserveComposerFocusOnPointerDown?: boolean;
@@ -103,6 +106,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   isEnvironmentUnavailable,
   isPreparingWorktree,
   goalModeActive = false,
+  goalDrivesThread = false,
   hasSendableContent,
   canResume = false,
   preserveComposerFocusOnPointerDown = false,
@@ -292,9 +296,13 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
         : compactsBeforeSend
           ? "Compact and send"
           : isQueuing
-            ? "Queue message"
+            ? goalDrivesThread
+              ? goalSendLabel("queue")
+              : "Queue message"
             : isRunning
-              ? "Steer message"
+              ? goalDrivesThread
+                ? goalSendLabel("steer")
+                : "Steer message"
               : "Submit message";
   const submitStatus = isEnvironmentUnavailable
     ? "Environment disconnected"
@@ -317,7 +325,9 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
       : compactsBeforeSend
         ? `Summarize ${compactTokens} tokens of history, then send`
         : isRunning && !isEditingQueuedMessage
-          ? `Click to ${followUpBehavior}, Ctrl/⌘-click${alternateShortcutLabel ? ` or ${alternateShortcutLabel}` : ""} to ${alternateAction}`
+          ? goalDrivesThread
+            ? `${goalDeliveryNotice(isQueuing ? "queue" : "steer")} Ctrl/⌘-click${alternateShortcutLabel ? ` or ${alternateShortcutLabel}` : ""} to ${alternateAction}.`
+            : `Click to ${followUpBehavior}, Ctrl/⌘-click${alternateShortcutLabel ? ` or ${alternateShortcutLabel}` : ""} to ${alternateAction}`
           : submitLabel);
 
   const roundSendButton = (

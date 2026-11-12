@@ -12,6 +12,8 @@ import {
   formatGoalTurnElapsed,
   getGoalSlashObjective,
   goalCriterionStates,
+  goalDeliveryNotice,
+  goalDrivesThread,
   goalHasOpenQuestion,
   goalHeadline,
   goalMetaLine,
@@ -20,6 +22,7 @@ import {
   goalObjectiveText,
   goalProgress,
   goalProgressLabel,
+  goalSendLabel,
   goalSlashPrefixLength,
   goalSummaryHeadline,
   goalSummaryProgress,
@@ -263,6 +266,48 @@ describe("selectGoalForThread", () => {
 
   it("returns null with no goals", () => {
     expect(selectGoalForThread([], threadId)).toBeNull();
+  });
+});
+
+describe("goalDrivesThread", () => {
+  const threadId = ThreadId.make("thread:1");
+
+  it("reports a driven goal bound to this thread", () => {
+    const running = goal({ id: "running", status: "running", threadId });
+    expect(goalDrivesThread([running], threadId)).toBe(true);
+  });
+
+  it("counts every status where the server still dispatches turns", () => {
+    for (const status of ["planning", "running", "recovering", "verifying"] as const) {
+      expect(goalDrivesThread([goal({ id: status, status, threadId })], threadId)).toBe(true);
+    }
+  });
+
+  it("ignores a goal of another thread", () => {
+    const elsewhere = goal({ id: "elsewhere", status: "running", threadId: null });
+    expect(goalDrivesThread([elsewhere], threadId)).toBe(false);
+  });
+
+  it("ignores a goal of this thread that is not driven", () => {
+    const paused = goal({ id: "paused", status: "paused", threadId });
+    expect(goalDrivesThread([paused], threadId)).toBe(false);
+  });
+
+  it("has nothing to drive in a threadless view", () => {
+    const running = goal({ id: "running", status: "running", threadId });
+    expect(goalDrivesThread([running], null)).toBe(false);
+  });
+});
+
+describe("goal-aware composer copy", () => {
+  it("names the goal the message joins instead of talking about steering", () => {
+    expect(goalSendLabel("steer")).toBe("Send to the goal");
+    expect(goalSendLabel("queue")).toBe("Queue for the goal");
+  });
+
+  it("explains where a queued message waits", () => {
+    expect(goalDeliveryNotice("queue")).toContain("queued behind");
+    expect(goalDeliveryNotice("steer")).toContain("joins the goal");
   });
 });
 

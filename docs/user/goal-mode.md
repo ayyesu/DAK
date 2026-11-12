@@ -35,6 +35,11 @@ one — the **Other goals** menu lists them. To leave goal mode, delete the
 leading `/goal ` (or press the hint bar’s ✕), which turns the composer back
 into a normal message box.
 
+Two goals never drive the same thread, because their turns would interleave
+and each agent would answer the other’s task. A goal you start while another
+one is working in this thread therefore runs in a thread of its own, and the
+composer says so before you send it.
+
 Reserved commands after the space, such as `/goal clear` or `/goal pause`,
 send as normal messages for the provider to run instead of starting a goal.
 To make one the objective, write a longer sentence such as `/goal clear the
@@ -50,7 +55,11 @@ turn's age. A goal working through a problem shows **Recovering**, and a task
 waiting on you shows **Waiting for you**. Expand it for the objective, the
 current step, the full plan with each task's status, and the progress
 percentage. Under the progress bar the card names the model running the goal
-and how many turns it has spent.
+and how many turns it has spent. The card folds open and closed with an
+animation, and the controls along its bottom edge — **Pause**, **Resume**,
+**Edit**, **Cancel** — stay reachable without expanding it. A question from
+the agent stays visible in the same way, so an answer is never hidden behind
+a collapsed card.
 
 The card also shows what the goal changed on disk: the number of changed
 files and a `+n -m` line count, the same summary the timeline shows for a
@@ -188,6 +197,10 @@ This means the bar never reaches 100% until verification independently passes. I
 You can keep talking in the thread while a goal runs. Ask about progress, add
 a constraint, or correct an assumption. Messages you send are delivered in
 order with the goal's own turns.
+
+While the goal is working, the send button says where your message goes:
+**Send to the goal** when it joins the goal's current turn, and **Queue for
+the goal** when it waits behind it.
 
 ## Agent tools
 

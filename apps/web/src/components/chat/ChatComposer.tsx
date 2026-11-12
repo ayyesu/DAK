@@ -1410,6 +1410,8 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
   isPreparingWorktree: boolean;
   /** The composer's send starts a goal instead of a turn. */
   goalModeActive: boolean;
+  /** A goal is working in this thread, so the send joins the goal's work. */
+  goalDrivesThread: boolean;
   pendingAction: {
     questionIndex: number;
     isLastQuestion: boolean;
@@ -1472,6 +1474,7 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
         isEnvironmentUnavailable={props.isEnvironmentUnavailable}
         isPreparingWorktree={props.isPreparingWorktree}
         goalModeActive={props.goalModeActive}
+        goalDrivesThread={props.goalDrivesThread}
         hasSendableContent={props.hasSendableContent}
         canResume={props.canResume}
         preserveComposerFocusOnPointerDown={props.preserveComposerFocusOnPointerDown ?? false}
@@ -1655,6 +1658,8 @@ export interface ChatComposerProps {
   onGoalCriteriaChange: (value: string) => void;
   /** createGoal is allowed for this connection (a scoped grant can deny it). */
   canOperateGoal: boolean;
+  /** A goal is working in this thread, so the send joins the goal's work. */
+  goalDrivesThread: boolean;
 
   // Provider / model
   lockedProvider: ProviderDriverKind | null;
@@ -7550,17 +7555,22 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               </div>
             </div>
 
-            {slashGoalActive ? (
+            {slashGoalActive || (props.goalModeOpen && props.goalDrivesThread) ? (
               <div
                 data-goal-slash-hint="true"
                 role="status"
                 className="mx-3 mb-2 flex items-center gap-2 rounded-xl border border-border/60 bg-muted/40 px-3 py-2 sm:mx-4"
               >
                 <TargetIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                <span className="shrink-0 rounded-md bg-background px-1.5 py-0.5 font-mono text-2xs font-medium">
-                  /goal
-                </span>
+                {slashGoalActive ? (
+                  <span className="shrink-0 rounded-md bg-background px-1.5 py-0.5 font-mono text-2xs font-medium">
+                    /goal
+                  </span>
+                ) : null}
                 <span className="min-w-0 flex-1 text-xs leading-5 text-muted-foreground">
+                  {props.goalDrivesThread
+                    ? "A goal is already working in this thread, so this one runs in a thread of its own. "
+                    : null}
                   Goal mode — describe the outcome after <code>/goal</code>. The agent plans, does
                   the work, runs checks, and keeps going until it can prove the goal is done. Add
                   optional “Done when” criteria below, or just press Enter.
@@ -7574,6 +7584,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     if (prefixLength > 0) {
                       applyPromptReplacement(0, prefixLength, "");
                     }
+                    // The ✕ leaves goal mode: the slash prefix goes, and the
+                    // composer control goes back to a normal message box.
+                    if (props.goalModeOpen) props.onToggleGoalMode();
                   }}
                 >
                   <XIcon aria-hidden className="size-3.5" />
@@ -7715,6 +7728,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     }
                     isPreparingWorktree={isPreparingWorktree}
                     goalModeActive={goalModeActive}
+                    goalDrivesThread={props.goalDrivesThread}
                     hasSendableContent={
                       goalModeActive
                         ? (slashGoalActive ? slashGoalObjective : prompt.trim()).length > 0

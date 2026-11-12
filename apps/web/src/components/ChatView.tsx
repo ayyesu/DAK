@@ -439,6 +439,7 @@ import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { GoalModePanel } from "./chat/GoalModePanel";
 import {
   getGoalSlashObjective,
+  goalDrivesThread,
   isGoalSlashCommand,
   isGoalSlashPrompt,
   selectGoalModelSelection,
@@ -4116,6 +4117,9 @@ export default function ChatView(props: ChatViewProps) {
     goalsQuery.data?.goals.some(
       (g) => g.status === "planning" || g.status === "running" || g.status === "verifying",
     ) ?? false;
+  // A goal owns the turns of the thread it is bound to, so the composer has to
+  // know when this thread's messages join a goal instead of a plain turn.
+  const goalDrivesThisThread = goalDrivesThread(goalsQuery.data?.goals ?? [], activeThreadId);
 
   const isDraftHeroState = resolveDraftHeroState({
     isLocalDraftThread,
@@ -9205,7 +9209,10 @@ export default function ChatView(props: ChatViewProps) {
           environmentId,
           input: {
             projectId: goalProjectId,
-            threadId: isServerThread ? (activeThreadId ?? null) : null,
+            // Two goals must not drive one thread: their turns would interleave
+            // and each agent would answer the other's task. A goal started
+            // while another one works here gets a thread of its own.
+            threadId: isServerThread && !goalDrivesThisThread ? (activeThreadId ?? null) : null,
             objective,
             acceptanceCriteria: splitCriteriaLines(goalCriteriaText),
             modelSelection: goalModelSelection,
@@ -11936,6 +11943,7 @@ export default function ChatView(props: ChatViewProps) {
                               goalCriteriaText={goalCriteriaText}
                               onGoalCriteriaChange={setGoalCriteriaText}
                               canOperateGoal={canOperateGoal}
+                              goalDrivesThread={goalDrivesThisThread}
                               lockedProvider={modelPickerLockedProvider}
                               providerStatuses={providerStatuses as ServerProvider[]}
                               providerCatalogKnown={serverConfig !== null}

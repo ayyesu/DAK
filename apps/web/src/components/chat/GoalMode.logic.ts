@@ -75,6 +75,38 @@ export function goalNeedsAttention(status: GoalStatus): boolean {
 export function goalHasOpenQuestion(goal: Pick<GoalSummary, "question">): boolean {
   return goal.question !== null;
 }
+
+/**
+ * Whether a goal is the one driving this thread's work.
+ *
+ * A goal runs its turns in the thread it is bound to, so the thread knows
+ * that the agent is busy on the goal and not on a plain message.
+ */
+export function goalDrivesThread(
+  goals: ReadonlyArray<Pick<GoalSummary, "threadId" | "status">>,
+  threadId: ThreadId | null,
+): boolean {
+  if (threadId === null) return false;
+  return goals.some((goal) => goal.threadId === threadId && isGoalDriven(goal.status));
+}
+
+/**
+ * The composer's send label while a goal is working in this thread.
+ *
+ * The goal owns the thread's turns, so the button names where the message
+ * lands instead of talking about steering.
+ */
+export function goalSendLabel(kind: "steer" | "queue"): string {
+  return kind === "queue" ? "Queue for the goal" : "Send to the goal";
+}
+
+/** What the composer tells the user about a message sent while a goal runs. */
+export function goalDeliveryNotice(kind: "steer" | "queue"): string {
+  return kind === "queue"
+    ? "A goal is working in this thread. Your message is queued behind the goal's current turn."
+    : "A goal is working in this thread. Your message joins the goal's current turn.";
+}
+
 export interface GoalProgress {
   /** Completed units over all units; verification is the last unit. */
   readonly completed: number;
