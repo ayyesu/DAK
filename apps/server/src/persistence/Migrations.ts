@@ -78,6 +78,7 @@ import Migration0061 from "./Migrations/061_Goals.ts";
 import Migration0062 from "./Migrations/062_GoalTurnStartedAt.ts";
 import Migration0063 from "./Migrations/063_GoalProgress.ts";
 import Migration0064 from "./Migrations/064_GoalRecovery.ts";
+import Migration0065 from "./Migrations/065_GoalProviderWait.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -156,6 +157,7 @@ export const migrationEntries = [
   [62, "GoalTurnStartedAt", Migration0062],
   [63, "GoalProgress", Migration0063],
   [64, "GoalRecovery", Migration0064],
+  [65, "GoalProviderWait", Migration0065],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

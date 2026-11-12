@@ -31,6 +31,7 @@ import {
   goalTaskStatusLabel,
   goalVerificationStatusLabel,
   goalWaitingTask,
+  isGoalActive,
   isGoalEnded,
   isGoalDriven,
   isGoalSlashCommand,
@@ -390,6 +391,25 @@ describe("goal status presentation", () => {
     expect(isGoalDriven("recovering")).toBe(true);
   });
 
+  it("parks a goal the provider stopped without calling it failed", () => {
+    expect(goalStatusLabel("waiting_provider")).toBe("Waiting for provider");
+    expect(goalStatusTone("waiting_provider")).toBe("attention");
+    expect(goalNoticeTitle("waiting_provider")).toBe("Waiting for the provider");
+    expect(goalNeedsAttention("waiting_provider")).toBe(true);
+    // No turn is in flight while the goal waits, so the card does not spin,
+    // but it stays alive because the server retries on its own.
+    expect(isGoalDriven("waiting_provider")).toBe(false);
+    expect(isGoalActive("waiting_provider")).toBe(true);
+    const parked = goal({
+      id: "g",
+      status: "waiting_provider",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      blockedReason: "the provider is not signed in",
+      tasks: [task({ id: "t1", title: "Build the API", status: "in_progress" })],
+    });
+    expect(goalHeadline(parked)).toBe("the provider is not signed in");
+  });
+
   it("names the task being recovered on the headline", () => {
     const recovering = goal({
       id: "g",
@@ -522,6 +542,9 @@ describe("goal control matrix", () => {
     expect(canPauseGoal("planning")).toBe(true);
     expect(canPauseGoal("running")).toBe(true);
     expect(canPauseGoal("verifying")).toBe(true);
+    // A parked goal has no turn in flight, but the user can stop it from
+    // retrying the provider.
+    expect(canPauseGoal("waiting_provider")).toBe(true);
     expect(canPauseGoal("paused")).toBe(false);
     expect(canPauseGoal("needs_input")).toBe(false);
     expect(canPauseGoal("blocked")).toBe(false);
@@ -535,6 +558,7 @@ describe("goal control matrix", () => {
     expect(isGoalDriven("paused")).toBe(false);
     expect(isGoalDriven("needs_input")).toBe(false);
     expect(isGoalDriven("blocked")).toBe(false);
+    expect(isGoalDriven("waiting_provider")).toBe(false);
     expect(isGoalDriven("draft")).toBe(false);
     expect(isGoalDriven("completed")).toBe(false);
   });
@@ -544,13 +568,24 @@ describe("goal control matrix", () => {
     expect(canResumeGoal("blocked")).toBe(true);
     expect(canResumeGoal("failed")).toBe(true);
     expect(canResumeGoal("draft")).toBe(true);
+    // The server retries a parked goal on its own, but the user may want to
+    // try now instead of waiting out the delay.
+    expect(canResumeGoal("waiting_provider")).toBe(true);
     expect(canResumeGoal("running")).toBe(false);
     expect(canResumeGoal("completed")).toBe(false);
     expect(canResumeGoal("cancelled")).toBe(false);
   });
 
   it("gates edit, cancel and retry on the goal not having ended", () => {
-    for (const status of ["planning", "running", "paused", "failed", "blocked", "draft"] as const) {
+    for (const status of [
+      "planning",
+      "running",
+      "paused",
+      "failed",
+      "blocked",
+      "draft",
+      "waiting_provider",
+    ] as const) {
       expect(canEditGoal(status)).toBe(true);
       expect(canCancelGoal(status)).toBe(true);
       expect(canRetryGoal(status)).toBe(true);

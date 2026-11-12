@@ -2037,6 +2037,7 @@ const layerWsRpc = (
           ),
         [WS_METHODS.goalsList]: (input) => goals.list(input),
         [WS_METHODS.goalsSubscribe]: (input) => goals.subscribeList(input),
+        [WS_METHODS.goalsWatch]: (input) => goals.watchGoal(input),
         [WS_METHODS.goalsGet]: (input) => goals.get(input),
         [WS_METHODS.goalsCreate]: (input) => goals.create(input),
         [WS_METHODS.goalsUpdate]: (input) => goals.update(input),

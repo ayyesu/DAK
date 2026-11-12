@@ -13,10 +13,12 @@ const GOAL_ACTIVE_STATUSES: ReadonlySet<GoalStatus> = new Set([
   "planning",
   "running",
   "recovering",
-  "verifying",
   "paused",
   "needs_input",
   "blocked",
+  // The goal is parked on a provider fault. It resumes on its own, so it is
+  // alive, but no turn is in flight.
+  "waiting_provider",
 ]);
 
 export function isGoalActive(status: GoalStatus): boolean {
@@ -42,11 +44,21 @@ export function isGoalDriven(status: GoalStatus): boolean {
 
 /** The server only pauses a goal its driver is actively working on. */
 export function canPauseGoal(status: GoalStatus): boolean {
-  return isGoalDriven(status);
+  // A goal parked on a provider fault has no turn in flight, but the user
+  // can still stop it from retrying.
+  return isGoalDriven(status) || status === "waiting_provider";
 }
 /** Recoverable states; `failed` and `blocked` resume rather than restart. */
 export function canResumeGoal(status: GoalStatus): boolean {
-  return status === "paused" || status === "blocked" || status === "failed" || status === "draft";
+  // A parked goal resumes on its own, but the user may want to try now
+  // instead of waiting out the provider's delay.
+  return (
+    status === "paused" ||
+    status === "blocked" ||
+    status === "failed" ||
+    status === "draft" ||
+    status === "waiting_provider"
+  );
 }
 
 export function canEditGoal(status: GoalStatus): boolean {
@@ -63,7 +75,13 @@ export function canRetryGoal(status: GoalStatus): boolean {
 
 export function goalNeedsAttention(status: GoalStatus): boolean {
   return (
-    status === "needs_input" || status === "blocked" || status === "paused" || status === "failed"
+    status === "needs_input" ||
+    status === "blocked" ||
+    status === "paused" ||
+    status === "failed" ||
+    // The provider broke, so the goal cannot move until it comes back. The
+    // server keeps trying, but the user may be able to fix it faster.
+    status === "waiting_provider"
   );
 }
 
@@ -281,6 +299,8 @@ export function goalStatusLabel(status: GoalStatus): string {
       return "Needs input";
     case "blocked":
       return "Blocked";
+    case "waiting_provider":
+      return "Waiting for provider";
     case "verifying":
       return "Verifying";
     case "completed":
@@ -299,6 +319,8 @@ export function goalNoticeTitle(status: GoalStatus): string {
       return "Input needed";
     case "blocked":
       return "Goal blocked";
+    case "waiting_provider":
+      return "Waiting for the provider";
     case "failed":
       return "Goal failed";
     case "completed":
@@ -322,6 +344,7 @@ export function goalStatusTone(status: GoalStatus): GoalTone {
     case "paused":
     case "needs_input":
     case "blocked":
+    case "waiting_provider":
       return "attention";
     case "completed":
       return "success";
@@ -365,6 +388,8 @@ export function goalHeadline(
       return "Waiting for your answer";
     case "blocked":
       return goal.blockedReason ?? "Blocked";
+    case "waiting_provider":
+      return goal.blockedReason ?? "Waiting for the provider";
     case "verifying":
       return "Verifying the result";
     case "completed":
@@ -412,6 +437,8 @@ export function goalSummaryHeadline(
       return "Waiting for your answer";
     case "blocked":
       return summary.blockedReason ?? "Blocked";
+    case "waiting_provider":
+      return summary.blockedReason ?? "Waiting for the provider";
     case "verifying":
       return "Verifying the result";
     case "completed":

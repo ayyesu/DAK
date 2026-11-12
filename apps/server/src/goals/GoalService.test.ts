@@ -4,6 +4,7 @@ import type {
   Goal,
   GoalCreateInput,
   GoalListResult,
+  GoalMutationResult,
   GoalSummary,
   ModelSelection,
   OrchestrationV2ThreadProjection,
@@ -25,10 +26,17 @@ import * as TestClock from "effect/testing/TestClock";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
+import type {
+  ProjectionRecordField,
+  ProjectionRecordFilter,
+  ProjectionRecords,
+} from "../orchestration-v2/ProjectionStore.ts";
 import * as GoalService from "./GoalService.ts";
 
 const projectId = "project-goals" as ProjectId;
 const modelSelection = { instanceId: "codex", model: "gpt-5.4" } as ModelSelection;
+/** The root node every scripted run reports, so its error item belongs to it. */
+const GOAL_TEST_NODE_ID = "node:1";
 
 // A launch that never resolves keeps the execution loop parked at its first
 // turn, so these tests observe only the user-facing state machine.
@@ -84,6 +92,11 @@ type TurnStep =
   | {
       readonly kind: "run";
       readonly status: "interrupted" | "failed" | "cancelled" | "rolled_back";
+      /**
+       * The provider failure the run carries. A failure of the environment
+       * parks the goal; anything else is the agent's own obstacle.
+       */
+      readonly failureClass?: "usage_limit" | "provider_error" | "transport_error" | "unknown";
     }
   | { readonly kind: "timeout" }
   | { readonly kind: "waitError"; readonly error: "thread" | "run" | "archived" };
@@ -107,6 +120,22 @@ interface GoalScript {
     readonly text: string;
     readonly createdAt: DateTime.DateTime;
   }>;
+  /** The error turn items the failed runs reported. */
+  readonly errorTurnItems: Array<{
+    readonly id: string;
+    readonly type: "error";
+    readonly status: "failed";
+    readonly runId: string;
+    readonly nodeId: string;
+    readonly updatedAt: DateTime.DateTime;
+    readonly ordinal: number;
+    readonly failure: {
+      readonly class: "usage_limit" | "provider_error" | "transport_error" | "unknown";
+      readonly message: string;
+      readonly code: null;
+      readonly retryable: null;
+    };
+  }>;
   readonly holdWaitAt: number | null;
   readonly gate: Gate | null;
   readonly launchMode: "script" | "never" | "noRun" | "noRunOnce";
@@ -125,6 +154,7 @@ function makeScript(options: ScriptOptions = {}): GoalScript {
     stepsByRun: new Map(),
     sentTexts: [],
     messages: [],
+    errorTurnItems: [],
     holdWaitAt: options.holdWaitAt ?? null,
     gate: options.gate ?? null,
     launchMode: options.launchMode ?? "script",
@@ -145,6 +175,24 @@ function makeScript(options: ScriptOptions = {}): GoalScript {
           runId,
           text: step.reply,
           createdAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
+        });
+      }
+      // A failed run reports the provider failure that caused it.
+      if (step.kind === "run" && step.failureClass !== undefined) {
+        script.errorTurnItems.push({
+          id: `item:${runId}`,
+          type: "error",
+          status: "failed",
+          runId,
+          nodeId: GOAL_TEST_NODE_ID,
+          updatedAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
+          ordinal: 0,
+          failure: {
+            class: step.failureClass,
+            message: "the provider is not signed in",
+            code: null,
+            retryable: null,
+          },
         });
       }
     },
@@ -368,7 +416,7 @@ const scriptedDependencies = (script: GoalScript) =>
           const status = step.kind === "completed" ? "completed" : step.status;
           return {
             threadId: input.threadId,
-            run: { id: runId, status },
+            run: { id: runId, status, rootNodeId: GOAL_TEST_NODE_ID },
             timedOut: false,
           } as unknown as ThreadManagementService.ThreadManagementWaitResult;
         }),
@@ -376,6 +424,19 @@ const scriptedDependencies = (script: GoalScript) =>
         Effect.succeed({
           messages: script.messages,
         } as unknown as OrchestrationV2ThreadProjection),
+      getThreadRecords: <K extends ProjectionRecordField>(
+        threadId: ThreadId,
+        _fields: ReadonlyArray<K>,
+        filter?: ProjectionRecordFilter,
+      ) =>
+        Effect.succeed({
+          thread: { id: threadId },
+          turnItems: script.errorTurnItems.filter(
+            (item) =>
+              filter?.turnItemTypes === undefined ||
+              filter.turnItemTypes.includes(item.type),
+          ),
+        } as unknown as ProjectionRecords<K>),
       interruptThread: () => Effect.succeed({ type: "no_active_run" as const }),
     }),
   );
@@ -813,6 +874,163 @@ it.effect("a failed run recovers the task instead of failing the goal", () => {
     expect(full.goal.activities.map((activity) => activity.summary)).toContain(
       "The turn did not complete: Do the thing",
     );
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a provider failure parks the goal and the sweep puts it back to work", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "run", status: "failed", failureClass: "provider_error" },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    // The environment failed, so the goal waits instead of blaming the agent.
+    const parked = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "waiting_provider",
+    );
+    expect(parked.blockedReason).toBe("the provider is not signed in");
+    expect(parked.failureReason).toBeNull();
+
+    // The wait is persisted, so a restart resumes the goal at the same moment.
+    const waiting = yield* service.get({ id: created.goal.id });
+    expect(waiting.goal.turnStartedAt).toBeNull();
+    expect(waiting.goal.tasks).toHaveLength(1);
+    const rows = yield* sql<{ provider_wait_json: string }>`
+      SELECT provider_wait_json FROM goals WHERE goal_id = ${created.goal.id}
+    `;
+    expect(JSON.parse(rows[0]?.provider_wait_json ?? "null")).toMatchObject({
+      class: "provider_error",
+      attempt: 1,
+    });
+
+    // Once its moment comes the sweep puts the goal back to work on its own:
+    // the same task runs again and the goal finishes untouched.
+    yield* TestClock.adjust("31 seconds");
+    yield* service.sweepParkedGoals();
+
+    const done = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "completed",
+    );
+    expect(done.failureReason).toBeNull();
+
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.activities.map((activity) => activity.summary)).toContain(
+      "The provider is back; continuing",
+    );
+    const after = yield* sql<{ provider_wait_json: string | null }>`
+      SELECT provider_wait_json FROM goals WHERE goal_id = ${created.goal.id}
+    `;
+    expect(after[0]?.provider_wait_json ?? null).toBeNull();
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a goal that keeps failing is never ended by a counter", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      // Way past any recovery budget: the ladder reassesses forever and only
+      // evidence stops a task, so the goal works until the work is done.
+      ...Array.from(
+        { length: 8 },
+        () => ({ kind: "completed", reply: taskFailedReport }) as const,
+      ),
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    const done = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "completed",
+    );
+    expect(done.failureReason).toBeNull();
+    expect(done.blockedReason).toBeNull();
+
+    const full = yield* service.get({ id: created.goal.id });
+    const reassessed = full.goal.activities.filter((activity) =>
+      activity.summary.startsWith("Reassessing: Do the thing"),
+    );
+    expect(reassessed.length).toBeGreaterThan(1);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("refuses a second goal on a thread that already has one", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+    holdWaitAt: 0,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const threadId = ThreadId.make("thread:shared");
+    const created = yield* service.create(createInput({ threadId }));
+    // The first turn is held, so this goal cannot finish between the two
+    // creates and quietly make room for the second.
+    yield* Effect.promise(() => gate.reached);
+
+    const failure = yield* service.create(createInput({ threadId })).pipe(Effect.flip);
+    expect(failure.message).toBe(
+      "This thread already has a goal. Finish or cancel it, or start the new goal without this thread.",
+    );
+    expect(failure.goalId).toBe(created.goal.id);
+
+    const fetched = yield* service.get({ id: created.goal.id });
+    expect(fetched.goal.threadId).toBe(threadId);
+    expect(fetched.goal.objective).toBe("Ship the notification settings page");
+
+    gate.release();
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("watches one goal and reports its changes while it is open", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+    holdWaitAt: 0,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+    yield* Effect.promise(() => gate.reached);
+
+    const queue = yield* Queue.unbounded<GoalMutationResult>();
+    const collector = yield* Effect.forkChild(
+      service
+        .watchGoal({ id: created.goal.id })
+        .pipe(Stream.runForEach((result) => Queue.offer(queue, result))),
+    );
+    // The stream opens with the goal as it stands.
+    const snapshot = yield* Queue.take(queue);
+    expect(snapshot.goal.id).toBe(created.goal.id);
+    expect(snapshot.goal.status).toBe("planning");
+
+    yield* service.pause({ id: created.goal.id });
+    const paused = yield* Queue.take(queue);
+    expect(paused.goal.status).toBe("paused");
+
+    yield* Fiber.interrupt(collector);
+    gate.release();
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("a launch without a run still records the thread it created", () => {

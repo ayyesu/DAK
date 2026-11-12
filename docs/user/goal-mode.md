@@ -52,7 +52,10 @@ collapsed card is a single status line — its title, status, what is
 happening now, and a slim progress bar — so it never swallows the chat.
 While a turn is running, the status shows a spinner and counts the current
 turn's age. A goal working through a problem shows **Recovering**, and a task
-waiting on you shows **Waiting for you**. Expand it for the objective, the
+waiting on you shows **Waiting for you**. When the provider itself stops — it
+is signed out, out of quota, or unreachable — the goal shows **Waiting for
+provider** and keeps its plan; DAK retries it on its own and it continues from
+where it stopped. Expand it for the objective, the
 current step, the full plan with each task's status, and the progress
 percentage. Under the progress bar the card names the model running the goal
 and how many turns it has spent. The card folds open and closed with an
@@ -82,7 +85,9 @@ them, and picking one there brings it back.
 
 - **Pause** interrupts right away, even mid-turn; **Resume** continues from the
   same plan. While a goal is waiting for an answer, neither is available:
-  answer it to continue.
+  answer it to continue. A goal **Waiting for provider** can be paused to stop
+  the retries, or resumed to try again immediately instead of waiting out the
+  provider's delay.
 - **Edit** changes the objective or adds requirements. Finished work is kept
   and only the remaining plan changes. An edit keeps the goal's current
   status: a paused goal stays paused until you resume it, and the edit dialog
@@ -104,11 +109,17 @@ Concretely:
 - A failed build or test sends the task back through **recovery**: the agent
   gets the error as context and is asked to fix the cause and verify the fix,
   not to repeat the same command.
-- Recovery is bounded. Once the retries stop producing progress, the agent is
-  asked for a **reassessment**: what is actually blocking, what was tried,
-  what else was considered, and what only you can provide. A goal is only
-  marked **Blocked** when that reassessment comes back with a specific
-  external blocker — never because the agent gave up.
+- Recovery escalates instead of ending. After a few recovery attempts the
+  agent is asked for a **reassessment**: what is actually blocking, what was
+  tried, what else was considered, and what only you can provide. That
+  question is asked as many times as it takes — no count of attempts or
+  reassessments ends a goal. A task is only marked **Blocked** when a
+  reassessment comes back with a specific external blocker — never because
+  the agent gave up.
+- When the provider itself fails — signed out, out of quota, unreachable —
+  the goal parks as **Waiting for provider** instead of failing. It keeps its
+  plan, retries on its own (after a quota limit resets, or with a growing
+  delay), and continues where it stopped once the provider is back.
 - A task waiting on you (**Waiting for you**) pauses only that task. Other
   tasks keep going, and the answer picks the task up exactly where it
   stopped.
@@ -151,10 +162,11 @@ required to fix an issue. A goal can run for weeks or months so long as you
 have tokens; it stops only when it completes, when you cancel it, or when a
 problem genuinely cannot be fixed.
 
-Recovery of a failed task is bounded so a broken task cannot loop forever: the
-agent gets a limited number of recovery attempts, then a reassessment, and
-only a specific external blocker ends the work. Work that made progress starts
-a fresh budget.
+Recovery of a failed task escalates rather than running out: a limited number
+of recovery attempts buys a **reassessment**, and answering the reassessment
+buys more recovery — there is no last rung that ends the goal. Work that made
+progress starts a fresh recovery budget. Only a specific external blocker
+ends the work.
 
 ### Verification requires proof
 
@@ -187,9 +199,13 @@ This means the bar never reaches 100% until verification independently passes. I
   or edit the goal.
 - **Goal shows Needed input**: The agent asked you a question. Answer it to
   continue; the goal picks the task up where it stopped.
-- **Goal shows Failed**: The execution itself broke — the agent stopped
-  reporting progress, or the plan could not be produced. Resume or edit the
-  goal.
+- **Goal shows Failed**: There is no runnable work left and no evidence-backed
+  blocker — for example every task ended without a next step, or the plan came
+  back empty. Retry a task, edit the goal, or resume it.
+- **Goal shows Waiting for provider**: The provider stopped — it is signed
+  out, out of quota, or unreachable. DAK retries on its own and the goal
+  continues when the provider is back; **Resume** tries immediately and
+  **Pause** stops the retries.
 - **Progress stays below 100% while verification is pending**: This is expected — verification is the final unit; it must pass for the bar to reach 100%.
 
 ## Using the thread
@@ -207,7 +223,8 @@ the goal** when it waits behind it.
 Agents can use the `dak_goal_*` MCP tools to list summaries, read full goal
 details, create, update, pause, resume, cancel, answer, or retry a task. List
 first to find a goal's id; use read when you need its full task and activity
-history.
+history. Creating a goal on a thread that already has one is refused; finish
+or cancel it, or start the new goal without that thread.
 
 ## Platform support
 

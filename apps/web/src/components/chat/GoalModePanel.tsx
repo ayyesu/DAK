@@ -268,23 +268,21 @@ function GoalCard(props: {
 
   const collapsed = collapsedState;
   const expanded = !collapsed;
-  // The folded region stays mounted so it can animate, so the details load
-  // with it: re-opening the card must not refetch or flash an empty plan.
-  const detailQuery = useEnvironmentQuery(
-    serverEnvironment.goalDetail({ environmentId, input: { id: goal.id } }),
+  // The detail is built for a goal somebody is looking at. A collapsed card
+  // shows the summary the live list already carries, and an open card opens
+  // the goal's own stream, so the server never builds a detail payload that
+  // nobody reads. The subscription atom keeps its last value for its idle
+  // TTL, so re-opening shows the plan instead of an empty flash.
+  const watchQuery = useEnvironmentQuery(
+    expanded ? serverEnvironment.goalWatch({ environmentId, input: { id: goal.id } }) : null,
   );
-  const goalDetail = detailQuery.data?.goal ?? null;
-  const detailRefresh = detailQuery.refresh;
-  useEffect(() => {
-    if (expanded) detailRefresh();
-  }, [detailRefresh, expanded]);
+  const goalDetail = expanded ? (watchQuery.data?.goal ?? null) : null;
 
-  // Every mutation changes the goal, so the card reads the new state instead
-  // of waiting for the next live push.
+  // Every mutation changes the goal, and the goal's own stream pushes the
+  // change, so the card reads the new state instead of waiting for it.
   const run: GoalRun = async (title, effect, onSuccess) => {
     await props.run(title, effect, (value) => {
       onSuccess?.(value);
-      detailRefresh();
     });
   };
 
