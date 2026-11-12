@@ -12,6 +12,7 @@ import type {
 const GOAL_ACTIVE_STATUSES: ReadonlySet<GoalStatus> = new Set([
   "planning",
   "running",
+  "recovering",
   "verifying",
   "paused",
   "needs_input",
@@ -31,14 +32,18 @@ export function isGoalEnded(status: GoalStatus): boolean {
 
 /** Statuses with a driver dispatching turns; the card spins and counts turn age here. */
 export function isGoalDriven(status: GoalStatus): boolean {
-  return status === "planning" || status === "running" || status === "verifying";
+  return (
+    status === "planning" ||
+    status === "running" ||
+    status === "recovering" ||
+    status === "verifying"
+  );
 }
 
 /** The server only pauses a goal its driver is actively working on. */
 export function canPauseGoal(status: GoalStatus): boolean {
   return isGoalDriven(status);
 }
-
 /** Recoverable states; `failed` and `blocked` resume rather than restart. */
 export function canResumeGoal(status: GoalStatus): boolean {
   return status === "paused" || status === "blocked" || status === "failed" || status === "draft";
@@ -60,6 +65,46 @@ export function goalNeedsAttention(status: GoalStatus): boolean {
   return (
     status === "needs_input" || status === "blocked" || status === "paused" || status === "failed"
   );
+}
+
+/**
+ * Whether the agent is waiting on the user. The question can be open while
+ * the goal keeps working on other tasks, so the card shows the question even
+ * when the goal's status is still "running".
+ */
+export function goalHasOpenQuestion(goal: Pick<GoalSummary, "question">): boolean {
+  return goal.question !== null;
+}
+
+/**
+ * Whether a goal is the one driving this thread's work.
+ *
+ * A goal runs its turns in the thread it is bound to, so the thread knows
+ * that the agent is busy on the goal and not on a plain message.
+ */
+export function goalDrivesThread(
+  goals: ReadonlyArray<Pick<GoalSummary, "threadId" | "status">>,
+  threadId: ThreadId | null,
+): boolean {
+  if (threadId === null) return false;
+  return goals.some((goal) => goal.threadId === threadId && isGoalDriven(goal.status));
+}
+
+/**
+ * The composer's send label while a goal is working in this thread.
+ *
+ * The goal owns the thread's turns, so the button names where the message
+ * lands instead of talking about steering.
+ */
+export function goalSendLabel(kind: "steer" | "queue"): string {
+  return kind === "queue" ? "Queue for the goal" : "Send to the goal";
+}
+
+/** What the composer tells the user about a message sent while a goal runs. */
+export function goalDeliveryNotice(kind: "steer" | "queue"): string {
+  return kind === "queue"
+    ? "A goal is working in this thread. Your message is queued behind the goal's current turn."
+    : "A goal is working in this thread. Your message joins the goal's current turn.";
 }
 
 export interface GoalProgress {
@@ -228,6 +273,8 @@ export function goalStatusLabel(status: GoalStatus): string {
       return "Planning";
     case "running":
       return "Working";
+    case "recovering":
+      return "Recovering";
     case "paused":
       return "Paused";
     case "needs_input":
@@ -269,6 +316,7 @@ export function goalStatusTone(status: GoalStatus): GoalTone {
   switch (status) {
     case "planning":
     case "running":
+    case "recovering":
     case "verifying":
       return "active";
     case "paused":
@@ -287,7 +335,7 @@ export function goalStatusTone(status: GoalStatus): GoalTone {
 
 /** One line that answers "what is happening right now?" for the collapsed card. */
 export function goalHeadline(
-  goal: Pick<Goal, "status" | "tasks" | "currentTaskId" | "blockedReason">,
+  goal: Pick<Goal, "status" | "tasks" | "currentTaskId" | "blockedReason" | "question">,
 ): string {
   switch (goal.status) {
     case "draft":
@@ -304,6 +352,12 @@ export function goalHeadline(
       return current === undefined
         ? `Working${progressSuffix}`
         : `Working on: ${current.title}${progressSuffix}`;
+    }
+    case "recovering": {
+      const current =
+        goal.tasks.find((task) => task.id === goal.currentTaskId) ??
+        goal.tasks.find((task) => task.status === "recovering");
+      return current === undefined ? "Working through a problem" : `Recovering: ${current.title}`;
     }
     case "paused":
       return "Paused";
@@ -326,7 +380,12 @@ export function goalHeadline(
 export function goalSummaryHeadline(
   summary: Pick<
     GoalSummary,
-    "status" | "currentTaskTitle" | "completedTaskCount" | "totalTaskCount" | "blockedReason"
+    | "status"
+    | "currentTaskTitle"
+    | "completedTaskCount"
+    | "totalTaskCount"
+    | "blockedReason"
+    | "question"
   >,
 ): string {
   switch (summary.status) {
@@ -343,6 +402,10 @@ export function goalSummaryHeadline(
         ? `Working${progressSuffix}`
         : `Working on: ${summary.currentTaskTitle}${progressSuffix}`;
     }
+    case "recovering":
+      return summary.currentTaskTitle === null
+        ? "Working through a problem"
+        : `Recovering: ${summary.currentTaskTitle}`;
     case "paused":
       return "Paused";
     case "needs_input":
@@ -366,12 +429,14 @@ export function goalTaskStatusLabel(status: GoalTaskStatus): string {
       return "Pending";
     case "in_progress":
       return "Currently executing";
+    case "recovering":
+      return "Recovering";
+    case "waiting_input":
+      return "Waiting for you";
     case "completed":
       return "Completed";
-    case "blocked":
-      return "Blocked";
     case "failed":
-      return "Failed";
+      return "Could not finish";
   }
 }
 
@@ -411,6 +476,41 @@ export function currentGoalTask(
   if (active !== undefined) return active;
   if (goal.currentTaskId === null) return null;
   return goal.tasks.find((task) => task.id === goal.currentTaskId) ?? null;
+}
+
+/**
+ * The task parked on the user.
+ *
+ * A question parks one task, not the goal, so the card names the task the
+ * answer unblocks instead of leaving the user to hunt for it.
+ */
+export function goalWaitingTask(goal: Pick<Goal, "tasks">): GoalTask | null {
+  return goal.tasks.find((task) => task.status === "waiting_input") ?? null;
+}
+
+/**
+ * The user's own words for the goal, when they add something to the title.
+ *
+ * The server names the goal from the objective, so the two usually differ
+ * in wording. Showing the objective keeps the user's request visible.
+ */
+export function goalObjectiveText(goal: Pick<Goal, "objective" | "title">): string | null {
+  const objective = goal.objective.trim();
+  if (objective === "") return null;
+  if (objective === goal.title.trim()) return null;
+  return objective;
+}
+
+/**
+ * The meta line under the progress bar: which model runs the goal and how
+ * much work it has already done.
+ */
+export function goalMetaLine(goal: Pick<Goal, "modelSelection" | "cycleCount">): string | null {
+  const model = goal.modelSelection.model.trim();
+  const turns = goal.cycleCount;
+  const turnPart = turns === 1 ? "1 turn" : `${turns} turns`;
+  if (model === "") return turnPart;
+  return `${model} · ${turnPart}`;
 }
 
 /** Mirrors the server's acceptance-criteria bounds so input never trips the schema. */

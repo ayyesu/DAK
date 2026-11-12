@@ -13,11 +13,16 @@ import { ProviderInteractionMode, RuntimeMode } from "./providerPolicy.ts";
  * A goal moves through these states while the server drives its execution
  * loop. `draft` is reserved for a goal stored before planning starts; clients
  * never create one, but an interrupted create can be recovered into it.
+ *
+ * `recovering` means the agent hit an obstacle and is working through it.
+ * `needs_input` means it is waiting for the user. `blocked` is reserved for a
+ * genuine deadlock with evidence behind it.
  */
 export const GoalStatus = Schema.Literals([
   "draft",
   "planning",
   "running",
+  "recovering",
   "paused",
   "needs_input",
   "blocked",
@@ -28,11 +33,41 @@ export const GoalStatus = Schema.Literals([
 ]);
 export type GoalStatus = typeof GoalStatus.Type;
 
+/**
+ * The evidence a blocked task or goal must carry. The server only accepts a
+ * block when every part of this assessment is present, so a block is a
+ * conclusion drawn from execution, not a shrug.
+ */
+export const GoalBlocker = Schema.Struct({
+  /** The exact thing that stopped the work. */
+  reason: Schema.String,
+  /** Why it is true. */
+  rootCause: Schema.String,
+  /** What was inspected to find it. */
+  investigation: Schema.String,
+  /** The recovery attempts that were made. */
+  attempts: Schema.Array(Schema.String),
+  /** The alternatives that were considered. */
+  alternatives: Schema.Array(Schema.String),
+  /** The external intervention that would unblock it. */
+  intervention: Schema.String,
+  /** Whether other independent tasks can still make progress. */
+  otherTasksCanContinue: Schema.Boolean,
+});
+export type GoalBlocker = typeof GoalBlocker.Type;
+
+/**
+ * A task never sits in a bare `blocked` state: an obstacle either sends it
+ * through `recovering` (the agent is still working on it) or `waiting_input`
+ * (only the user can move it forward). `failed` means the recovery budget was
+ * spent and the task needs a decision.
+ */
 export const GoalTaskStatus = Schema.Literals([
   "pending",
   "in_progress",
+  "recovering",
+  "waiting_input",
   "completed",
-  "blocked",
   "failed",
 ]);
 export type GoalTaskStatus = typeof GoalTaskStatus.Type;
@@ -49,7 +84,23 @@ export const GoalTask = Schema.Struct({
   completedAt: Schema.NullOr(IsoDateTime),
   /** What the agent reported as proof the task is done; never inferred. */
   evidence: Schema.NullOr(Schema.String),
+  /** The question this task is waiting on, when it needs the user. */
+  question: Schema.NullOr(Schema.String),
+  /**
+   * The evidence behind this task's dead end. A task only carries one when
+   * the agent produced a full assessment of what is blocking it.
+   */
+  blocker: Schema.NullOr(GoalBlocker),
   attempts: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  /** Recovery turns spent on the current obstacle. Drives reassessment. */
+  recoveryAttempts: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  /** Reassessment turns spent after the recovery budget was exhausted. */
+  reassessments: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  /**
+   * Tasks that must complete before this one runs. Empty means independent, so
+   * a task waiting on the user never holds up the rest of the plan.
+   */
+  dependsOn: Schema.Array(TrimmedNonEmptyString),
 });
 export type GoalTask = typeof GoalTask.Type;
 
@@ -59,10 +110,14 @@ export const GoalActivityKind = Schema.Literals([
   "task_started",
   "task_completed",
   "task_failed",
+  "task_recovering",
+  "task_waiting_input",
   "task_blocked",
   "status",
   "prompt",
   "user",
+  "recovery",
+  "reassessment",
   "verification",
   "error",
 ]);
@@ -140,6 +195,12 @@ export const Goal = Schema.Struct({
   verification: GoalVerification,
   blockedReason: Schema.NullOr(Schema.String),
   failureReason: Schema.NullOr(Schema.String),
+  /** The open question the agent asked, when it is waiting for the user. */
+  question: Schema.NullOr(Schema.String),
+  /** The task the open question belongs to. */
+  questionTaskId: Schema.NullOr(Schema.String),
+  /** The evidence behind a blocked goal; null while the goal is not blocked. */
+  blocker: Schema.NullOr(GoalBlocker),
   /** The agent's own progress estimate (0-100), reported each turn. */
   progress: Schema.NullOr(Schema.Int),
   /** Human label for the agent's reported progress. */
@@ -182,6 +243,8 @@ export const GoalSummary = Schema.Struct({
   turnStartedAt: Schema.NullOr(IsoDateTime),
   blockedReason: Schema.NullOr(Schema.String),
   failureReason: Schema.NullOr(Schema.String),
+  /** The open question the agent asked, when one is waiting for the user. */
+  question: Schema.NullOr(Schema.String),
   /** The agent's own progress estimate (0-100), reported each turn. */
   progress: Schema.NullOr(Schema.Int),
   /** Human label for the agent's reported progress. */
@@ -271,5 +334,18 @@ export class GoalError extends Schema.TaggedError<GoalError>()("GoalError", {
 export const GOAL_ACTIVITY_LIMIT = 40;
 /** Tasks one plan may contain. No cap: the agent decides its own approach. */
 export const GOAL_MAX_TASKS = 10_000;
-/** Consecutive turns without a usable progress report before a goal is blocked. */
-export const GOAL_MAX_IDLE_CYCLES = 2;
+/**
+ * Recovery turns a task may spend on one failure before the server asks the
+ * agent to reassess instead of retrying. Exhausting this is a reassessment
+ * trigger, never an automatic block.
+ */
+export const GOAL_RECOVERY_ATTEMPTS = 4;
+/** Reassessments a task may go through before a deadlock is treated as real. */
+export const GOAL_MAX_REASSESSMENTS = 2;
+/**
+ * Consecutive turns without a usable progress report before the server nudges
+ * the agent to reassess. A report resets this.
+ */
+export const GOAL_MAX_IDLE_CYCLES = 3;
+/** Verification repair rounds before the server asks for a reassessment. */
+export const GOAL_MAX_VERIFY_REPAIR_ROUNDS = 3;

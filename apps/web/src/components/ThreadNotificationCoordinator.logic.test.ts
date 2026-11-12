@@ -20,6 +20,9 @@ const baseGoal: Omit<Goal, "id" | "status" | "updatedAt"> = {
   verification: { status: "pending", summary: null, checkedAt: null },
   blockedReason: null,
   failureReason: null,
+  question: null,
+  questionTaskId: null,
+  blocker: null,
   progress: null,
   progressLabel: null,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -99,5 +102,26 @@ describe("goalNotification", () => {
 
     expect(goalNotification(prior, next)).toBeNull();
     expect(next.attention).toBeNull();
+  });
+
+  it("asks for attention when a question opens while the goal keeps working", () => {
+    const prior = advanceGoalNotice(goal({ id: "goal:1", status: "running" }));
+    expect(prior.attention).toBeNull();
+
+    const next = advanceGoalNotice(
+      goal({ id: "goal:1", status: "running", question: "Which credential do I use?" }),
+    );
+    expect(goalNotification(prior, next)).toBe("attention");
+  });
+
+  it("asks again when the question changes", () => {
+    const prior = advanceGoalNotice(
+      goal({ id: "goal:1", status: "running", question: "Which credential do I use?" }),
+    );
+    const next = advanceGoalNotice(
+      goal({ id: "goal:1", status: "running", question: "Which account do I use?" }),
+    );
+
+    expect(goalNotification(prior, next)).toBe("attention");
   });
 });

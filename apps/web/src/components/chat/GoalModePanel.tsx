@@ -9,6 +9,7 @@ import type {
   GoalSummary,
   GoalTask,
   ProjectId,
+  RunId,
   ThreadId,
 } from "@dak/contracts";
 import { scopeThreadRef } from "@dak/client-runtime/environment";
@@ -20,6 +21,7 @@ import {
   ChevronUpIcon,
   CircleIcon,
   ExternalLinkIcon,
+  HistoryIcon,
   ListTreeIcon,
   PauseIcon,
   PencilIcon,
@@ -38,6 +40,7 @@ import { buildThreadRouteParams } from "../../threadRoutes";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
+import type { TurnDiffSummary } from "../../types";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -52,7 +55,11 @@ import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Spinner } from "../ui/spinner";
 import { Textarea } from "../ui/textarea";
 import { toastManager } from "../ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { onOpenGoalComposer } from "../../goalModeBus";
+import { GoalBlockerPanel } from "./GoalBlockerPanel";
+import { GoalChangedFiles } from "./GoalChangedFiles";
+import { goalChangedFiles } from "./GoalChanges.logic";
 import {
   canCancelGoal,
   canEditGoal,
@@ -63,7 +70,10 @@ import {
   formatGoalActivityTime,
   formatGoalTurnElapsed,
   goalCriterionStates,
+  goalHasOpenQuestion,
+  goalMetaLine,
   goalNeedsAttention,
+  goalObjectiveText,
   goalProgress,
   goalProgressLabel,
   goalSummaryHeadline,
@@ -72,6 +82,7 @@ import {
   goalStatusTone,
   goalTaskStatusLabel,
   goalVerificationStatusLabel,
+  goalWaitingTask,
   isGoalActive,
   isGoalDriven,
   selectGoalForThread,
@@ -117,7 +128,10 @@ function GoalTaskIcon({ task }: { readonly task: GoalTask }) {
   if (task.status === "in_progress") {
     return <Spinner aria-hidden size="xs" />;
   }
-  if (task.status === "failed" || task.status === "blocked") {
+  if (task.status === "recovering") {
+    return <RotateCcwIcon aria-hidden className="size-4 text-info" />;
+  }
+  if (task.status === "waiting_input" || task.status === "failed") {
     return <TriangleAlertIcon aria-hidden className="size-4 text-warning" />;
   }
   return <CircleIcon aria-hidden className="size-4 text-muted-foreground/40" />;
@@ -221,11 +235,15 @@ function GoalCard(props: {
   /** The composer above is open; the card stays compact until it closes. */
   readonly compact: boolean;
   readonly run: GoalRun;
+  /** The thread's changed files, for the goal's own file summary. */
+  readonly turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
+  /** Opens the diff panel on a turn's file. */
+  readonly onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
   readonly onHide: () => void;
   readonly onSelectOther: (goalId: GoalSummary["id"]) => void;
   readonly onStartAnother: () => void;
 }) {
-  const { environmentId, goal, canOperate, busy, compact, run } = props;
+  const { environmentId, goal, canOperate, busy } = props;
   const updateGoal = useAtomCommand(serverEnvironment.updateGoal, { label: "update goal" });
   const pauseGoal = useAtomCommand(serverEnvironment.pauseGoal, { label: "pause goal" });
   const resumeGoal = useAtomCommand(serverEnvironment.resumeGoal, { label: "resume goal" });
@@ -245,14 +263,15 @@ function GoalCard(props: {
   const [activityOpen, setActivityOpen] = useState(false);
   const [allTasksOpen, setAllTasksOpen] = useState(false);
   const [allCriteriaOpen, setAllCriteriaOpen] = useState(false);
+  const [otherGoalsOpen, setOtherGoalsOpen] = useState(false);
   const nowMinute = useNowMinute();
 
   const collapsed = collapsedState;
   const expanded = !collapsed;
-  // Details load only for the expanded card; the list keeps collapsed cards
-  // on lightweight summaries.
+  // The folded region stays mounted so it can animate, so the details load
+  // with it: re-opening the card must not refetch or flash an empty plan.
   const detailQuery = useEnvironmentQuery(
-    expanded ? serverEnvironment.goalDetail({ environmentId, input: { id: goal.id } }) : null,
+    serverEnvironment.goalDetail({ environmentId, input: { id: goal.id } }),
   );
   const goalDetail = detailQuery.data?.goal ?? null;
   const detailRefresh = detailQuery.refresh;
@@ -260,11 +279,21 @@ function GoalCard(props: {
     if (expanded) detailRefresh();
   }, [detailRefresh, expanded]);
 
+  // Every mutation changes the goal, so the card reads the new state instead
+  // of waiting for the next live push.
+  const run: GoalRun = async (title, effect, onSuccess) => {
+    await props.run(title, effect, (value) => {
+      onSuccess?.(value);
+      detailRefresh();
+    });
+  };
+
   const progress = goalDetail ? goalProgress(goalDetail) : goalSummaryProgress(goal);
   const tone = goalStatusTone(goal.status);
-  const attention = goalNeedsAttention(goal.status);
+  const attention = goalNeedsAttention(goal.status) || goalHasOpenQuestion(goal);
   const active = isGoalActive(goal.status);
   const current = goalDetail ? currentGoalTask(goalDetail) : null;
+  const waitingTask = goalDetail ? goalWaitingTask(goalDetail) : null;
   const tasks = goalDetail?.tasks ?? [];
   const hiddenTasks = allTasksOpen ? 0 : Math.max(0, tasks.length - VISIBLE_TASK_LIMIT);
   const shownTasks = allTasksOpen ? tasks : tasks.slice(0, VISIBLE_TASK_LIMIT);
@@ -292,14 +321,27 @@ function GoalCard(props: {
         ? { text: goal.failureReason, tone: "danger" as const }
         : null;
 
+  // The agent's question is asked of the user, so it shows whether the goal
+  // is running other work or parked on the answer.
+  const question = goal.question ?? goalDetail?.question ?? null;
+  // The user asked for this in their own words; the server's title is a
+  // summary of it.
+  const objective = goalDetail === null ? null : goalObjectiveText(goalDetail);
+  const meta = goalDetail === null ? null : goalMetaLine(goalDetail);
+  // The file changes belong to the goal's own thread; another thread's
+  // checkpoints would describe work this goal never did.
+  const showChanges = goal.threadId !== null && goal.threadId === props.threadId;
+  const changes = goalChangedFiles({
+    summaries: showChanges ? props.turnDiffSummaries : [],
+    startedAt: goalDetail?.startedAt ?? null,
+  });
   return (
     <>
-      <div className="flex shrink-0 items-start gap-2 px-3.5 pt-3">
-        {compact ? (
-          <span className="mt-0.5 shrink-0 text-muted-foreground">
-            <TargetIcon aria-hidden className="size-4" />
-          </span>
-        ) : (
+      {/* The title row and the bar stay pinned while the details scroll under
+          them; the card is the scroll container, so a long plan can never push
+          the composer down. */}
+      <div className="sticky top-0 z-10 shrink-0 bg-card/90 backdrop-blur-xl">
+        <div className="flex shrink-0 items-start gap-2 px-3.5 pt-3">
           <button
             type="button"
             aria-expanded={!collapsed}
@@ -307,127 +349,138 @@ function GoalCard(props: {
             className="mt-0.5 shrink-0 rounded-md text-muted-foreground transition-colors hover:text-foreground"
             onClick={() => setCollapsedState((value) => !value)}
           >
-            <TargetIcon aria-hidden className="size-4" />
-          </button>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
-            <GoalStatusPill goal={goal} />
-            {isGoalDriven(goal.status) && goal.turnStartedAt !== null ? (
-              <GoalTurnElapsed startedAt={goal.turnStartedAt} />
-            ) : null}
-          </div>
-          {reasonBox === null ? (
-            <p
-              aria-live="polite"
+            <ChevronDownIcon
+              aria-hidden
               className={cn(
-                "mt-0.5 truncate text-xs",
-                attention ? "text-warning" : "text-muted-foreground",
+                "size-4 transition-transform duration-200 ease-out motion-reduce:transition-none",
+                !collapsed && "rotate-180",
               )}
-            >
-              {goalSummaryHeadline(goal)}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-0.5">
-          {goal.threadId !== null && goal.threadId !== props.threadId ? (
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              aria-label="Open the goal's thread"
-              onClick={() =>
-                void navigate({
-                  to: "/$environmentId/$threadId",
-                  params: buildThreadRouteParams(
-                    scopeThreadRef(environmentId, goal.threadId as ThreadId),
-                  ),
-                })
-              }
-            >
-              <ExternalLinkIcon aria-hidden className="size-3.5" />
-            </Button>
-          ) : null}
-          {active ? null : (
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              aria-label="Hide this finished goal"
-              onClick={props.onHide}
-            >
-              <XIcon aria-hidden className="size-3.5" />
-            </Button>
-          )}
-          {props.otherGoals.length > 0 ? (
-            <Popover>
-              <PopoverTrigger
-                render={
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label={`Show ${props.otherGoals.length} other goals`}
-                  />
+            />
+          </button>
+          <TargetIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <h3 className="truncate text-sm font-semibold">{goal.title}</h3>
+              <GoalStatusPill goal={goal} />
+              {isGoalDriven(goal.status) && goal.turnStartedAt !== null ? (
+                <GoalTurnElapsed startedAt={goal.turnStartedAt} />
+              ) : null}
+            </div>
+            {reasonBox === null ? (
+              <p
+                aria-live="polite"
+                className={cn(
+                  "mt-0.5 truncate text-xs",
+                  attention ? "text-warning" : "text-muted-foreground",
+                )}
+              >
+                {goalSummaryHeadline(goal)}
+              </p>
+            ) : null}
+            {objective === null ? null : (
+              <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-muted-foreground/80">
+                {objective}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-0.5">
+            {goal.threadId !== null && goal.threadId !== props.threadId ? (
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                aria-label="Open the goal's thread"
+                onClick={() =>
+                  void navigate({
+                    to: "/$environmentId/$threadId",
+                    params: buildThreadRouteParams(
+                      scopeThreadRef(environmentId, goal.threadId as ThreadId),
+                    ),
+                  })
                 }
               >
-                <ListTreeIcon aria-hidden className="size-3.5" />
-              </PopoverTrigger>
-              <PopoverPopup align="end" className="w-64">
-                <p className="px-2 pb-1 text-2xs font-medium text-muted-foreground">Other goals</p>
-                {props.otherGoals.map((candidate) => (
-                  <button
-                    key={candidate.id}
-                    type="button"
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
-                    onClick={() => props.onSelectOther(candidate.id)}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{candidate.title}</span>
-                    <span className="shrink-0 text-2xs text-muted-foreground">
-                      {goalStatusLabel(candidate.status)}
-                    </span>
-                  </button>
-                ))}
-              </PopoverPopup>
-            </Popover>
-          ) : null}
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            aria-label="Start another goal"
-            disabled={!canOperate}
-            onClick={props.onStartAnother}
-          >
-            <PlusIcon aria-hidden className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="shrink-0 px-3.5 pt-2">
-        <div
-          role="progressbar"
-          aria-label="Goal progress"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={progress.percent}
-          className="h-1 overflow-hidden rounded-full bg-muted"
-        >
-          {/* scaleX keeps the growth on the compositor instead of
-              re-laying out the row on every percent step. */}
-          <div
-            className={cn(
-              "h-full w-full origin-left rounded-full transition-transform duration-500 ease-out",
-              TONE_BAR[tone],
+                <ExternalLinkIcon aria-hidden className="size-3.5" />
+              </Button>
+            ) : null}
+            {active ? null : (
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                aria-label="Hide this finished goal"
+                onClick={props.onHide}
+              >
+                <XIcon aria-hidden className="size-3.5" />
+              </Button>
             )}
-            style={{ transform: `scaleX(${progress.percent / 100})` }}
-          />
-        </div>
-        {collapsed ? null : (
-          <div className="flex items-baseline justify-between gap-2 pt-2">
-            <span className="text-xl font-semibold tabular-nums leading-6">
-              {progress.percent}%
-            </span>
-            <span className="text-2xs text-muted-foreground">{goalProgressLabel(progress)}</span>
+            {props.otherGoals.length > 0 ? (
+              <Popover open={otherGoalsOpen} onOpenChange={setOtherGoalsOpen}>
+                <PopoverTrigger
+                  render={
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={`Show ${props.otherGoals.length} other goals`}
+                    />
+                  }
+                >
+                  <ListTreeIcon aria-hidden className="size-3.5" />
+                </PopoverTrigger>
+                <PopoverPopup align="end" className="w-64">
+                  <p className="px-2 pb-1 text-2xs font-medium text-muted-foreground">
+                    Other goals
+                  </p>
+                  {props.otherGoals.map((candidate) => (
+                    <button
+                      key={candidate.id}
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+                      onClick={() => {
+                        // The list is a picker: staying open over the card it
+                        // just replaced reads as a menu that ignored the click.
+                        setOtherGoalsOpen(false);
+                        props.onSelectOther(candidate.id);
+                      }}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{candidate.title}</span>
+                      <span className="shrink-0 text-2xs text-muted-foreground">
+                        {goalStatusLabel(candidate.status)}
+                      </span>
+                    </button>
+                  ))}
+                </PopoverPopup>
+              </Popover>
+            ) : null}
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              aria-label="Start another goal"
+              disabled={!canOperate}
+              onClick={props.onStartAnother}
+            >
+              <PlusIcon aria-hidden className="size-3.5" />
+            </Button>
           </div>
-        )}
+        </div>
+
+        <div className="px-3.5 pt-2">
+          <div
+            role="progressbar"
+            aria-label="Goal progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress.percent}
+            className="h-1 overflow-hidden rounded-full bg-muted"
+          >
+            {/* scaleX keeps the growth on the compositor instead of
+                re-laying out the row on every percent step. */}
+            <div
+              className={cn(
+                "h-full w-full origin-left rounded-full transition-transform duration-500 ease-out",
+                TONE_BAR[tone],
+              )}
+              style={{ transform: `scaleX(${progress.percent / 100})` }}
+            />
+          </div>
+        </div>
       </div>
 
       {reasonBox === null ? null : (
@@ -451,11 +504,75 @@ function GoalCard(props: {
         </div>
       )}
 
-      {collapsed ? null : (
-        <>
-          {/* Header, bar and actions stay pinned; only this region scrolls, so
-              a long plan can never push the card past the viewport. */}
-          <div className="min-h-0 grow overflow-y-auto">
+      {/* The agent's question stays outside the fold: it asks the user for an
+          answer, so it must not hide behind a collapsed card. */}
+      {question !== null ? (
+        <div className="mx-3.5 mt-2.5 rounded-xl border border-warning/30 bg-warning/5 p-2">
+          <p className="text-xs text-foreground">{question}</p>
+          {waitingTask === null ? null : (
+            <p className="mt-0.5 text-2xs text-muted-foreground">
+              Answering resumes “{waitingTask.title}”. The rest of the plan keeps going.
+            </p>
+          )}
+          <div className="mt-1.5 flex items-end gap-1.5">
+            <Textarea
+              aria-label="Answer the agent's question"
+              placeholder="Your answer…"
+              rows={1}
+              value={answerText}
+              className="min-h-8 resize-none"
+              onChange={(event) => setAnswerText(event.target.value)}
+            />
+            <Button
+              size="xs"
+              disabled={!canOperate || busy || answerText.trim() === ""}
+              onClick={() =>
+                void run(
+                  "Could not send the answer",
+                  () =>
+                    answerGoal({
+                      environmentId,
+                      input: { id: goal.id, text: answerText.trim() },
+                    }),
+                  () => setAnswerText(""),
+                )
+              }
+            >
+              Send
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* The details fold away with a height transition instead of blinking
+          out; the card itself scrolls, so a long plan never pushes the
+          composer down. */}
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+          collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100",
+        )}
+        inert={collapsed ? true : undefined}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="flex flex-col">
+            <div className="flex items-baseline justify-between gap-2 px-3.5 pt-2">
+              <span className="text-xl font-semibold tabular-nums leading-6">
+                {progress.percent}%
+              </span>
+              <span className="text-2xs text-muted-foreground">{goalProgressLabel(progress)}</span>
+            </div>
+            {meta === null ? null : (
+              <p className="truncate px-3.5 pt-0.5 text-2xs text-muted-foreground/80">{meta}</p>
+            )}
+            {goalDetail?.blocker == null ? null : (
+              <div className="mx-3.5 mt-2.5 overflow-y-auto">
+                <GoalBlockerPanel
+                  blocker={goalDetail.blocker}
+                  className="max-h-40 overflow-y-auto"
+                />
+              </div>
+            )}
             {shownTasks.length > 0 ? (
               <ul className="mt-2.5 list-none space-y-0 px-3.5">
                 {shownTasks.map((task, index) => {
@@ -486,7 +603,7 @@ function GoalCard(props: {
                           ) : null}
                           {canOperate &&
                           canRetryGoal(goal.status) &&
-                          (task.status === "failed" || task.status === "blocked") &&
+                          (task.status === "failed" || task.status === "waiting_input") &&
                           !busy ? (
                             <button
                               type="button"
@@ -508,6 +625,16 @@ function GoalCard(props: {
                         <p className="truncate text-2xs text-muted-foreground">
                           {task.evidence ?? goalTaskStatusLabel(task.status)}
                         </p>
+                        {task.question === null || task.question === question ? null : (
+                          <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-warning">
+                            {task.question}
+                          </p>
+                        )}
+                        {task.blocker === null ? null : (
+                          <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-destructive/90">
+                            {task.blocker.reason}
+                          </p>
+                        )}
                       </div>
                     </li>
                   );
@@ -527,6 +654,10 @@ function GoalCard(props: {
               >
                 {allTasksOpen ? "Show fewer tasks" : `Show ${hiddenTasks} more tasks`}
               </button>
+            ) : null}
+
+            {showChanges ? (
+              <GoalChangedFiles changes={changes} onOpenTurnDiff={props.onOpenTurnDiff} />
             ) : null}
 
             {showVerification ? (
@@ -591,39 +722,6 @@ function GoalCard(props: {
                       : `Show ${hiddenCriteria} more criteria`}
                   </button>
                 ) : null}
-              </div>
-            ) : null}
-
-            {goal.status === "needs_input" ? (
-              <div className="mx-3.5 mb-2 rounded-xl border border-warning/30 bg-warning/5 p-2">
-                <p className="text-xs text-foreground">{goal.blockedReason}</p>
-                <div className="mt-1.5 flex items-end gap-1.5">
-                  <Textarea
-                    aria-label="Answer the agent's question"
-                    placeholder="Your answer…"
-                    rows={1}
-                    value={answerText}
-                    className="min-h-8 resize-none"
-                    onChange={(event) => setAnswerText(event.target.value)}
-                  />
-                  <Button
-                    size="xs"
-                    disabled={!canOperate || busy || answerText.trim() === ""}
-                    onClick={() =>
-                      void run(
-                        "Could not send the answer",
-                        () =>
-                          answerGoal({
-                            environmentId,
-                            input: { id: goal.id, text: answerText.trim() },
-                          }),
-                        () => setAnswerText(""),
-                      )
-                    }
-                  >
-                    Send
-                  </Button>
-                </div>
               </div>
             ) : null}
 
@@ -718,78 +816,103 @@ function GoalCard(props: {
               </div>
             ) : null}
           </div>
+        </div>
+      </div>
 
-          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/60 px-2 py-1.5">
-            <div className="flex items-center gap-0.5">
-              {canPauseGoal(goal.status) ? (
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  disabled={!canOperate || busy}
-                  onClick={() =>
-                    void run("Could not pause the goal", () =>
-                      pauseGoal({ environmentId, input: { id: goal.id } }),
-                    )
-                  }
-                >
-                  <PauseIcon aria-hidden className="size-3.5" />
-                  Pause
-                </Button>
-              ) : null}
-              {canResumeGoal(goal.status) ? (
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  disabled={!canOperate || busy}
-                  onClick={() =>
-                    void run("Could not resume the goal", () =>
-                      resumeGoal({ environmentId, input: { id: goal.id } }),
-                    )
-                  }
-                >
-                  <PlayIcon aria-hidden className="size-3.5" />
-                  Resume
-                </Button>
-              ) : null}
-              {canEditGoal(goal.status) && editText === null ? (
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  disabled={!canOperate || busy}
-                  onClick={() => setEditText(goalDetail?.objective ?? "")}
-                >
-                  <PencilIcon aria-hidden className="size-3.5" />
-                  Edit
-                </Button>
-              ) : null}
-              {canCancelGoal(goal.status) ? (
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  disabled={!canOperate || busy}
-                  onClick={() => setCancelOpen(true)}
-                >
-                  <XIcon aria-hidden className="size-3.5" />
-                  Cancel
-                </Button>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="hidden text-2xs text-muted-foreground sm:inline">
-                {formatGoalActivityTime(goal.lastActivityAt, now)}
-              </span>
-              <Button size="xs" variant="ghost" onClick={() => setActivityOpen((value) => !value)}>
-                {activityOpen ? "Hide activity" : "View activity"}
-                {activityOpen ? (
-                  <ChevronUpIcon aria-hidden className="size-3.5" />
-                ) : (
-                  <ChevronDownIcon aria-hidden className="size-3.5" />
-                )}
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
+      <div className="sticky bottom-0 z-10 flex shrink-0 items-center justify-between gap-2 border-t border-border/60 bg-card/90 px-2 py-1.5 backdrop-blur-xl">
+        <div className="flex items-center gap-0.5">
+          {canPauseGoal(goal.status) ? (
+            <Button
+              size="xs"
+              variant="ghost"
+              disabled={!canOperate || busy}
+              onClick={() =>
+                void run("Could not pause the goal", () =>
+                  pauseGoal({ environmentId, input: { id: goal.id } }),
+                )
+              }
+            >
+              <PauseIcon aria-hidden className="size-3.5" />
+              Pause
+            </Button>
+          ) : null}
+          {canResumeGoal(goal.status) ? (
+            <Button
+              size="xs"
+              variant="ghost"
+              disabled={!canOperate || busy}
+              onClick={() =>
+                void run("Could not resume the goal", () =>
+                  resumeGoal({ environmentId, input: { id: goal.id } }),
+                )
+              }
+            >
+              <PlayIcon aria-hidden className="size-3.5" />
+              Resume
+            </Button>
+          ) : null}
+          {canEditGoal(goal.status) && editText === null ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    // The objective only arrives with the goal's details, so
+                    // editing before they land would open an empty goal.
+                    disabled={!canOperate || busy || goalDetail === null}
+                    onClick={() => {
+                      // The editor lives in the folded region, so opening it
+                      // has to bring the card back.
+                      setCollapsedState(false);
+                      setEditText(goalDetail?.objective ?? "");
+                    }}
+                  />
+                }
+              >
+                <PencilIcon aria-hidden className="size-3.5" />
+                Edit
+              </TooltipTrigger>
+              <TooltipPopup side="top">
+                {goalDetail === null ? "Loading the goal…" : "Change what the goal is for"}
+              </TooltipPopup>
+            </Tooltip>
+          ) : null}
+          {canCancelGoal(goal.status) ? (
+            <Button
+              size="xs"
+              variant="ghost"
+              disabled={!canOperate || busy}
+              onClick={() => setCancelOpen(true)}
+            >
+              <XIcon aria-hidden className="size-3.5" />
+              Cancel
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="hidden text-2xs text-muted-foreground sm:inline">
+            {formatGoalActivityTime(goal.lastActivityAt, now)}
+          </span>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => {
+              // The log lives in the folded region, so opening it has to
+              // bring the card back.
+              if (!activityOpen) setCollapsedState(false);
+              setActivityOpen((value) => !value);
+            }}
+          >
+            {activityOpen ? "Hide activity" : "View activity"}
+            {activityOpen ? (
+              <ChevronUpIcon aria-hidden className="size-3.5" />
+            ) : (
+              <ChevronDownIcon aria-hidden className="size-3.5" />
+            )}
+          </Button>
+        </div>
+      </div>
 
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <AlertDialogPopup>
@@ -841,6 +964,10 @@ export function GoalModePanel(props: {
   readonly onGoalModeOpenChange: (open: boolean) => void;
   /** The goal this panel's thread just started; selects it for display. */
   readonly focusGoalId: string | null;
+  /** The thread's changed files, so a goal can report what it changed. */
+  readonly turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
+  /** Opens the diff panel on a turn's file. */
+  readonly onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
 }) {
   const { environmentId, projectId } = props;
   const canOperateGoal = useAtomValue(serverEnvironment.createGoal.permissionAtom(environmentId));
@@ -856,6 +983,7 @@ export function GoalModePanel(props: {
   // A finished goal stays visible so its result can be read; hiding it is a
   // session choice, not a server change.
   const [hiddenGoalIds, setHiddenGoalIds] = useState<ReadonlySet<string>>(new Set());
+  const [hiddenGoalsOpen, setHiddenGoalsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   // The selection belongs to one thread; switching threads must not keep
@@ -873,12 +1001,20 @@ export function GoalModePanel(props: {
   // state; subscribe here, next to the consumer.
   useEffect(() => onOpenGoalComposer(() => props.onGoalModeOpenChange(true)), [props]);
 
-  const goals = useMemo(
+  const allGoals = useMemo(
     () =>
-      [...(goalsQuery.data?.goals ?? [])]
-        .filter((candidate) => !hiddenGoalIds.has(candidate.id))
-        .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [goalsQuery.data, hiddenGoalIds],
+      [...(goalsQuery.data?.goals ?? [])].toSorted((a, b) =>
+        b.updatedAt.localeCompare(a.updatedAt),
+      ),
+    [goalsQuery.data],
+  );
+  const goals = useMemo(
+    () => allGoals.filter((candidate) => !hiddenGoalIds.has(candidate.id)),
+    [allGoals, hiddenGoalIds],
+  );
+  const hiddenGoals = useMemo(
+    () => allGoals.filter((candidate) => hiddenGoalIds.has(candidate.id)),
+    [allGoals, hiddenGoalIds],
   );
   const goal =
     goals.find((candidate) => candidate.id === selectedGoalId) ??
@@ -886,7 +1022,9 @@ export function GoalModePanel(props: {
   const otherGoals = goals.filter((candidate) => candidate.id !== goal?.id);
 
   if (projectId === null) return null;
-  if (goal === null && goalsQuery.error === null) return null;
+  // Hiding the last goal must not take the panel away with it: the hidden
+  // goals are the only way back to them.
+  if (goal === null && goalsQuery.error === null && hiddenGoals.length === 0) return null;
 
   const reportFailure = (title: string, error: unknown) => {
     toastManager.add({
@@ -916,7 +1054,7 @@ export function GoalModePanel(props: {
       data-goal-mode-panel="true"
       role="region"
       aria-label="Goal mode"
-      className="pointer-events-auto mb-2 flex max-h-[min(30rem,45dvh)] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/80 text-card-foreground shadow-sm backdrop-blur-xl"
+      className="pointer-events-auto mb-2 flex max-h-[min(30rem,45dvh)] flex-col overflow-y-auto rounded-2xl border border-border/60 bg-card/80 text-card-foreground shadow-sm backdrop-blur-xl"
     >
       {goal === null ? null : (
         <GoalCard
@@ -929,6 +1067,8 @@ export function GoalModePanel(props: {
           busy={busy}
           compact={props.goalModeOpen || goalIsDriven}
           run={run}
+          turnDiffSummaries={props.turnDiffSummaries}
+          onOpenTurnDiff={props.onOpenTurnDiff}
           onHide={() => setHiddenGoalIds((hidden) => new Set([...hidden, goal.id]))}
           onSelectOther={(goalId) => setSelectedGoalId(goalId)}
           onStartAnother={() => {
@@ -937,6 +1077,48 @@ export function GoalModePanel(props: {
           }}
         />
       )}
+
+      {hiddenGoals.length > 0 ? (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/60 px-3.5 py-1.5">
+          <Popover open={hiddenGoalsOpen} onOpenChange={setHiddenGoalsOpen}>
+            <PopoverTrigger
+              render={
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  aria-label={`Show ${hiddenGoals.length} hidden goals`}
+                />
+              }
+            >
+              <HistoryIcon aria-hidden className="size-3.5" />
+              {hiddenGoals.length} hidden goal{hiddenGoals.length === 1 ? "" : "s"}
+            </PopoverTrigger>
+            <PopoverPopup align="start" className="w-64">
+              {hiddenGoals.map((candidate) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+                  onClick={() => {
+                    setHiddenGoalsOpen(false);
+                    setHiddenGoalIds((hidden) => {
+                      const next = new Set(hidden);
+                      next.delete(candidate.id);
+                      return next;
+                    });
+                    setSelectedGoalId(candidate.id);
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate">{candidate.title}</span>
+                  <span className="shrink-0 text-2xs text-muted-foreground">
+                    {goalStatusLabel(candidate.status)}
+                  </span>
+                </button>
+              ))}
+            </PopoverPopup>
+          </Popover>
+        </div>
+      ) : null}
 
       {goalsQuery.error !== null ? (
         <p

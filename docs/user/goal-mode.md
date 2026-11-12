@@ -12,8 +12,12 @@ After the space, the composer shows a goal-mode hint bar (`/goal` chip +
 “Describe the outcome…”) and a **Done when** criteria field appears below
 the prompt; the send button reads **Start goal**. The same composer is the
 goal input — there is no separate goal form, and the provider’s native
-`/goal` command is not used. **New goal** in the command palette (`Cmd+K`)
-and the `chat.goal` key command open the same composer in goal mode.
+`/goal` command is not used.
+
+The composer also has a **Goal** control next to the build and plan modes, in
+the same _Mode & Access_ menu. It switches the composer into goal mode, and
+turns it back off when you press it again. **New goal** in the command palette
+(`Cmd+K`) and the `chat.goal` key command open the same composer in goal mode.
 
 Optionally add **Done when** criteria, one per line — for example:
 
@@ -31,6 +35,11 @@ one — the **Other goals** menu lists them. To leave goal mode, delete the
 leading `/goal ` (or press the hint bar’s ✕), which turns the composer back
 into a normal message box.
 
+Two goals never drive the same thread, because their turns would interleave
+and each agent would answer the other’s task. A goal you start while another
+one is working in this thread therefore runs in a thread of its own, and the
+composer says so before you send it.
+
 Reserved commands after the space, such as `/goal clear` or `/goal pause`,
 send as normal messages for the provider to run instead of starting a goal.
 To make one the objective, write a longer sentence such as `/goal clear the
@@ -42,18 +51,32 @@ A goal card sits above the composer for as long as the goal matters. The
 collapsed card is a single status line — its title, status, what is
 happening now, and a slim progress bar — so it never swallows the chat.
 While a turn is running, the status shows a spinner and counts the current
-turn's age. Expand it for the objective, the current step, the full plan
-with each task's status, and the progress percentage. When criteria were
-given, the expanded card also shows **Done when** with each criterion's
-state and the verification result. **View activity** opens the recent
-history: what the agent planned, what it finished, and what it is checking.
-The card stays visible in its thread when you switch threads or reload the
-page, and the goal keeps running while the browser is closed because the
-environment drives it.
+turn's age. A goal working through a problem shows **Recovering**, and a task
+waiting on you shows **Waiting for you**. Expand it for the objective, the
+current step, the full plan with each task's status, and the progress
+percentage. Under the progress bar the card names the model running the goal
+and how many turns it has spent. The card folds open and closed with an
+animation, and the controls along its bottom edge — **Pause**, **Resume**,
+**Edit**, **Cancel** — stay reachable without expanding it. A question from
+the agent stays visible in the same way, so an answer is never hidden behind
+a collapsed card.
+
+The card also shows what the goal changed on disk: the number of changed
+files and a `+n -m` line count, the same summary the timeline shows for a
+turn. Expand it to list the files, and pick one to open that file's diff in
+the diff panel.
+
+When criteria were given, the expanded card also shows **Done
+when** with each criterion's state and the verification result. **View
+activity** opens the recent history: what the agent planned, what it
+finished, what it is checking, and what it is recovering from. The card stays
+visible in its thread when you switch threads or reload the page, and the goal
+keeps running while the browser is closed because the environment drives it.
 
 **Hide this finished goal** clears a completed goal from the card; **Start
 another goal** turns the composer back to the goal input while the current
-goal keeps running.
+goal keeps running. Hidden goals stay reachable: the card keeps a count of
+them, and picking one there brings it back.
 
 ## Controlling a goal
 
@@ -66,28 +89,54 @@ goal keeps running.
   offers **Save & resume** to save and restart in one click.
 - **Cancel** stops the goal for good. It asks first, and a cancelled goal never
   resumes.
-- A failed or blocked task can be retried on its own, without restarting the
-  goal.
+- A task that could not finish can be retried on its own, without restarting
+  the goal.
+
+## The agent works things out on its own
+
+Goal mode is autonomous by default. When something breaks — a build fails, a
+test fails, a dependency conflicts, an approach turns out to be wrong — the
+agent investigates the cause and tries a different approach itself. You are
+only interrupted when a decision genuinely needs you.
+
+Concretely:
+
+- A failed build or test sends the task back through **recovery**: the agent
+  gets the error as context and is asked to fix the cause and verify the fix,
+  not to repeat the same command.
+- Recovery is bounded. Once the retries stop producing progress, the agent is
+  asked for a **reassessment**: what is actually blocking, what was tried,
+  what else was considered, and what only you can provide. A goal is only
+  marked **Blocked** when that reassessment comes back with a specific
+  external blocker — never because the agent gave up.
+- A task waiting on you (**Waiting for you**) pauses only that task. Other
+  tasks keep going, and the answer picks the task up exactly where it
+  stopped.
+- If a goal looks active but nothing is driving it, DAK picks it back up on
+  its own. You do not need to press Resume.
 
 ## When the agent asks or gets stuck
 
-The agent stops for you only when it cannot decide on its own. A question shows
-as **Needs input** with an answer box in the card. A goal that cannot continue
-shows **Blocked** (or **Failed**) with the reason in the card, so you can
-remove the obstacle and resume, edit the goal, retry, or cancel it.
+The agent stops for you only when it cannot decide on its own. A question
+shows as **Needs input** with an answer box in the card, naming the task your
+answer unblocks. A goal that cannot
+continue shows **Blocked** (or **Failed**) with the reason in the card, so you
+can remove the obstacle and resume, edit the goal, retry, or cancel it.
 
-If a goal looks active but nothing is driving it, DAK marks it **Blocked** with
-“The goal stopped making progress. Resume to continue.” The check leaves goals
-with an active driver or recent changes alone.
+When the agent blocks a goal it also reports its assessment: what stopped the
+work, why that is true, what was inspected to find it, what was tried, what
+else was considered, and what only you can provide. That is the evidence
+behind the verdict, and it is what tells you whether to clear the obstacle or
+redirect the goal.
 
 ## Notifications
 
 Goals use the same device notification settings as threads in **Settings >
-Behavior**. A goal sends an attention notification when it needs input, becomes
-blocked, or fails; it sends a completion notification when it finishes. While
-the app has focus, in-app toasts open the goal's thread. In the background,
-the same settings decide whether DAK sends a system notification or plays a
-sound instead.
+Behavior**. A goal sends an attention notification when it asks you a
+question, becomes blocked, or fails; it sends a completion notification when
+it finishes. While the app has focus, in-app toasts open the goal's thread.
+In the background, the same settings decide whether DAK sends a system
+notification or plays a sound instead.
 
 ## Verification
 
@@ -95,7 +144,17 @@ A goal is marked **Completed** only after the agent has verified every acceptanc
 
 ### The agent decides its own approach
 
-There is no limit on how many tasks a plan can contain, how many times a task can be retried, or how long a goal can run. The agent determines its own approach, breaks the work into whatever tasks it needs, and can spend as many turns as required to fix an issue. A goal can run for weeks or months so long as you have tokens; it stops only when it completes, when you cancel it, or when a problem genuinely cannot be fixed.
+There is no limit on how many tasks a plan can contain, how long a goal can
+run, or how many turns it can spend. The agent determines its own approach,
+breaks the work into whatever tasks it needs, and can spend as many turns as
+required to fix an issue. A goal can run for weeks or months so long as you
+have tokens; it stops only when it completes, when you cancel it, or when a
+problem genuinely cannot be fixed.
+
+Recovery of a failed task is bounded so a broken task cannot loop forever: the
+agent gets a limited number of recovery attempts, then a reassessment, and
+only a specific external blocker ends the work. Work that made progress starts
+a fresh budget.
 
 ### Verification requires proof
 
@@ -122,9 +181,15 @@ This means the bar never reaches 100% until verification independently passes. I
 
 ### “Gets stuck” scenarios
 
-- **Goal shows Blocked with “Verification never reported back”**: The verification turn finished without emitting a report. Resume the goal to try again.
-- **Goal shows Blocked with “No runnable task remains”**: Every task ended without a runnable next step. Retry a task manually or edit the goal.
-- **Goal shows Needed input**: The agent asked the user a question. Answer it to continue.
+- **Goal shows Blocked**: The agent finished its recovery attempts and its
+  reassessment named a specific external blocker. The card shows the reason,
+  what was tried, and what it needs from you. Remove the obstacle and resume,
+  or edit the goal.
+- **Goal shows Needed input**: The agent asked you a question. Answer it to
+  continue; the goal picks the task up where it stopped.
+- **Goal shows Failed**: The execution itself broke — the agent stopped
+  reporting progress, or the plan could not be produced. Resume or edit the
+  goal.
 - **Progress stays below 100% while verification is pending**: This is expected — verification is the final unit; it must pass for the bar to reach 100%.
 
 ## Using the thread
@@ -132,6 +197,10 @@ This means the bar never reaches 100% until verification independently passes. I
 You can keep talking in the thread while a goal runs. Ask about progress, add
 a constraint, or correct an assumption. Messages you send are delivered in
 order with the goal's own turns.
+
+While the goal is working, the send button says where your message goes:
+**Send to the goal** when it joins the goal's current turn, and **Queue for
+the goal** when it waits behind it.
 
 ## Agent tools
 

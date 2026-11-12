@@ -12,17 +12,25 @@ import {
   formatGoalTurnElapsed,
   getGoalSlashObjective,
   goalCriterionStates,
+  goalDeliveryNotice,
+  goalDrivesThread,
+  goalHasOpenQuestion,
   goalHeadline,
+  goalMetaLine,
   goalNeedsAttention,
   goalNoticeTitle,
+  goalObjectiveText,
   goalProgress,
   goalProgressLabel,
+  goalSendLabel,
   goalSlashPrefixLength,
   goalSummaryHeadline,
   goalSummaryProgress,
   goalStatusLabel,
   goalStatusTone,
+  goalTaskStatusLabel,
   goalVerificationStatusLabel,
+  goalWaitingTask,
   isGoalEnded,
   isGoalDriven,
   isGoalSlashCommand,
@@ -42,7 +50,12 @@ function task(overrides: Partial<GoalTask> & Pick<GoalTask, "id" | "title">): Go
     startedAt: null,
     completedAt: null,
     evidence: null,
+    question: null,
+    blocker: null,
     attempts: 0,
+    recoveryAttempts: 0,
+    reassessments: 0,
+    dependsOn: [],
     ...overrides,
   };
 }
@@ -64,6 +77,9 @@ const baseGoal: Omit<Goal, "id" | "status" | "updatedAt"> = {
   verification: { status: "pending", summary: null, checkedAt: null },
   blockedReason: null,
   failureReason: null,
+  question: null,
+  questionTaskId: null,
+  blocker: null,
   progress: null,
   progressLabel: null,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -253,6 +269,48 @@ describe("selectGoalForThread", () => {
   });
 });
 
+describe("goalDrivesThread", () => {
+  const threadId = ThreadId.make("thread:1");
+
+  it("reports a driven goal bound to this thread", () => {
+    const running = goal({ id: "running", status: "running", threadId });
+    expect(goalDrivesThread([running], threadId)).toBe(true);
+  });
+
+  it("counts every status where the server still dispatches turns", () => {
+    for (const status of ["planning", "running", "recovering", "verifying"] as const) {
+      expect(goalDrivesThread([goal({ id: status, status, threadId })], threadId)).toBe(true);
+    }
+  });
+
+  it("ignores a goal of another thread", () => {
+    const elsewhere = goal({ id: "elsewhere", status: "running", threadId: null });
+    expect(goalDrivesThread([elsewhere], threadId)).toBe(false);
+  });
+
+  it("ignores a goal of this thread that is not driven", () => {
+    const paused = goal({ id: "paused", status: "paused", threadId });
+    expect(goalDrivesThread([paused], threadId)).toBe(false);
+  });
+
+  it("has nothing to drive in a threadless view", () => {
+    const running = goal({ id: "running", status: "running", threadId });
+    expect(goalDrivesThread([running], null)).toBe(false);
+  });
+});
+
+describe("goal-aware composer copy", () => {
+  it("names the goal the message joins instead of talking about steering", () => {
+    expect(goalSendLabel("steer")).toBe("Send to the goal");
+    expect(goalSendLabel("queue")).toBe("Queue for the goal");
+  });
+
+  it("explains where a queued message waits", () => {
+    expect(goalDeliveryNotice("queue")).toContain("queued behind");
+    expect(goalDeliveryNotice("steer")).toContain("joins the goal");
+  });
+});
+
 describe("goal summary progress and headline", () => {
   it("derives progress from summary counts and the completion status", () => {
     expect(
@@ -324,6 +382,34 @@ describe("goal status presentation", () => {
     expect(goalStatusTone("completed")).toBe("success");
     expect(goalStatusTone("failed")).toBe("danger");
     expect(goalStatusTone("cancelled")).toBe("muted");
+  });
+
+  it("labels the recovering state as work in progress", () => {
+    expect(goalStatusLabel("recovering")).toBe("Recovering");
+    expect(goalStatusTone("recovering")).toBe("active");
+    expect(isGoalDriven("recovering")).toBe(true);
+  });
+
+  it("names the task being recovered on the headline", () => {
+    const recovering = goal({
+      id: "g",
+      status: "recovering",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      currentTaskId: "t1",
+      tasks: [task({ id: "t1", title: "Build the API", status: "recovering" })],
+    });
+    expect(goalHeadline(recovering)).toBe("Recovering: Build the API");
+  });
+
+  it("labels a task that waits on the user and one that could not finish", () => {
+    expect(goalTaskStatusLabel("waiting_input")).toBe("Waiting for you");
+    expect(goalTaskStatusLabel("recovering")).toBe("Recovering");
+    expect(goalTaskStatusLabel("failed")).toBe("Could not finish");
+  });
+
+  it("shows an open question even while the goal keeps working", () => {
+    expect(goalHasOpenQuestion({ question: "Which credential do I use?" })).toBe(true);
+    expect(goalHasOpenQuestion({ question: null })).toBe(false);
   });
 
   it("flags the statuses that want the user", () => {
@@ -618,5 +704,77 @@ describe("goalCriterionStates", () => {
       { criterion: "Checked", met: true, proof: [] },
       { criterion: "Never judged", met: null, proof: [] },
     ]);
+  });
+});
+
+describe("goalWaitingTask", () => {
+  it("names the task parked on the user", () => {
+    const waiting = goalWaitingTask(
+      goal({
+        id: "g",
+        status: "running",
+        tasks: [
+          task({ id: "t1", title: "one", status: "completed" }),
+          task({ id: "t2", title: "two", status: "waiting_input" }),
+        ],
+      }),
+    );
+    expect(waiting?.id).toBe("t2");
+  });
+
+  it("reports nothing while every task is running", () => {
+    const waiting = goalWaitingTask(
+      goal({
+        id: "g",
+        status: "running",
+        tasks: [task({ id: "t1", title: "one", status: "in_progress" })],
+      }),
+    );
+    expect(waiting).toBeNull();
+  });
+});
+
+describe("goalObjectiveText", () => {
+  it("keeps the user's own wording when it differs from the title", () => {
+    expect(goalObjectiveText({ objective: "Ship the settings page", title: "Settings page" })).toBe(
+      "Ship the settings page",
+    );
+  });
+
+  it("stays quiet when the objective only repeats the title", () => {
+    expect(goalObjectiveText({ objective: "A goal", title: "A goal" })).toBeNull();
+  });
+
+  it("stays quiet when there is no objective", () => {
+    expect(goalObjectiveText({ objective: "   ", title: "A goal" })).toBeNull();
+  });
+});
+
+describe("goalMetaLine", () => {
+  it("names the model and the turns spent", () => {
+    expect(
+      goalMetaLine({
+        modelSelection: { model: "gpt-5.4" } as Goal["modelSelection"],
+        cycleCount: 7,
+      }),
+    ).toBe("gpt-5.4 · 7 turns");
+  });
+
+  it("counts a single turn in the singular", () => {
+    expect(
+      goalMetaLine({
+        modelSelection: { model: "gpt-5.4" } as Goal["modelSelection"],
+        cycleCount: 1,
+      }),
+    ).toBe("gpt-5.4 · 1 turn");
+  });
+
+  it("still reports the turns without a model", () => {
+    expect(
+      goalMetaLine({
+        modelSelection: { model: "" } as Goal["modelSelection"],
+        cycleCount: 3,
+      }),
+    ).toBe("3 turns");
   });
 });

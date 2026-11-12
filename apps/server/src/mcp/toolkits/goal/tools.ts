@@ -113,7 +113,7 @@ const GoalCancelTool = Tool.make("dak_goal_cancel", {
 
 const GoalAnswerTool = Tool.make("dak_goal_answer", {
   description:
-    "Answer the agent's current goal question and start the answer turn. Use this, not pause or resume, when a goal is waiting for an answer.",
+    "Answer the agent's current goal question. The affected task resumes where it stopped and the goal keeps working. Use this, not pause or resume, when a goal is waiting for an answer.",
   parameters: GoalAnswerInput,
   success: GoalMutationResult,
   failure: OrchestratorMcpFailure,
@@ -122,7 +122,7 @@ const GoalAnswerTool = Tool.make("dak_goal_answer", {
 
 const GoalRetryTaskTool = Tool.make("dak_goal_retry_task", {
   description:
-    "Retry one failed or blocked task without restarting the whole goal. The task is put back in the plan and the driver continues.",
+    "Retry one task that could not finish without restarting the whole goal. The task is put back in the plan with a fresh recovery budget and the driver continues.",
   parameters: GoalRetryTaskInput,
   success: GoalMutationResult,
   failure: OrchestratorMcpFailure,

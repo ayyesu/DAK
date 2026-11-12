@@ -92,7 +92,7 @@ interface ScriptOptions {
   readonly steps?: ReadonlyArray<TurnStep>;
   readonly holdWaitAt?: number;
   readonly gate?: Gate;
-  readonly launchMode?: "script" | "never" | "noRun";
+  readonly launchMode?: "script" | "never" | "noRun" | "noRunOnce";
   readonly launchGate?: { readonly at: number; readonly gate: Gate };
   readonly failNextSendWith?: "thread" | "archived";
 }
@@ -109,7 +109,7 @@ interface GoalScript {
   }>;
   readonly holdWaitAt: number | null;
   readonly gate: Gate | null;
-  readonly launchMode: "script" | "never" | "noRun";
+  readonly launchMode: "script" | "never" | "noRun" | "noRunOnce";
   readonly launchGate: { readonly at: number; readonly gate: Gate } | null;
   failNextSendWith: "thread" | "archived" | null;
   waitCount: number;
@@ -191,6 +191,23 @@ const taskFailedReport = report({
   summary: "The port was already in use",
   tasks: [{ title: "Do the thing", status: "failed", evidence: "port 4000 already in use" }],
 });
+/**
+ * A reassessment that names a real external blocker with the evidence the
+ * server requires before a goal may be blocked.
+ */
+const blockedReport = report({
+  status: "blocked",
+  summary: "The sandbox has no network access",
+  blocker: {
+    reason: "the sandbox has no network access",
+    rootCause: "the sandbox blocks outbound connections",
+    investigation: "a curl to the package registry timed out",
+    attempts: ["retried the install with the same command"],
+    alternatives: ["vendoring the dependency by hand"],
+    intervention: "network access has to be enabled for the environment",
+    otherTasksCanContinue: false,
+  },
+});
 const twoTaskPlanReport = report({
   status: "running",
   summary: "Planned two steps",
@@ -248,7 +265,19 @@ const scriptedDependencies = (script: GoalScript) =>
           }
           const threadId = ThreadId.make(`thread:${script.launchCount}`);
           if (script.launchMode === "never") return yield* Effect.never;
-          if (script.launchMode === "noRun") {
+          if (script.launchMode === "noRun" || script.launchMode === "noRunOnce") {
+            // "noRunOnce" lets the first launch come up empty and every later
+            // one work, so a test can watch the goal recover from it.
+            if (script.launchMode === "noRunOnce" && script.launchCount > 1) {
+              const step = takeStep(script, "launch");
+              const runId = script.nextRunId();
+              script.assign(runId, step);
+              return {
+                threadId,
+                projection: { runs: [{ id: runId, ordinal: 1, status: "running" }] },
+                resumed: false,
+              } as unknown as ThreadLaunchService.ThreadLaunchResult;
+            }
             return {
               threadId,
               projection: { runs: [] },
@@ -582,7 +611,7 @@ it.effect("an edit that interrupts a running turn re-dispatches as an edit turn"
     const full = yield* service.get({ id: created.goal.id });
     expect(full.goal.revision).toBe(2);
     expect(full.goal.tasks).toHaveLength(1);
-    expect(final.blockedReason).toBe("Which provider should it use?");
+    expect(final.question).toBe("Which provider should it use?");
     // Plan prompt, then the edit prompt with the new objective, then the task.
     expect(script.sentTexts).toHaveLength(3);
     expect(script.sentTexts[1]).toContain("Ship it faster");
@@ -624,7 +653,7 @@ it.effect("editing a paused goal stays paused until the edit is resumed", () => 
       created.goal.id,
       (goal) => goal.status === "needs_input",
     );
-    expect(resumedSummary.blockedReason).toBe("Which provider should it use?");
+    expect(resumedSummary.question).toBe("Which provider should it use?");
     const resumed = yield* service.get({ id: created.goal.id });
     expect(resumed.goal.revision).toBe(2);
     expect(script.sentTexts).toHaveLength(3);
@@ -732,75 +761,83 @@ it.effect("a thread deleted at dispatch relaunches instead of stalling the goal"
     );
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
-it.effect("an archived thread blocks the goal with an actionable reason", () => {
-  const script = makeScript({
-    steps: [{ kind: "waitError", error: "archived" }],
-  });
-  return Effect.gen(function* () {
-    const service = yield* GoalService.GoalService;
-    const created = yield* service.create(createInput());
-
-    const final = yield* awaitGoalState(
-      service.subscribeList({}),
-      created.goal.id,
-      (goal) => goal.status === "blocked",
-    );
-    expect(final.threadId).toBeNull();
-    expect(final.blockedReason).toContain("archived");
-    const full = yield* service.get({ id: created.goal.id });
-    expect(full.goal.activities.map((activity) => activity.summary)).toContain(
-      "The goal's thread is archived",
-    );
-  }).pipe(Effect.provide(scriptedLayer(script)));
-});
-it.effect("a failed run marks the goal failed, and resume recovers it", () => {
+it.effect("an archived thread starts a new one instead of blocking the goal", () => {
   const script = makeScript({
     steps: [
+      { kind: "waitError", error: "archived" },
       { kind: "completed", reply: planReport },
-      { kind: "run", status: "failed" },
-      { kind: "completed", reply: needsInputReport },
+      { kind: "completed", reply: taskDoneReport },
     ],
   });
   return Effect.gen(function* () {
     const service = yield* GoalService.GoalService;
     const created = yield* service.create(createInput());
 
-    const failed = yield* awaitGoalState(
-      service.subscribeList({}),
-      created.goal.id,
-      (goal) => goal.status === "failed",
-    );
-    expect(failed.failureReason).toBe("The provider turn failed.");
-
-    const resumed = yield* service.resume({ id: created.goal.id });
-    expect(resumed.goal.status).toBe("running");
-    expect(resumed.goal.failureReason).toBeNull();
-
+    // The archived thread is dropped and a fresh one is launched, so the goal
+    // keeps going without the user doing anything.
     const final = yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
-      (goal) => goal.status === "needs_input",
+      (goal) => goal.status === "running" && goal.threadId === ThreadId.make("thread:2"),
     );
-    expect(final.failureReason).toBeNull();
+    expect(final.threadId).toBe(ThreadId.make("thread:2"));
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.activities.map((activity) => activity.summary)).toContain(
+      "The goal's thread was archived; starting a new one",
+    );
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a failed run recovers the task instead of failing the goal", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "run", status: "failed" },
+      { kind: "completed", reply: taskDoneReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+
+    // The failed turn is an obstacle, not the end of the goal: the task goes
+    // into recovery and the next turn tries again.
+    const done = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "verifying" || goal.status === "completed",
+    );
+    expect(done.status).not.toBe("failed");
+    expect(done.failureReason).toBeNull();
+
+    const full = yield* service.get({ id: created.goal.id });
+    expect(full.goal.activities.map((activity) => activity.summary)).toContain(
+      "The turn did not complete: Do the thing",
+    );
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("a launch without a run still records the thread it created", () => {
-  const script = makeScript({ launchMode: "noRun" });
+  const script = makeScript({
+    launchMode: "noRunOnce",
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+  });
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
 
     const service = yield* GoalService.GoalService;
     const created = yield* service.create(createInput());
 
-    const blocked = yield* awaitGoalState(
+    // The first launch produced no run, so the turn is retried on the thread
+    // the goal already created rather than launching a second one.
+    const done = yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
-      (goal) => goal.status === "blocked",
+      (goal) => goal.status === "completed",
     );
-    expect(blocked.blockedReason).toBe("The thread launched without a run. Resume to try again.");
-    // Without the thread recorded, Resume would launch a second thread and
-    // abandon the one that already holds the goal's first turn.
-    expect(blocked.threadId).toBe(ThreadId.make("thread:1"));
+    expect(done.threadId).toBe(ThreadId.make("thread:1"));
     const rows = yield* sql<{ thread_id: string | null }>`
       SELECT thread_id FROM goals WHERE goal_id = ${created.goal.id}
     `;
@@ -854,18 +891,17 @@ it.effect("a pause during an answer turn keeps the answer until the turn complet
       SELECT pending_answer FROM goals WHERE goal_id = ${created.goal.id}
     `;
     expect(consumed[0]?.pending_answer).toBeNull();
-    expect(final.blockedReason).toBe("Which provider should it use?");
+    expect(final.question).toBe("Which provider should it use?");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
-it.effect("a report after an answer turn resets the idle counter", () => {
+it.effect("a turn that reports nothing sends the task into recovery", () => {
   const gate = makeGate();
   const script = makeScript({
     steps: [
       { kind: "completed", reply: planReport },
       { kind: "completed", reply: null },
-      { kind: "completed", reply: answerProgressReport },
-      { kind: "completed", reply: null },
-      { kind: "completed", reply: null },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
     ],
     holdWaitAt: 1,
     gate,
@@ -886,19 +922,20 @@ it.effect("a report after an answer turn resets the idle counter", () => {
     `;
     gate.release();
 
-    // Fail, then a successful answer, then fail must not block: the report
-    // resets the idle counter, so blocking still needs two no-report turns
-    // after it. A lost reset blocks one turn early, at four sends instead of
-    // the five this run dispatches.
-    const blocked = yield* awaitGoalState(
+    // A silent turn is an obstacle, not the end of the goal: the task goes
+    // into recovery and the next turn works it out.
+    const done = yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
-      (goal) => goal.status === "blocked",
+      (goal) => goal.status === "completed",
     );
-    expect(blocked.blockedReason).toBe(
-      "Two consecutive turns produced no progress report. Check the thread, then resume or edit the goal.",
+    expect(done.status).toBe("completed");
+
+    const loaded = yield* service.get({ id: created.goal.id });
+    const recovered = loaded.goal.activities.find((activity) =>
+      activity.summary.startsWith("No progress report: Do the thing"),
     );
-    expect(script.sentTexts).toHaveLength(5);
+    expect(recovered).toBeDefined();
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("verification records per-criterion results on the goal", () => {
@@ -928,7 +965,7 @@ it.effect("verification records per-criterion results on the goal", () => {
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
-it.effect("a failed task is retried automatically and the goal completes untouched", () => {
+it.effect("a failed task is recovered automatically and the goal completes untouched", () => {
   const script = makeScript({
     steps: [
       { kind: "completed", reply: planReport },
@@ -949,16 +986,20 @@ it.effect("a failed task is retried automatically and the goal completes untouch
       (goal) => goal.status === "completed",
     );
     expect(done.completedTaskCount).toBe(1);
-    // Plan, failed attempt, automatic retry, verification: no user turn.
+    // Plan, failed attempt, recovery turn, verification: no user turn.
     expect(script.sentTexts).toHaveLength(4);
+    // The recovery turn tells the agent what failed and asks for a different
+    // approach, rather than repeating the same failing operation.
+    expect(script.sentTexts[2]).toContain("port 4000 already in use");
+    expect(script.sentTexts[2]).toContain("recovery attempt 1");
 
     const full = yield* service.get({ id: created.goal.id });
     expect(full.goal.verification.status).toBe("passed");
     expect(full.goal.tasks[0]?.attempts).toBe(2);
-    const requeued = full.goal.activities.find((activity) =>
-      activity.summary.startsWith("Requeued 1 failed task"),
+    const recovered = full.goal.activities.find((activity) =>
+      activity.summary.startsWith("Recovering: Do the thing"),
     );
-    expect(requeued).toBeDefined();
+    expect(recovered).toBeDefined();
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
@@ -996,37 +1037,40 @@ it.effect("a failed task does not hold up independent pending work", () => {
     expect(secondRun.index).toBeLessThan(firstRuns[1]!.index);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
-
-it.effect("a failed task is always retried, never blocking the goal", () => {
+it.effect("a task that keeps failing is reassessed instead of retried forever", () => {
   const script = makeScript({
     steps: [
       { kind: "completed", reply: planReport },
       { kind: "completed", reply: taskFailedReport },
       { kind: "completed", reply: taskFailedReport },
       { kind: "completed", reply: taskFailedReport },
-      { kind: "completed", reply: taskDoneReport },
-      { kind: "completed", reply: verifyReport },
+      { kind: "completed", reply: taskFailedReport },
+      { kind: "completed", reply: taskFailedReport },
+      { kind: "completed", reply: blockedReport },
     ],
   });
   return Effect.gen(function* () {
     const service = yield* GoalService.GoalService;
     const created = yield* service.create(createInput());
 
-    // The task is retried past the old three-attempt cap and the goal completes.
-    const done = yield* awaitGoalState(
+    // The recovery ladder runs out and the goal asks for an assessment. The
+    // agent's evidence-based blocker is what ends it, not the retry count.
+    const blocked = yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
-      (goal) => goal.status === "completed",
+      (goal) => goal.status === "blocked",
     );
-    expect(done.completedTaskCount).toBe(1);
+    expect(blocked.blockedReason).toContain("the sandbox has no network");
 
     const full = yield* service.get({ id: created.goal.id });
-    expect(full.goal.tasks[0]?.attempts).toBe(4);
-    expect(full.goal.tasks[0]?.status).toBe("completed");
-    const requeues = full.goal.activities.filter((activity) =>
-      activity.summary.startsWith("Requeued 1 failed task"),
+    // Recovery attempts are bounded, and the reassessment happens after them.
+    expect(full.goal.tasks[0]?.recoveryAttempts).toBeLessThanOrEqual(
+      GoalService.GOAL_RECOVERY_ATTEMPTS + 1,
     );
-    expect(requeues).toHaveLength(3);
+    const reassessed = full.goal.activities.find((activity) =>
+      activity.summary.startsWith("Reassessing: Do the thing"),
+    );
+    expect(reassessed).toBeDefined();
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
@@ -1238,17 +1282,17 @@ it.effect("attempts and task state survive a server restart", () => {
     yield* sql`
       INSERT INTO goal_tasks (
         goal_id, task_id, title, detail, status, task_order, started_at, completed_at,
-        evidence, attempts
+        evidence, attempts, recovery_attempts, reassessments, depends_on_json
       ) VALUES (
-        ${goalId}, 'task:seeded', 'Do the thing', NULL, 'failed', 0, ${at}, NULL,
-        'port 4000 already in use', 3
+        ${goalId}, 'task:seeded', 'Do the thing', NULL, 'recovering', 0, ${at}, NULL,
+        'port 4000 already in use', 3, 1, 0, '[]'
       )
     `;
 
     // Recovery wakes on the virtual clock and drives the seeded goal.
     yield* TestClock.adjust("15 seconds");
 
-    // The requeued task keeps its stored attempts and evidence, then completes.
+    // The recovering task keeps its stored attempts and evidence, then completes.
     const done = yield* awaitGoalState(
       service.subscribeList({}),
       GoalId.make(goalId),
@@ -1258,12 +1302,9 @@ it.effect("attempts and task state survive a server restart", () => {
 
     const loaded = yield* service.get({ id: GoalId.make(goalId) });
     expect(loaded.goal.tasks[0]?.attempts).toBe(4);
-    const requeued = loaded.goal.activities.find((activity) =>
-      activity.summary.startsWith("Requeued 1 failed task"),
-    );
-    expect(requeued).toBeDefined();
-    expect(requeued?.detail).toContain("(attempt 3)");
-    expect(requeued?.detail).toContain("port 4000 already in use");
+    // The recovery turn carries the stored failure as its context, so the
+    // agent works the same problem rather than starting over.
+    expect(script.sentTexts[0]).toContain("port 4000 already in use");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("restart recovery resumes the 20 most recently updated goals", () => {
@@ -1340,7 +1381,7 @@ it.effect("lists lightweight summaries while get returns detail", () => {
     expect(detail.goal.activities.length).toBeGreaterThan(0);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
-it.effect("refuses to pause or resume a goal that is waiting for an answer", () => {
+it.effect("keeps the question when the goal is paused and resumes on the answer", () => {
   const script = makeScript({
     steps: [
       { kind: "completed", reply: planReport },
@@ -1356,30 +1397,22 @@ it.effect("refuses to pause or resume a goal that is waiting for an answer", () 
       created.goal.id,
       (goal) => goal.status === "needs_input",
     );
-    expect(asking.blockedReason).toBe("Which provider should it use?");
+    expect(asking.question).toBe("Which provider should it use?");
 
-    const pauseFailure = yield* service.pause({ id: created.goal.id }).pipe(Effect.flip);
-    expect(pauseFailure.message).toBe(
-      "This goal is waiting for an answer. Answer the question to continue.",
-    );
-    const resumeFailure = yield* service.resume({ id: created.goal.id }).pipe(Effect.flip);
-    expect(resumeFailure.message).toBe(
-      "This goal is waiting for an answer. Answer the question to continue.",
-    );
+    // Pausing keeps the question: it lives in its own field, so the answer
+    // still lands when the goal is resumed.
+    const paused = yield* service.pause({ id: created.goal.id });
+    expect(paused.goal.status).toBe("paused");
+    expect(paused.goal.question).toBe("Which provider should it use?");
 
-    // Both rejections left the question where the agent put it.
-    const unchanged = yield* service.get({ id: created.goal.id });
-    expect(unchanged.goal.status).toBe("needs_input");
-    expect(unchanged.goal.blockedReason).toBe("Which provider should it use?");
-
-    // Answering is still the way out, and the answer turn runs.
+    // Answering is the way out, and the answer turn runs.
     yield* service.answer({ id: created.goal.id, text: "Use the email provider." });
     const answered = yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
-      (goal) => goal.status === "needs_input",
+      (goal) => goal.question === null,
     );
-    expect(answered.blockedReason).toBe("Which provider should it use?");
+    expect(answered.question).toBeNull();
     expect(script.sentTexts).toHaveLength(3);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
@@ -1417,7 +1450,7 @@ it.effect("a queued drive attempt is consumed on exit without a spurious restart
       created.goal.id,
       (goal) => goal.status === "needs_input",
     );
-    expect(asking.blockedReason).toBe("Which provider should it use?");
+    expect(asking.question).toBe("Which provider should it use?");
     expect(script.waitCount).toBe(2);
     expect(script.sentTexts).toHaveLength(2);
 
@@ -1428,12 +1461,12 @@ it.effect("a queued drive attempt is consumed on exit without a spurious restart
       created.goal.id,
       (goal) => goal.status === "needs_input",
     );
-    expect(answered.blockedReason).toBe("Which provider should it use?");
+    expect(answered.question).toBe("Which provider should it use?");
     expect(script.waitCount).toBe(3);
     expect(script.sentTexts).toHaveLength(3);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
-it.effect("blocks driven goals nobody is driving and leaves the rest alone", () => {
+it.effect("picks a driven goal nobody is driving back up instead of blocking it", () => {
   const script = makeScript({ launchMode: "never" });
   return Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
@@ -1475,16 +1508,13 @@ it.effect("blocks driven goals nobody is driving and leaves the rest alone", () 
 
     yield* service.sweepStuckGoals();
 
-    const blocked = yield* service.get({ id: staleId });
-    expect(blocked.goal.status).toBe("blocked");
-    expect(blocked.goal.blockedReason).toBe(
-      "The goal stopped making progress. Resume to continue.",
-    );
-    // The dispatch marker leaves with the non-driven status, so the card
-    // cannot count a turn nobody is waiting on.
-    expect(blocked.goal.turnStartedAt).toBeNull();
-    expect(blocked.goal.activities.map((activity) => activity.summary)).toContain(
-      "The goal stopped making progress",
+    // The orphaned goal is picked back up rather than blocked: it lost its
+    // driver, not its way forward.
+    const picked = yield* service.get({ id: staleId });
+    expect(picked.goal.status).toBe("running");
+    expect(picked.goal.blockedReason).toBeNull();
+    expect(picked.goal.activities.map((activity) => activity.summary)).toContain(
+      "Picking the goal back up",
     );
 
     const parked = yield* service.get({ id: created.goal.id });
@@ -1519,7 +1549,7 @@ it.effect("a question stays open while restart recovery and the sweep pass", () 
 
     const after = yield* service.get({ id: created.goal.id });
     expect(after.goal.status).toBe("needs_input");
-    expect(after.goal.blockedReason).toBe("Which provider should it use?");
+    expect(after.goal.question).toBe("Which provider should it use?");
     expect(script.waitCount).toBe(2);
     expect(script.sentTexts).toHaveLength(2);
     const resumed = yield* sql<{ summary: string }>`

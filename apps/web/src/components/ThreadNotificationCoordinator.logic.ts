@@ -16,14 +16,20 @@ const GOAL_ATTENTION_STATUSES: ReadonlySet<GoalSummary["status"]> = new Set<Goal
   "failed",
 ]);
 
-/** The current ask, keyed so each distinct question pings once. */
-function goalAttentionKey(goal: Pick<GoalSummary, "id" | "status">): string | null {
+/**
+ * The current ask, keyed so each distinct question pings once.
+ *
+ * A question counts as attention on its own: the goal keeps working whatever
+ * else it can, so the status alone does not say the user is needed.
+ */
+function goalAttentionKey(goal: Pick<GoalSummary, "id" | "status" | "question">): string | null {
+  if (goal.question !== null) return `${goal.id}:question:${goal.question}`;
   return GOAL_ATTENTION_STATUSES.has(goal.status) ? `${goal.id}:${goal.status}` : null;
 }
 
 /** The state to store after scanning this goal; callers decide what fires. */
 export function advanceGoalNotice(
-  goal: Pick<GoalSummary, "id" | "status" | "completedAt" | "updatedAt">,
+  goal: Pick<GoalSummary, "id" | "status" | "completedAt" | "updatedAt" | "question">,
 ): GoalNoticeState {
   const at = Date.parse(goal.completedAt ?? goal.updatedAt);
   return {

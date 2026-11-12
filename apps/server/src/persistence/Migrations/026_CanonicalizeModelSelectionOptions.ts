@@ -24,6 +24,11 @@ import * as SqlClient from "effect/sql/SqlClient";
  *     (thread.created | thread.meta-updated | thread.turn-start-requested)
  *   - `orchestration_events.payload_json.$.defaultModelSelection.options`
  *     (project.created | project.meta-updated)
+ *
+ * Every rewrite wraps the built array in `json(...)`. SQLite only embeds a
+ * value as JSON when it carries the JSON subtype, and a bare subquery loses
+ * that subtype: from SQLite 3.54 (Node 24.22) the array would be stored as a
+ * JSON *string*, which decodes as a string and not as the option array.
  */
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
@@ -33,7 +38,7 @@ export default Effect.gen(function* () {
     SET model_selection_json = json_set(
       model_selection_json,
       '$.options',
-      (
+      json((
         SELECT json_group_array(
           json_object(
             'id', key,
@@ -48,7 +53,7 @@ export default Effect.gen(function* () {
         FROM json_each(json_extract(model_selection_json, '$.options'))
         WHERE (type = 'text' AND trim(coalesce(atom, '')) != '')
            OR type IN ('true', 'false')
-      )
+      ))
     )
     WHERE model_selection_json IS NOT NULL
       AND json_type(model_selection_json, '$.options') = 'object'
@@ -59,7 +64,7 @@ export default Effect.gen(function* () {
     SET default_model_selection_json = json_set(
       default_model_selection_json,
       '$.options',
-      (
+      json((
         SELECT json_group_array(
           json_object(
             'id', key,
@@ -74,7 +79,7 @@ export default Effect.gen(function* () {
         FROM json_each(json_extract(default_model_selection_json, '$.options'))
         WHERE (type = 'text' AND trim(coalesce(atom, '')) != '')
            OR type IN ('true', 'false')
-      )
+      ))
     )
     WHERE default_model_selection_json IS NOT NULL
       AND json_type(default_model_selection_json, '$.options') = 'object'
@@ -85,7 +90,7 @@ export default Effect.gen(function* () {
     SET payload_json = json_set(
       payload_json,
       '$.modelSelection.options',
-      (
+      json((
         SELECT json_group_array(
           json_object(
             'id', key,
@@ -100,7 +105,7 @@ export default Effect.gen(function* () {
         FROM json_each(json_extract(payload_json, '$.modelSelection.options'))
         WHERE (type = 'text' AND trim(coalesce(atom, '')) != '')
            OR type IN ('true', 'false')
-      )
+      ))
     )
     WHERE event_type IN (
       'thread.created',
@@ -115,7 +120,7 @@ export default Effect.gen(function* () {
     SET payload_json = json_set(
       payload_json,
       '$.defaultModelSelection.options',
-      (
+      json((
         SELECT json_group_array(
           json_object(
             'id', key,
@@ -130,7 +135,7 @@ export default Effect.gen(function* () {
         FROM json_each(json_extract(payload_json, '$.defaultModelSelection.options'))
         WHERE (type = 'text' AND trim(coalesce(atom, '')) != '')
            OR type IN ('true', 'false')
-      )
+      ))
     )
     WHERE event_type IN ('project.created', 'project.meta-updated')
       AND json_type(payload_json, '$.defaultModelSelection.options') = 'object'

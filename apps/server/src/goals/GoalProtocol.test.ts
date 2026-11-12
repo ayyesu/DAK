@@ -18,7 +18,12 @@ function task(overrides: Partial<GoalTask> & Pick<GoalTask, "id" | "title" | "or
     startedAt: null,
     completedAt: null,
     evidence: null,
+    question: null,
+    blocker: null,
     attempts: 0,
+    recoveryAttempts: 0,
+    reassessments: 0,
+    dependsOn: [],
     ...overrides,
   };
 }
@@ -42,6 +47,9 @@ const baseGoal: Goal = {
   verification: { status: "pending", summary: null, checkedAt: null },
   blockedReason: null,
   failureReason: null,
+  question: null,
+  questionTaskId: null,
+  blocker: null,
   progress: null,
   progressLabel: null,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -289,7 +297,10 @@ describe("applyGoalReport", () => {
       makeTaskId,
       nowIso,
     });
-    expect(applied.status).toBe("needs_input");
+    // The question is asked of the user, so the goal keeps running and only
+    // the task that asked pauses.
+    expect(applied.status).toBe("running");
+    expect(applied.question).toBe("Which provider should this page live in?");
     expect(applied.acceptanceCriteria).toEqual(["The toggle persists", "The page loads"]);
   });
 
@@ -333,7 +344,7 @@ describe("applyGoalReport", () => {
     expect(applied.tasks[0]?.attempts).toBe(0);
   });
 
-  it("still lets a task that actually ran be reported failed", () => {
+  it("turns a reported failure into an obstacle the server recovers from", () => {
     const report = parseGoalReport(
       reportFor({
         status: "running",
@@ -357,11 +368,13 @@ describe("applyGoalReport", () => {
       makeTaskId,
       nowIso,
     });
-    expect(applied.tasks[0]?.status).toBe("failed");
+    // A failure is an obstacle, not a dead end: the task goes into recovery
+    // so the driver sends it a recovery turn instead of stranding it.
+    expect(applied.tasks[0]?.status).toBe("recovering");
     expect(applied.tasks[0]?.evidence).toBe("port 4000 in use");
   });
 
-  it("spends one attempt when a pending task starts and none when it repeats", () => {
+  it("leaves the attempt counters to the server that dispatches the turn", () => {
     const starting = parseGoalReport(
       reportFor({ status: "running", tasks: [{ title: "Inspect", status: "in_progress" }] }),
     );
@@ -373,7 +386,8 @@ describe("applyGoalReport", () => {
       makeTaskId,
       nowIso,
     });
-    expect(first.tasks[0]?.attempts).toBe(1);
+    expect(first.tasks[0]?.status).toBe("in_progress");
+    expect(first.tasks[0]?.attempts).toBe(0);
 
     const repeating = parseGoalReport(
       reportFor({ status: "running", tasks: [{ title: "Inspect", status: "in_progress" }] }),

@@ -69,6 +69,35 @@ function renderSendButton(sendDisabledReason: string | null = null) {
   );
 }
 
+function renderGoalSendButton(
+  goalDrivesThread: boolean,
+  isRunning: boolean,
+  followUpBehavior: "queue" | "steer" = "steer",
+) {
+  return renderToStaticMarkup(
+    createElement(ComposerPrimaryActions, {
+      compact: true,
+      canOperateThread: true,
+      pendingAction: null,
+      isRunning,
+      canInterrupt: false,
+      showPlanFollowUpPrompt: false,
+      promptHasText: true,
+      isSendBusy: false,
+      sendDisabledReason: null,
+      isConnecting: false,
+      isEnvironmentUnavailable: false,
+      isPreparingWorktree: false,
+      hasSendableContent: true,
+      goalDrivesThread,
+      followUpBehavior,
+      onPreviousPendingQuestion: () => {},
+      onInterrupt: () => {},
+      onImplementPlanInNewThread: () => {},
+    }),
+  );
+}
+
 afterEach(() => {
   stageArtworkState.mode = "none";
   stageArtworkState.variant = null;
@@ -105,5 +134,16 @@ describe("ComposerPrimaryActions", () => {
     const markup = renderSendButton();
 
     expect(markup).not.toContain("stage-nightly");
+  });
+
+  it("names the goal a message joins while the goal works in this thread", () => {
+    expect(renderGoalSendButton(true, true)).toContain('aria-label="Send to the goal"');
+    expect(renderGoalSendButton(true, true, "queue")).toContain('aria-label="Queue for the goal"');
+  });
+
+  it("keeps the plain send labels when no goal works in this thread", () => {
+    expect(renderGoalSendButton(false, true)).toContain('aria-label="Steer message"');
+    expect(renderGoalSendButton(false, true, "queue")).toContain('aria-label="Queue message"');
+    expect(renderGoalSendButton(true, false)).toContain('aria-label="Submit message"');
   });
 });
