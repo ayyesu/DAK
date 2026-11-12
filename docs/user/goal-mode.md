@@ -70,11 +70,15 @@ turn. Expand it to list the files, and pick one to open that file's diff in
 the diff panel.
 
 When criteria were given, the expanded card also shows **Done
-when** with each criterion's state and the verification result. **View
-activity** opens the recent history: what the agent planned, what it
-finished, what it is checking, and what it is recovering from. The card stays
+when** with each criterion's state and the verification result. The card stays
 visible in its thread when you switch threads or reload the page, and the goal
 keeps running while the browser is closed because the environment drives it.
+
+The goal's work stays out of the chat. The **eye** button on the card opens
+**Goal work** inside the card: the run of turns the goal took, what it planned,
+what it finished, what it is checking and what it is recovering from. The back
+button in that view returns you to the card, and the card itself keeps the
+status, the progress and the controls.
 
 **Hide this finished goal** clears a completed goal from the card; **Start
 another goal** turns the composer back to the goal input while the current
@@ -109,17 +113,19 @@ Concretely:
 - A failed build or test sends the task back through **recovery**: the agent
   gets the error as context and is asked to fix the cause and verify the fix,
   not to repeat the same command.
-- Recovery escalates instead of ending. After a few recovery attempts the
-  agent is asked for a **reassessment**: what is actually blocking, what was
-  tried, what else was considered, and what only you can provide. That
-  question is asked as many times as it takes — no count of attempts or
-  reassessments ends a goal. A task is only marked **Blocked** when a
-  reassessment comes back with a specific external blocker — never because
-  the agent gave up.
+- The agent decides how to continue. It is told what is known — the failure,
+  what it already tried, what the provider said — and it chooses: fix it, try
+  a different approach, ask you, or call it a deadlock. Nothing counts its
+  attempts for it, so a hard problem is never taken away because it took a few
+  tries. A task is only marked **Blocked** when the agent names a specific
+  external blocker with the evidence behind it — never because the agent gave
+  up.
 - When the provider itself fails — signed out, out of quota, unreachable —
   the goal parks as **Waiting for provider** instead of failing. It keeps its
   plan, retries on its own (after a quota limit resets, or with a growing
-  delay), and continues where it stopped once the provider is back.
+  delay), and continues where it stopped once the provider is back. The agent
+  is told that the provider is what ended the turn, so it does not go looking
+  for a fault in its own work.
 - A task waiting on you (**Waiting for you**) pauses only that task. Other
   tasks keep going, and the answer picks the task up exactly where it
   stopped.
@@ -162,11 +168,10 @@ required to fix an issue. A goal can run for weeks or months so long as you
 have tokens; it stops only when it completes, when you cancel it, or when a
 problem genuinely cannot be fixed.
 
-Recovery of a failed task escalates rather than running out: a limited number
-of recovery attempts buys a **reassessment**, and answering the reassessment
-buys more recovery — there is no last rung that ends the goal. Work that made
-progress starts a fresh recovery budget. Only a specific external blocker
-ends the work.
+When a task fails, the agent is handed what is known and decides what happens
+next. There is no last rung that ends the goal and no counter that decides how
+many tries it gets: work that made progress starts fresh, and only a specific
+external blocker ends the work.
 
 A turn is judged by what it does, not by the clock: if it goes quiet for
 about twenty minutes with nothing left running, DAK treats it as stuck and
@@ -199,8 +204,8 @@ This means the bar never reaches 100% until verification independently passes. I
 
 ### “Gets stuck” scenarios
 
-- **Goal shows Blocked**: The agent finished its recovery attempts and its
-  reassessment named a specific external blocker. The card shows the reason,
+- **Goal shows Blocked**: The agent worked the problem and named a specific
+  external blocker, with the evidence behind it. The card shows the reason,
   what was tried, and what it needs from you. Remove the obstacle and resume,
   or edit the goal.
 - **Goal shows Needed input**: The agent asked you a question. Answer it to
@@ -229,8 +234,10 @@ the goal** when it waits behind it.
 Agents can use the `dak_goal_*` MCP tools to list summaries, read full goal
 details, create, update, pause, resume, cancel, answer, or retry a task. List
 first to find a goal's id; use read when you need its full task and activity
-history. Creating a goal on a thread that already has one is refused; finish
-or cancel it, or start the new goal without that thread.
+history. A thread runs one goal: creating a goal on a thread that already has
+one is refused, finish or cancel it, or start the new goal without that
+thread. A goal's own agent cannot start another goal from the thread it works
+in.
 
 ## Platform support
 

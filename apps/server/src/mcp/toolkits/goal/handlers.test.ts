@@ -33,6 +33,9 @@ it.effect("creates and manages a goal through MCP", () =>
     const goalId = GoalId.make("goal:mcp");
     const createdInputs: Array<GoalCreateInput> = [];
     const paused: Array<string> = [];
+    // The goal that owns the calling thread, if there is one. A goal's own
+    // thread may not start another goal.
+    let threadOwner: GoalSummary | null = null;
     const goal = {
       id: goalId,
       projectId,
@@ -109,6 +112,7 @@ it.effect("creates and manages a goal through MCP", () =>
             goals: input.projectId === projectId ? [summary] : [],
           }),
         get: () => Effect.succeed({ goal }),
+        goalForThread: () => Effect.succeed(threadOwner),
         create: (input) =>
           Effect.sync(() => {
             createdInputs.push(input);
@@ -179,5 +183,15 @@ it.effect("creates and manages a goal through MCP", () =>
       (pausedResult.result as Tool.Success<(typeof GoalToolkit.tools)["dak_goal_pause"]>).goal.id,
     ).toBe(goalId);
     expect(paused).toEqual([goalId]);
+
+    // A goal's own thread may not start another goal: the agent working there
+    // is the goal's agent, and two goals in one thread would answer each
+    // other's turns.
+    threadOwner = summary;
+    const refused = yield* call("dak_goal_create", { objective: "Another goal", projectId }).pipe(
+      Effect.flip,
+    );
+    expect(refused.message).toContain("already running a goal");
+    expect(createdInputs).toHaveLength(1);
   }),
 );

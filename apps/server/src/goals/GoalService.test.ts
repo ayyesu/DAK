@@ -433,8 +433,7 @@ const scriptedDependencies = (script: GoalScript) =>
           thread: { id: threadId },
           turnItems: script.errorTurnItems.filter(
             (item) =>
-              filter?.turnItemTypes === undefined ||
-              filter.turnItemTypes.includes(item.type),
+              filter?.turnItemTypes === undefined || filter.turnItemTypes.includes(item.type),
           ),
         } as unknown as ProjectionRecords<K>),
       interruptThread: () => Effect.succeed({ type: "no_active_run" as const }),
@@ -927,6 +926,15 @@ it.effect("a provider failure parks the goal and the sweep puts it back to work"
     expect(full.goal.activities.map((activity) => activity.summary)).toContain(
       "The provider is back; continuing",
     );
+    // The turn that follows the fault tells the agent why that turn never
+    // reached it, so it knows the failure was the environment's.
+    const resumed = script.sentTexts.find((text) =>
+      text.includes("The previous turn never reached"),
+    );
+    expect(resumed).toBeDefined();
+    expect(resumed).toContain("provider_error");
+    expect(resumed).toContain("the provider is not signed in");
+    // The notice is spent by the turn that carried it.
     const after = yield* sql<{ provider_wait_json: string | null }>`
       SELECT provider_wait_json FROM goals WHERE goal_id = ${created.goal.id}
     `;
@@ -937,12 +945,9 @@ it.effect("a goal that keeps failing is never ended by a counter", () => {
   const script = makeScript({
     steps: [
       { kind: "completed", reply: planReport },
-      // Way past any recovery budget: the ladder reassesses forever and only
-      // evidence stops a task, so the goal works until the work is done.
-      ...Array.from(
-        { length: 8 },
-        () => ({ kind: "completed", reply: taskFailedReport }) as const,
-      ),
+      // Far past any budget a server could keep: the agent is handed what is
+      // known and decides, so the goal works until the work is done.
+      ...Array.from({ length: 8 }, () => ({ kind: "completed", reply: taskFailedReport }) as const),
       { kind: "completed", reply: taskDoneReport },
       { kind: "completed", reply: verifyReport },
     ],
@@ -959,11 +964,11 @@ it.effect("a goal that keeps failing is never ended by a counter", () => {
     expect(done.failureReason).toBeNull();
     expect(done.blockedReason).toBeNull();
 
-    const full = yield* service.get({ id: created.goal.id });
-    const reassessed = full.goal.activities.filter((activity) =>
-      activity.summary.startsWith("Reassessing: Do the thing"),
+    // Every attempt went back to the agent with what was known about it.
+    const followUps = script.sentTexts.filter((text) =>
+      text.includes("You decide how to continue"),
     );
-    expect(reassessed.length).toBeGreaterThan(1);
+    expect(followUps.length).toBeGreaterThan(1);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("refuses a second goal on a thread that already has one", () => {
@@ -994,6 +999,35 @@ it.effect("refuses a second goal on a thread that already has one", () => {
     const fetched = yield* service.get({ id: created.goal.id });
     expect(fetched.goal.threadId).toBe(threadId);
     expect(fetched.goal.objective).toBe("Ship the notification settings page");
+
+    gate.release();
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+it.effect("a thread that runs a goal reports it, so a goal cannot start another", () => {
+  const gate = makeGate();
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
+    ],
+    holdWaitAt: 0,
+    gate,
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const threadId = ThreadId.make("thread:goal-owned");
+    const created = yield* service.create(createInput({ threadId }));
+    yield* Effect.promise(() => gate.reached);
+
+    // The goal's own thread is owned by that goal: an agent working there is
+    // the goal's agent, and it may not start another goal.
+    const owner = yield* service.goalForThread(threadId);
+    expect(owner?.id).toBe(created.goal.id);
+    expect(owner?.status).not.toBe("completed");
+
+    // A thread without a goal is free.
+    expect(yield* service.goalForThread(ThreadId.make("thread:free"))).toBeNull();
 
     gate.release();
   }).pipe(Effect.provide(scriptedLayer(script)));
@@ -1206,10 +1240,10 @@ it.effect("a failed task is recovered automatically and the goal completes untou
     expect(done.completedTaskCount).toBe(1);
     // Plan, failed attempt, recovery turn, verification: no user turn.
     expect(script.sentTexts).toHaveLength(4);
-    // The recovery turn tells the agent what failed and asks for a different
-    // approach, rather than repeating the same failing operation.
+    // The recovery turn tells the agent what failed and hands it the choice of
+    // how to continue, rather than repeating the same failing operation.
     expect(script.sentTexts[2]).toContain("port 4000 already in use");
-    expect(script.sentTexts[2]).toContain("recovery attempt 1");
+    expect(script.sentTexts[2]).toContain("You decide how to continue");
 
     const full = yield* service.get({ id: created.goal.id });
     expect(full.goal.verification.status).toBe("passed");
@@ -1255,7 +1289,7 @@ it.effect("a failed task does not hold up independent pending work", () => {
     expect(secondRun.index).toBeLessThan(firstRuns[1]!.index);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
-it.effect("a task that keeps failing is reassessed instead of retried forever", () => {
+it.effect("a task that keeps failing is handed back to the agent until it decides", () => {
   const script = makeScript({
     steps: [
       { kind: "completed", reply: planReport },
@@ -1271,8 +1305,8 @@ it.effect("a task that keeps failing is reassessed instead of retried forever", 
     const service = yield* GoalService.GoalService;
     const created = yield* service.create(createInput());
 
-    // The recovery ladder runs out and the goal asks for an assessment. The
-    // agent's evidence-based blocker is what ends it, not the retry count.
+    // Nothing counts the attempts: the agent is asked what to do, and its
+    // evidence-based blocker is what ends the task.
     const blocked = yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
@@ -1281,14 +1315,15 @@ it.effect("a task that keeps failing is reassessed instead of retried forever", 
     expect(blocked.blockedReason).toContain("the sandbox has no network");
 
     const full = yield* service.get({ id: created.goal.id });
-    // Recovery attempts are bounded, and the reassessment happens after them.
-    expect(full.goal.tasks[0]?.recoveryAttempts).toBeLessThanOrEqual(
-      GoalService.GOAL_RECOVERY_ATTEMPTS + 1,
+    // Every attempt was handed to the agent with what was known about it.
+    const followUps = script.sentTexts.filter((text) =>
+      text.includes("You decide how to continue"),
     );
-    const reassessed = full.goal.activities.find((activity) =>
-      activity.summary.startsWith("Reassessing: Do the thing"),
+    expect(followUps.length).toBeGreaterThan(1);
+    const failedTasks = full.goal.activities.filter(
+      (activity) => activity.kind === "task_failed" && activity.summary.includes("Do the thing"),
     );
-    expect(reassessed).toBeDefined();
+    expect(failedTasks).toHaveLength(1);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 

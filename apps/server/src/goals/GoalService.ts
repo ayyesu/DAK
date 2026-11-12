@@ -1,8 +1,8 @@
 import {
   CommandId,
   GOAL_ACTIVITY_LIMIT,
-  GOAL_IDLE_ESCALATION_CYCLES,
-  GOAL_RECOVERY_ATTEMPTS,
+  GOAL_IDLE_PACING_CYCLES,
+  GoalActivityKind,
   GoalBlocker,
   GoalError,
   GoalId,
@@ -18,7 +18,6 @@ import {
   ThreadId,
   type Goal,
   type GoalActivity,
-  type GoalActivityKind,
   type GoalAnswerInput,
   type GoalCancelInput,
   type GoalCreateInput,
@@ -59,9 +58,8 @@ import {
   buildGoalAnswerPrompt,
   buildGoalEditPrompt,
   buildGoalExecutionPrompt,
+  buildGoalFollowUpPrompt,
   buildGoalPlanningPrompt,
-  buildGoalReassessmentPrompt,
-  buildGoalRecoveryPrompt,
   buildGoalRepairPrompt,
   buildGoalVerificationPrompt,
   parseGoalReport,
@@ -110,13 +108,15 @@ const ENDED_STATUSES: ReadonlySet<Goal["status"]> = new Set(["completed", "cance
  *
  * A provider that is not installed, not signed in, rate limited or briefly
  * unreachable is not the agent's fault, so these failures park the goal
- * instead of counting against the agent's attempts. Everything else is the
- * agent's own obstacle and goes through the recovery ladder.
+ * instead of being charged to it. A provider that rejected the request is
+ * left out: that one can be the agent's own doing.
  */
 const PROVIDER_FAULT_CLASSES: ReadonlySet<OrchestrationV2ProviderFailure["class"]> = new Set([
   "usage_limit",
   "provider_error",
   "transport_error",
+  "permission_error",
+  "unknown",
 ]);
 /** First delay before a parked goal tries again. */
 const PROVIDER_RETRY_BASE_MS = 30_000;
@@ -134,7 +134,21 @@ const GOAL_PARKED_SWEEP_INTERVAL = Duration.seconds(5);
 const stallDelay = (idleCycles: number) =>
   Duration.millis(Math.min(15_000 * 2 ** Math.max(0, idleCycles - 1), 5 * 60_000));
 
-type TurnPhase = "plan" | "task" | "verify" | "repair" | "answer" | "edit" | "recover" | "reassess";
+/**
+ * The opening of a turn that follows a provider fault.
+ *
+ * The agent is told what the provider reported, so it knows the turn died in
+ * the environment rather than because of its own work. It decides what to do
+ * next, the way a parent agent decides after a subagent's turn ends badly.
+ */
+function providerNotice(wait: GoalProviderWait, prompt: string): string {
+  return `The previous turn never reached you: the provider failed (${wait.class}) - ${wait.message}
+That was the environment's failure, not yours. Nothing you reported was lost, and the workspace is as you left it. Decide how to continue from where that turn stopped.
+
+${prompt}`;
+}
+
+type TurnPhase = "plan" | "task" | "verify" | "repair" | "answer" | "edit" | "recover";
 
 /**
  * What one dispatched turn produced.
@@ -158,17 +172,10 @@ type GoalTurnOutcome =
 
 /**
  * Which kind of turn produced a report. It decides how the report is read: a
- * blocker only counts as evidence when it came from a reassessment.
+ * blocker only counts as evidence when it came from the turn that asked the
+ * agent to assess the situation.
  */
-type GoalTurnMode =
-  | "plan"
-  | "task"
-  | "verify"
-  | "repair"
-  | "answer"
-  | "edit"
-  | "recover"
-  | "reassess";
+type GoalTurnMode = "plan" | "task" | "verify" | "repair" | "answer" | "edit" | "recover";
 
 interface GoalRow {
   readonly goal_id: string;
@@ -219,8 +226,6 @@ interface GoalTaskRow {
   readonly question: string | null;
   readonly blocker_json: string | null;
   readonly attempts: number;
-  readonly recovery_attempts: number;
-  readonly reassessments: number;
   readonly depends_on_json: string;
 }
 
@@ -290,8 +295,12 @@ interface GoalRecord {
   readonly pendingEdit: boolean;
   readonly pendingAnswer: string | null;
   /**
-   * Why the goal is parked and when it may try again. It is driver state: the
-   * wire only learns that the goal is waiting for the provider.
+   * The provider fault the goal hit, and when it may try again.
+   *
+   * It is driver state: the wire only learns that the goal is waiting for the
+   * provider. It survives the wait, because the turn that follows a provider
+   * fault has to tell the agent why that turn never reached it. The notice is
+   * spent once a turn has carried it.
    */
   readonly providerWait: GoalProviderWait | null;
 }
@@ -347,7 +356,9 @@ const GoalProviderWaitSchema = Schema.Struct({
   resumeAt: Schema.String,
   attempt: Schema.Int,
 });
-const decodeProviderWait = Schema.decodeUnknownOption(Schema.fromJsonString(GoalProviderWaitSchema));
+const decodeProviderWait = Schema.decodeUnknownOption(
+  Schema.fromJsonString(GoalProviderWaitSchema),
+);
 const encodeProviderWait = Schema.encodeSync(Schema.fromJsonString(GoalProviderWaitSchema));
 const decodeGoalStatus = Schema.decodeUnknownOption(GoalStatus);
 const decodeTaskStatus = Schema.decodeUnknownOption(GoalTaskStatus);
@@ -357,25 +368,7 @@ const decodeActor = Schema.decodeUnknownOption(
 const decodeCreationSource = Schema.decodeUnknownOption(
   Schema.Literals(["web", "mobile", "mcp", "provider", "server"] as const),
 );
-const decodeActivityKind = Schema.decodeUnknownOption(
-  Schema.Literals([
-    "created",
-    "plan",
-    "task_started",
-    "task_completed",
-    "task_failed",
-    "task_recovering",
-    "task_waiting_input",
-    "task_blocked",
-    "status",
-    "prompt",
-    "user",
-    "recovery",
-    "reassessment",
-    "verification",
-    "error",
-  ] as const),
-);
+const decodeActivityKind = Schema.decodeUnknownOption(GoalActivityKind);
 
 const nowIso = Effect.map(DateTime.now, (now) => DateTime.formatIso(DateTime.toUtc(now)));
 
@@ -422,40 +415,6 @@ function hasEnded(status: Goal["status"]): boolean {
 }
 
 /**
- * What the driver does with a task that reported an obstacle.
- *
- * `recover` sends another turn with the failure as context, `reassess` asks
- * the agent for an evidence-based assessment before anything is given up on.
- * A reassessment that comes back without usable evidence is treated as another
- * failure, so a vague answer never ends the loop.
- */
-export type GoalTaskRecovery =
-  | { readonly kind: "recover"; readonly attempt: number }
-  | { readonly kind: "reassess"; readonly attempt: number };
-
-/**
- * The recovery ladder for one task.
- *
- * The first few failures get a recovery turn: the agent is told what broke
- * and asked to work it out. Past that budget every further attempt is a
- * reassessment, and reassessments never run out. The ladder has no last rung:
- * a task is only stopped by an assessment that names a real external blocker
- * or by the user, never by a counter. Every rung here re-tries the work, so
- * the ladder never turns a hard problem into a surrender.
- */
-function planGoalTaskRecovery(input: {
-  readonly recoveryAttempts: number;
-  readonly reassessments: number;
-}): GoalTaskRecovery {
-  if (input.recoveryAttempts < GOAL_RECOVERY_ATTEMPTS) {
-    return { kind: "recover", attempt: input.recoveryAttempts + 1 };
-  }
-  return { kind: "reassess", attempt: input.reassessments + 1 };
-}
-
-export { GOAL_RECOVERY_ATTEMPTS };
-
-/**
  * The task the loop works on next.
  *
  * A task waiting on the user is skipped, so an open question never stops
@@ -495,6 +454,14 @@ export class GoalService extends Context.Service<
      */
     readonly watchGoal: (input: GoalWatchInput) => Stream.Stream<GoalMutationResult, GoalError>;
     readonly get: (input: GoalGetInput) => Effect.Effect<GoalMutationResult, GoalError>;
+    /**
+     * The goal that drives a thread, if there is one.
+     *
+     * A thread that drives a goal cannot start another one: the goal's agent
+     * works in that thread, and two goals in one thread would answer each
+     * other's turns. The user and an ordinary thread's agent can start goals.
+     */
+    readonly goalForThread: (threadId: ThreadId) => Effect.Effect<GoalSummary | null, GoalError>;
     readonly create: (input: GoalCreateInput) => Effect.Effect<GoalMutationResult, GoalError>;
     readonly update: (input: GoalUpdateInput) => Effect.Effect<GoalMutationResult, GoalError>;
     readonly pause: (input: GoalPauseInput) => Effect.Effect<GoalMutationResult, GoalError>;
@@ -551,8 +518,6 @@ export const layer = Layer.effect(
       question: row.question,
       blocker: Option.getOrElse(decodeBlocker(row.blocker_json), () => null),
       attempts: row.attempts,
-      recoveryAttempts: row.recovery_attempts,
-      reassessments: row.reassessments,
       dependsOn: decodeDependsOn(row.depends_on_json),
     });
 
@@ -711,14 +676,13 @@ export const layer = Layer.effect(
             (task) => sql`
           INSERT INTO goal_tasks (
             goal_id, task_id, title, detail, status, task_order, started_at, completed_at,
-            evidence, question, blocker_json, attempts, recovery_attempts, reassessments,
+            evidence, question, blocker_json, attempts,
             depends_on_json
           ) VALUES (
             ${goal.id}, ${task.id}, ${task.title}, ${task.detail}, ${task.status},
             ${task.order}, ${task.startedAt}, ${task.completedAt}, ${task.evidence},
             ${task.question}, ${task.blocker === null ? null : encodeBlocker(task.blocker)},
-            ${task.attempts},
-            ${task.recoveryAttempts}, ${task.reassessments}, ${encodeDependsOn(task.dependsOn)}
+            ${task.attempts}, ${encodeDependsOn(task.dependsOn)}
           )
         `,
             { discard: true, concurrency: 1 },
@@ -800,6 +764,9 @@ export const layer = Layer.effect(
       return yield* commit(
         {
           ...record,
+          // A goal that ended will never carry the provider notice.
+          providerWait:
+            status === "cancelled" || status === "completed" ? null : record.providerWait,
           goal: {
             ...record.goal,
             status,
@@ -943,8 +910,15 @@ export const layer = Layer.effect(
         const goal = record.goal;
         const cycle = goal.cycleCount + 1;
         const at = yield* nowIso;
+        // A turn that follows a provider fault opens with what the provider
+        // said, so the agent knows that turn died in the environment rather
+        // than because of its own work. It decides how to continue.
+        const text =
+          record.providerWait === null ? prompt : providerNotice(record.providerWait, prompt);
         const started: GoalRecord = {
           ...record,
+          // The notice is spent by the turn that carries it.
+          providerWait: null,
           goal: {
             ...goal,
             status: options?.status ?? goal.status,
@@ -958,7 +932,6 @@ export const layer = Layer.effect(
 
         const commandId = CommandId.make(`goal:${goal.id}:${cycle}:${phase}`);
         const messageId = MessageId.make(`goal-message:${goal.id}:${cycle}:${phase}`);
-        const text = prompt;
 
         const dispatched:
           | { readonly threadId: ThreadId; readonly runId: RunId | null }
@@ -1038,7 +1011,11 @@ export const layer = Layer.effect(
         if (dispatched === null) {
           // The thread is gone; the drive loop dispatches again and launches
           // a replacement instead of parking on a dead goal.
-          return { kind: "relaunch" as const, record: yield* readRecordOrFail(goal.id), report: null };
+          return {
+            kind: "relaunch" as const,
+            record: yield* readRecordOrFail(goal.id),
+            report: null,
+          };
         }
 
         const launched =
@@ -1157,7 +1134,12 @@ export const layer = Layer.effect(
               // re-dispatching on the next cycle rather than blocking.
               return { kind: "interrupted" as const, record: afterWait, report: null };
             }
-            return { kind: "failed" as const, record: afterWait, report: null, providerFailure: null };
+            return {
+              kind: "failed" as const,
+              record: afterWait,
+              report: null,
+              providerFailure: null,
+            };
           }
 
           const report = parseGoalReport(reply);
@@ -1209,10 +1191,7 @@ export const layer = Layer.effect(
       failure: OrchestrationV2ProviderFailure,
     ) {
       const attempt = (record.providerWait?.attempt ?? 0) + 1;
-      const delayMs = Math.min(
-        PROVIDER_RETRY_BASE_MS * 2 ** (attempt - 1),
-        PROVIDER_RETRY_MAX_MS,
-      );
+      const delayMs = Math.min(PROVIDER_RETRY_BASE_MS * 2 ** (attempt - 1), PROVIDER_RETRY_MAX_MS);
       const now = yield* DateTime.now;
       const nowMs = DateTime.toEpochMillis(now);
       // A usage limit names the moment it lifts, so the server waits for that
@@ -1261,6 +1240,9 @@ export const layer = Layer.effect(
      * The goal resumes by itself: it does not need the user, and the turn it
      * was making is dispatched again with the plan intact. Called by the
      * parked sweep, and by the user when they resume a parked goal.
+     *
+     * The provider fault stays on the record until a turn has carried it, so
+     * the agent learns why that turn never reached it.
      */
     const resumeParkedGoal = Effect.fn("GoalService.resumeParkedGoal")(function* (
       record: GoalRecord,
@@ -1273,15 +1255,10 @@ export const layer = Layer.effect(
       return yield* commit(
         {
           ...current,
-          providerWait: null,
           goal: {
             ...current.goal,
             status:
-              current.goal.tasks.length === 0
-                ? "planning"
-                : recovering
-                  ? "recovering"
-                  : "running",
+              current.goal.tasks.length === 0 ? "planning" : recovering ? "recovering" : "running",
             blockedReason: null,
           },
         },
@@ -1293,9 +1270,9 @@ export const layer = Layer.effect(
      * Runs a turn and parks the goal when the provider, not the agent, failed.
      *
      * A provider fault is the environment's problem, so the goal waits for
-     * the provider and the same turn runs again. The agent's own recovery
-     * budget is untouched: the turn was never the agent's fault. The driver
-     * leaves the goal parked; the parked sweep brings it back.
+     * the provider and the same turn runs again. The agent is told about the
+     * fault when the turn comes back, and it decides what to do about it. The
+     * driver leaves the goal parked; the parked sweep brings it back.
      */
     const runTurnOrPark = (
       record: GoalRecord,
@@ -1357,22 +1334,18 @@ export const layer = Layer.effect(
       // A question pauses one task, not the whole goal: the rest of the plan
       // keeps running while the user answers.
       const asksForInput = report.status === "needs_input";
+      // A task the agent reported as failed is an obstacle to work through,
+      // not a conclusion: it goes back into recovery so the next turn hands
+      // it to the agent with what is known about it.
+      const reportedFailed =
+        currentTaskId !== null &&
+        applied.tasks.some((task) => task.id === currentTaskId && task.status === "failed");
       // An obstacle is not a dead end. The task goes into recovery and the
       // driver sends a recovery turn with the failure as its context.
-      const hitObstacle = report.status === "blocked" || report.status === "recovering";
+      const hitObstacle =
+        report.status === "blocked" || report.status === "recovering" || reportedFailed;
 
-      const previous = new Map(record.goal.tasks.map((task) => [task.id, task]));
       const tasks = applied.tasks.map((task) => {
-        const before = previous.get(task.id);
-        // A task that made progress out of recovery starts a fresh budget: the
-        // obstacle was worked through, so the next one does not inherit a
-        // spent recovery allowance.
-        if (
-          before?.status === "recovering" &&
-          (task.status === "in_progress" || task.status === "completed")
-        ) {
-          return { ...task, recoveryAttempts: 0, reassessments: 0 };
-        }
         if (task.id !== currentTaskId) return task;
         if (task.status === "completed") return task;
         if (asksForInput) {
@@ -1402,10 +1375,10 @@ export const layer = Layer.effect(
       );
 
       // The agent's own blocked verdict is a claim, not a conclusion: it
-      // becomes another obstacle to recover from unless the turn was the
-      // reassessment that was asked for a full assessment.
+      // becomes another obstacle to recover from unless the turn was the one
+      // that asked the agent to assess the situation and say what it found.
       const blocker =
-        options?.mode === "reassess" && applied.blocker !== null ? applied.blocker : null;
+        options?.mode === "recover" && applied.blocker !== null ? applied.blocker : null;
 
       // A task that produced a full assessment carries it, so the reason a
       // task stopped is the task's own evidence.
@@ -1552,17 +1525,22 @@ export const layer = Layer.effect(
     /**
      * The goal's execution loop.
      *
-     * The loop is autonomous: an obstacle sends the affected task through
-     * recovery, and the recovery ladder escalates to a reassessment that has
-     * to produce evidence before anything is called blocked. Nothing here
-     * ends the goal by counting: a task is stopped by evidence or by the
-     * user, and a provider that breaks parks the goal until it comes back.
-     * Work the agent reported as recoverable never stops the goal; only a
-     * task that waits on the user pauses, and only that task.
+     * The loop is autonomous: an obstacle is handed to the agent with what is
+     * known about it, and the agent decides whether to try again, change
+     * approach, ask the user or call it a deadlock. Nothing here ends the goal
+     * by counting: a task is stopped by evidence or by the user, and a
+     * provider that breaks parks the goal until it comes back. Work the agent
+     * reported as recoverable never stops the goal; only a task that waits on
+     * the user pauses, and only that task.
      */
     const drive = (goalId: GoalId) =>
       Effect.gen(function* () {
         let idleCycles = 0;
+        // A phase whose last turn produced nothing asks the agent what
+        // happened instead of repeating the same prompt.
+        let planFollowUp = false;
+        let verifyFollowUp = false;
+        let repairFollowUp = false;
         while (true) {
           const record = yield* readRecordOrFail(goalId);
           const goal = record.goal;
@@ -1650,73 +1628,68 @@ export const layer = Layer.effect(
           }
 
           if (goal.status === "planning" && goal.tasks.length === 0) {
-            const outcome = yield* runTurnOrPark(record, buildGoalPlanningPrompt(goal), "plan");
+            const prompt = planFollowUp
+              ? buildGoalFollowUpPrompt({
+                  goal,
+                  task: null,
+                  failure: "The planning turn produced no plan.",
+                  nextStep:
+                    "Report the plan you will follow with its tasks, or say what stopped you.",
+                })
+              : buildGoalPlanningPrompt(goal);
+            const outcome = yield* runTurnOrPark(record, prompt, "plan");
             if (outcome.kind === "stopped") return;
             if (outcome.kind === "parked") return;
             if (outcome.kind === "interrupted" || outcome.kind === "relaunch") continue;
             if (outcome.report === null) {
+              // The agent produced nothing. It is asked what happened next
+              // time, and the goal waits rather than being taken away.
               idleCycles += 1;
-              if (idleCycles >= GOAL_IDLE_ESCALATION_CYCLES) {
-                // Planning that keeps producing nothing is an obstacle, not a
-                // dead end: the agent is asked why before anything is given up.
-                const recovery = yield* runTurnOrPark(
-                  outcome.record,
-                  buildGoalRecoveryPrompt({
-                    goal: outcome.record.goal,
-                    task: null,
-                    failure: "The planning turn produced no plan.",
-                    recoveryAttempt: idleCycles,
-                  }),
-                  "recover",
-                );
-                if (recovery.kind === "stopped") return;
-                if (recovery.kind === "parked") continue;
-                if (recovery.kind === "interrupted" || recovery.kind === "relaunch") continue;
-                if (recovery.report === null) {
-                  // Still nothing. The goal waits and asks again: the agent
-                  // gets more time rather than the goal being taken away.
-                  yield* Effect.sleep(stallDelay(idleCycles));
-                  continue;
-                }
-                // The recovery report is applied even when it names no plan:
-                // the goal asks again with a growing pause rather than being
-                // taken away for it.
-                yield* applyReport(outcome.record, recovery.report, { mode: "recover" });
-                idleCycles = 0;
-                continue;
+              planFollowUp = true;
+              if (idleCycles >= GOAL_IDLE_PACING_CYCLES) {
+                yield* Effect.sleep(stallDelay(idleCycles));
               }
               continue;
             }
             idleCycles = 0;
+            planFollowUp = false;
             const applied = yield* applyReport(outcome.record, outcome.report, { mode: "plan" });
             if (applied.record.goal.tasks.length === 0) {
               // A plan report with no tasks is not progress. The goal asks
               // again, with a growing pause, instead of being taken away.
               idleCycles += 1;
+              planFollowUp = true;
               yield* Effect.sleep(stallDelay(idleCycles));
             }
             continue;
           }
 
           if (goal.status === "verifying") {
-            const outcome = yield* runTurnOrPark(
-              record,
-              buildGoalVerificationPrompt(goal),
-              "verify",
-            );
+            const prompt = verifyFollowUp
+              ? buildGoalFollowUpPrompt({
+                  goal,
+                  task: null,
+                  failure: "The verification turn produced no report.",
+                  nextStep:
+                    "Report verified true with the proof for every criterion, or verified false and what is still missing.",
+                })
+              : buildGoalVerificationPrompt(goal);
+            const outcome = yield* runTurnOrPark(record, prompt, "verify");
             if (outcome.kind === "stopped") return;
             if (outcome.kind === "parked") return;
             if (outcome.kind === "interrupted" || outcome.kind === "relaunch") continue;
             if (outcome.report === null) {
+              // Verification that never reports is asked for again rather
+              // than ending the goal.
               idleCycles += 1;
-              if (idleCycles >= GOAL_IDLE_ESCALATION_CYCLES) {
-                // Verification that never reports is asked for again rather
-                // than ending the goal.
+              verifyFollowUp = true;
+              if (idleCycles >= GOAL_IDLE_PACING_CYCLES) {
                 yield* Effect.sleep(stallDelay(idleCycles));
               }
               continue;
             }
             idleCycles = 0;
+            verifyFollowUp = false;
             const verified = yield* verifyCompletion(outcome.record, outcome.report);
             if (verified.done) return;
             continue;
@@ -1732,20 +1705,31 @@ export const layer = Layer.effect(
           const allCompleted = goal.tasks.every((task) => task.status === "completed");
           if (allCompleted) {
             if (goal.verification.status === "failed") {
-              const outcome = yield* runTurnOrPark(record, buildGoalRepairPrompt(goal), "repair");
+              const prompt = repairFollowUp
+                ? buildGoalFollowUpPrompt({
+                    goal,
+                    task: null,
+                    failure: "The repair turn produced no report.",
+                    nextStep:
+                      "Report what you changed and re-run the checks that prove it, or say what stopped you.",
+                  })
+                : buildGoalRepairPrompt(goal);
+              const outcome = yield* runTurnOrPark(record, prompt, "repair");
               if (outcome.kind === "stopped") return;
               if (outcome.kind === "parked") return;
               if (outcome.kind === "interrupted" || outcome.kind === "relaunch") continue;
               if (outcome.report === null) {
+                // Repair that never reports is asked for again rather than
+                // ending the goal.
                 idleCycles += 1;
-                if (idleCycles >= GOAL_IDLE_ESCALATION_CYCLES) {
-                  // Repair that never reports is asked for again rather than
-                  // ending the goal.
+                repairFollowUp = true;
+                if (idleCycles >= GOAL_IDLE_PACING_CYCLES) {
                   yield* Effect.sleep(stallDelay(idleCycles));
                 }
                 continue;
               }
               idleCycles = 0;
+              repairFollowUp = false;
               const applied = yield* applyReport(outcome.record, outcome.report, {
                 repair: true,
                 planHandling: "extend",
@@ -1778,18 +1762,10 @@ export const layer = Layer.effect(
             return;
           }
 
-          // A task that reported an obstacle is recovered from first: the
-          // failure is the context, and the agent is asked to work it out
-          // rather than to try the same thing again. The ladder escalates to
-          // a reassessment and keeps going: only an assessment with evidence
-          // behind it stops a task.
+          // A task that reported an obstacle is handed back to the agent with
+          // what is known about it. The agent decides what to do next; the
+          // server never decides how many tries a task gets.
           const recovering = nextTask.status === "recovering";
-          const ladder = recovering
-            ? planGoalTaskRecovery({
-                recoveryAttempts: nextTask.recoveryAttempts,
-                reassessments: nextTask.reassessments,
-              })
-            : null;
 
           const markedAt = yield* nowIso;
           const marked: GoalRecord = {
@@ -1805,15 +1781,9 @@ export const layer = Layer.effect(
                       ...task,
                       status: recovering ? ("recovering" as const) : ("in_progress" as const),
                       startedAt: task.startedAt ?? markedAt,
-                      // Every turn spent on the task is an attempt, whether it
-                      // did the work, recovered from a failure, or reassessed.
+                      // Turns spent on the task are counted for the card; they
+                      // do not decide what happens next.
                       attempts: task.attempts + 1,
-                      recoveryAttempts:
-                        ladder?.kind === "recover"
-                          ? task.recoveryAttempts + 1
-                          : task.recoveryAttempts,
-                      reassessments:
-                        ladder?.kind === "reassess" ? task.reassessments + 1 : task.reassessments,
                     }
                   : task,
               ),
@@ -1821,43 +1791,28 @@ export const layer = Layer.effect(
             },
           };
           yield* commit(marked, {
-            kind: ladder?.kind === "reassess" ? "reassessment" : "task_started",
-            summary:
-              ladder?.kind === "reassess"
-                ? `Reassessing: ${nextTask.title}`
-                : ladder?.kind === "recover"
-                  ? `Recovering: ${nextTask.title}`
-                  : `Working on: ${nextTask.title}`,
+            kind: recovering ? "recovery" : "task_started",
+            summary: recovering ? `Recovering: ${nextTask.title}` : `Working on: ${nextTask.title}`,
             detail: nextTask.detail,
             taskId: nextTask.id,
           });
 
           const outcome = yield* runTurnOrPark(
             marked,
-            ladder?.kind === "reassess"
-              ? buildGoalReassessmentPrompt({
+            recovering
+              ? buildGoalFollowUpPrompt({
                   goal: marked.goal,
                   task: nextTask,
-                  reason: nextTask.evidence ?? "The agent could not make progress on this task.",
                   failure: nextTask.evidence,
+                  nextStep:
+                    "Report the task as completed with evidence, as recovering with what you changed, or needs_input with one question.",
                 })
-              : ladder?.kind === "recover"
-                ? buildGoalRecoveryPrompt({
-                    goal: marked.goal,
-                    task: nextTask,
-                    failure: nextTask.evidence,
-                    recoveryAttempt: nextTask.recoveryAttempts + 1,
-                  })
-                : buildGoalExecutionPrompt({
-                    goal: marked.goal,
-                    task: nextTask,
-                    edited: false,
-                  }),
-            ladder?.kind === "reassess"
-              ? "reassess"
-              : ladder?.kind === "recover"
-                ? "recover"
-                : "task",
+              : buildGoalExecutionPrompt({
+                  goal: marked.goal,
+                  task: nextTask,
+                  edited: false,
+                }),
+            recovering ? "recover" : "task",
             { taskId: nextTask.id },
           );
           if (outcome.kind === "stopped") return;
@@ -1866,7 +1821,7 @@ export const layer = Layer.effect(
           if (outcome.report === null) {
             // A turn that produced no usable result is an obstacle like any
             // other: the task goes back into recovery rather than the goal
-            // stopping. The recovery ladder escalates the next attempt.
+            // stopping. The next turn hands it to the agent to decide.
             idleCycles += 1;
             yield* commit(
               {
@@ -1901,7 +1856,7 @@ export const layer = Layer.effect(
                 taskId: nextTask.id,
               },
             );
-            if (idleCycles >= GOAL_IDLE_ESCALATION_CYCLES) {
+            if (idleCycles >= GOAL_IDLE_PACING_CYCLES) {
               // The task keeps trying, but not every few seconds: a confused
               // agent gets time before the next attempt.
               yield* Effect.sleep(stallDelay(idleCycles));
@@ -1911,17 +1866,12 @@ export const layer = Layer.effect(
           idleCycles = 0;
           const applied = yield* applyReport(outcome.record, outcome.report, {
             planHandling: "ignore",
-            mode:
-              ladder?.kind === "reassess"
-                ? "reassess"
-                : ladder?.kind === "recover"
-                  ? "recover"
-                  : "task",
+            mode: recovering ? "recover" : "task",
           });
           if (applied.status === "completed") return;
-          // A reassessment that produced a full assessment ends this task.
-          // The task is finished as far as the plan is concerned, but the
-          // goal keeps working whatever else it can.
+          // An assessment that names a real blocker ends this task. The task
+          // is finished as far as the plan is concerned, but the goal keeps
+          // working whatever else it can.
           if (applied.blocker !== null) {
             const blocker = applied.blocker;
             yield* commit(
@@ -2028,8 +1978,7 @@ export const layer = Layer.effect(
      * goals does not decode four thousand activities to say what it needs.
      */
     const listSummaries = Effect.fn("GoalService.listSummaries")(function* (projectId?: string) {
-      const scope =
-        projectId === undefined ? sql`` : sql`WHERE project_id = ${projectId}`;
+      const scope = projectId === undefined ? sql`` : sql`WHERE project_id = ${projectId}`;
       const goalRows = yield* sql<GoalSummaryRow>`
         SELECT goal_id, project_id, thread_id, title, status, current_task_id, blocked_reason,
                failure_reason, question, progress, progress_label, turn_started_at, updated_at,
@@ -2090,6 +2039,52 @@ export const layer = Layer.effect(
         Effect.mapError((cause) => toGoalError(cause)),
       );
 
+    /**
+     * The goal that drives a thread, if there is one.
+     *
+     * A thread keeps its goal until that goal is finished or cancelled, so a
+     * paused or parked goal still owns the thread. The rule is the same one
+     * the client follows when it decides whether a new goal may share a
+     * thread.
+     */
+    const goalForThread: GoalService["Service"]["goalForThread"] = (threadId) =>
+      sql<GoalSummaryRow>`
+        SELECT goal_id, project_id, thread_id, title, status, current_task_id, blocked_reason,
+               failure_reason, question, progress, progress_label, turn_started_at, updated_at,
+               last_activity_at, completed_at
+        FROM goals
+        WHERE thread_id = ${threadId}
+          AND status NOT IN ('completed', 'cancelled')
+        ORDER BY created_at DESC
+        LIMIT 1
+      `.pipe(
+        Effect.map((rows) => {
+          const row = rows[0];
+          if (row === undefined) return null;
+          return {
+            id: GoalId.make(row.goal_id),
+            projectId: row.project_id as GoalSummary["projectId"],
+            threadId: row.thread_id === null ? null : ThreadId.make(row.thread_id),
+            title: row.title,
+            status: Option.getOrElse(decodeGoalStatus(row.status), () => "failed" as const),
+            currentTaskId: row.current_task_id,
+            currentTaskTitle: null,
+            completedTaskCount: 0,
+            totalTaskCount: 0,
+            turnStartedAt: row.turn_started_at,
+            blockedReason: row.blocked_reason,
+            failureReason: row.failure_reason,
+            question: row.question,
+            progress: row.progress,
+            progressLabel: row.progress_label,
+            updatedAt: row.updated_at,
+            lastActivityAt: row.last_activity_at,
+            completedAt: row.completed_at,
+          } satisfies GoalSummary;
+        }),
+        Effect.mapError((cause) => toGoalError(cause)),
+      );
+
     const subscribeList: GoalService["Service"]["subscribeList"] = (input) =>
       Stream.unwrap(
         Effect.gen(function* () {
@@ -2107,28 +2102,38 @@ export const layer = Layer.effect(
      * The client opens this while the user is looking at the goal and closes
      * it again, so the payload is built for that goal alone and the server
      * stops reading it the moment nobody watches.
+     *
+     * A goal that is not there is an error the client can show, not a silent
+     * empty stream: a card that can never load reads as a stuck app.
      */
     const watchGoal: GoalService["Service"]["watchGoal"] = (input) =>
       Stream.unwrap(
         Effect.gen(function* () {
           const subscription = yield* PubSub.subscribe(changes);
           const lastFingerprint = yield* Ref.make<string | null>(null);
-          const read: Effect.Effect<GoalMutationResult | null> = Effect.gen(function* () {
-            const record = yield* readRecord(input.id).pipe(
-              Effect.catchCause((cause) =>
-                Effect.logWarning("Could not read a watched goal", {
+          const read: Effect.Effect<GoalMutationResult | null, GoalError> = Effect.gen(
+            function* () {
+              const record = yield* readRecord(input.id).pipe(
+                Effect.catchCause((cause) =>
+                  Effect.logWarning("Could not read a watched goal", {
+                    goalId: input.id,
+                    cause,
+                  }).pipe(Effect.as(null)),
+                ),
+              );
+              if (record === null) {
+                return yield* new GoalError({
+                  message: "This goal no longer exists.",
                   goalId: input.id,
-                  cause,
-                }).pipe(Effect.as(null)),
-              ),
-            );
-            if (record === null) return null;
-            const fingerprint = goalFingerprint(record.goal);
-            const previous = yield* Ref.get(lastFingerprint);
-            if (previous !== null && previous === fingerprint) return null;
-            yield* Ref.set(lastFingerprint, fingerprint);
-            return { goal: record.goal };
-          });
+                });
+              }
+              const fingerprint = goalFingerprint(record.goal);
+              const previous = yield* Ref.get(lastFingerprint);
+              if (previous !== null && previous === fingerprint) return null;
+              yield* Ref.set(lastFingerprint, fingerprint);
+              return { goal: record.goal };
+            },
+          );
           return Stream.concat(
             Stream.fromEffect(read),
             Stream.fromSubscription(subscription).pipe(Stream.mapEffect(() => read)),
@@ -2325,7 +2330,6 @@ export const layer = Layer.effect(
         const resumed = yield* commit(
           {
             ...record,
-            providerWait: null,
             goal: {
               ...record.goal,
               status: record.goal.tasks.length === 0 ? "planning" : "running",
@@ -2418,11 +2422,8 @@ export const layer = Layer.effect(
                       completedAt: null,
                       evidence: null,
                       question: null,
-                      // A person asked for this retry, so it starts a new
-                      // recovery budget rather than inheriting the spent one.
+                      // A person asked for this retry, so the task starts over.
                       attempts: 0,
-                      recoveryAttempts: 0,
-                      reassessments: 0,
                     }
                   : candidate,
               ),
@@ -2590,6 +2591,7 @@ export const layer = Layer.effect(
       subscribeList,
       watchGoal,
       get,
+      goalForThread,
       create,
       update,
       pause,

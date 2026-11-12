@@ -15,6 +15,7 @@ import {
   goalDeliveryNotice,
   goalDrivesThread,
   goalHasOpenQuestion,
+  goalOccupiesThread,
   goalHeadline,
   goalMetaLine,
   goalNeedsAttention,
@@ -54,8 +55,6 @@ function task(overrides: Partial<GoalTask> & Pick<GoalTask, "id" | "title">): Go
     question: null,
     blocker: null,
     attempts: 0,
-    recoveryAttempts: 0,
-    reassessments: 0,
     dependsOn: [],
     ...overrides,
   };
@@ -297,6 +296,41 @@ describe("goalDrivesThread", () => {
   it("has nothing to drive in a threadless view", () => {
     const running = goal({ id: "running", status: "running", threadId });
     expect(goalDrivesThread([running], null)).toBe(false);
+  });
+});
+
+describe("goalOccupiesThread", () => {
+  const threadId = ThreadId.make("thread:1");
+
+  it("reports a thread that already runs a goal", () => {
+    for (const status of [
+      "planning",
+      "running",
+      "recovering",
+      "verifying",
+      "paused",
+      "needs_input",
+      "blocked",
+      "waiting_provider",
+      "failed",
+    ] as const) {
+      expect(goalOccupiesThread([goal({ id: status, status, threadId })], threadId)).toBe(true);
+    }
+  });
+
+  it("frees the thread once the goal is finished or cancelled", () => {
+    for (const status of ["completed", "cancelled"] as const) {
+      expect(goalOccupiesThread([goal({ id: status, status, threadId })], threadId)).toBe(false);
+    }
+  });
+
+  it("ignores a goal of another thread and a threadless view", () => {
+    expect(
+      goalOccupiesThread([goal({ id: "elsewhere", status: "running", threadId: null })], threadId),
+    ).toBe(false);
+    expect(goalOccupiesThread([goal({ id: "running", status: "running", threadId })], null)).toBe(
+      false,
+    );
   });
 });
 

@@ -58,7 +58,7 @@ const GoalReadTool = Tool.make("dak_goal_read", {
 
 const GoalCreateTool = Tool.make("dak_goal_create", {
   description:
-    "Create a goal and start it right away. The goal keeps working while its thread waits, and only stops for a question, an obstacle, verification, or completion. Omit projectId, modelSelection, and modes to inherit them from the calling thread or project default. createdBy will be agent and creationSource will be mcp.",
+    "Create a goal and start it right away. The goal keeps working while its thread waits, and only stops for a question, an obstacle, verification, or completion. Omit projectId, modelSelection, and modes to inherit them from the calling thread or project default. createdBy will be agent and creationSource will be mcp. A thread runs one goal: a thread that already has a goal is refused, and a goal's own thread cannot start another goal.",
   parameters: Schema.Struct({
     projectId: Schema.optional(ProjectId),
     threadId: Schema.optional(Schema.NullOr(ThreadId)),

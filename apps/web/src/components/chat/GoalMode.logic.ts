@@ -13,6 +13,7 @@ const GOAL_ACTIVE_STATUSES: ReadonlySet<GoalStatus> = new Set([
   "planning",
   "running",
   "recovering",
+  "verifying",
   "paused",
   "needs_input",
   "blocked",
@@ -106,6 +107,26 @@ export function goalDrivesThread(
 ): boolean {
   if (threadId === null) return false;
   return goals.some((goal) => goal.threadId === threadId && isGoalDriven(goal.status));
+}
+
+/**
+ * Whether a thread already has a goal.
+ *
+ * A thread runs one goal: two goals in one thread would answer each other's
+ * turns. The server keeps this rule, and the client follows the same one, so
+ * a second goal starts in a thread of its own instead of being refused. A
+ * goal owns its thread until it is completed or cancelled; a failed goal can
+ * still be resumed, so it keeps the thread.
+ */
+export function goalOccupiesThread(
+  goals: ReadonlyArray<Pick<GoalSummary, "threadId" | "status">>,
+  threadId: ThreadId | null,
+): boolean {
+  if (threadId === null) return false;
+  return goals.some(
+    (goal) =>
+      goal.threadId === threadId && goal.status !== "completed" && goal.status !== "cancelled",
+  );
 }
 
 /**

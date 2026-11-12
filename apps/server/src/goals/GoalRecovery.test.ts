@@ -306,9 +306,9 @@ it.effect("a failed test leads to an investigation and a correction", () => {
       (goal) => goal.status === "completed",
     );
 
-    // The recovery turn carries the failure and asks for a different approach,
-    // so the agent works the problem out rather than repeating the failure.
-    const recovery = script.sentTexts.find((text) => text.includes("recovery attempt 1"));
+    // The follow-up turn carries the failure and leaves the choice to the
+    // agent, so it works the problem out rather than repeating the failure.
+    const recovery = script.sentTexts.find((text) => text.includes("You decide how to continue"));
     assert.isDefined(recovery);
     expect(recovery).toContain("Property 'x' does not exist");
     expect(recovery).toContain("Do not repeat the same failing operation unchanged");
@@ -339,8 +339,10 @@ it.effect("the agent recovers and the goal continues on its own", () => {
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
-it.effect("an exhausted recovery budget triggers a reassessment, not a block", () => {
-  const failures = Array.from({ length: GoalService.GOAL_RECOVERY_ATTEMPTS + 1 }, () => ({
+it.effect("a task that keeps failing is never ended by a counter", () => {
+  // Far past any budget a server could keep: the agent is told what is known
+  // and decides, so the goal only stops when the agent calls it a deadlock.
+  const failures = Array.from({ length: 8 }, () => ({
     kind: "completed" as const,
     reply: buildFailedReport,
   }));
@@ -360,16 +362,17 @@ it.effect("an exhausted recovery budget triggers a reassessment, not a block", (
     );
     expect(blocked.blockedReason).toContain("the sandbox has no network access");
 
+    // The block came from the agent's own assessment, not from a counter.
     const full = yield* service.get({ id: created.goal.id });
-    const reassessed = full.goal.activities.find((activity) =>
-      activity.summary.startsWith("Reassessing: Do the thing"),
+    const blockers = full.goal.activities.filter(
+      (activity) => activity.kind === "task_failed" && activity.summary.includes("Do the thing"),
     );
-    expect(reassessed).toBeDefined();
+    expect(blockers).toHaveLength(1);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
 it.effect("a blocked claim without evidence does not block the goal", () => {
-  const failures = Array.from({ length: GoalService.GOAL_RECOVERY_ATTEMPTS + 1 }, () => ({
+  const failures = Array.from({ length: 5 }, () => ({
     kind: "completed" as const,
     reply: buildFailedReport,
   }));

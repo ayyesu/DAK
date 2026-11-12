@@ -44,6 +44,20 @@ const make = Effect.gen(function* () {
       (input, modes) =>
         Effect.gen(function* () {
           const context = yield* readCaller();
+          // A goal's agent works in the goal's own thread. It may not start
+          // another goal from there: two goals in one thread would answer each
+          // other's turns, the same way a subagent does not start another
+          // subagent. The user and an ordinary thread's agent can.
+          if (context.caller !== undefined) {
+            const owner = yield* mutation(goals.goalForThread(context.caller.id));
+            if (owner !== null) {
+              return yield* new OrchestratorMcpFailure({
+                code: "invalid_request",
+                message:
+                  "This thread is already running a goal. A goal cannot start another goal: finish or cancel the current one, or run the new goal in a thread of its own.",
+              });
+            }
+          }
           const projectId = yield* resolveProjectId(context, input.projectId);
           const projects = yield* ProjectService.ProjectService;
           const project = yield* projects

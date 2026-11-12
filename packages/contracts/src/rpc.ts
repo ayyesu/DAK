@@ -348,7 +348,6 @@ import {
   GoalCancelInput,
   GoalCreateInput,
   GoalError,
-  GoalGetInput,
   GoalListInput,
   GoalListResult,
   GoalMutationResult,
@@ -542,7 +541,6 @@ export const WS_METHODS = {
   goalsList: "goals.list",
   goalsSubscribe: "goals.subscribe",
   goalsWatch: "goals.watch",
-  goalsGet: "goals.get",
   goalsCreate: "goals.create",
   goalsUpdate: "goals.update",
   goalsPause: "goals.pause",
@@ -1845,12 +1843,6 @@ const WsGoalsSubscribeRpc = Rpc.make(WS_METHODS.goalsSubscribe, {
   stream: true,
 });
 
-const WsGoalsGetRpc = Rpc.make(WS_METHODS.goalsGet, {
-  payload: GoalGetInput,
-  success: GoalMutationResult,
-  error: Schema.Union([GoalError, EnvironmentAuthorizationError]),
-});
-
 /**
  * One goal's live detail. Clients open this only while the user is looking
  * at the goal, so the server builds the detail payload for that goal alone.
@@ -2010,7 +2002,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerSignalProcessRpc,
   WsGoalsListRpc,
   WsGoalsSubscribeRpc,
-  WsGoalsGetRpc,
   WsGoalsWatchRpc,
   WsGoalsCreateRpc,
   WsGoalsUpdateRpc,

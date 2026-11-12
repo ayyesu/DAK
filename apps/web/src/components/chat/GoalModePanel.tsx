@@ -18,8 +18,8 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   CheckIcon,
   ChevronDownIcon,
-  ChevronUpIcon,
   CircleIcon,
+  EyeIcon,
   ExternalLinkIcon,
   HistoryIcon,
   ListTreeIcon,
@@ -60,6 +60,7 @@ import { onOpenGoalComposer } from "../../goalModeBus";
 import { GoalBlockerPanel } from "./GoalBlockerPanel";
 import { GoalChangedFiles } from "./GoalChangedFiles";
 import { goalChangedFiles } from "./GoalChanges.logic";
+import { GoalWorkView } from "./GoalWorkView";
 import {
   canCancelGoal,
   canEditGoal,
@@ -260,7 +261,9 @@ function GoalCard(props: {
   const [editText, setEditText] = useState<string | null>(null);
   const [answerText, setAnswerText] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [activityOpen, setActivityOpen] = useState(false);
+  // The goal's work is read on demand: the card keeps the status, and the eye
+  // opens the run of turns it took.
+  const [workOpen, setWorkOpen] = useState(false);
   const [allTasksOpen, setAllTasksOpen] = useState(false);
   const [allCriteriaOpen, setAllCriteriaOpen] = useState(false);
   const [otherGoalsOpen, setOtherGoalsOpen] = useState(false);
@@ -382,6 +385,20 @@ function GoalCard(props: {
             )}
           </div>
           <div className="flex items-center gap-0.5">
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              aria-label="Show the goal's work"
+              aria-pressed={workOpen}
+              onClick={() => {
+                // The work is read from the goal's own stream, so the card
+                // opens to fetch it.
+                setCollapsedState(false);
+                setWorkOpen((value) => !value);
+              }}
+            >
+              <EyeIcon aria-hidden className="size-3.5" />
+            </Button>
             {goal.threadId !== null && goal.threadId !== props.threadId ? (
               <Button
                 size="icon-xs"
@@ -542,208 +559,262 @@ function GoalCard(props: {
         </div>
       ) : null}
 
-      {/* The details fold away with a height transition instead of blinking
-          out; the card itself scrolls, so a long plan never pushes the
-          composer down. */}
-      <div
-        className={cn(
-          "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
-          collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100",
-        )}
-        inert={collapsed ? true : undefined}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <div className="flex flex-col">
-            <div className="flex items-baseline justify-between gap-2 px-3.5 pt-2">
-              <span className="text-xl font-semibold tabular-nums leading-6">
-                {progress.percent}%
-              </span>
-              <span className="text-2xs text-muted-foreground">{goalProgressLabel(progress)}</span>
-            </div>
-            {meta === null ? null : (
-              <p className="truncate px-3.5 pt-0.5 text-2xs text-muted-foreground/80">{meta}</p>
-            )}
-            {goalDetail?.blocker == null ? null : (
-              <div className="mx-3.5 mt-2.5 overflow-y-auto">
-                <GoalBlockerPanel
-                  blocker={goalDetail.blocker}
-                  className="max-h-40 overflow-y-auto"
-                />
+      {/* The goal's work is read on demand: the eye opens it here, inside the
+          card, so the chat above keeps its own shape. */}
+      {workOpen ? (
+        <GoalWorkView
+          title={goal.title}
+          activities={activities}
+          now={now}
+          loading={goalDetail === null && watchQuery.error === null}
+          error={watchQuery.error}
+          onBack={() => setWorkOpen(false)}
+          {...(goal.threadId === null
+            ? {}
+            : {
+                onOpenThread: () =>
+                  void navigate({
+                    to: "/$environmentId/$threadId",
+                    params: buildThreadRouteParams(
+                      scopeThreadRef(environmentId, goal.threadId as ThreadId),
+                    ),
+                  }),
+              })}
+        />
+      ) : (
+        /* The details fold away with a height transition instead of blinking
+            out; the card itself scrolls, so a long plan never pushes the
+            composer down. */
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+            collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100",
+          )}
+          inert={collapsed ? true : undefined}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div className="flex flex-col">
+              <div className="flex items-baseline justify-between gap-2 px-3.5 pt-2">
+                <span className="text-xl font-semibold tabular-nums leading-6">
+                  {progress.percent}%
+                </span>
+                <span className="text-2xs text-muted-foreground">
+                  {goalProgressLabel(progress)}
+                </span>
               </div>
-            )}
-            {shownTasks.length > 0 ? (
-              <ul className="mt-2.5 list-none space-y-0 px-3.5">
-                {shownTasks.map((task, index) => {
-                  const last = index === shownTasks.length - 1 && hiddenTasks === 0;
-                  const isCurrent = current?.id === task.id && task.status !== "completed";
-                  return (
-                    <li key={task.id} className="flex gap-2.5">
-                      <span className="relative flex w-4 shrink-0 justify-center pt-0.5">
-                        <GoalTaskIcon task={task} />
-                        {last ? null : (
-                          <span aria-hidden className="absolute top-4.5 bottom-0 w-px bg-border" />
-                        )}
-                      </span>
-                      <div className="min-w-0 flex-1 pb-2">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={cn(
-                              "min-w-0 truncate text-xs font-medium",
-                              task.status === "pending"
-                                ? "text-muted-foreground"
-                                : "text-foreground",
-                            )}
-                          >
-                            {task.title}
-                          </span>
-                          {isCurrent && goal.status === "running" ? (
-                            <span className="shrink-0 text-2xs text-info">now</span>
-                          ) : null}
-                          {canOperate &&
-                          canRetryGoal(goal.status) &&
-                          (task.status === "failed" || task.status === "waiting_input") &&
-                          !busy ? (
-                            <button
-                              type="button"
-                              className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                              aria-label={`Retry ${task.title}`}
-                              onClick={() =>
-                                void run("Could not retry the task", () =>
-                                  retryGoalTask({
-                                    environmentId,
-                                    input: { id: goal.id, taskId: task.id },
-                                  }),
-                                )
-                              }
-                            >
-                              <RotateCcwIcon aria-hidden className="size-3" />
-                            </button>
-                          ) : null}
-                        </div>
-                        <p className="truncate text-2xs text-muted-foreground">
-                          {task.evidence ?? goalTaskStatusLabel(task.status)}
-                        </p>
-                        {task.question === null || task.question === question ? null : (
-                          <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-warning">
-                            {task.question}
-                          </p>
-                        )}
-                        {task.blocker === null ? null : (
-                          <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-destructive/90">
-                            {task.blocker.reason}
-                          </p>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="px-3.5 pt-2 text-xs text-muted-foreground">
-                The plan appears as soon as the agent finishes planning.
-              </p>
-            )}
-
-            {hiddenTasks > 0 || allTasksOpen ? (
-              <button
-                type="button"
-                className="mx-3.5 mb-1 text-2xs text-muted-foreground hover:text-foreground"
-                onClick={() => setAllTasksOpen((value) => !value)}
-              >
-                {allTasksOpen ? "Show fewer tasks" : `Show ${hiddenTasks} more tasks`}
-              </button>
-            ) : null}
-
-            {showChanges ? (
-              <GoalChangedFiles changes={changes} onOpenTurnDiff={props.onOpenTurnDiff} />
-            ) : null}
-
-            {showVerification ? (
-              <div className="px-3.5 pb-1 pt-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-2xs font-medium text-muted-foreground">Done when</span>
-                  {verification.status === "pending" ? null : (
-                    <span
-                      className={cn(
-                        "text-2xs font-medium",
-                        verification.status === "passed" ? "text-success" : "text-destructive",
-                      )}
-                    >
-                      {goalVerificationStatusLabel(verification.status)}
-                    </span>
-                  )}
+              {meta === null ? null : (
+                <p className="truncate px-3.5 pt-0.5 text-2xs text-muted-foreground/80">{meta}</p>
+              )}
+              {watchQuery.error === null ? null : (
+                <p className="px-3.5 pt-1 text-2xs text-destructive">{watchQuery.error}</p>
+              )}
+              {goalDetail?.blocker == null ? null : (
+                <div className="mx-3.5 mt-2.5 overflow-y-auto">
+                  <GoalBlockerPanel
+                    blocker={goalDetail.blocker}
+                    className="max-h-40 overflow-y-auto"
+                  />
                 </div>
-                {verification.summary !== null && verification.status !== "pending" ? (
-                  <p className="mt-0.5 text-2xs text-muted-foreground">{verification.summary}</p>
-                ) : null}
-                {criteria.length > 0 ? (
-                  <ul className="mt-1 list-none space-y-1">
-                    {shownCriteria.map((criterion) => (
-                      <li key={criterion.criterion} className="flex flex-col gap-2">
-                        <div className="flex items-start gap-2">
-                          <GoalCriterionIcon met={criterion.met} />
-                          <span
-                            className={cn(
-                              "min-w-0 text-xs leading-4",
-                              criterion.met === false
-                                ? "text-destructive"
-                                : criterion.met === true
-                                  ? "text-foreground"
-                                  : "text-muted-foreground",
-                            )}
-                          >
-                            {criterion.criterion}
-                          </span>
-                        </div>
-                        {criterion.proof.length > 0 ? (
-                          <div className="ml-8 flex flex-col gap-1">
-                            {criterion.proof.map((proof) => (
-                              <GoalCriterionProof
-                                key={`${proof.type}:${proof.url}`}
-                                proof={proof}
-                              />
-                            ))}
+              )}
+              {shownTasks.length > 0 ? (
+                <ul className="mt-2.5 list-none space-y-0 px-3.5">
+                  {shownTasks.map((task, index) => {
+                    const last = index === shownTasks.length - 1 && hiddenTasks === 0;
+                    const isCurrent = current?.id === task.id && task.status !== "completed";
+                    return (
+                      <li key={task.id} className="flex gap-2.5">
+                        <span className="relative flex w-4 shrink-0 justify-center pt-0.5">
+                          <GoalTaskIcon task={task} />
+                          {last ? null : (
+                            <span
+                              aria-hidden
+                              className="absolute top-4.5 bottom-0 w-px bg-border"
+                            />
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1 pb-2">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={cn(
+                                "min-w-0 truncate text-xs font-medium",
+                                task.status === "pending"
+                                  ? "text-muted-foreground"
+                                  : "text-foreground",
+                              )}
+                            >
+                              {task.title}
+                            </span>
+                            {isCurrent && goal.status === "running" ? (
+                              <span className="shrink-0 text-2xs text-info">now</span>
+                            ) : null}
+                            {canOperate &&
+                            canRetryGoal(goal.status) &&
+                            (task.status === "failed" || task.status === "waiting_input") &&
+                            !busy ? (
+                              <button
+                                type="button"
+                                className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                                aria-label={`Retry ${task.title}`}
+                                onClick={() =>
+                                  void run("Could not retry the task", () =>
+                                    retryGoalTask({
+                                      environmentId,
+                                      input: { id: goal.id, taskId: task.id },
+                                    }),
+                                  )
+                                }
+                              >
+                                <RotateCcwIcon aria-hidden className="size-3" />
+                              </button>
+                            ) : null}
                           </div>
-                        ) : null}
+                          <p className="truncate text-2xs text-muted-foreground">
+                            {task.evidence ?? goalTaskStatusLabel(task.status)}
+                          </p>
+                          {task.question === null || task.question === question ? null : (
+                            <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-warning">
+                              {task.question}
+                            </p>
+                          )}
+                          {task.blocker === null ? null : (
+                            <p className="mt-0.5 line-clamp-2 text-2xs leading-4 text-destructive/90">
+                              {task.blocker.reason}
+                            </p>
+                          )}
+                        </div>
                       </li>
-                    ))}
-                  </ul>
-                ) : null}
-                {hiddenCriteria > 0 || allCriteriaOpen ? (
-                  <button
-                    type="button"
-                    className="mt-1 text-2xs text-muted-foreground hover:text-foreground"
-                    onClick={() => setAllCriteriaOpen((value) => !value)}
-                  >
-                    {allCriteriaOpen
-                      ? "Show fewer criteria"
-                      : `Show ${hiddenCriteria} more criteria`}
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-
-            {editText !== null ? (
-              <div className="mx-3.5 mb-2 rounded-xl border border-border/60 p-2">
-                <Textarea
-                  autoFocus
-                  aria-label="Edit the goal"
-                  rows={3}
-                  value={editText}
-                  className="min-h-16 resize-none"
-                  onChange={(event) => setEditText(event.target.value)}
-                />
-                <p className="mt-1 text-2xs text-muted-foreground">
-                  Completed work is kept; the agent revises what remains.
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="px-3.5 pt-2 text-xs text-muted-foreground">
+                  The plan appears as soon as the agent finishes planning.
                 </p>
-                <div className="mt-1.5 flex justify-end gap-1.5">
-                  <Button size="xs" variant="ghost" onClick={() => setEditText(null)}>
-                    Cancel
-                  </Button>
-                  {!canPauseGoal(goal.status) ? (
+              )}
+
+              {hiddenTasks > 0 || allTasksOpen ? (
+                <button
+                  type="button"
+                  className="mx-3.5 mb-1 text-2xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setAllTasksOpen((value) => !value)}
+                >
+                  {allTasksOpen ? "Show fewer tasks" : `Show ${hiddenTasks} more tasks`}
+                </button>
+              ) : null}
+
+              {showChanges ? (
+                <GoalChangedFiles changes={changes} onOpenTurnDiff={props.onOpenTurnDiff} />
+              ) : null}
+
+              {showVerification ? (
+                <div className="px-3.5 pb-1 pt-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-2xs font-medium text-muted-foreground">Done when</span>
+                    {verification.status === "pending" ? null : (
+                      <span
+                        className={cn(
+                          "text-2xs font-medium",
+                          verification.status === "passed" ? "text-success" : "text-destructive",
+                        )}
+                      >
+                        {goalVerificationStatusLabel(verification.status)}
+                      </span>
+                    )}
+                  </div>
+                  {verification.summary !== null && verification.status !== "pending" ? (
+                    <p className="mt-0.5 text-2xs text-muted-foreground">{verification.summary}</p>
+                  ) : null}
+                  {criteria.length > 0 ? (
+                    <ul className="mt-1 list-none space-y-1">
+                      {shownCriteria.map((criterion) => (
+                        <li key={criterion.criterion} className="flex flex-col gap-2">
+                          <div className="flex items-start gap-2">
+                            <GoalCriterionIcon met={criterion.met} />
+                            <span
+                              className={cn(
+                                "min-w-0 text-xs leading-4",
+                                criterion.met === false
+                                  ? "text-destructive"
+                                  : criterion.met === true
+                                    ? "text-foreground"
+                                    : "text-muted-foreground",
+                              )}
+                            >
+                              {criterion.criterion}
+                            </span>
+                          </div>
+                          {criterion.proof.length > 0 ? (
+                            <div className="ml-8 flex flex-col gap-1">
+                              {criterion.proof.map((proof) => (
+                                <GoalCriterionProof
+                                  key={`${proof.type}:${proof.url}`}
+                                  proof={proof}
+                                />
+                              ))}
+                            </div>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {hiddenCriteria > 0 || allCriteriaOpen ? (
+                    <button
+                      type="button"
+                      className="mt-1 text-2xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setAllCriteriaOpen((value) => !value)}
+                    >
+                      {allCriteriaOpen
+                        ? "Show fewer criteria"
+                        : `Show ${hiddenCriteria} more criteria`}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {editText !== null ? (
+                <div className="mx-3.5 mb-2 rounded-xl border border-border/60 p-2">
+                  <Textarea
+                    autoFocus
+                    aria-label="Edit the goal"
+                    rows={3}
+                    value={editText}
+                    className="min-h-16 resize-none"
+                    onChange={(event) => setEditText(event.target.value)}
+                  />
+                  <p className="mt-1 text-2xs text-muted-foreground">
+                    Completed work is kept; the agent revises what remains.
+                  </p>
+                  <div className="mt-1.5 flex justify-end gap-1.5">
+                    <Button size="xs" variant="ghost" onClick={() => setEditText(null)}>
+                      Cancel
+                    </Button>
+                    {!canPauseGoal(goal.status) ? (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        disabled={!canOperate || busy || editText.trim() === ""}
+                        onClick={() =>
+                          void run(
+                            "Could not update the goal",
+                            () =>
+                              updateGoal({
+                                environmentId,
+                                input: { id: goal.id, objective: editText.trim() },
+                              }),
+                            () => {
+                              setEditText(null);
+                              void run("Could not resume the goal", () =>
+                                resumeGoal({ environmentId, input: { id: goal.id } }),
+                              );
+                            },
+                          )
+                        }
+                      >
+                        Save & resume
+                      </Button>
+                    ) : null}
                     <Button
                       size="xs"
-                      variant="outline"
                       disabled={!canOperate || busy || editText.trim() === ""}
                       onClick={() =>
                         void run(
@@ -753,69 +824,19 @@ function GoalCard(props: {
                               environmentId,
                               input: { id: goal.id, objective: editText.trim() },
                             }),
-                          () => {
-                            setEditText(null);
-                            void run("Could not resume the goal", () =>
-                              resumeGoal({ environmentId, input: { id: goal.id } }),
-                            );
-                          },
+                          () => setEditText(null),
                         )
                       }
                     >
-                      Save & resume
+                      Save changes
                     </Button>
-                  ) : null}
-                  <Button
-                    size="xs"
-                    disabled={!canOperate || busy || editText.trim() === ""}
-                    onClick={() =>
-                      void run(
-                        "Could not update the goal",
-                        () =>
-                          updateGoal({
-                            environmentId,
-                            input: { id: goal.id, objective: editText.trim() },
-                          }),
-                        () => setEditText(null),
-                      )
-                    }
-                  >
-                    Save changes
-                  </Button>
+                  </div>
                 </div>
-              </div>
-            ) : null}
-
-            {activityOpen ? (
-              <div className="border-t border-border/60 bg-muted/20 px-3.5 py-2">
-                <ol className="list-none space-y-1.5">
-                  {activities.length === 0 ? (
-                    <li className="text-2xs text-muted-foreground">No activity yet.</li>
-                  ) : (
-                    activities.map((activity) => (
-                      <li key={activity.id} className="flex gap-2">
-                        <span className="w-14 shrink-0 pt-px text-3xs tabular-nums text-muted-foreground/70">
-                          {formatGoalActivityTime(activity.at, now)}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 text-2xs text-foreground/90">
-                            {activity.summary}
-                          </p>
-                          {activity.detail === null ? null : (
-                            <p className="line-clamp-2 text-3xs text-muted-foreground">
-                              {activity.detail}
-                            </p>
-                          )}
-                        </div>
-                      </li>
-                    ))
-                  )}
-                </ol>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="sticky bottom-0 z-10 flex shrink-0 items-center justify-between gap-2 border-t border-border/60 bg-card/90 px-2 py-1.5 backdrop-blur-xl">
         <div className="flex items-center gap-0.5">
@@ -892,23 +913,6 @@ function GoalCard(props: {
           <span className="hidden text-2xs text-muted-foreground sm:inline">
             {formatGoalActivityTime(goal.lastActivityAt, now)}
           </span>
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={() => {
-              // The log lives in the folded region, so opening it has to
-              // bring the card back.
-              if (!activityOpen) setCollapsedState(false);
-              setActivityOpen((value) => !value);
-            }}
-          >
-            {activityOpen ? "Hide activity" : "View activity"}
-            {activityOpen ? (
-              <ChevronUpIcon aria-hidden className="size-3.5" />
-            ) : (
-              <ChevronDownIcon aria-hidden className="size-3.5" />
-            )}
-          </Button>
         </div>
       </div>
 

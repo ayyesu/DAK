@@ -4,6 +4,7 @@ import { assert, describe, expect, it } from "@effect/vitest";
 import {
   applyGoalReport,
   buildGoalExecutionPrompt,
+  buildGoalFollowUpPrompt,
   buildGoalPlanningPrompt,
   buildGoalRepairPrompt,
   buildGoalVerificationPrompt,
@@ -21,8 +22,6 @@ function task(overrides: Partial<GoalTask> & Pick<GoalTask, "id" | "title" | "or
     question: null,
     blocker: null,
     attempts: 0,
-    recoveryAttempts: 0,
-    reassessments: 0,
     dependsOn: [],
     ...overrides,
   };
@@ -449,7 +448,10 @@ describe("goal prompts", () => {
       edited: false,
     });
     expect(prompt).toContain(`Your task this turn: "Add toggle"`);
-    expect(prompt).toContain("[completed] Inspect — evidence: read app/");
+    // Done work is a count, not a transcript: its evidence is already in the
+    // workspace and in the report the agent wrote.
+    expect(prompt).toContain("1/2 done");
+    expect(prompt).not.toContain("read app/");
   });
 
   it("requires proof for each acceptance criterion during verification", () => {
@@ -468,7 +470,7 @@ describe("goal prompts", () => {
     expect(prompt).toContain("A criterion without proof counts as not met");
   });
 
-  it("tells a retry why the last attempt failed and to change approach", () => {
+  it("hands the agent what is known and leaves the choice to it", () => {
     const retrying = task({
       id: "t2",
       title: "Add toggle",
@@ -476,14 +478,18 @@ describe("goal prompts", () => {
       attempts: 2,
       evidence: "port 4000 already in use",
     });
-    const prompt = buildGoalExecutionPrompt({
+    const prompt = buildGoalFollowUpPrompt({
       goal: { ...baseGoal, tasks: [retrying] },
       task: retrying,
-      edited: false,
+      failure: retrying.evidence,
+      nextStep: "Report the task as completed with evidence.",
     });
-    expect(prompt).toContain("This is attempt 2 at this task.");
     expect(prompt).toContain("port 4000 already in use");
+    expect(prompt).toContain("You decide how to continue from here");
     expect(prompt).toContain("Do not repeat the same failing operation unchanged");
+    // No counter decides how often the agent tries.
+    expect(prompt).not.toContain("attempt 2");
+    expect(prompt).not.toContain("recovery attempt");
   });
 
   it("does not lecture a first attempt about recovery", () => {
@@ -493,7 +499,7 @@ describe("goal prompts", () => {
       task: first,
       edited: false,
     });
-    expect(prompt).not.toContain("This is attempt");
+    expect(prompt).not.toContain("You decide how to continue");
   });
 
   it("lists exactly the criteria verification rejected when repairing", () => {

@@ -476,8 +476,6 @@ export function applyGoalReport(input: {
         question: null,
         blocker: null,
         attempts: 0,
-        recoveryAttempts: 0,
-        reassessments: 0,
         dependsOn: [],
       });
       plannedDependencies.set(key, item.dependsOn);
@@ -523,8 +521,6 @@ export function applyGoalReport(input: {
         question: null,
         blocker: null,
         attempts: stranded ? 0 : 1,
-        recoveryAttempts: 0,
-        reassessments: 0,
         dependsOn: [],
       });
       nextOrder += 1;
@@ -552,8 +548,6 @@ export function applyGoalReport(input: {
             startedAt: current.startedAt ?? nowIso,
             evidence: update.evidence ?? current.evidence,
             attempts: Math.max(current.attempts, 1),
-            recoveryAttempts: 0,
-            reassessments: 0,
           }
         : update.status === "in_progress"
           ? {
@@ -649,14 +643,32 @@ function criteriaSection(goal: Goal): string {
   return `Acceptance criteria:\n${goal.acceptanceCriteria.map((criterion) => `- ${criterion}`).join("\n")}`;
 }
 
+/**
+ * The plan as the agent sees it.
+ *
+ * A goal can run for weeks, so the plan is trimmed to what a turn needs: the
+ * open tasks with a bounded slice of their evidence. Done tasks are a count,
+ * not a transcript, because their evidence is already in the workspace and in
+ * the report the agent wrote.
+ */
 function progressSection(goal: Goal): string {
   if (goal.tasks.length === 0) return "Plan: not created yet.";
-  const lines = goal.tasks.map((task) => {
-    const evidence = task.evidence === null ? "" : ` — evidence: ${task.evidence}`;
+  const completed = goal.tasks.filter((task) => task.status === "completed").length;
+  const open = goal.tasks.filter((task) => task.status !== "completed");
+  const shown = open.slice(0, 12);
+  const lines = shown.map((task) => {
+    const evidence = task.evidence === null ? "" : ` — evidence: ${boundedEvidence(task.evidence)}`;
     return `- [${task.status}] ${task.title}${evidence}`;
   });
-  return `Plan so far (server-tracked, authoritative):\n${lines.join("\n")}`;
+  const more =
+    open.length > shown.length ? `\n- and ${open.length - shown.length} more open tasks` : "";
+  return `Plan so far (server-tracked, authoritative): ${completed}/${goal.tasks.length} done\n${lines.join("\n")}${more}`;
 }
+
+/** How much of a task's evidence a turn carries. */
+const EVIDENCE_LIMIT = 240;
+const boundedEvidence = (evidence: string): string =>
+  evidence.length <= EVIDENCE_LIMIT ? evidence : `${evidence.slice(0, EVIDENCE_LIMIT).trimEnd()}…`;
 
 const RULES = `Rules:
 - Do the work in this workspace with your tools. Do not only describe what you would do.
@@ -699,14 +711,6 @@ export function buildGoalExecutionPrompt(input: {
 }): string {
   const { goal, task } = input;
   const remaining = goal.tasks.filter((candidate) => candidate.status !== "completed");
-  const recovery =
-    task.attempts <= 1
-      ? ""
-      : `This is attempt ${task.attempts} at this task.${
-          task.evidence === null
-            ? " The earlier attempt recorded no reason, so establish first why it did not finish."
-            : ` The previous attempt failed with: ${task.evidence}`
-        }\nDiagnose that failure, then take a different approach. Do not repeat the same failing operation unchanged.\n`;
   return `You are executing a persistent goal in Goal Mode.
 
 Objective from the user:
@@ -718,36 +722,40 @@ ${progressSection(goal)}
 
 ${input.edited ? "The user edited this goal since the last turn. Keep every completed task as done, revise only what remains, and follow the updated objective above.\n" : ""}Your task this turn: "${task.title}"${task.detail === null ? "" : `\nWhat it covers: ${task.detail}`}
 
-${recovery}Do the actual work now. When you finish it, report it completed with evidence. If you hit an obstacle, work through it in this turn: report the task as "recovering" with what failed, what you found, and what you changed, then keep going. If it truly cannot move without the user, report needs_input with the question. Do not start other tasks in this turn beyond what this one requires.
+Do the actual work now. When you finish it, report it completed with evidence. If you hit an obstacle, work through it in this turn: report the task as "recovering" with what failed, what you found, and what you changed, then keep going. If it truly cannot move without the user, report needs_input with the question. Do not start other tasks in this turn beyond what this one requires.
 Still open after this: ${remaining.length === 0 ? "nothing" : remaining.map((candidate) => candidate.title).join("; ")}
 
 ${RULES}`;
 }
 
 /**
- * The turn that follows a failed attempt. It hands the agent the evidence of
- * what failed and asks for a diagnosis and a different approach, because the
- * default reaction to a failure is to repeat it.
+ * The turn that follows one that did not finish.
+ *
+ * The server does not decide how often the agent tries or what it tries
+ * next: it hands over what is known and lets the agent choose. That is the
+ * same contract a parent agent has with a subagent whose turn ended, where
+ * the outcome and its reason arrive together and the parent decides what to
+ * do about it.
  */
-export function buildGoalRecoveryPrompt(input: {
+export function buildGoalFollowUpPrompt(input: {
   readonly goal: Goal;
   readonly task: GoalTask | null;
-  /** What the previous attempt reported as the cause. */
+  /** What the previous turn reported, in the agent's own words. */
   readonly failure: string | null;
-  /** Which recovery attempt this is, counting from one. */
-  readonly recoveryAttempt: number;
+  /** What the server needs the agent to report in this phase. */
+  readonly nextStep: string;
 }): string {
   const { goal, task } = input;
   const failure =
     input.failure === null || input.failure.trim() === ""
-      ? "The previous attempt failed without recording a reason."
-      : `The previous attempt failed with: ${input.failure}`;
+      ? "The previous turn did not finish this work and recorded no reason."
+      : `The previous turn did not finish this work. What is known:\n${input.failure}`;
   const taskLine =
     task === null
       ? "The goal as a whole could not make progress."
       : `Your task this turn: "${task.title}"${task.detail === null ? "" : `\nWhat it covers: ${task.detail}`}`;
   const remaining = goal.tasks.filter((candidate) => candidate.status !== "completed");
-  return `You are recovering a persistent goal in Goal Mode.
+  return `You are continuing a persistent goal in Goal Mode.
 
 Objective from the user:
 ${goal.objective}
@@ -760,58 +768,16 @@ ${taskLine}
 
 ${failure}
 
-This is recovery attempt ${input.recoveryAttempt}. Work the problem before asking anyone:
-1. Read the actual output and locate the cause. Do not guess from the summary.
-2. Decide whether you can fix it yourself. Missing details, a wrong assumption, a broken build, a failing test, or a dependency conflict are yours to resolve.
-3. Try a different approach than the one that failed, and validate it by running the check again.
-4. Only if you truly cannot proceed without the user, report needs_input with one specific question naming what you need and what you already tried.
+You decide how to continue from here:
+1. If the cause is yours to fix, fix it in this turn and report what you changed.
+2. If a different approach is needed, take it now and report the task as "recovering" with the new approach in the evidence.
+3. If only the user can move this forward, report needs_input with one specific question and what you already tried.
+4. If it is a real deadlock, report status "blocked" and state the exact blocker, its root cause, what you investigated, what you tried, the alternatives you rejected and why, and the one thing only the user or an external system can provide. A vague reason is rejected and the goal comes straight back to you.
 
-Do not repeat the same failing operation unchanged. Report the task as "recovering" while you work on it, and "completed" with evidence when the check passes.
+${input.nextStep}
+
+Do not repeat the same failing operation unchanged.
 Still open after this: ${remaining.length === 0 ? "nothing" : remaining.map((candidate) => candidate.title).join("; ")}
-
-${RULES}`;
-}
-
-/**
- * The turn that follows an exhausted recovery budget. It asks for an
- * evidence-based assessment instead of another attempt, so the goal only
- * stops when the reason is a real deadlock.
- */
-export function buildGoalReassessmentPrompt(input: {
-  readonly goal: Goal;
-  readonly task: GoalTask | null;
-  /** Why the server asked for a reassessment. */
-  readonly reason: string;
-  /** The failure evidence collected so far. */
-  readonly failure: string | null;
-}): string {
-  const { goal } = input;
-  const taskLine =
-    input.task === null
-      ? "The whole goal is being reassessed."
-      : `The task being reassessed is "${input.task.title}"${input.task.detail === null ? "" : ` (${input.task.detail})`}.`;
-  const failure =
-    input.failure === null || input.failure.trim() === ""
-      ? ""
-      : `\nWhat failed so far:\n${input.failure}\n`;
-  return `You are reassessing a persistent goal in Goal Mode.
-
-Objective from the user:
-${goal.objective}
-
-${criteriaSection(goal)}
-
-${progressSection(goal)}
-
-${taskLine}
-
-Why the server asked for this: ${input.reason}
-${failure}
-Recovery attempts have not produced a result, so repeating them is not useful. Assess the situation and pick one of these outcomes:
-
-1. A different approach exists. Describe it concretely and start it now in this same turn: report the task as "in_progress" or "recovering" with the new approach in the evidence, and keep working.
-2. The goal needs the user. Report needs_input with one specific question, and say what you already tried and what the answer unblocks.
-3. This is a real deadlock. Report status "blocked" and the task as "recovering", and state all of it in the evidence: the exact blocker, its root cause, what you investigated, what you tried, the alternatives you rejected and why, and the one thing only the user or an external system can provide. A vague reason is rejected and the goal comes straight back to you.
 
 ${RULES}`;
 }

@@ -435,6 +435,25 @@ function latestSteerableRun(
 
 const SETTLE_AFTER_RUN_WAIT_MS = 24 * 60 * 60 * 1_000;
 
+/**
+ * The stored events that mean the agent is working.
+ *
+ * A turn that keeps producing slides its idle deadline: its messages, the
+ * tools it runs, the nodes and provider turns it drives. Session plumbing
+ * (provider sessions, context transfers, checkpoints) and client-side
+ * housekeeping (visits, pins, reads) say nothing about the turn.
+ */
+const WORKING_EVENT_PREFIXES = [
+  "message.",
+  "turn-item.",
+  "node.",
+  "provider-turn.",
+  "run-attempt.",
+  "subagent.",
+  "plan.",
+  "run.",
+] as const;
+
 const make = Effect.gen(function* () {
   const orchestrator = yield* Orchestrator.OrchestratorV2;
   const layerScope = yield* Effect.scope;
@@ -745,16 +764,18 @@ const make = Effect.gen(function* () {
       type WaitSignal =
         | { readonly kind: "terminal"; readonly run: OrchestrationV2Run }
         | { readonly kind: "activity" };
-      // Any stored event besides thread metadata means the agent is working;
-      // client-side visits, pins and reads say nothing about the turn.
+      // The events that mean the agent is doing something: its messages, its
+      // tool calls, the nodes and provider turns it drives. Session plumbing
+      // and client-side housekeeping do not move the idle deadline, and a
+      // long thread has a lot of those.
       const activitySignals = () =>
-        orchestrator
-          .streamStoredEventsFrom({ threadId: input.threadId, afterSequence })
-          .pipe(
-            Stream.mapError(loadError),
-            Stream.filter((stored) => !stored.event.type.startsWith("thread.")),
-            Stream.map((): WaitSignal => ({ kind: "activity" })),
-          );
+        orchestrator.streamStoredEventsFrom({ threadId: input.threadId, afterSequence }).pipe(
+          Stream.mapError(loadError),
+          Stream.filter((stored) =>
+            WORKING_EVENT_PREFIXES.some((prefix) => stored.event.type.startsWith(prefix)),
+          ),
+          Stream.map((): WaitSignal => ({ kind: "activity" })),
+        );
 
       const idleTimeoutMs = input.idleTimeoutMs;
       const waitWindow = () => {
@@ -802,9 +823,7 @@ const make = Effect.gen(function* () {
                   Option.isSome(runOption)
                     ? Effect.succeed(runOption)
                     : backgroundWorkPending().pipe(
-                        Effect.flatMap((pending) =>
-                          pending ? loop() : Effect.succeed(runOption),
-                        ),
+                        Effect.flatMap((pending) => (pending ? loop() : Effect.succeed(runOption))),
                       ),
                 ),
               );

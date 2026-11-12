@@ -97,11 +97,11 @@ export const GoalTask = Schema.Struct({
    * the agent produced a full assessment of what is blocking it.
    */
   blocker: Schema.NullOr(GoalBlocker),
+  /**
+   * Turns spent on this task. It counts what happened, it never decides what
+   * happens next: the agent chooses how to continue.
+   */
   attempts: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  /** Recovery turns spent on the current obstacle. Drives reassessment. */
-  recoveryAttempts: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  /** Reassessment turns spent after the recovery budget was exhausted. */
-  reassessments: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   /**
    * Tasks that must complete before this one runs. Empty means independent, so
    * a task waiting on the user never holds up the rest of the plan.
@@ -123,7 +123,6 @@ export const GoalActivityKind = Schema.Literals([
   "prompt",
   "user",
   "recovery",
-  "reassessment",
   "verification",
   "error",
 ]);
@@ -348,18 +347,13 @@ export const GOAL_ACTIVITY_LIMIT = 40;
 /** Tasks one plan may contain. No cap: the agent decides its own approach. */
 export const GOAL_MAX_TASKS = 10_000;
 /**
- * Recovery turns a task may spend on one failure before the server asks the
- * agent to reassess instead of retrying. Past this point every further
- * attempt is a reassessment, and reassessments never run out: a task is only
- * stopped by evidence, never by a counter.
+ * Consecutive turns without a usable progress report before the server pauses
+ * between attempts, so a confused agent does not burn a turn every few
+ * seconds. A report resets this.
+ *
+ * The pause is the only counter in the goal loop, and it decides nothing about
+ * the work: how a task continues after a failure is the agent's call.
  */
-export const GOAL_RECOVERY_ATTEMPTS = 4;
-/**
- * Consecutive turns without a usable progress report before the server
- * escalates the prompt instead of repeating the same one. A report resets
- * this. The escalation asks the agent what went wrong; it never ends the
- * goal.
- */
-export const GOAL_IDLE_ESCALATION_CYCLES = 3;
+export const GOAL_IDLE_PACING_CYCLES = 3;
 /** Verification repair rounds before the server asks for a reassessment. */
 export const GOAL_MAX_VERIFY_REPAIR_ROUNDS = 3;
