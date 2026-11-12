@@ -69,8 +69,19 @@ import {
   type GoalReport,
 } from "./GoalProtocol.ts";
 
-/** One agent turn may take a long time; this is when the server stops waiting. */
-const GOAL_TURN_TIMEOUT_MS = 20 * 60 * 1_000;
+/**
+ * Quiet for this long with the turn producing nothing counts as stuck: the
+ * wait ends and the task goes into recovery. A turn that keeps emitting
+ * events, or hands work off to subagents and tools that keep reporting,
+ * slides this deadline forward and is never interrupted by it.
+ */
+const GOAL_TURN_IDLE_TIMEOUT_MS = 20 * 60 * 1_000;
+/**
+ * Absolute backstop for a single wait. The idle window is what decides a
+ * stuck turn; this only guarantees a wedged stream or pathological endless
+ * activity cannot pin the drive forever.
+ */
+const GOAL_TURN_TIMEOUT_MS = 24 * 60 * 60 * 1_000;
 /**
  * How often a turn in flight re-notifies goal subscribers. The record itself
  * does not change while a turn runs, so without this a client cannot tell a
@@ -1086,6 +1097,7 @@ export const layer = Layer.effect(
               threadId: dispatched.threadId,
               runId,
               timeoutMs: GOAL_TURN_TIMEOUT_MS,
+              idleTimeoutMs: GOAL_TURN_IDLE_TIMEOUT_MS,
             })
             .pipe(Effect.ensuring(Fiber.interrupt(heartbeat)));
 

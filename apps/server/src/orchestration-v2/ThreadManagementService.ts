@@ -1,3 +1,4 @@
+import { pendingBackgroundTurnItems } from "@dak/shared/orchestrationV2PendingBackgroundWork";
 import type {
   ProjectionRecordField,
   ProjectionRecordFilter,
@@ -132,6 +133,12 @@ export interface ThreadManagementWaitInput {
   readonly threadId: ThreadId;
   readonly runId?: RunId;
   readonly timeoutMs: number;
+  /**
+   * Sliding silence budget: the wait ends only after this long with no stored
+   * events and no background work the turn handed off still running. Without
+   * it the wait ends no later than `timeoutMs` regardless of activity.
+   */
+  readonly idleTimeoutMs?: number;
 }
 
 export interface ThreadManagementWaitResult {
@@ -694,43 +701,115 @@ const make = Effect.gen(function* () {
         return { threadId: input.threadId, run: selectedRun, timedOut: false };
       }
 
-      // Re-read the run only when the thread records a run update or its
-      // deletion, instead of polling the projection for up to an hour. Each
-      // stream keeps one event type, so transcript events never fill its buffer.
-      const wait = Stream.merge(
-        orchestrator.streamStoredEventsFrom({
-          threadId: input.threadId,
-          afterSequence,
-          eventType: "run.updated",
-        }),
-        orchestrator.streamStoredEventsFrom({
-          threadId: input.threadId,
-          afterSequence,
-          eventType: "thread.deleted",
-        }),
-      ).pipe(
-        Stream.mapError(loadError),
-        Stream.filter(
-          (stored) =>
-            stored.event.type !== "run.updated" || stored.event.payload.id === selectedRun.id,
-        ),
-        Stream.mapEffect(() =>
-          getProjectThreadRecords(input, ["runs"], { runIds: [selectedRun.id] }).pipe(
-            Effect.flatMap((current) => {
-              const run = current.runs.find((candidate) => candidate.id === selectedRun.id);
-              return run === undefined
-                ? Effect.fail(
-                    new ThreadManagementRunNotFoundError({
-                      threadId: input.threadId,
-                      runId: selectedRun.id,
-                    }),
-                  )
-                : Effect.succeed(run);
-            }),
+      // Terminal signals re-read the run only when the thread records a run
+      // update or its deletion, instead of polling the projection for up to an
+      // hour. Each of those streams keeps one event type, so transcript
+      // events never fill their buffers.
+      const terminalSignals = () =>
+        Stream.merge(
+          orchestrator.streamStoredEventsFrom({
+            threadId: input.threadId,
+            afterSequence,
+            eventType: "run.updated",
+          }),
+          orchestrator.streamStoredEventsFrom({
+            threadId: input.threadId,
+            afterSequence,
+            eventType: "thread.deleted",
+          }),
+        ).pipe(
+          Stream.mapError(loadError),
+          Stream.filter(
+            (stored) =>
+              stored.event.type !== "run.updated" || stored.event.payload.id === selectedRun.id,
           ),
-        ),
-        Stream.filter((run) => isTerminalRunStatus(run.status)),
-        Stream.runHead,
+          Stream.mapEffect(() =>
+            getProjectThreadRecords(input, ["runs"], { runIds: [selectedRun.id] }).pipe(
+              Effect.flatMap((current) => {
+                const run = current.runs.find((candidate) => candidate.id === selectedRun.id);
+                return run === undefined
+                  ? Effect.fail(
+                      new ThreadManagementRunNotFoundError({
+                        threadId: input.threadId,
+                        runId: selectedRun.id,
+                      }),
+                    )
+                  : Effect.succeed(run);
+              }),
+            ),
+          ),
+          Stream.filter((run) => isTerminalRunStatus(run.status)),
+          Stream.map((run) => ({ kind: "terminal" as const, run })),
+        );
+
+      type WaitSignal =
+        | { readonly kind: "terminal"; readonly run: OrchestrationV2Run }
+        | { readonly kind: "activity" };
+      // Any stored event besides thread metadata means the agent is working;
+      // client-side visits, pins and reads say nothing about the turn.
+      const activitySignals = () =>
+        orchestrator
+          .streamStoredEventsFrom({ threadId: input.threadId, afterSequence })
+          .pipe(
+            Stream.mapError(loadError),
+            Stream.filter((stored) => !stored.event.type.startsWith("thread.")),
+            Stream.map((): WaitSignal => ({ kind: "activity" })),
+          );
+
+      const idleTimeoutMs = input.idleTimeoutMs;
+      const waitWindow = () => {
+        const merged = Stream.merge(terminalSignals(), activitySignals());
+        const signals =
+          idleTimeoutMs === undefined
+            ? // Without a sliding budget the activity subscription only rides
+              // along; the absolute timeout decides, as it always has.
+              merged.pipe(Stream.filter((signal) => signal.kind === "terminal"))
+            : merged.pipe(Stream.timeout(Duration.millis(Math.max(1, idleTimeoutMs))));
+        return signals.pipe(
+          Stream.filter(
+            (signal): signal is Extract<WaitSignal, { readonly kind: "terminal" }> =>
+              signal.kind === "terminal",
+          ),
+          Stream.map((signal) => signal.run),
+          Stream.runHead,
+        );
+      };
+
+      // Background work the turn handed off (subagent turns, tool executions,
+      // provider-side tasks) reports late and can outlive visible events, so
+      // an idle window alone must not declare the turn stuck while any of it
+      // still runs.
+      const backgroundWorkPending = () =>
+        getProjectThreadRecords(input, ["turnItems", "runs", "providerThreads"]).pipe(
+          Effect.map(
+            (records) =>
+              pendingBackgroundTurnItems({
+                turnItems: records.turnItems,
+                runs: records.runs,
+              }).length > 0 ||
+              records.providerThreads.some(
+                (providerThread) => (providerThread.pendingBackgroundTasks ?? []).length > 0,
+              ),
+          ),
+        );
+
+      const waitInner: ReturnType<typeof waitWindow> =
+        idleTimeoutMs === undefined
+          ? waitWindow()
+          : (function loop(): ReturnType<typeof waitWindow> {
+              return waitWindow().pipe(
+                Effect.flatMap((runOption) =>
+                  Option.isSome(runOption)
+                    ? Effect.succeed(runOption)
+                    : backgroundWorkPending().pipe(
+                        Effect.flatMap((pending) =>
+                          pending ? loop() : Effect.succeed(runOption),
+                        ),
+                      ),
+                ),
+              );
+            })();
+      const wait = waitInner.pipe(
         Effect.timeoutOption(Duration.millis(Math.max(1, input.timeoutMs))),
       );
       const waited = Option.flatten(yield* wait);
