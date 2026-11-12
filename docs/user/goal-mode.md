@@ -168,6 +168,12 @@ buys more recovery — there is no last rung that ends the goal. Work that made
 progress starts a fresh recovery budget. Only a specific external blocker
 ends the work.
 
+A turn is judged by what it does, not by the clock: if it goes quiet for
+about twenty minutes with nothing left running, DAK treats it as stuck and
+the task goes into recovery with that silence as context. A turn that keeps
+producing — planning, running commands, delegating to subagents — slides
+that deadline and is never interrupted for taking as long as it needs.
+
 ### Verification requires proof
 
 A criterion counts as met only when the matching `acceptance` entry claims `met: true` **and** carries proof — not just the agent's word. Proof can be images, screenshots, canvas output, test results, check output, or run output, each with a URL and a caption describing what it shows. A bare `met: true` without proof counts as not met.
