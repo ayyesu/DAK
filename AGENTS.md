@@ -30,9 +30,9 @@ DAK has 3 key app surfaces: **web**, **desktop**, and **mobile**.
 
 **Mobile** is a React Native app for both iOS and Android, available on the App Store and Google Play. The mobile app allows for connecting to any DAK server to control work remotely.
 
-## A note from Theo
+## A note from the maintainers
 
-I like ambitious ideas, simple systems, and software that feels obvious. Do not preserve complexity just because it already exists. Do not introduce machinery because it looks architecturally impressive. Understand the real constraint, then fight for the smallest model that makes the correct behavior unsurprising.
+We like ambitious ideas, simple systems, and software that feels obvious. Do not preserve complexity just because it already exists. Do not introduce machinery because it looks architecturally impressive. Understand the real constraint, then fight for the smallest model that makes the correct behavior unsurprising.
 
 Channel both "measure twice, cut once" and "yagni". Fight scope creep. Try to honor the dev's intent in both a minimal and realistic fashion.
 
@@ -45,7 +45,7 @@ Of note: Most DAK contributions will come from DAK itself, often controlled remo
 We need to be on the same page with terminology. When communicating, use this language:
 
 - **you** means the agent reading this file and changing DAK.
-- **we, us, and maintainers** mean Theo, Julius and the people building DAK. These are who you are talking to now.
+- **we, us, and maintainers** mean the people building DAK. These are who you are talking to now.
 - **user** means the person using DAK to direct coding agents.
 - **agent** means the coding agent a user runs inside DAK. Depending on context, that may also include you.
 - **provider** means the agent runtime or harness DAK talks to, such as Codex, Claude, Cursor, or OpenCode.
@@ -67,13 +67,22 @@ We need to be on the same page with terminology. When communicating, use this la
 The most common defect in this repo is a change that works on the path you tested and is missing everywhere else. Before calling frontend work done, walk this list and say which entries applied:
 
 - **Entry points.** A behavior reachable from the chat view is usually also reachable from Settings, the command palette, and a keybinding. Fixing one is not fixing the feature.
-- **Clients.** Web, desktop (wraps web, adds Electron shell/IPC), and mobile (React Native, separate navigation). Shared logic lives in `packages/client-runtime`
+- **Clients.** Web, desktop (wraps web, adds Electron shell/IPC), and mobile (React Native, separate navigation). Shared logic lives in `packages/client-runtime`. Mobile is out of scope by default: see [Mobile app](#mobile-app).
 - **Providers.** Codex, Claude, Cursor, Grok, OpenCode, and Antigravity each have an adapter. Provider-shaped features need a decision per adapter, even if the decision is "not supported here".
 - **Agents.** A capability a user can trigger is usually one an agent should reach through MCP tools, and scheduled tasks run the same paths. That only works when it is a service method, not handler code.
 - **Contracts.** Anything crossing the wire is typed in `packages/contracts`. Change the schema and the server, web, mobile, and desktop all follow.
 - **Reverse states.** If you added a way in, add the way out and the way to see it. Snooze needs unsnooze. Close needs reopen. A one-way door is a bug.
 - **Connection modes.** Local, remote/relay, and tunnel behave differently. Multi-device and multi-environment cases are real.
 - **Docs.** Check whether the change makes existing guidance inaccurate. Apply the [documentation rules](#documentation) before adding anything.
+
+## Mobile app
+
+Mobile work is out of scope by default. The mobile app (`apps/mobile`) is maintained separately, so an agent changing DAK should not edit it.
+
+- Do not create, edit, or delete files under `apps/mobile`.
+- Do not change shared code in `packages/client-runtime` in ways that only mobile needs, and do not add mobile-only branches to shared code.
+- When a change affects the wire protocol or a shared contract, keep the server and web side complete and compatible; treat the mobile client as following up later.
+- If the user explicitly asks for mobile work, do it, but say clearly that it is a mobile change and that it needs native verification through `test-dak-mobile`.
 
 ## Dev servers
 
@@ -100,9 +109,9 @@ An empty database is a bad test. Seed your worktree's `.dak` with a copy of real
 - **Do not run repo-wide checks.** No `vp check`, no `vp run -r test`, no `vp run -r typecheck` unless I ask. CI owns the full suite.
 - Backend behavior changes ship with focused tests for that behavior.
 - The server is event-sourced, and side effects run after the command commits. In tests, drain the effect worker (`OrchestrationEffectWorkerV2.drain`) or await the specific persisted event or `Deferred` that marks the milestone. Never wait on sleeps or polling. A test that needs a timeout to pass is wrong.
-- Upon request, user-visible frontend changes should get one integrated pass in a real client: `test-dak-app` for web, `test-dak-mobile` for mobile. The primary agent does this once after integrating. Subagents do not launch their own dev servers. Ask permission before doing computer use or spinning up browsers.
+- Upon request, user-visible frontend changes should get one integrated pass in a real client: `test-dak-app` for web. The primary agent does this once after integrating. Subagents do not launch their own dev servers. Ask permission before doing computer use or spinning up browsers.
 
-For authorized mobile verification, a missing or outdated native client is a build step, not a blocker. Run `node scripts/mobile-native-client.ts ensure <ios|android> <device-id>` on the simulator host before starting Metro. It checks the local Expo fingerprint and builds/installs when needed. See `test-dak-mobile` for the full workflow.
+For authorized mobile verification, which is out of scope unless mobile work was explicitly requested, a missing or outdated native client is a build step, not a blocker. Run `node scripts/mobile-native-client.ts ensure <ios|android> <device-id>` on the simulator host before starting Metro. It checks the local Expo fingerprint and builds/installs when needed. See `test-dak-mobile` for the full workflow.
 
 ## Pull requests
 
@@ -141,7 +150,7 @@ Architecture and its constraints: `docs/internals/overview.md`. Glossary: `docs/
 ## Where code lives
 
 - `apps/server` - WebSocket, orchestration, providers, checkpointing. Effect-heavy: read [Effect services](docs/internals/effect-services.md) before adding server code, and `.repos/effect-smol/LLMS.md` for the Effect library itself.
-- `apps/web` - React/Vite UI. `apps/desktop` wraps it, `apps/mobile` is React Native, `apps/marketing` is the site.
+- `apps/web` - React/Vite UI. `apps/desktop` wraps it, `apps/marketing` is the site. `apps/mobile` is React Native and is out of scope: see [Mobile app](#mobile-app).
 - `packages/contracts` - Effect/Schema contracts plus small derived helpers. No heavy runtime logic.
 - `packages/shared` - shared runtime utils, subpath exports, no barrel.
 - `packages/client-runtime` - client code shared by web and mobile.
