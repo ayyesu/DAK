@@ -279,6 +279,13 @@ export default defineConfig({
         rules: { "shadcn/no-raw-colors": "error" },
       },
       {
+        // The islandcn toolkit and the island engine inject their own CSS
+        // (IslandStyle) rather than Tailwind; icn-* classes are declared by
+        // that stylesheet, and the island's fixed black pill is the design.
+        files: ["apps/web/src/components/islandcn/**", "apps/web/src/lib/island/**"],
+        rules: { "shadcn/no-unknown-classes": "off", "shadcn/no-raw-colors": "off" },
+      },
+      {
         // Third-party marks (brand logos, the macOS permission panes, Codex's Computer Use
         // mark) must keep their exact colors, so the files that hold them are exempt.
         files: ["apps/web/src/components/Icons.tsx", "apps/web/src/components/JetBrainsIcons.tsx"],
