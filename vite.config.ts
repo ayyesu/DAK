@@ -91,6 +91,9 @@ export default defineConfig({
       // Macroscope's glob-per-line ignore grammar, not Markdown: formatting
       // it rewrites `*` as `_` and joins lines.
       ".macroscope/ignore.md",
+      // Vendored islandcn reference markdown: long measurement tables in the
+      // upstream style, not the repo's prose format.
+      "apps/web/src/lib/island/README.md",
       ".alchemy",
       "dist",
       "dist-electron",
