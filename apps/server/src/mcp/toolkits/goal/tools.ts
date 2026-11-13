@@ -95,7 +95,7 @@ const GoalPauseTool = Tool.make("dak_goal_pause", {
 
 const GoalResumeTool = Tool.make("dak_goal_resume", {
   description:
-    "Resume a paused, blocked, or failed goal and continue from the same plan. A goal that is waiting for an answer cannot be resumed; answer it first.",
+    "Resume a paused, failed, or provider-waiting goal and continue from the same plan. A goal that is waiting for an answer cannot be resumed; answer it first.",
   parameters: GoalResumeInput,
   success: GoalMutationResult,
   failure: OrchestratorMcpFailure,

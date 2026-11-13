@@ -19,13 +19,7 @@ import {
 const REPORT_FENCE = /\n?```([A-Za-z0-9_-]*)\s*\n([\s\S]*?)```/g;
 const MAX_REPORT_TEXT = 2_000;
 
-export type GoalReportStatus =
-  | "running"
-  | "recovering"
-  | "needs_input"
-  | "blocked"
-  | "completed"
-  | "planning";
+export type GoalReportStatus = "running" | "recovering" | "needs_input" | "completed" | "planning";
 
 export interface GoalReportPlanItem {
   readonly title: string;
@@ -113,7 +107,6 @@ const REPORT_STATUSES: ReadonlyArray<GoalReportStatus> = [
   "running",
   "recovering",
   "needs_input",
-  "blocked",
   "completed",
   "planning",
 ];
@@ -131,10 +124,19 @@ function asTaskStatus(value: unknown): GoalTaskStatus | null {
   return value === "failed" || value === "blocked" ? "recovering" : null;
 }
 
+/**
+ * A report that asks to be blocked lands in recovery.
+ *
+ * There is no blocked state to land in: the agent works the obstacle in as
+ * many turns as it needs, so an older report asking for a block is an
+ * obstacle like any other.
+ */
 function asReportStatus(value: unknown): GoalReportStatus | null {
-  return typeof value === "string" && (REPORT_STATUSES as ReadonlyArray<string>).includes(value)
-    ? (value as GoalReportStatus)
-    : null;
+  if (typeof value !== "string") return null;
+  if ((REPORT_STATUSES as ReadonlyArray<string>).includes(value)) {
+    return value as GoalReportStatus;
+  }
+  return value === "blocked" || value === "failed" ? "recovering" : null;
 }
 
 function parseReportBody(body: unknown): GoalReport | null {
@@ -634,7 +636,7 @@ export function applyGoalReport(input: {
   };
 }
 
-const REPORT_SHAPE = `{"goal_report":{"status":"running|recovering|completed|blocked|needs_input|planning","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers","dependsOn":["title of a task that must finish first"]}],"tasks":[{"title":"exact existing task title","status":"pending|in_progress|recovering|waiting_input|completed|failed","evidence":"files changed, commands run, or test output that proves it"}],"acceptance":[{"criterion":"exact acceptance criterion text","met":true,"evidence":"the command you ran and what it proved","proof":[{"type":"image|screenshot|canvas|test|check|run|text","url":"https://...","thumbnailUrl":"https://...","caption":"what this proof shows","createdAt":"ISO timestamp"}]}],"verified":false,"acceptanceCriteria":["condition that must hold to call the goal complete"],"progress":0,"progressLabel":"short phrase describing progress","input":{"question":"the one thing you need from the user","reason":"why you cannot proceed without it","attempted":"what you already tried","recommendation":"the option you suggest"},"question":"only when status is needs_input","blocker":{"reason":"the exact thing that stopped you","rootCause":"why it is true","investigation":"what you inspected to find it","attempts":["what you tried"],"alternatives":["what else you considered and why it did not work"],"intervention":"the one thing only the user or an external system can provide","otherTasksCanContinue":true}}`;
+const REPORT_SHAPE = `{"goal_report":{"status":"running|recovering|completed|needs_input|planning","summary":"one short sentence about what you actually did, max 160 characters","plan":[{"title":"short task title","detail":"what this task covers","dependsOn":["title of a task that must finish first"]}],"tasks":[{"title":"exact existing task title","status":"pending|in_progress|recovering|waiting_input|completed|failed","evidence":"files changed, commands run, or test output that proves it"}],"acceptance":[{"criterion":"exact acceptance criterion text","met":true,"evidence":"the command you ran and what it proved","proof":[{"type":"image|screenshot|canvas|test|check|run|text","url":"https://...","thumbnailUrl":"https://...","caption":"what this proof shows","createdAt":"ISO timestamp"}]}],"verified":false,"acceptanceCriteria":["condition that must hold to call the goal complete"],"progress":0,"progressLabel":"short phrase describing progress","input":{"question":"the one thing you need from the user","reason":"why you cannot proceed without it","attempted":"what you already tried","recommendation":"the option you suggest"},"question":"only when status is needs_input","blocker":{"reason":"the exact thing that stopped you","rootCause":"why it is true","investigation":"what you inspected to find it","attempts":["what you tried"],"alternatives":["what else you considered and why it did not work"],"intervention":"the one thing only the user or an external system can provide","otherTasksCanContinue":true}}`;
 
 function criteriaSection(goal: Goal): string {
   if (goal.acceptanceCriteria.length === 0) {
@@ -678,12 +680,13 @@ const RULES = `Rules:
 - Report real evidence: the files you changed, the commands you ran, and what they printed.
 - A task you have not started yet is "pending". Never report a task you did not attempt as "failed": that is only for work you actually tried this turn.
 - Work through obstacles yourself. When something fails, read the output, find the cause, fix it, and run it again in this same turn. A build error, a failing test, a missing import, or a bad assumption is your problem to solve, not the user's.
-- Set a task to "recovering" when you hit an obstacle you are actively working through: say what failed, what you found, and what you are trying next. Keep working on it in the same turn when you can.
+- Use status "recovering" when you hit an obstacle you are working through: say what failed, what you found, what you tried and what you are trying next. Keep working on it in the same turn when you can.
+- There is no blocked state. A hard problem is yours to solve, and you have as many turns as you need to solve it. Keep going until it is done. The only thing that stops you is the user: if only they can move this forward, report needs_input with one specific question and say what you already tried.
+- Put what you found in the "blocker" object whenever an obstacle is holding you up: the exact thing that stopped you, its root cause, what you inspected, what you tried, the alternatives you rejected, and what only the user or an external system can provide. It is your assessment of the obstacle, and the next turn starts from it.
 - A retry must first say why the previous attempt failed, then take a different approach. Never repeat the same failing operation unchanged. If the evidence says your approach is wrong, change the approach.
 - When you report "verified", every entry in "acceptance" must carry proof that proves it. Proof can be images, screenshots, canvas output, test results, check output, or run output. A criterion without proof counts as not met. Attach screenshots, images, or canvas exports with a URL and a caption describing what they show.
 - Ask for clarification only when you cannot proceed without information only the user has (a credential, a business decision, access you cannot get yourself); then set status "needs_input" with one specific question and say what you already tried. Everything else is yours to solve.
 - Set status "planning" only while you are still deciding what to do; use "running" once you are executing the plan, so the card shows what is happening.
-- Use status "blocked" only as a last resort, after you have already tried and ruled out the reasonable approaches: set the task to "recovering" and describe the exact blocker, its root cause, what you investigated, what you tried, which alternatives you rejected and why, and what only the user can unblock. A vague reason is not accepted and the goal will be sent back to you.
 - End your reply with exactly one fenced JSON block tagged goal, in this shape:
 \`\`\`goal
 ${REPORT_SHAPE}
@@ -772,7 +775,9 @@ You decide how to continue from here:
 1. If the cause is yours to fix, fix it in this turn and report what you changed.
 2. If a different approach is needed, take it now and report the task as "recovering" with the new approach in the evidence.
 3. If only the user can move this forward, report needs_input with one specific question and what you already tried.
-4. If it is a real deadlock, report status "blocked" and state the exact blocker, its root cause, what you investigated, what you tried, the alternatives you rejected and why, and the one thing only the user or an external system can provide. A vague reason is rejected and the goal comes straight back to you.
+4. If you are still working out what is in the way, put your assessment in the "blocker" object - the exact thing that stopped you, its root cause, what you inspected, what you tried, the alternatives you rejected and why, and what only the user or an external system can provide - and report the task as "recovering". The next turn starts from your assessment, so make it count.
+
+There is no blocked state to fall back on: this goal keeps working until the work is done or only the user can move it forward. You have as many turns as the problem needs.
 
 ${input.nextStep}
 

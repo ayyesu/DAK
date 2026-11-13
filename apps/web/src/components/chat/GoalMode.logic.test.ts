@@ -75,11 +75,10 @@ const baseGoal: Omit<Goal, "id" | "status" | "updatedAt"> = {
   revision: 1,
   cycleCount: 0,
   verification: { status: "pending", summary: null, checkedAt: null },
-  blockedReason: null,
+  waitingReason: null,
   failureReason: null,
   question: null,
   questionTaskId: null,
-  blocker: null,
   progress: null,
   progressLabel: null,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -310,7 +309,6 @@ describe("goalOccupiesThread", () => {
       "verifying",
       "paused",
       "needs_input",
-      "blocked",
       "waiting_provider",
       "failed",
     ] as const) {
@@ -399,11 +397,15 @@ describe("goal summary progress and headline", () => {
     expect(goalSummaryHeadline(summary)).toBe("Working on: Build the API · 1 of 3 tasks done");
   });
 
-  it("keeps planning and blocked headlines from the summary", () => {
+  it("keeps the planning headline and the provider's reason in the summary", () => {
     expect(goalSummaryHeadline(goal({ id: "g", status: "planning" }))).toBe("Planning the work");
     expect(
       goalSummaryHeadline(
-        goal({ id: "g", status: "blocked", blockedReason: "The database is unreachable." }),
+        goal({
+          id: "g",
+          status: "waiting_provider",
+          waitingReason: "The database is unreachable.",
+        }),
       ),
     ).toBe("The database is unreachable.");
   });
@@ -438,7 +440,7 @@ describe("goal status presentation", () => {
       id: "g",
       status: "waiting_provider",
       updatedAt: "2026-01-01T00:00:00.000Z",
-      blockedReason: "the provider is not signed in",
+      waitingReason: "the provider is not signed in",
       tasks: [task({ id: "t1", title: "Build the API", status: "in_progress" })],
     });
     expect(goalHeadline(parked)).toBe("the provider is not signed in");
@@ -468,14 +470,14 @@ describe("goal status presentation", () => {
 
   it("flags the statuses that want the user", () => {
     expect(goalNeedsAttention("needs_input")).toBe(true);
-    expect(goalNeedsAttention("blocked")).toBe(true);
+    expect(goalNeedsAttention("waiting_provider")).toBe(true);
     expect(goalNeedsAttention("running")).toBe(false);
     expect(goalNeedsAttention("completed")).toBe(false);
   });
 
   it("names each status a notification can fire for", () => {
     expect(goalNoticeTitle("needs_input")).toBe("Input needed");
-    expect(goalNoticeTitle("blocked")).toBe("Goal blocked");
+    expect(goalNoticeTitle("waiting_provider")).toBe("Waiting for the provider");
     expect(goalNoticeTitle("failed")).toBe("Goal failed");
     expect(goalNoticeTitle("completed")).toBe("Goal completed");
     expect(goalNoticeTitle("running")).toBe("Goal working");
@@ -514,14 +516,14 @@ describe("goal status presentation", () => {
     expect(goalHeadline(running)).toBe("Working on: only");
   });
 
-  it("surfaces the blocking reason", () => {
-    const blocked = goal({
+  it("surfaces why the goal is waiting on the environment", () => {
+    const parked = goal({
       id: "g",
-      status: "blocked",
-      blockedReason: "The database is unreachable.",
+      status: "waiting_provider",
+      waitingReason: "The database is unreachable.",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
-    expect(goalHeadline(blocked)).toBe("The database is unreachable.");
+    expect(goalHeadline(parked)).toBe("The database is unreachable.");
   });
 });
 
@@ -581,7 +583,6 @@ describe("goal control matrix", () => {
     expect(canPauseGoal("waiting_provider")).toBe(true);
     expect(canPauseGoal("paused")).toBe(false);
     expect(canPauseGoal("needs_input")).toBe(false);
-    expect(canPauseGoal("blocked")).toBe(false);
     expect(canPauseGoal("completed")).toBe(false);
   });
 
@@ -591,15 +592,13 @@ describe("goal control matrix", () => {
     expect(isGoalDriven("verifying")).toBe(true);
     expect(isGoalDriven("paused")).toBe(false);
     expect(isGoalDriven("needs_input")).toBe(false);
-    expect(isGoalDriven("blocked")).toBe(false);
     expect(isGoalDriven("waiting_provider")).toBe(false);
     expect(isGoalDriven("draft")).toBe(false);
     expect(isGoalDriven("completed")).toBe(false);
   });
 
-  it("resumes every recoverable state, including failed and blocked", () => {
+  it("resumes every recoverable state, including failed", () => {
     expect(canResumeGoal("paused")).toBe(true);
-    expect(canResumeGoal("blocked")).toBe(true);
     expect(canResumeGoal("failed")).toBe(true);
     expect(canResumeGoal("draft")).toBe(true);
     // The server retries a parked goal on its own, but the user may want to
@@ -616,7 +615,6 @@ describe("goal control matrix", () => {
       "running",
       "paused",
       "failed",
-      "blocked",
       "draft",
       "waiting_provider",
     ] as const) {

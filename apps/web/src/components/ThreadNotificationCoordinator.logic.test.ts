@@ -18,11 +18,10 @@ const baseGoal: Omit<Goal, "id" | "status" | "updatedAt"> = {
   revision: 1,
   cycleCount: 0,
   verification: { status: "pending", summary: null, checkedAt: null },
-  blockedReason: null,
+  waitingReason: null,
   failureReason: null,
   question: null,
   questionTaskId: null,
-  blocker: null,
   progress: null,
   progressLabel: null,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -97,7 +96,7 @@ describe("goalNotification", () => {
   });
 
   it("quiets once the goal leaves an attention status", () => {
-    const prior = advanceGoalNotice(goal({ id: "goal:1", status: "blocked" }));
+    const prior = advanceGoalNotice(goal({ id: "goal:1", status: "waiting_provider" }));
     const next = advanceGoalNotice(goal({ id: "goal:1", status: "paused" }));
 
     expect(goalNotification(prior, next)).toBeNull();

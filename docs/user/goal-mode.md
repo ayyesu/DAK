@@ -115,11 +115,10 @@ Concretely:
   not to repeat the same command.
 - The agent decides how to continue. It is told what is known — the failure,
   what it already tried, what the provider said — and it chooses: fix it, try
-  a different approach, ask you, or call it a deadlock. Nothing counts its
-  attempts for it, so a hard problem is never taken away because it took a few
-  tries. A task is only marked **Blocked** when the agent names a specific
-  external blocker with the evidence behind it — never because the agent gave
-  up.
+  a different approach, or ask you. Nothing counts its attempts for it, so a
+  hard problem is never taken away because it took a few tries, and there is no
+  blocked state to fall back on: the goal keeps working until the work is done
+  or only you can move it forward.
 - When the provider itself fails — signed out, out of quota, unreachable —
   the goal parks as **Waiting for provider** instead of failing. It keeps its
   plan, retries on its own (after a quota limit resets, or with a growing
@@ -132,28 +131,28 @@ Concretely:
 - If a goal looks active but nothing is driving it, DAK picks it back up on
   its own. You do not need to press Resume.
 
-## When the agent asks or gets stuck
+## When the agent asks
 
 The agent stops for you only when it cannot decide on its own. A question
 shows as **Needs input** with an answer box in the card, naming the task your
-answer unblocks. A goal that cannot
-continue shows **Blocked** (or **Failed**) with the reason in the card, so you
-can remove the obstacle and resume, edit the goal, retry, or cancel it.
+answer unblocks. A goal that cannot continue shows **Failed** with the reason
+in the card, so you can remove the obstacle and resume, edit the goal, retry,
+or cancel it.
 
-When the agent blocks a goal it also reports its assessment: what stopped the
-work, why that is true, what was inspected to find it, what was tried, what
-else was considered, and what only you can provide. That is the evidence
-behind the verdict, and it is what tells you whether to clear the obstacle or
-redirect the goal.
+While it works on an obstacle, the card shows the agent's own assessment of
+it: what stopped the work, why that is true, what was inspected to find it,
+what was tried, what else was considered, and what only you can provide. That
+is evidence it keeps working with, and it tells you whether the goal needs
+you or is on it.
 
 ## Notifications
 
 Goals use the same device notification settings as threads in **Settings >
 Behavior**. A goal sends an attention notification when it asks you a
-question, becomes blocked, or fails; it sends a completion notification when
-it finishes. While the app has focus, in-app toasts open the goal's thread.
-In the background, the same settings decide whether DAK sends a system
-notification or plays a sound instead.
+question, when the provider stops it, or when it fails; it sends a completion
+notification when it finishes. While the app has focus, in-app toasts open the
+goal's thread. In the background, the same settings decide whether DAK sends a
+system notification or plays a sound instead.
 
 ## Verification
 
@@ -204,19 +203,18 @@ This means the bar never reaches 100% until verification independently passes. I
 
 ### “Gets stuck” scenarios
 
-- **Goal shows Blocked**: The agent worked the problem and named a specific
-  external blocker, with the evidence behind it. The card shows the reason,
-  what was tried, and what it needs from you. Remove the obstacle and resume,
-  or edit the goal.
 - **Goal shows Needed input**: The agent asked you a question. Answer it to
   continue; the goal picks the task up where it stopped.
-- **Goal shows Failed**: There is no runnable work left and no evidence-backed
-  blocker — for example every task ended without a next step, or the plan came
-  back empty. Retry a task, edit the goal, or resume it.
+- **Goal shows Failed**: The server could not run the goal — for example the
+  plan came back empty, or the goal lost its plan. Retry a task, edit the
+  goal, or resume it.
 - **Goal shows Waiting for provider**: The provider stopped — it is signed
   out, out of quota, or unreachable. DAK retries on its own and the goal
   continues when the provider is back; **Resume** tries immediately and
   **Pause** stops the retries.
+- **The card shows the agent's assessment**: The agent is working an obstacle
+  and has written down what it found. The goal keeps working; the assessment
+  tells you whether it needs you or is on it.
 - **Progress stays below 100% while verification is pending**: This is expected — verification is the final unit; it must pass for the bar to reach 100%.
 
 ## Using the thread

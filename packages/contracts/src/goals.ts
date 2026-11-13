@@ -15,8 +15,11 @@ import { ProviderInteractionMode, RuntimeMode } from "./providerPolicy.ts";
  * never create one, but an interrupted create can be recovered into it.
  *
  * `recovering` means the agent hit an obstacle and is working through it.
- * `needs_input` means it is waiting for the user. `blocked` is reserved for a
- * genuine deadlock with evidence behind it.
+ * `needs_input` means it is waiting for the user.
+ *
+ * There is no blocked state. The agent is in control of the work: an
+ * obstacle is something it works through, and the only thing that stops a
+ * goal is the user, the environment, or a goal the server could not run.
  *
  * `waiting_provider` means the environment, not the agent, stopped the work:
  * the provider failed, hit its usage limit, or could not be reached. The
@@ -30,7 +33,6 @@ export const GoalStatus = Schema.Literals([
   "recovering",
   "paused",
   "needs_input",
-  "blocked",
   "waiting_provider",
   "verifying",
   "completed",
@@ -40,9 +42,11 @@ export const GoalStatus = Schema.Literals([
 export type GoalStatus = typeof GoalStatus.Type;
 
 /**
- * The evidence a blocked task or goal must carry. The server only accepts a
- * block when every part of this assessment is present, so a block is a
- * conclusion drawn from execution, not a shrug.
+ * The agent's assessment of what is in the way.
+ *
+ * It is evidence, not a verdict: the agent keeps working with it. The
+ * server never ends a goal on one, because the agent can solve the problem
+ * in as many turns as it needs.
  */
 export const GoalBlocker = Schema.Struct({
   /** The exact thing that stopped the work. */
@@ -51,11 +55,11 @@ export const GoalBlocker = Schema.Struct({
   rootCause: Schema.String,
   /** What was inspected to find it. */
   investigation: Schema.String,
-  /** The recovery attempts that were made. */
+  /** What the agent tried. */
   attempts: Schema.Array(Schema.String),
   /** The alternatives that were considered. */
   alternatives: Schema.Array(Schema.String),
-  /** The external intervention that would unblock it. */
+  /** The external intervention that would move it forward. */
   intervention: Schema.String,
   /** Whether other independent tasks can still make progress. */
   otherTasksCanContinue: Schema.Boolean,
@@ -65,8 +69,7 @@ export type GoalBlocker = typeof GoalBlocker.Type;
 /**
  * A task never sits in a bare `blocked` state: an obstacle either sends it
  * through `recovering` (the agent is still working on it) or `waiting_input`
- * (only the user can move it forward). `failed` means the agent produced a
- * full assessment of a deadlock it cannot get past.
+ * (only the user can move it forward).
  */
 export const GoalTaskStatus = Schema.Literals([
   "pending",
@@ -93,8 +96,8 @@ export const GoalTask = Schema.Struct({
   /** The question this task is waiting on, when it needs the user. */
   question: Schema.NullOr(Schema.String),
   /**
-   * The evidence behind this task's dead end. A task only carries one when
-   * the agent produced a full assessment of what is blocking it.
+   * The agent's assessment of what is in the way on this task. It is
+   * evidence the agent keeps working with, not a verdict that ends the goal.
    */
   blocker: Schema.NullOr(GoalBlocker),
   /**
@@ -198,14 +201,16 @@ export const Goal = Schema.Struct({
   /** Turns dispatched so far, including verification passes. */
   cycleCount: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   verification: GoalVerification,
-  blockedReason: Schema.NullOr(Schema.String),
+  /**
+   * Why the goal is not moving right now: the provider's own words while it
+   * waits for the environment.
+   */
+  waitingReason: Schema.NullOr(Schema.String),
   failureReason: Schema.NullOr(Schema.String),
   /** The open question the agent asked, when it is waiting for the user. */
   question: Schema.NullOr(Schema.String),
   /** The task the open question belongs to. */
   questionTaskId: Schema.NullOr(Schema.String),
-  /** The evidence behind a blocked goal; null while the goal is not blocked. */
-  blocker: Schema.NullOr(GoalBlocker),
   /** The agent's own progress estimate (0-100), reported each turn. */
   progress: Schema.NullOr(Schema.Int),
   /** Human label for the agent's reported progress. */
@@ -246,7 +251,8 @@ export const GoalSummary = Schema.Struct({
   completedTaskCount: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   totalTaskCount: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   turnStartedAt: Schema.NullOr(IsoDateTime),
-  blockedReason: Schema.NullOr(Schema.String),
+  /** Why the goal is not moving right now: the provider's own words. */
+  waitingReason: Schema.NullOr(Schema.String),
   failureReason: Schema.NullOr(Schema.String),
   /** The open question the agent asked, when one is waiting for the user. */
   question: Schema.NullOr(Schema.String),

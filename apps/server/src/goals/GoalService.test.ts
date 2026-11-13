@@ -895,7 +895,7 @@ it.effect("a provider failure parks the goal and the sweep puts it back to work"
       created.goal.id,
       (goal) => goal.status === "waiting_provider",
     );
-    expect(parked.blockedReason).toBe("the provider is not signed in");
+    expect(parked.waitingReason).toBe("the provider is not signed in");
     expect(parked.failureReason).toBeNull();
 
     // The wait is persisted, so a restart resumes the goal at the same moment.
@@ -962,7 +962,7 @@ it.effect("a goal that keeps failing is never ended by a counter", () => {
       (goal) => goal.status === "completed",
     );
     expect(done.failureReason).toBeNull();
-    expect(done.blockedReason).toBeNull();
+    expect(done.waitingReason).toBeNull();
 
     // Every attempt went back to the agent with what was known about it.
     const followUps = script.sentTexts.filter((text) =>
@@ -1299,20 +1299,23 @@ it.effect("a task that keeps failing is handed back to the agent until it decide
       { kind: "completed", reply: taskFailedReport },
       { kind: "completed", reply: taskFailedReport },
       { kind: "completed", reply: blockedReport },
+      { kind: "completed", reply: taskDoneReport },
+      { kind: "completed", reply: verifyReport },
     ],
   });
   return Effect.gen(function* () {
     const service = yield* GoalService.GoalService;
     const created = yield* service.create(createInput());
 
-    // Nothing counts the attempts: the agent is asked what to do, and its
-    // evidence-based blocker is what ends the task.
-    const blocked = yield* awaitGoalState(
+    // Nothing counts the attempts, and calling the problem a deadlock does
+    // not end the goal: the assessment becomes the next turn's context.
+    const done = yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
-      (goal) => goal.status === "blocked",
+      (goal) => goal.status === "completed",
     );
-    expect(blocked.blockedReason).toContain("the sandbox has no network");
+    expect(done.failureReason).toBeNull();
+    expect(done.waitingReason).toBeNull();
 
     const full = yield* service.get({ id: created.goal.id });
     // Every attempt was handed to the agent with what was known about it.
@@ -1320,10 +1323,8 @@ it.effect("a task that keeps failing is handed back to the agent until it decide
       text.includes("You decide how to continue"),
     );
     expect(followUps.length).toBeGreaterThan(1);
-    const failedTasks = full.goal.activities.filter(
-      (activity) => activity.kind === "task_failed" && activity.summary.includes("Do the thing"),
-    );
-    expect(failedTasks).toHaveLength(1);
+    // The agent's assessment of the obstacle rides on the task.
+    expect(full.goal.tasks[0]?.blocker?.reason).toContain("the sandbox has no network");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
@@ -1765,18 +1766,18 @@ it.effect("picks a driven goal nobody is driving back up instead of blocking it"
     // driver, not its way forward.
     const picked = yield* service.get({ id: staleId });
     expect(picked.goal.status).toBe("running");
-    expect(picked.goal.blockedReason).toBeNull();
+    expect(picked.goal.waitingReason).toBeNull();
     expect(picked.goal.activities.map((activity) => activity.summary)).toContain(
       "Picking the goal back up",
     );
 
     const parked = yield* service.get({ id: created.goal.id });
     expect(parked.goal.status).toBe("planning");
-    expect(parked.goal.blockedReason).toBeNull();
+    expect(parked.goal.waitingReason).toBeNull();
 
     const fresh = yield* service.get({ id: freshId });
     expect(fresh.goal.status).toBe("running");
-    expect(fresh.goal.blockedReason).toBeNull();
+    expect(fresh.goal.waitingReason).toBeNull();
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 it.effect("a question stays open while restart recovery and the sweep pass", () => {

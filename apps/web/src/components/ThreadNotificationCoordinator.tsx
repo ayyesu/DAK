@@ -316,7 +316,7 @@ function EnvironmentNotifications({
             <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />
           ) : goal.status === "failed" ? (
             <CircleAlertIcon aria-hidden className="size-4 text-destructive-foreground" />
-          ) : goal.status === "blocked" ? (
+          ) : goal.status === "waiting_provider" ? (
             <ShieldQuestionIcon aria-hidden className="size-4 text-warning-foreground" />
           ) : (
             <MessageCircleQuestionIcon aria-hidden className="size-4 text-info-foreground" />

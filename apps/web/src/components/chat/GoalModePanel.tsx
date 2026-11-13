@@ -316,10 +316,10 @@ function GoalCard(props: {
   // The full reason replaces the headline: the headline truncates, and the
   // same sentence twice reads like a bug.
   const reasonBox =
-    goal.status === "blocked" && goal.blockedReason !== null
-      ? { text: goal.blockedReason, tone: "attention" as const }
-      : goal.status === "failed" && goal.failureReason !== null
-        ? { text: goal.failureReason, tone: "danger" as const }
+    goal.status === "failed" && goal.failureReason !== null
+      ? { text: goal.failureReason, tone: "danger" as const }
+      : goal.status === "waiting_provider" && goal.waitingReason !== null
+        ? { text: goal.waitingReason, tone: "attention" as const }
         : null;
 
   // The agent's question is asked of the user, so it shows whether the goal
@@ -608,10 +608,12 @@ function GoalCard(props: {
               {watchQuery.error === null ? null : (
                 <p className="px-3.5 pt-1 text-2xs text-destructive">{watchQuery.error}</p>
               )}
-              {goalDetail?.blocker == null ? null : (
+              {/* The agent's assessment of what is in the way. It is evidence
+                  it keeps working with, not a verdict: the goal carries on. */}
+              {current?.blocker == null ? null : (
                 <div className="mx-3.5 mt-2.5 overflow-y-auto">
                   <GoalBlockerPanel
-                    blocker={goalDetail.blocker}
+                    blocker={current.blocker}
                     className="max-h-40 overflow-y-auto"
                   />
                 </div>
