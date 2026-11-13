@@ -4,7 +4,6 @@ import type {
   Activity,
   ActivityContent,
   ActivityHandle,
-  ActivityOptions,
   ActivityUpdate,
   ExpandReason,
   IslandApi,
