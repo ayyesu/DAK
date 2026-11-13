@@ -218,7 +218,6 @@ function RootRouteView() {
       </AppSidebarLayout>
     </CommandPalette>
   );
-
   // FirstRunGate holds back everything below it — including EventRouter,
   // whose welcome payload navigates into a thread — until the first-run
   // decision is known, so a fresh install renders nothing (not the shell,
@@ -257,17 +256,18 @@ function RootRouteView() {
           {primaryEnvironmentAuthenticated ? (
             <EventRouter skipInitialBootstrapNavigation={returningFromWelcomeRef.current} />
           ) : null}
+          {primaryEnvironmentAuthenticated ? <ProviderUpdateLaunchNotification /> : null}
+          {/* Hosted Nightly is "hosted-static", not authenticated, and needs it too. */}
+          <NightlyMobileBetaNotice />
           {/* Dynamic Island: global live-activity surface (needs-input alerts,
-              desktop updates). Chat views register their own composer modes. */}
+              desktop updates, in-app notifications). Chat views register their
+              own composer modes. Wraps the shell so every route sees it. */}
           <IslandProvider metrics={{ top: 60 }}>
             <Island placement="viewport" />
             <DakIslandController />
             <IslandNotificationActivity />
+            {appShell}
           </IslandProvider>
-          {primaryEnvironmentAuthenticated ? <ProviderUpdateLaunchNotification /> : null}
-          {/* Hosted Nightly is "hosted-static", not authenticated, and needs it too. */}
-          <NightlyMobileBetaNotice />
-          {appShell}
           {/* Above the router: a theme draft is judged by walking the app, so the
               editor has to survive navigation away from settings. */}
           <ThemeEditorHost />
