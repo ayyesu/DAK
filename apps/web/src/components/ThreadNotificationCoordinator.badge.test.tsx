@@ -20,7 +20,9 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => state.navigate,
   useParams: () => ({}),
 }));
-vi.mock("./ui/toast", () => ({ toastManager: { add: state.toast } }));
+vi.mock("./islandcn/NotificationActivity", () => ({
+  showIslandNotificationFromNotice: state.toast,
+}));
 vi.mock("../state/query", () => ({
   useEnvironmentQuery: () => ({ data: { goals: [] } }),
 }));

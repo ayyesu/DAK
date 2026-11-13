@@ -1,5 +1,6 @@
 import { PermissionUpdateNotice } from "../components/PermissionUpdateNotice";
 import { DakIslandController } from "../components/islandcn/DakIslandController";
+import { IslandNotificationActivity } from "../components/islandcn/NotificationActivity";
 import { Island, IslandProvider } from "~/lib/island";
 import { type ServerLifecycleWelcomePayload } from "@dak/contracts";
 import { scopedProjectKey, scopeProjectRef } from "@dak/client-runtime/environment";
@@ -261,6 +262,7 @@ function RootRouteView() {
           <IslandProvider metrics={{ top: 60 }}>
             <Island placement="viewport" />
             <DakIslandController />
+            <IslandNotificationActivity />
           </IslandProvider>
           {primaryEnvironmentAuthenticated ? <ProviderUpdateLaunchNotification /> : null}
           {/* Hosted Nightly is "hosted-static", not authenticated, and needs it too. */}

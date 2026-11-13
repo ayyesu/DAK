@@ -2488,7 +2488,7 @@ export function GeneralSettingsPanel() {
         <NotificationSettings />
         <SettingsRow
           {...searchableSetting("in-app-notifications")}
-          description="Show a toast when another thread or goal finishes, fails, or needs input or approval while this app has focus."
+          description="Show a Dynamic Island alert when another thread or goal finishes, fails, or needs input or approval while this app has focus."
           control={
             <Switch
               checked={settings.inAppNotificationsEnabled}

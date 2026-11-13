@@ -3,13 +3,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import type { EnvironmentId, GoalId, OrchestrationV2ThreadShell, ThreadId } from "@dak/contracts";
 import * as Option from "effect/Option";
-import {
-  CircleAlertIcon,
-  CircleCheckIcon,
-  MessageCircleQuestionIcon,
-  ShieldQuestionIcon,
-} from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { getClientSettings, useClientSettings } from "../hooks/useSettings";
 import { useEnvironmentIds } from "../state/environments";
@@ -30,7 +24,7 @@ import {
   type GoalNoticeState,
 } from "./ThreadNotificationCoordinator.logic";
 import { goalNoticeTitle } from "./chat/GoalMode.logic";
-import { toastManager } from "./ui/toast";
+import { showIslandNotificationFromNotice } from "./islandcn/NotificationActivity";
 
 export function ThreadNotificationCoordinator() {
   const environmentIds = useEnvironmentIds();
@@ -108,10 +102,9 @@ interface NoticeDelivery {
   readonly title: string;
   readonly body: string;
   readonly tag: string;
-  readonly icon: ReactNode;
   /** Null when the notice has nowhere to navigate to. */
   readonly action: { readonly label: string; readonly open: () => void } | null;
-  /** The user is already looking at the target; the toast would only nag. */
+  /** The user is already looking at the target; the notification would only nag. */
   readonly active: boolean;
 }
 
@@ -140,8 +133,8 @@ function EnvironmentNotifications({
   const previous = useRef(new Map<ThreadId, NotificationState>());
   const previousGoals = useRef(new Map<GoalId, GoalNoticeState>());
 
-  // Sound always plays; then a toast for a visible, focused window looking
-  // somewhere else, otherwise a desktop notification.
+  // Sound always plays; then the island alerts for a visible, focused window
+  // looking somewhere else, otherwise a desktop notification.
   const deliverNotice = useCallback(
     (notice: NoticeDelivery) => {
       if (hasNotificationSound(mode)) {
@@ -155,26 +148,7 @@ function EnvironmentNotifications({
         document.hasFocus() &&
         !notice.active
       ) {
-        const action = notice.action;
-        const toastId = toastManager.add({
-          type: notice.toastType,
-          title: notice.title,
-          description: notice.body,
-          data: {
-            hideCopyButton: true,
-            leadingIcon: notice.icon,
-          },
-          actionProps:
-            action === null
-              ? undefined
-              : {
-                  children: action.label,
-                  onClick: () => {
-                    toastManager.close(toastId);
-                    action.open();
-                  },
-                },
-        });
+        showIslandNotificationFromNotice(notice);
         return;
       }
       if (
@@ -269,16 +243,6 @@ function EnvironmentNotifications({
         title,
         body: thread.title,
         tag: `${environmentId}:${thread.id}`,
-        icon:
-          kind === "completion" ? (
-            <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />
-          ) : status === "approval" ? (
-            <ShieldQuestionIcon aria-hidden className="size-4 text-warning-foreground" />
-          ) : status === "failed" ? (
-            <CircleAlertIcon aria-hidden className="size-4 text-destructive-foreground" />
-          ) : (
-            <MessageCircleQuestionIcon aria-hidden className="size-4 text-info-foreground" />
-          ),
         action: {
           label: "Open thread",
           open: () =>
@@ -311,16 +275,6 @@ function EnvironmentNotifications({
         title: goalNoticeTitle(goal.status),
         body: goal.title,
         tag: `${environmentId}:goal:${goal.id}`,
-        icon:
-          kind === "completion" ? (
-            <CircleCheckIcon aria-hidden className="size-4 text-success-foreground" />
-          ) : goal.status === "failed" ? (
-            <CircleAlertIcon aria-hidden className="size-4 text-destructive-foreground" />
-          ) : goal.status === "waiting_provider" ? (
-            <ShieldQuestionIcon aria-hidden className="size-4 text-warning-foreground" />
-          ) : (
-            <MessageCircleQuestionIcon aria-hidden className="size-4 text-info-foreground" />
-          ),
         action:
           threadId === null
             ? null
