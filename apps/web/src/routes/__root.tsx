@@ -264,7 +264,7 @@ function RootRouteView() {
           {/* Dynamic Island: global live-activity surface (needs-input alerts,
               desktop updates, in-app notifications). Chat views register their
               own composer modes. Wraps the shell so every route sees it. */}
-          <IslandProvider metrics={{ top: 60 }}>
+          <IslandProvider metrics={{ top: 60, screen: { width: 660, height: 874 } }}>
             <Island
               placement="viewport"
               appearance={resolvedTheme}
