@@ -440,6 +440,7 @@ import { GoalModePanel } from "./chat/GoalModePanel";
 import {
   getGoalSlashObjective,
   goalDrivesThread,
+  goalOccupiesThread,
   isGoalSlashCommand,
   isGoalSlashPrompt,
   selectGoalModelSelection,
@@ -4120,6 +4121,9 @@ export default function ChatView(props: ChatViewProps) {
   // A goal owns the turns of the thread it is bound to, so the composer has to
   // know when this thread's messages join a goal instead of a plain turn.
   const goalDrivesThisThread = goalDrivesThread(goalsQuery.data?.goals ?? [], activeThreadId);
+  // A thread runs one goal. When this thread already has one, the new goal
+  // gets a thread of its own instead of being refused by the server.
+  const goalOwnsThisThread = goalOccupiesThread(goalsQuery.data?.goals ?? [], activeThreadId);
 
   const isDraftHeroState = resolveDraftHeroState({
     isLocalDraftThread,
@@ -9211,8 +9215,8 @@ export default function ChatView(props: ChatViewProps) {
             projectId: goalProjectId,
             // Two goals must not drive one thread: their turns would interleave
             // and each agent would answer the other's task. A goal started
-            // while another one works here gets a thread of its own.
-            threadId: isServerThread && !goalDrivesThisThread ? (activeThreadId ?? null) : null,
+            // while this thread already has one gets a thread of its own.
+            threadId: isServerThread && !goalOwnsThisThread ? (activeThreadId ?? null) : null,
             objective,
             acceptanceCriteria: splitCriteriaLines(goalCriteriaText),
             modelSelection: goalModelSelection,

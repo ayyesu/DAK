@@ -16,7 +16,9 @@ const GOAL_ACTIVE_STATUSES: ReadonlySet<GoalStatus> = new Set([
   "verifying",
   "paused",
   "needs_input",
-  "blocked",
+  // The goal is parked on a provider fault. It resumes on its own, so it is
+  // alive, but no turn is in flight.
+  "waiting_provider",
 ]);
 
 export function isGoalActive(status: GoalStatus): boolean {
@@ -42,11 +44,20 @@ export function isGoalDriven(status: GoalStatus): boolean {
 
 /** The server only pauses a goal its driver is actively working on. */
 export function canPauseGoal(status: GoalStatus): boolean {
-  return isGoalDriven(status);
+  // A goal parked on a provider fault has no turn in flight, but the user
+  // can still stop it from retrying.
+  return isGoalDriven(status) || status === "waiting_provider";
 }
-/** Recoverable states; `failed` and `blocked` resume rather than restart. */
+/** Recoverable states; `failed` resumes rather than restarts. */
 export function canResumeGoal(status: GoalStatus): boolean {
-  return status === "paused" || status === "blocked" || status === "failed" || status === "draft";
+  // A parked goal resumes on its own, but the user may want to try now
+  // instead of waiting out the provider's delay.
+  return (
+    status === "paused" ||
+    status === "failed" ||
+    status === "draft" ||
+    status === "waiting_provider"
+  );
 }
 
 export function canEditGoal(status: GoalStatus): boolean {
@@ -63,7 +74,12 @@ export function canRetryGoal(status: GoalStatus): boolean {
 
 export function goalNeedsAttention(status: GoalStatus): boolean {
   return (
-    status === "needs_input" || status === "blocked" || status === "paused" || status === "failed"
+    status === "needs_input" ||
+    status === "paused" ||
+    status === "failed" ||
+    // The provider broke, so the goal cannot move until it comes back. The
+    // server keeps trying, but the user may be able to fix it faster.
+    status === "waiting_provider"
   );
 }
 
@@ -88,6 +104,26 @@ export function goalDrivesThread(
 ): boolean {
   if (threadId === null) return false;
   return goals.some((goal) => goal.threadId === threadId && isGoalDriven(goal.status));
+}
+
+/**
+ * Whether a thread already has a goal.
+ *
+ * A thread runs one goal: two goals in one thread would answer each other's
+ * turns. The server keeps this rule, and the client follows the same one, so
+ * a second goal starts in a thread of its own instead of being refused. A
+ * goal owns its thread until it is completed or cancelled; a failed goal can
+ * still be resumed, so it keeps the thread.
+ */
+export function goalOccupiesThread(
+  goals: ReadonlyArray<Pick<GoalSummary, "threadId" | "status">>,
+  threadId: ThreadId | null,
+): boolean {
+  if (threadId === null) return false;
+  return goals.some(
+    (goal) =>
+      goal.threadId === threadId && goal.status !== "completed" && goal.status !== "cancelled",
+  );
 }
 
 /**
@@ -279,8 +315,8 @@ export function goalStatusLabel(status: GoalStatus): string {
       return "Paused";
     case "needs_input":
       return "Needs input";
-    case "blocked":
-      return "Blocked";
+    case "waiting_provider":
+      return "Waiting for provider";
     case "verifying":
       return "Verifying";
     case "completed":
@@ -297,8 +333,8 @@ export function goalNoticeTitle(status: GoalStatus): string {
   switch (status) {
     case "needs_input":
       return "Input needed";
-    case "blocked":
-      return "Goal blocked";
+    case "waiting_provider":
+      return "Waiting for the provider";
     case "failed":
       return "Goal failed";
     case "completed":
@@ -321,7 +357,7 @@ export function goalStatusTone(status: GoalStatus): GoalTone {
       return "active";
     case "paused":
     case "needs_input":
-    case "blocked":
+    case "waiting_provider":
       return "attention";
     case "completed":
       return "success";
@@ -335,7 +371,7 @@ export function goalStatusTone(status: GoalStatus): GoalTone {
 
 /** One line that answers "what is happening right now?" for the collapsed card. */
 export function goalHeadline(
-  goal: Pick<Goal, "status" | "tasks" | "currentTaskId" | "blockedReason" | "question">,
+  goal: Pick<Goal, "status" | "tasks" | "currentTaskId" | "waitingReason" | "question">,
 ): string {
   switch (goal.status) {
     case "draft":
@@ -363,8 +399,8 @@ export function goalHeadline(
       return "Paused";
     case "needs_input":
       return "Waiting for your answer";
-    case "blocked":
-      return goal.blockedReason ?? "Blocked";
+    case "waiting_provider":
+      return goal.waitingReason ?? "Waiting for the provider";
     case "verifying":
       return "Verifying the result";
     case "completed":
@@ -384,7 +420,7 @@ export function goalSummaryHeadline(
     | "currentTaskTitle"
     | "completedTaskCount"
     | "totalTaskCount"
-    | "blockedReason"
+    | "waitingReason"
     | "question"
   >,
 ): string {
@@ -410,8 +446,8 @@ export function goalSummaryHeadline(
       return "Paused";
     case "needs_input":
       return "Waiting for your answer";
-    case "blocked":
-      return summary.blockedReason ?? "Blocked";
+    case "waiting_provider":
+      return summary.waitingReason ?? "Waiting for the provider";
     case "verifying":
       return "Verifying the result";
     case "completed":

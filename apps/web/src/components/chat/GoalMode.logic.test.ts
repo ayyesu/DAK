@@ -15,6 +15,7 @@ import {
   goalDeliveryNotice,
   goalDrivesThread,
   goalHasOpenQuestion,
+  goalOccupiesThread,
   goalHeadline,
   goalMetaLine,
   goalNeedsAttention,
@@ -31,6 +32,7 @@ import {
   goalTaskStatusLabel,
   goalVerificationStatusLabel,
   goalWaitingTask,
+  isGoalActive,
   isGoalEnded,
   isGoalDriven,
   isGoalSlashCommand,
@@ -53,8 +55,6 @@ function task(overrides: Partial<GoalTask> & Pick<GoalTask, "id" | "title">): Go
     question: null,
     blocker: null,
     attempts: 0,
-    recoveryAttempts: 0,
-    reassessments: 0,
     dependsOn: [],
     ...overrides,
   };
@@ -75,11 +75,10 @@ const baseGoal: Omit<Goal, "id" | "status" | "updatedAt"> = {
   revision: 1,
   cycleCount: 0,
   verification: { status: "pending", summary: null, checkedAt: null },
-  blockedReason: null,
+  waitingReason: null,
   failureReason: null,
   question: null,
   questionTaskId: null,
-  blocker: null,
   progress: null,
   progressLabel: null,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -299,6 +298,40 @@ describe("goalDrivesThread", () => {
   });
 });
 
+describe("goalOccupiesThread", () => {
+  const threadId = ThreadId.make("thread:1");
+
+  it("reports a thread that already runs a goal", () => {
+    for (const status of [
+      "planning",
+      "running",
+      "recovering",
+      "verifying",
+      "paused",
+      "needs_input",
+      "waiting_provider",
+      "failed",
+    ] as const) {
+      expect(goalOccupiesThread([goal({ id: status, status, threadId })], threadId)).toBe(true);
+    }
+  });
+
+  it("frees the thread once the goal is finished or cancelled", () => {
+    for (const status of ["completed", "cancelled"] as const) {
+      expect(goalOccupiesThread([goal({ id: status, status, threadId })], threadId)).toBe(false);
+    }
+  });
+
+  it("ignores a goal of another thread and a threadless view", () => {
+    expect(
+      goalOccupiesThread([goal({ id: "elsewhere", status: "running", threadId: null })], threadId),
+    ).toBe(false);
+    expect(goalOccupiesThread([goal({ id: "running", status: "running", threadId })], null)).toBe(
+      false,
+    );
+  });
+});
+
 describe("goal-aware composer copy", () => {
   it("names the goal the message joins instead of talking about steering", () => {
     expect(goalSendLabel("steer")).toBe("Send to the goal");
@@ -364,11 +397,15 @@ describe("goal summary progress and headline", () => {
     expect(goalSummaryHeadline(summary)).toBe("Working on: Build the API · 1 of 3 tasks done");
   });
 
-  it("keeps planning and blocked headlines from the summary", () => {
+  it("keeps the planning headline and the provider's reason in the summary", () => {
     expect(goalSummaryHeadline(goal({ id: "g", status: "planning" }))).toBe("Planning the work");
     expect(
       goalSummaryHeadline(
-        goal({ id: "g", status: "blocked", blockedReason: "The database is unreachable." }),
+        goal({
+          id: "g",
+          status: "waiting_provider",
+          waitingReason: "The database is unreachable.",
+        }),
       ),
     ).toBe("The database is unreachable.");
   });
@@ -388,6 +425,25 @@ describe("goal status presentation", () => {
     expect(goalStatusLabel("recovering")).toBe("Recovering");
     expect(goalStatusTone("recovering")).toBe("active");
     expect(isGoalDriven("recovering")).toBe(true);
+  });
+
+  it("parks a goal the provider stopped without calling it failed", () => {
+    expect(goalStatusLabel("waiting_provider")).toBe("Waiting for provider");
+    expect(goalStatusTone("waiting_provider")).toBe("attention");
+    expect(goalNoticeTitle("waiting_provider")).toBe("Waiting for the provider");
+    expect(goalNeedsAttention("waiting_provider")).toBe(true);
+    // No turn is in flight while the goal waits, so the card does not spin,
+    // but it stays alive because the server retries on its own.
+    expect(isGoalDriven("waiting_provider")).toBe(false);
+    expect(isGoalActive("waiting_provider")).toBe(true);
+    const parked = goal({
+      id: "g",
+      status: "waiting_provider",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      waitingReason: "the provider is not signed in",
+      tasks: [task({ id: "t1", title: "Build the API", status: "in_progress" })],
+    });
+    expect(goalHeadline(parked)).toBe("the provider is not signed in");
   });
 
   it("names the task being recovered on the headline", () => {
@@ -414,14 +470,14 @@ describe("goal status presentation", () => {
 
   it("flags the statuses that want the user", () => {
     expect(goalNeedsAttention("needs_input")).toBe(true);
-    expect(goalNeedsAttention("blocked")).toBe(true);
+    expect(goalNeedsAttention("waiting_provider")).toBe(true);
     expect(goalNeedsAttention("running")).toBe(false);
     expect(goalNeedsAttention("completed")).toBe(false);
   });
 
   it("names each status a notification can fire for", () => {
     expect(goalNoticeTitle("needs_input")).toBe("Input needed");
-    expect(goalNoticeTitle("blocked")).toBe("Goal blocked");
+    expect(goalNoticeTitle("waiting_provider")).toBe("Waiting for the provider");
     expect(goalNoticeTitle("failed")).toBe("Goal failed");
     expect(goalNoticeTitle("completed")).toBe("Goal completed");
     expect(goalNoticeTitle("running")).toBe("Goal working");
@@ -460,14 +516,14 @@ describe("goal status presentation", () => {
     expect(goalHeadline(running)).toBe("Working on: only");
   });
 
-  it("surfaces the blocking reason", () => {
-    const blocked = goal({
+  it("surfaces why the goal is waiting on the environment", () => {
+    const parked = goal({
       id: "g",
-      status: "blocked",
-      blockedReason: "The database is unreachable.",
+      status: "waiting_provider",
+      waitingReason: "The database is unreachable.",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
-    expect(goalHeadline(blocked)).toBe("The database is unreachable.");
+    expect(goalHeadline(parked)).toBe("The database is unreachable.");
   });
 });
 
@@ -522,9 +578,11 @@ describe("goal control matrix", () => {
     expect(canPauseGoal("planning")).toBe(true);
     expect(canPauseGoal("running")).toBe(true);
     expect(canPauseGoal("verifying")).toBe(true);
+    // A parked goal has no turn in flight, but the user can stop it from
+    // retrying the provider.
+    expect(canPauseGoal("waiting_provider")).toBe(true);
     expect(canPauseGoal("paused")).toBe(false);
     expect(canPauseGoal("needs_input")).toBe(false);
-    expect(canPauseGoal("blocked")).toBe(false);
     expect(canPauseGoal("completed")).toBe(false);
   });
 
@@ -534,23 +592,32 @@ describe("goal control matrix", () => {
     expect(isGoalDriven("verifying")).toBe(true);
     expect(isGoalDriven("paused")).toBe(false);
     expect(isGoalDriven("needs_input")).toBe(false);
-    expect(isGoalDriven("blocked")).toBe(false);
+    expect(isGoalDriven("waiting_provider")).toBe(false);
     expect(isGoalDriven("draft")).toBe(false);
     expect(isGoalDriven("completed")).toBe(false);
   });
 
-  it("resumes every recoverable state, including failed and blocked", () => {
+  it("resumes every recoverable state, including failed", () => {
     expect(canResumeGoal("paused")).toBe(true);
-    expect(canResumeGoal("blocked")).toBe(true);
     expect(canResumeGoal("failed")).toBe(true);
     expect(canResumeGoal("draft")).toBe(true);
+    // The server retries a parked goal on its own, but the user may want to
+    // try now instead of waiting out the delay.
+    expect(canResumeGoal("waiting_provider")).toBe(true);
     expect(canResumeGoal("running")).toBe(false);
     expect(canResumeGoal("completed")).toBe(false);
     expect(canResumeGoal("cancelled")).toBe(false);
   });
 
   it("gates edit, cancel and retry on the goal not having ended", () => {
-    for (const status of ["planning", "running", "paused", "failed", "blocked", "draft"] as const) {
+    for (const status of [
+      "planning",
+      "running",
+      "paused",
+      "failed",
+      "draft",
+      "waiting_provider",
+    ] as const) {
       expect(canEditGoal(status)).toBe(true);
       expect(canCancelGoal(status)).toBe(true);
       expect(canRetryGoal(status)).toBe(true);

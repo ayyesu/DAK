@@ -1106,11 +1106,14 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:server:goals:live",
       tag: WS_METHODS.goalsSubscribe,
     }),
-    /** Full goal details for the selected goal; list payloads stay lightweight. */
-    goalDetail: createEnvironmentRpcQueryAtomFamily(runtime, {
-      label: "environment-data:server:goal:detail",
-      tag: WS_METHODS.goalsGet,
-      staleTimeMs: 0,
+    /**
+     * One goal's live detail. A client opens this while the user is looking at
+     * the goal, so the server only builds the detail for a goal somebody
+     * watches.
+     */
+    goalWatch: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+      label: "environment-data:server:goal:watch",
+      tag: WS_METHODS.goalsWatch,
     }),
     createGoal: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:goal:create",

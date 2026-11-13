@@ -205,7 +205,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.subscribeServerLifecycle]: "server",
   [WS_METHODS.goalsList]: "server",
   [WS_METHODS.goalsSubscribe]: "server",
-  [WS_METHODS.goalsGet]: "server",
+  [WS_METHODS.goalsWatch]: "server",
   [WS_METHODS.goalsCreate]: "server",
   [WS_METHODS.goalsUpdate]: "server",
   [WS_METHODS.goalsPause]: "server",

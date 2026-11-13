@@ -12,8 +12,8 @@ export interface GoalNoticeState {
 /** Statuses where the goal is asking the user for something. */
 const GOAL_ATTENTION_STATUSES: ReadonlySet<GoalSummary["status"]> = new Set<GoalSummary["status"]>([
   "needs_input",
-  "blocked",
   "failed",
+  "waiting_provider",
 ]);
 
 /**

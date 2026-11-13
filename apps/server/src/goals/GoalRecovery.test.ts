@@ -306,9 +306,9 @@ it.effect("a failed test leads to an investigation and a correction", () => {
       (goal) => goal.status === "completed",
     );
 
-    // The recovery turn carries the failure and asks for a different approach,
-    // so the agent works the problem out rather than repeating the failure.
-    const recovery = script.sentTexts.find((text) => text.includes("recovery attempt 1"));
+    // The follow-up turn carries the failure and leaves the choice to the
+    // agent, so it works the problem out rather than repeating the failure.
+    const recovery = script.sentTexts.find((text) => text.includes("You decide how to continue"));
     assert.isDefined(recovery);
     expect(recovery).toContain("Property 'x' does not exist");
     expect(recovery).toContain("Do not repeat the same failing operation unchanged");
@@ -339,8 +339,11 @@ it.effect("the agent recovers and the goal continues on its own", () => {
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
-it.effect("an exhausted recovery budget triggers a reassessment, not a block", () => {
-  const failures = Array.from({ length: GoalService.GOAL_RECOVERY_ATTEMPTS + 1 }, () => ({
+it.effect("an agent that calls an obstacle a deadlock keeps working it", () => {
+  // Far past any budget a server could keep: the agent is told what is known
+  // and decides. Calling the problem a deadlock does not end the goal, so
+  // the assessment becomes the next turn's context instead.
+  const failures = Array.from({ length: 8 }, () => ({
     kind: "completed" as const,
     reply: buildFailedReport,
   }));
@@ -348,28 +351,34 @@ it.effect("an exhausted recovery budget triggers a reassessment, not a block", (
     { kind: "completed", reply: planReport },
     ...failures,
     { kind: "completed", reply: blockedReport },
+    { kind: "completed", reply: buildFixedReport },
+    { kind: "completed", reply: verifyReport },
   ]);
   return Effect.gen(function* () {
     const service = yield* GoalService.GoalService;
     const created = yield* service.create(createInput());
 
-    const blocked = yield* awaitGoalState(
+    const done = yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
-      (goal) => goal.status === "blocked",
+      (goal) => goal.status === "completed",
     );
-    expect(blocked.blockedReason).toContain("the sandbox has no network access");
+    expect(done.failureReason).toBeNull();
+    expect(done.waitingReason).toBeNull();
 
+    // The assessment rides on the task and the next turn starts from it.
     const full = yield* service.get({ id: created.goal.id });
-    const reassessed = full.goal.activities.find((activity) =>
-      activity.summary.startsWith("Reassessing: Do the thing"),
+    const assessed = full.goal.tasks.find((task) => task.title === "Do the thing");
+    expect(assessed?.blocker?.reason).toBe("the sandbox has no network access");
+    const followUp = script.sentTexts.find((text) =>
+      text.includes("the sandbox has no network access"),
     );
-    expect(reassessed).toBeDefined();
+    assert.isDefined(followUp);
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
-it.effect("a blocked claim without evidence does not block the goal", () => {
-  const failures = Array.from({ length: GoalService.GOAL_RECOVERY_ATTEMPTS + 1 }, () => ({
+it.effect("a report that asks to be blocked is an obstacle like any other", () => {
+  const failures = Array.from({ length: 5 }, () => ({
     kind: "completed" as const,
     reply: buildFailedReport,
   }));
@@ -382,14 +391,13 @@ it.effect("a blocked claim without evidence does not block the goal", () => {
     const service = yield* GoalService.GoalService;
     const created = yield* service.create(createInput());
 
-    // The vague claim is treated as another obstacle, so the goal keeps
-    // recovering instead of stopping on a shrug.
+    // The goal keeps recovering instead of stopping on a shrug.
     const recovered = yield* awaitGoalState(
       service.subscribeList({}),
       created.goal.id,
       (goal) => goal.status === "recovering" || goal.status === "running",
     );
-    expect(recovered.status).not.toBe("blocked");
+    expect(recovered.status).not.toBe("failed");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
@@ -452,7 +460,7 @@ it.effect("the user's answer resumes the affected task and the goal carries on",
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
-it.effect("a blocked task does not stop independent tasks", () => {
+it.effect("a task that is stuck does not stop independent tasks", () => {
   const script = makeScript([
     {
       kind: "completed",
@@ -723,9 +731,14 @@ it.effect("a goal whose driver died is picked back up", () => {
     const picked = yield* awaitGoalState(
       service.subscribeList({}),
       goalId,
-      (goal) => goal.status !== "blocked",
+      (goal) => goal.status === "failed",
     );
-    expect(picked.status).not.toBe("blocked");
+    expect(picked.status).toBe("failed");
+    // The goal was picked up and driven, not left stranded.
+    const full = yield* service.get({ id: goalId });
+    expect(full.goal.activities.map((activity) => activity.summary)).toContain(
+      "Resumed after a server restart",
+    );
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
@@ -783,7 +796,7 @@ it.effect("the goal's progress survives an interrupted session", () => {
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
 
-it.effect("the goal never blocks without evidence behind it", () => {
+it.effect("a goal that asks to be blocked keeps working instead", () => {
   const script = makeScript([
     { kind: "completed", reply: planReport },
     { kind: "completed", reply: vagueBlockedReport },
@@ -802,7 +815,7 @@ it.effect("the goal never blocks without evidence behind it", () => {
       (goal) => goal.status === "completed",
     );
     const full = yield* service.get({ id: created.goal.id });
-    expect(full.goal.blocker).toBeNull();
+    expect(full.goal.waitingReason).toBeNull();
     expect(done.status).toBe("completed");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });

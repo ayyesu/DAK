@@ -52,7 +52,10 @@ collapsed card is a single status line — its title, status, what is
 happening now, and a slim progress bar — so it never swallows the chat.
 While a turn is running, the status shows a spinner and counts the current
 turn's age. A goal working through a problem shows **Recovering**, and a task
-waiting on you shows **Waiting for you**. Expand it for the objective, the
+waiting on you shows **Waiting for you**. When the provider itself stops — it
+is signed out, out of quota, or unreachable — the goal shows **Waiting for
+provider** and keeps its plan; DAK retries it on its own and it continues from
+where it stopped. Expand it for the objective, the
 current step, the full plan with each task's status, and the progress
 percentage. Under the progress bar the card names the model running the goal
 and how many turns it has spent. The card folds open and closed with an
@@ -67,11 +70,15 @@ turn. Expand it to list the files, and pick one to open that file's diff in
 the diff panel.
 
 When criteria were given, the expanded card also shows **Done
-when** with each criterion's state and the verification result. **View
-activity** opens the recent history: what the agent planned, what it
-finished, what it is checking, and what it is recovering from. The card stays
+when** with each criterion's state and the verification result. The card stays
 visible in its thread when you switch threads or reload the page, and the goal
 keeps running while the browser is closed because the environment drives it.
+
+The goal's work stays out of the chat. The **eye** button on the card opens
+**Goal work** inside the card: the run of turns the goal took, what it planned,
+what it finished, what it is checking and what it is recovering from. The back
+button in that view returns you to the card, and the card itself keeps the
+status, the progress and the controls.
 
 **Hide this finished goal** clears a completed goal from the card; **Start
 another goal** turns the composer back to the goal input while the current
@@ -82,7 +89,9 @@ them, and picking one there brings it back.
 
 - **Pause** interrupts right away, even mid-turn; **Resume** continues from the
   same plan. While a goal is waiting for an answer, neither is available:
-  answer it to continue.
+  answer it to continue. A goal **Waiting for provider** can be paused to stop
+  the retries, or resumed to try again immediately instead of waiting out the
+  provider's delay.
 - **Edit** changes the objective or adds requirements. Finished work is kept
   and only the remaining plan changes. An edit keeps the goal's current
   status: a paused goal stays paused until you resume it, and the edit dialog
@@ -104,39 +113,46 @@ Concretely:
 - A failed build or test sends the task back through **recovery**: the agent
   gets the error as context and is asked to fix the cause and verify the fix,
   not to repeat the same command.
-- Recovery is bounded. Once the retries stop producing progress, the agent is
-  asked for a **reassessment**: what is actually blocking, what was tried,
-  what else was considered, and what only you can provide. A goal is only
-  marked **Blocked** when that reassessment comes back with a specific
-  external blocker — never because the agent gave up.
+- The agent decides how to continue. It is told what is known — the failure,
+  what it already tried, what the provider said — and it chooses: fix it, try
+  a different approach, or ask you. Nothing counts its attempts for it, so a
+  hard problem is never taken away because it took a few tries, and there is no
+  blocked state to fall back on: the goal keeps working until the work is done
+  or only you can move it forward.
+- When the provider itself fails — signed out, out of quota, unreachable —
+  the goal parks as **Waiting for provider** instead of failing. It keeps its
+  plan, retries on its own (after a quota limit resets, or with a growing
+  delay), and continues where it stopped once the provider is back. The agent
+  is told that the provider is what ended the turn, so it does not go looking
+  for a fault in its own work.
 - A task waiting on you (**Waiting for you**) pauses only that task. Other
   tasks keep going, and the answer picks the task up exactly where it
   stopped.
 - If a goal looks active but nothing is driving it, DAK picks it back up on
   its own. You do not need to press Resume.
 
-## When the agent asks or gets stuck
+## When the agent asks
 
 The agent stops for you only when it cannot decide on its own. A question
 shows as **Needs input** with an answer box in the card, naming the task your
-answer unblocks. A goal that cannot
-continue shows **Blocked** (or **Failed**) with the reason in the card, so you
-can remove the obstacle and resume, edit the goal, retry, or cancel it.
+answer unblocks. A goal that cannot continue shows **Failed** with the reason
+in the card, so you can remove the obstacle and resume, edit the goal, retry,
+or cancel it.
 
-When the agent blocks a goal it also reports its assessment: what stopped the
-work, why that is true, what was inspected to find it, what was tried, what
-else was considered, and what only you can provide. That is the evidence
-behind the verdict, and it is what tells you whether to clear the obstacle or
-redirect the goal.
+While it works on an obstacle, the card shows the agent's own assessment of
+it: what stopped the work, why that is true, what was inspected to find it,
+what was tried, what else was considered, and what only you can provide. That
+is evidence it keeps working with, and it tells you whether the goal needs
+you or is on it.
 
 ## Notifications
 
 Goals use the same device notification settings as threads in **Settings >
 Behavior**. A goal sends an attention notification when it asks you a
-question, becomes blocked, or fails; it sends a completion notification when
-it finishes. While the app has focus, in-app toasts open the goal's thread.
-In the background, the same settings decide whether DAK sends a system
-notification or plays a sound instead.
+question, when the provider stops it, or when it fails; it sends a completion
+notification when it finishes. While the app has focus, in-app toasts open the
+goal's thread. In the background, the same settings decide whether DAK sends a
+system notification or plays a sound instead.
 
 ## Verification
 
@@ -151,10 +167,16 @@ required to fix an issue. A goal can run for weeks or months so long as you
 have tokens; it stops only when it completes, when you cancel it, or when a
 problem genuinely cannot be fixed.
 
-Recovery of a failed task is bounded so a broken task cannot loop forever: the
-agent gets a limited number of recovery attempts, then a reassessment, and
-only a specific external blocker ends the work. Work that made progress starts
-a fresh budget.
+When a task fails, the agent is handed what is known and decides what happens
+next. There is no last rung that ends the goal and no counter that decides how
+many tries it gets: work that made progress starts fresh, and only a specific
+external blocker ends the work.
+
+A turn is judged by what it does, not by the clock: if it goes quiet for
+about twenty minutes with nothing left running, DAK treats it as stuck and
+the task goes into recovery with that silence as context. A turn that keeps
+producing — planning, running commands, delegating to subagents — slides
+that deadline and is never interrupted for taking as long as it needs.
 
 ### Verification requires proof
 
@@ -181,15 +203,18 @@ This means the bar never reaches 100% until verification independently passes. I
 
 ### “Gets stuck” scenarios
 
-- **Goal shows Blocked**: The agent finished its recovery attempts and its
-  reassessment named a specific external blocker. The card shows the reason,
-  what was tried, and what it needs from you. Remove the obstacle and resume,
-  or edit the goal.
 - **Goal shows Needed input**: The agent asked you a question. Answer it to
   continue; the goal picks the task up where it stopped.
-- **Goal shows Failed**: The execution itself broke — the agent stopped
-  reporting progress, or the plan could not be produced. Resume or edit the
-  goal.
+- **Goal shows Failed**: The server could not run the goal — for example the
+  plan came back empty, or the goal lost its plan. Retry a task, edit the
+  goal, or resume it.
+- **Goal shows Waiting for provider**: The provider stopped — it is signed
+  out, out of quota, or unreachable. DAK retries on its own and the goal
+  continues when the provider is back; **Resume** tries immediately and
+  **Pause** stops the retries.
+- **The card shows the agent's assessment**: The agent is working an obstacle
+  and has written down what it found. The goal keeps working; the assessment
+  tells you whether it needs you or is on it.
 - **Progress stays below 100% while verification is pending**: This is expected — verification is the final unit; it must pass for the bar to reach 100%.
 
 ## Using the thread
@@ -207,7 +232,10 @@ the goal** when it waits behind it.
 Agents can use the `dak_goal_*` MCP tools to list summaries, read full goal
 details, create, update, pause, resume, cancel, answer, or retry a task. List
 first to find a goal's id; use read when you need its full task and activity
-history.
+history. A thread runs one goal: creating a goal on a thread that already has
+one is refused, finish or cancel it, or start the new goal without that
+thread. A goal's own agent cannot start another goal from the thread it works
+in.
 
 ## Platform support
 

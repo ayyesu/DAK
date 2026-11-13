@@ -58,7 +58,7 @@ const GoalReadTool = Tool.make("dak_goal_read", {
 
 const GoalCreateTool = Tool.make("dak_goal_create", {
   description:
-    "Create a goal and start it right away. The goal keeps working while its thread waits, and only stops for a question, an obstacle, verification, or completion. Omit projectId, modelSelection, and modes to inherit them from the calling thread or project default. createdBy will be agent and creationSource will be mcp.",
+    "Create a goal and start it right away. The goal keeps working while its thread waits, and only stops for a question, an obstacle, verification, or completion. Omit projectId, modelSelection, and modes to inherit them from the calling thread or project default. A thread runs one goal; a goal cannot start another.",
   parameters: Schema.Struct({
     projectId: Schema.optional(ProjectId),
     threadId: Schema.optional(Schema.NullOr(ThreadId)),
@@ -95,7 +95,7 @@ const GoalPauseTool = Tool.make("dak_goal_pause", {
 
 const GoalResumeTool = Tool.make("dak_goal_resume", {
   description:
-    "Resume a paused, blocked, or failed goal and continue from the same plan. A goal that is waiting for an answer cannot be resumed; answer it first.",
+    "Resume a paused, failed, or provider-waiting goal and continue from the same plan. A goal that is waiting for an answer cannot be resumed; answer it first.",
   parameters: GoalResumeInput,
   success: GoalMutationResult,
   failure: OrchestratorMcpFailure,
