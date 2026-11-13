@@ -355,5 +355,3 @@ export const GOAL_MAX_TASKS = 10_000;
  * the work: how a task continues after a failure is the agent's call.
  */
 export const GOAL_IDLE_PACING_CYCLES = 3;
-/** Verification repair rounds before the server asks for a reassessment. */
-export const GOAL_MAX_VERIFY_REPAIR_ROUNDS = 3;
