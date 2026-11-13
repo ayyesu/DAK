@@ -1,7 +1,7 @@
 import { ArrowLeftIcon, ChartNoAxesColumnIcon, SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo, useCallback } from "react";
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 
 import { connectionStatusText } from "@dak/client-runtime/connection";
 
@@ -12,7 +12,6 @@ import {
   usePrimaryEnvironment,
   usePullRequestsSupported,
 } from "../../state/environments";
-import { DakWordmark } from "../DakWordmark";
 import {
   ConnectionStatusDot,
   connectionPhaseDotClassName,
@@ -64,9 +63,8 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
       {/* One visible line: the pill wraps onto the clipped second line once it no longer fits.
           The padding keeps the brand's focus ring inside the clip. */}
       <div className="relative z-10 flex h-8 min-w-0 flex-1 flex-wrap content-start items-center gap-x-2 overflow-hidden py-0.5">
-        <SidebarBrand />
         {pillLabel ? (
-          <div className="ml-1 flex h-7 items-center">
+          <div className="flex h-7 items-center">
             <Badge data-environment-identification="pill" size="sm" variant="secondary">
               {pillLabel}
             </Badge>
@@ -76,58 +74,6 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
     </div>
   );
 });
-
-// Measures the brand at its titlebar inset, plus the header's right padding and the
-// sidebar border, so the sidebar minimum follows font size, zoom and macOS window controls.
-export function SidebarBrandWidthProbe({
-  onWidthChange,
-}: {
-  onWidthChange: (width: number) => void;
-}) {
-  const observeWidth = useCallback(
-    (probe: HTMLDivElement) => {
-      const observer = new ResizeObserver(([entry]) => {
-        if (entry) onWidthChange(entry.borderBoxSize[0]?.inlineSize ?? probe.offsetWidth);
-      });
-      observer.observe(probe);
-      return () => observer.disconnect();
-    },
-    [onWidthChange],
-  );
-
-  return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none invisible fixed top-0 left-0 flex w-max border-r border-transparent pr-3"
-      ref={observeWidth}
-    >
-      <div className="ml-[var(--workspace-titlebar-content-left)] flex">
-        <SidebarBrandMark />
-      </div>
-    </div>
-  );
-}
-
-function SidebarBrand() {
-  return (
-    <Link
-      aria-label="Go to threads"
-      className="relative z-10 ml-[var(--workspace-titlebar-content-left)] hidden h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md text-foreground outline-hidden ring-ring focus-visible:ring-2 md:flex"
-      to="/"
-    >
-      <SidebarBrandMark />
-    </Link>
-  );
-}
-
-function SidebarBrandMark() {
-  return (
-    // The wordmark itself spells DAK, so the brand needs no companion text.
-    <span className="inline-flex min-w-0 items-center" role="img">
-      <DakWordmark aria-label="DAK" className="h-[1.35cap] w-auto shrink-0" />
-    </span>
-  );
-}
 
 function SidebarUtilityItem({
   icon,

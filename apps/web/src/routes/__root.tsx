@@ -269,8 +269,8 @@ function RootRouteView() {
               idleLogo={
                 <DakWordmark
                   aria-hidden
-                  height={15}
-                  style={{ width: "auto", color: "rgba(235,235,245,0.42)" }}
+                  height={17}
+                  style={{ width: "auto", color: "rgba(235,235,245,0.85)" }}
                 />
               }
             />
