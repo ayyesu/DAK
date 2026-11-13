@@ -250,7 +250,7 @@ export interface IslandNumberProps {
    * the simulator (0.48 s). A clock that ticks every second wants a shorter one, about 0.25 s, so
    * its changing digit is sharp most of the time. The turn keeps its shape, only faster.
    */
-  turn?: number;
+  turn?: number | undefined;
 }
 
 /**

@@ -7,7 +7,7 @@
  * compact text is 15 pt semibold, and the expanded view's big numbers are 34 pt bold.
  */
 
-import { continuousRectPath, islandMetrics } from "@/lib/island";
+import { continuousRectPath, islandMetrics } from "~/lib/island";
 
 /** System font first, so each platform gets its own UI font; Inter or Geist elsewhere. */
 export const islandFont = '-apple-system, BlinkMacSystemFont, "Inter", "Geist", system-ui, sans-serif';

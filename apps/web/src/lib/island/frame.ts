@@ -247,7 +247,7 @@ export const frameAt = (shape: ShapeAnimation, t: number, stageWidth: number, me
   const pillCap = { x: x + width - h / 2, y: y + h / 2, r: h / 2 };
   const bubbleCap = { x: bl + bh / 2, y: by + bh / 2, r: bh / 2 };
   const maxGap = neck?.gap ?? metrics.bridge.maxGap;
-  const joined = capsules ? bridgePath(pillCap, bubbleCap, { ...metrics.bridge, maxGap, power: neck?.power }) : "";
+  const joined = capsules ? bridgePath(pillCap, bubbleCap, { ...metrics.bridge, maxGap, ...(neck?.power !== undefined ? { power: neck.power } : {}) }) : "";
   // Once the neck has snapped, each end keeps a pointed nub toward the other that shrinks as they part
   // (round 40): until the return's own time, so the break after the rejoin is round, as on iOS.
   const tip = neck?.tip;

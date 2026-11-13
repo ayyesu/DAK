@@ -41,14 +41,14 @@ export interface ExpandedContent {
 /** Everything an activity can show. Each presentation falls back to empty slots. */
 export interface ActivityContent {
   /** Shown when this is the only activity. Defaults to empty slots. */
-  compact?: CompactContent;
+  compact?: CompactContent | undefined;
   /**
    * Shown when two activities run and their compact content doesn't fit side by side (attached or
    * in the detached bubble). Defaults to the compact leading content.
    */
   minimal?: ReactNode;
   /** Shown on long-press, `expand()`, or an alerting update. Defaults to empty regions. */
-  expanded?: ExpandedContent;
+  expanded?: ExpandedContent | undefined;
 }
 
 export interface ActivityOptions extends ActivityContent {
@@ -74,11 +74,11 @@ export interface ActivityOptions extends ActivityContent {
 /** A partial update. Nested content merges, so `{ compact: { trailing } }` keeps the leading slot. */
 export interface ActivityUpdate {
   /** Replaces the compact slots given. Defaults to keeping them. */
-  compact?: CompactContent;
+  compact?: CompactContent | undefined;
   /** Replaces the minimal content. Defaults to keeping it. */
   minimal?: ReactNode;
   /** Replaces the expanded regions given. Defaults to keeping them. */
-  expanded?: ExpandedContent;
+  expanded?: ExpandedContent | undefined;
   /** Replaces the screen reader label. Defaults to keeping it. */
   label?: string;
   /** Replaces the priority. Defaults to keeping it. */

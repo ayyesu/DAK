@@ -2,7 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 
-import { type CompactContent, IslandNumber, useIslandReducedMotion } from "@/lib/island";
+import { type CompactContent, IslandNumber, useIslandReducedMotion } from "~/lib/island";
 
 import { IslandStyle } from "./island-style";
 import { SteadyNumber } from "./steady-number";
@@ -13,7 +13,7 @@ interface TextProps {
   /** Text colour. Defaults to white (secondary grey for `ExpandedSubtitle` and `Caption`). */
   color?: string;
   /** Extra styles, merged last. Defaults to none. */
-  style?: CSSProperties;
+  style?: CSSProperties | undefined;
 }
 
 const base: CSSProperties = {
@@ -30,9 +30,9 @@ const base: CSSProperties = {
 
 /**
  * One line that ends in an ellipsis when it runs out of room, cut at a word: `text-overflow` cuts
- * at any character, and a cut that lands on a space set "to your …" with a gap before the dots. A
+ * at any character, and a cut that lands on a space set "to your â€¦" with a gap before the dots. A
  * one-line clamp breaks the line between words, so the dots follow the last whole word ("to
- * your…"); a single word longer than the line still breaks inside itself.
+ * yourâ€¦"); a single word longer than the line still breaks inside itself.
  */
 const oneLine: CSSProperties = {
   whiteSpace: "normal",
@@ -69,7 +69,7 @@ export const NumberText = ({ value, style, turn, motion = "live" }: {
   /** The number, or text such as "4:07". Write a negative value with a minus sign (U+2212), not a hyphen. */
   value: number | string;
   /** Styles on the text. Defaults to none. */
-  style?: CSSProperties;
+  style?: CSSProperties | undefined;
   /** Seconds a changed digit takes to turn over in the "live" motion. Defaults to the measured turn (0.48 s). */
   turn?: number;
   /** How changed digits move. Defaults to "live". */
@@ -96,7 +96,7 @@ export const CompactText = ({ children, color = islandInk.primary, style }: Text
  */
 const unitGap = (unit: ReactNode) => (typeof unit === "string" && !/\p{L}/u.test(unit) ? 0 : 3);
 
-/** A unit that is a sign ("%", "°"), not a word: it sets at the figure's size, as "42%" does on the reference phone. */
+/** A unit that is a sign ("%", "Â°"), not a word: it sets at the figure's size, as "42%" does on the reference phone. */
 const isSign = (unit: ReactNode) => typeof unit === "string" && !/\p{L}/u.test(unit);
 
 /**
@@ -179,7 +179,7 @@ export const TitleStack = ({
   /** Lines the subtitle may wrap to before it truncates. Defaults to 1. */
   subtitleLines?: number;
   /** Extra styles. Defaults to none. */
-  style?: CSSProperties;
+  style?: CSSProperties | undefined;
 }) => (
   <div style={{ display: "grid", gap: islandLine.stackGap, minWidth: 0, textAlign: align === "center" ? "center" : "left", ...style }}>
     <ExpandedTitle>{title}</ExpandedTitle>
@@ -219,7 +219,7 @@ const bubbleCss = `
 /**
  * Compact content with another form for the split's bubble. When two activities run, the second
  * one's compact pair moves into a 62 pt capsule beside the pill, which cuts anything wider than
- * about 20 pt after the leading glyph: a countdown "4:31" reads "4…". `bubble` is what this slot
+ * about 20 pt after the leading glyph: a countdown "4:31" reads "4â€¦". `bubble` is what this slot
  * shows there instead (a ring, a glyph, a value that fits, or nothing); everywhere else, the pill
  * included, it shows `children`. An empty trailing slot gives a round bubble sized to the leading
  * content, the way a minimal view sits in its own circle.

@@ -9,6 +9,7 @@ import {
 } from "./ChatView.logic";
 import * as DateTime from "effect/DateTime";
 import { restorePlanFollowUpComposer } from "./ChatView.logic";
+import { ComposerIslandActivities } from "./islandcn/ComposerIslandActivities";
 import { assistantCitationsToPlainText } from "@dak/shared/assistantCitations";
 import { prepareQueuedEditAttachments, recoverQueuedMessageEdit } from "./chat/queuedMessageEdit";
 import {
@@ -11478,6 +11479,14 @@ export default function ChatView(props: ChatViewProps) {
       data-chat-draft-hero={isDraftHeroState ? "" : undefined}
       className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
     >
+      {/* Dynamic island activities for this composer (plan mode, goal mode). */}
+      <ComposerIslandActivities
+        interactionMode={interactionMode}
+        interactionModeEnabled={interactionModeEnabled}
+        onToggleInteractionMode={toggleInteractionMode}
+        goalComposerOpen={goalComposerOpen}
+        canOperateGoal={canOperateGoal}
+      />
       <Dialog
         open={
           deviceSetupThread !== null &&

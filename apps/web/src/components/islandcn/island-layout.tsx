@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 
-import { islandMetrics } from "@/lib/island";
+import { islandMetrics } from "~/lib/island";
 
 import { islandBaseline, islandFont, islandLine, islandRow, islandSafe, islandSize } from "./theme";
 
@@ -111,7 +111,7 @@ interface ExpandedSideProps {
    * content top, beside the sensor, the way the system lays out an expanded island's side regions
    * (Leo, 2026-11-08: no empty band above the leading and trailing content).
    */
-  line?: number;
+  line?: number | undefined;
   /** Which side of the sensor it sits on, so narrow content keeps to the outer edge. Defaults to "start". */
   align?: "start" | "end";
 }
@@ -131,7 +131,7 @@ interface ValueStackProps {
    * With no caption, the row line the value centres on (see `ExpandedSide`). Defaults to none: the
    * value starts at the content top.
    */
-  line?: number;
+  line?: number | undefined;
 }
 
 /*

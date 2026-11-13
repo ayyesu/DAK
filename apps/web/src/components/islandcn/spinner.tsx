@@ -1,6 +1,6 @@
 "use client";
 
-import { useIslandReducedMotion } from "@/lib/island";
+import { useIslandReducedMotion } from "~/lib/island";
 
 import { IslandStyle } from "./island-style";
 import { islandInk } from "./theme";

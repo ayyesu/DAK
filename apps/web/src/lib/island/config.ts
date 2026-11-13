@@ -228,16 +228,20 @@ export const resolveMotion = (o?: IslandMotionOverrides): IslandMotion => {
       // The same for `absorb`: absent on both sides, the absorbing change uses `enter`, `centerDelay` and `regions`.
       const absorbCenter = over?.absorb?.centerDelay ?? base.absorb?.centerDelay ?? centerDelay;
       const absorbRegions = regionLags(base.absorb?.regions ?? regions, over?.absorb?.regions, absorbCenter);
+      const absorbClipFollow = over?.absorb?.clipFollow ?? base.absorb?.clipFollow;
+      const absorbEnterBlur = over?.absorb?.enterBlur ?? base.absorb?.enterBlur;
+      const absorbExitFade = over?.absorb?.exitFade ?? base.absorb?.exitFade;
+      const absorbExitSharpen = over?.absorb?.exitSharpen ?? base.absorb?.exitSharpen;
       const absorb =
         base.absorb || over?.absorb
           ? {
               enter: { ...(base.absorb?.enter ?? enter), ...over?.absorb?.enter },
               centerDelay: absorbCenter,
               ...(absorbRegions ? { regions: absorbRegions } : {}),
-              ...(over?.absorb?.enterBlur !== undefined || base.absorb?.enterBlur !== undefined ? { enterBlur: over?.absorb?.enterBlur ?? base.absorb?.enterBlur } : {}),
-              ...(over?.absorb?.exitFade !== undefined || base.absorb?.exitFade !== undefined ? { exitFade: over?.absorb?.exitFade ?? base.absorb?.exitFade } : {}),
-              ...(over?.absorb?.exitSharpen !== undefined || base.absorb?.exitSharpen !== undefined ? { exitSharpen: over?.absorb?.exitSharpen ?? base.absorb?.exitSharpen } : {}),
-              ...(over?.absorb?.clipFollow !== undefined || base.absorb?.clipFollow !== undefined ? { clipFollow: over?.absorb?.clipFollow ?? base.absorb?.clipFollow } : {}),
+              ...(absorbEnterBlur !== undefined ? { enterBlur: absorbEnterBlur } : {}),
+              ...(absorbExitFade !== undefined ? { exitFade: absorbExitFade } : {}),
+              ...(absorbExitSharpen !== undefined ? { exitSharpen: absorbExitSharpen } : {}),
+              ...(absorbClipFollow !== undefined ? { clipFollow: absorbClipFollow } : {}),
               ...(over?.absorb?.regionBottomAnchor || base.absorb?.regionBottomAnchor ? { regionBottomAnchor: { ...base.absorb?.regionBottomAnchor, ...over?.absorb?.regionBottomAnchor } } : {}),
             }
           : undefined;
@@ -303,6 +307,16 @@ export const resolveMotion = (o?: IslandMotionOverrides): IslandMotion => {
       const alertOver = over?.afterAlert;
       const alertSettle = settleOf(alertBase?.bubbleSettle, alertOver?.bubbleSettle);
       const bubbleSettle = settleOf(base.bubbleSettle, over?.bubbleSettle);
+      const alertBubbleDelay = alertOver?.bubbleDelay ?? alertBase?.bubbleDelay;
+      const alertBubbleFade = alertOver?.bubbleFade ?? alertBase?.bubbleFade;
+      const alertBubbleResolve = alertOver?.bubbleResolve ?? alertBase?.bubbleResolve;
+      const alertBubbleBlur = alertOver?.bubbleBlur ?? alertBase?.bubbleBlur;
+      const alertBubbleSharpen = alertOver?.bubbleSharpen ?? alertBase?.bubbleSharpen;
+      const alertBubbleTrailingFade = alertOver?.bubbleTrailingFade ?? alertBase?.bubbleTrailingFade;
+      const alertBubbleTrailingSlide = alertOver?.bubbleTrailingSlide ?? alertBase?.bubbleTrailingSlide;
+      const alertBubbleScale = alertOver?.bubbleScale ?? alertBase?.bubbleScale;
+      const alertBubbleSpread = alertOver?.bubbleSpread ?? alertBase?.bubbleSpread;
+      const alertBubbleHold = alertOver?.bubbleHold ?? alertBase?.bubbleHold;
       const afterAlert =
         alertBase || alertOver
           ? {
@@ -310,20 +324,25 @@ export const resolveMotion = (o?: IslandMotionOverrides): IslandMotion => {
               ...(alertBase?.bubbleEnter || alertOver?.bubbleEnter
                 ? { bubbleEnter: { ...(alertBase?.bubbleEnter ?? alertBase?.enter ?? enter), ...alertOver?.bubbleEnter } }
                 : {}),
-              ...(alertOver?.bubbleDelay !== undefined || alertBase?.bubbleDelay !== undefined ? { bubbleDelay: alertOver?.bubbleDelay ?? alertBase?.bubbleDelay } : {}),
-              ...(alertOver?.bubbleFade !== undefined || alertBase?.bubbleFade !== undefined ? { bubbleFade: alertOver?.bubbleFade ?? alertBase?.bubbleFade } : {}),
-              ...(alertOver?.bubbleResolve !== undefined || alertBase?.bubbleResolve !== undefined ? { bubbleResolve: alertOver?.bubbleResolve ?? alertBase?.bubbleResolve } : {}),
-              ...(alertOver?.bubbleBlur !== undefined || alertBase?.bubbleBlur !== undefined ? { bubbleBlur: alertOver?.bubbleBlur ?? alertBase?.bubbleBlur } : {}),
-              ...(alertOver?.bubbleSharpen !== undefined || alertBase?.bubbleSharpen !== undefined ? { bubbleSharpen: alertOver?.bubbleSharpen ?? alertBase?.bubbleSharpen } : {}),
-              ...(alertOver?.bubbleTrailingFade !== undefined || alertBase?.bubbleTrailingFade !== undefined
-                ? { bubbleTrailingFade: alertOver?.bubbleTrailingFade ?? alertBase?.bubbleTrailingFade }
+              ...(alertBubbleDelay !== undefined ? { bubbleDelay: alertBubbleDelay } : {}),
+              ...(alertBubbleFade !== undefined ? { bubbleFade: alertBubbleFade } : {}),
+              ...(alertBubbleResolve !== undefined ? { bubbleResolve: alertBubbleResolve } : {}),
+              ...(alertBubbleBlur !== undefined ? { bubbleBlur: alertBubbleBlur } : {}),
+              ...(alertBubbleSharpen !== undefined ? { bubbleSharpen: alertBubbleSharpen } : {}),
+              ...(alertBubbleTrailingFade !== undefined
+                ? { bubbleTrailingFade: alertBubbleTrailingFade }
                 : {}),
-              ...(alertOver?.bubbleTrailingSlide !== undefined || alertBase?.bubbleTrailingSlide !== undefined
-                ? { bubbleTrailingSlide: { by: alertOver?.bubbleTrailingSlide?.by ?? alertBase?.bubbleTrailingSlide?.by ?? 0, power: alertOver?.bubbleTrailingSlide?.power ?? alertBase?.bubbleTrailingSlide?.power ?? 1 } }
+              ...(alertBubbleTrailingSlide !== undefined
+                ? {
+                    bubbleTrailingSlide: {
+                      by: alertBubbleTrailingSlide.by ?? 0,
+                      power: alertBubbleTrailingSlide.power ?? 1,
+                    },
+                  }
                 : {}),
-              ...(alertOver?.bubbleScale !== undefined || alertBase?.bubbleScale !== undefined ? { bubbleScale: alertOver?.bubbleScale ?? alertBase?.bubbleScale } : {}),
-              ...(alertOver?.bubbleSpread !== undefined || alertBase?.bubbleSpread !== undefined ? { bubbleSpread: alertOver?.bubbleSpread ?? alertBase?.bubbleSpread } : {}),
-              ...(alertOver?.bubbleHold !== undefined || alertBase?.bubbleHold !== undefined ? { bubbleHold: alertOver?.bubbleHold ?? alertBase?.bubbleHold } : {}),
+              ...(alertBubbleScale !== undefined ? { bubbleScale: alertBubbleScale } : {}),
+              ...(alertBubbleSpread !== undefined ? { bubbleSpread: alertBubbleSpread } : {}),
+              ...(alertBubbleHold !== undefined ? { bubbleHold: alertBubbleHold } : {}),
               ...(alertSettle ? { bubbleSettle: alertSettle } : {}),
             }
           : undefined;

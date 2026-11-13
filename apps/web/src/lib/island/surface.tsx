@@ -89,8 +89,8 @@ export interface IslandSurfaceProps {
   keyline: number;
   recorder: FrameRecorder | null;
   interaction: SurfaceInteraction | null;
-  className?: string;
-  style?: CSSProperties;
+  className?: string | undefined;
+  style?: CSSProperties | undefined;
   /** Receives the root element (the region), for outside-press checks. */
   rootRef?: (element: HTMLDivElement | null) => void;
 }

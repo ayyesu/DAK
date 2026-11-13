@@ -9,7 +9,7 @@ import { toastManager } from "./ui/toast";
 
 type DesktopUpdateShell = Pick<DesktopBridge, "openExternal">;
 
-export async function openDesktopUpdateReleaseNotes(
+async function openDesktopUpdateReleaseNotes(
   shell: DesktopUpdateShell | undefined,
   releaseUrl: string,
 ): Promise<void> {
@@ -56,7 +56,7 @@ export function showDesktopUpdateDownloadedToast(
     title: "Update downloaded",
     description: (
       <>
-        Restart the app from the update button to install it.
+        Restart DAK to install it.
         {releaseUrl ? <ReleaseNotesLink releaseUrl={releaseUrl} shell={shell} /> : null}
       </>
     ),

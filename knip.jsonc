@@ -67,7 +67,13 @@
       // UI component modules are copied and adapted as cohesive sets. Keep their
       // named subcomponents even before they have callers; the file audit still
       // reports an entire component module when nothing imports it.
-      "ignoreIssues": { "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"] },
+      "ignoreIssues": {
+        "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"],
+        // The Dynamic Island engine and its islandcn toolkit are cohesive
+        // vendored sets; the toolkit exports are its public API.
+        "src/lib/island/**": ["exports", "nsExports", "duplicates"],
+        "src/components/islandcn/**": ["exports", "nsExports", "duplicates"]
+      },
     },
     "apps/mobile": {
       // Expo loads plugins and the fingerprint config by string; Metro embeds the browser entry in the native WebView.

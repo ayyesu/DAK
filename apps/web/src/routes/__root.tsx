@@ -1,4 +1,6 @@
 import { PermissionUpdateNotice } from "../components/PermissionUpdateNotice";
+import { DakIslandController } from "../components/islandcn/DakIslandController";
+import { Island, IslandProvider } from "~/lib/island";
 import { type ServerLifecycleWelcomePayload } from "@dak/contracts";
 import { scopedProjectKey, scopeProjectRef } from "@dak/client-runtime/environment";
 import {
@@ -254,6 +256,12 @@ function RootRouteView() {
           {primaryEnvironmentAuthenticated ? (
             <EventRouter skipInitialBootstrapNavigation={returningFromWelcomeRef.current} />
           ) : null}
+          {/* Dynamic Island: global live-activity surface (needs-input alerts,
+              desktop updates). Chat views register their own composer modes. */}
+          <IslandProvider metrics={{ top: 60 }}>
+            <Island placement="viewport" />
+            <DakIslandController />
+          </IslandProvider>
           {primaryEnvironmentAuthenticated ? <ProviderUpdateLaunchNotification /> : null}
           {/* Hosted Nightly is "hosted-static", not authenticated, and needs it too. */}
           <NightlyMobileBetaNotice />

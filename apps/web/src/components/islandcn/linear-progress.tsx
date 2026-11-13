@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { IslandProgress, useIslandReducedMotion } from "@/lib/island";
+import { IslandProgress, useIslandReducedMotion } from "~/lib/island";
 
 import { islandAccent, islandInk } from "./theme";
 
@@ -10,13 +10,13 @@ interface LinearProgressProps {
   /** Progress from 0 to 1. Values outside are clamped. */
   value: number;
   /** Fill colour. Defaults to blue. */
-  color?: string;
+  color?: string | undefined;
   /** Unfilled colour. Defaults to a faint white. */
-  track?: string;
+  track?: string | undefined;
   /** Bar height in pt. Defaults to 6. */
-  height?: number;
+  height?: number | undefined;
   /** Accessible name. When set, the bar is a progressbar; without it, it's decoration. Defaults to none. */
-  label?: string;
+  label?: string | undefined;
   /**
    * "round" fills with a capsule (the engine's bar); "square" cuts the fill straight inside the
    * round track, as a media scrubber's playhead edge is. Defaults to "round".

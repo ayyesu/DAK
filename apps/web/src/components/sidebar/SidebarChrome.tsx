@@ -37,7 +37,7 @@ import { isSidebarUtilityPage, useNavigateToMainApp } from "./mainAppLocation";
 import { resolveSidebarConnectionMode } from "./SidebarChrome.logic";
 import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
-import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
+import { SidebarUpdateArchitectureWarning } from "./SidebarUpdateArchitectureWarning";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 
 export const SidebarChromeHeader = memo(function SidebarChromeHeader({
@@ -221,7 +221,6 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
           />
         </>
       )}
-      <SidebarUpdatePill />
     </SidebarMenu>
   );
 });
@@ -262,8 +261,7 @@ export const SidebarChromeFooter = memo(function SidebarChromeFooter() {
       <SidebarProviderUpdatePill />
       <SidebarUpdateArchitectureWarning />
       {/* Status on the left, utilities pushed right. Every utility entry point
-          (Settings, Pull Requests, Usage, update) stays; only the plain
-          overflow glyph the mock draws is dropped. */}
+          (Settings, Pull Requests, Usage) stays; updates live in the island. */}
       <div className="flex min-w-0 items-center gap-2">
         <SidebarEnvironmentStatus />
         <div className="ml-auto flex shrink-0 items-center">

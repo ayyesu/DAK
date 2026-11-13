@@ -5,7 +5,7 @@ A Dynamic Island-style pill for React. It depends on React and React DOM only: t
 ## Quick start
 
 ```tsx
-import { Island, IslandProvider, useIsland } from "@/lib/island";
+import { Island, IslandProvider, useIsland } from "~/lib/island";
 
 // The island draws at the top centre of its nearest positioned ancestor.
 <IslandProvider>
@@ -193,7 +193,7 @@ Frames never re-render React. The frame loop writes the SVG path, the content tr
 The phone's activities animate content that changes in place. Two primitives do the same on the island's clock, so captures stay exact:
 
 ```tsx
-import { IslandNumber, IslandProgress } from "@/lib/island";
+import { IslandNumber, IslandProgress } from "~/lib/island";
 
 <IslandNumber value={43} style={{ fontSize: 34, fontWeight: 700 }} />; // changed digits turn over with a blur
 <IslandProgress value={0.8} color="#30D158" track="#414141" height={8} />; // the fill eases to the new value
@@ -262,7 +262,7 @@ Round 9 (ICN-3), timing only, no new fields:
 Round 10 (ICN-3), judge round 9, no change for existing overrides:
 
 - `ContentMotion.bubbleExit` (optional, defaults to `exit`): how the bubble's content leaves when the bubble joins the pill. `swap` cuts it (`response` 0) 0.023 s ahead of a long-press's join (`delay` -0.023), as split-expand-b-t1 goes black 15 to 31 ms before it merges; other transitions are unchanged.
-- `IslandNumber` renders its characters as plain inline text (was `inline-flex`), so the split capsule ends a long number in an ellipsis ("4…") instead of clipping it mid-digit.
+- `IslandNumber` renders its characters as plain inline text (was `inline-flex`), so the split capsule ends a long number in an ellipsis ("4â€¦") instead of clipping it mid-digit.
 
 Round 14 (ICN-3), content texture, no change for existing overrides (`scripts/fidelity/BLUR.md`):
 
@@ -296,7 +296,7 @@ Round 28 (ICN-3), centred on every seen take with -t19/-t20 added, no change for
 - `bubble.joinLead` (optional, defaults to 0): a long-press on the bubble is decided before the bubble joins the pill, and the join's shape (the bubble's left edge closing on `bubble.unsplit`, the merge's neck) starts this long ahead of it, 0.012 s. The turn and the content keep their time. `ShapeAnimation.joinFrom` carries it; `leadJoin` (choreography) sets it for the surface and the sim.
 - Changed values: every opening's corner spring, refitted at equal height on all seen takes (`scripts/fidelity/fit-corner-h.ts`): `corner.expand` 0.464 / 0.847 / 0.022 to 0.448 / 0.87 / 0.018, `pressExpand` 0.328 / 0.816 / 0.024 to 0.32 / 0.831 / 0.019, `appearExpand` 0.519 / 0.836 / 0.017 to 0.452 / 0.865 / 0.02, `swap` 0.419 / 0.886 / 0.255 to 0.41 / 0.888 / 0.244; `appear.sharpen` 1 to 1.35 (incoming compact content sharp sooner); `split.trailingEnter.delay` 0.37 to 0.375 and `split.bubbleTrailingFade` 1.2 to 1.6.
 
-How each rule was found and what it fits: `scripts/fidelity/HELDOUT.md`, "Rules this round added". Not adopted: a content-dependent appear damping (W appears with ζ 0.72, A with 0.63), for want of evidence that tells a rule from a fit to two contents.
+How each rule was found and what it fits: `scripts/fidelity/HELDOUT.md`, "Rules this round added". Not adopted: a content-dependent appear damping (W appears with Î¶ 0.72, A with 0.63), for want of evidence that tells a rule from a fit to two contents.
 
 ## Clock and devtools
 
