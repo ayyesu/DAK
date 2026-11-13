@@ -216,9 +216,6 @@ const ExpandedGrid = ({
 }) => {
   const e = metrics.expanded;
   const hasBottom = presentation.bottom !== undefined && presentation.bottom !== null;
-  // ActivityKit puts the center region below the sensor: its top is the sensor's bottom edge.
-  const sensorBottom = metrics.top + metrics.idle.height;
-  const centerTop = Math.max(0, sensorBottom - (e.top + e.padding.top)) + e.centerTop;
   const centerShift = ((e.padding.trailing ?? e.padding.side) - e.padding.side) / 2;
   // Each region moves on its own while the shape morphs (content follows the container).
   // No will-change here: a layer per region would snap to device pixels on top of the slot's
@@ -299,7 +296,7 @@ const ExpandedGrid = ({
             : '"leading center trailing"',
           columnGap: gap,
           rowGap: hasBottom ? e.rowGap : 0,
-          alignItems: "start",
+          alignItems: "center",
         }}
       >
         <div
@@ -310,23 +307,19 @@ const ExpandedGrid = ({
             {presentation.leading}
           </div>
         </div>
-        {/* The center region sits below the sensor, top-aligned, centred on the island. */}
-        <div
-          ref={(element) => register("expandedCenter", element)}
-          style={{
-            ...region,
-            gridArea: "center",
-            alignSelf: "start",
-            // Centred on the island, not on the content between unequal side paddings (round 23:
-            // the title sat 0.16 to 0.34 pt right of the simulator's with the trailing inset 17.81).
-            position: "relative",
-            left: centerShift,
-            paddingTop: centerTop,
-            display: "flex",
-            justifyContent: "center",
-            textAlign: "center",
-          }}
-        >
+          <div
+            ref={(element) => register("expandedCenter", element)}
+            style={{
+              ...region,
+              gridArea: "center",
+              position: "relative",
+              left: centerShift,
+              display: "flex",
+              alignSelf: "center",
+              justifyContent: "center",
+              textAlign: "center",
+            }}
+          >
           <div ref={center} style={intrinsic}>
             {presentation.center}
           </div>
