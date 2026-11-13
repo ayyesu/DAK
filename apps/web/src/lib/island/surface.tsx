@@ -722,6 +722,21 @@ const reducedOpacity = (presence: number) => Math.min(1, Math.max(0, presence * 
 
 const fitAttribute = "data-islandcn-fit";
 
+/**
+ * An element's natural width with any max-width cap lifted, so wrapped content
+ * measures as its real content width. The cap is restored at once: nothing
+ * in this pass changes what the user sees.
+ */
+const liftWidth = (element: HTMLElement | undefined) => {
+  if (!element) return 0;
+  const cap = element.style.maxWidth;
+  if (cap === undefined || cap === "") return contentWidth(element);
+  element.style.maxWidth = "";
+  const width = contentWidth(element);
+  element.style.maxWidth = cap;
+  return width;
+};
+
 /** A slot's natural width even while it is cut to fit (`fitSlot`): the cut is lifted to measure. */
 const naturalWidth = (element: HTMLElement | undefined) => {
   if (!element?.hasAttribute(fitAttribute)) return contentWidth(element);
@@ -844,7 +859,11 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
   const [containerWidth, setContainerWidth] = useState(0);
   const stageWidth = islandScreenWidth(containerWidth, metrics);
   const stageHeight = Math.ceil(metrics.top + metrics.expanded.maxHeight * 1.3);
-  const expandedWidth = expandedWidthFor(stageWidth, metrics);
+  const [expandedWidth, setExpandedWidth] = useState(() => expandedWidthFor(stageWidth, metrics));
+  // The island widens to fit what it holds: an expanded view grows past its phone
+  // default only as far as its own content demands (and no further than the cap).
+  const expandedWidthRef = useRef(expandedWidth);
+  expandedWidthRef.current = expandedWidth;
 
   // Layers: the current presentation plus any that are still fading out. Adjusting state while
   // rendering (instead of in an effect) puts the leaving layer in the same commit as the new one.
@@ -2010,8 +2029,8 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
     (nowMs: number, still = false, sink: DrawSink | null = null) => {
       const anim = shape.current;
       if (!anim) return;
-      const { metrics: m, reduced } = live.current;
-      const width = islandScreenWidth(stageWidthRef.current, m);
+      const { metrics: m, reduced, presentation } = live.current;
+      const width = presentation.kind === "expanded" ? expandedWidthRef.current : islandScreenWidth(stageWidthRef.current, m);
       const t = nowMs / 1000;
       const frame = frameAt(anim, t, width, m);
       const { pill, bubble, paths } = frame;
@@ -2284,7 +2303,24 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
           : noRegions,
     });
 
-    const width = islandScreenWidth(stageWidthRef.current, m);
+    if (p.presentation.kind === "expanded") {
+      // The expanded island grows past its base width only as far as its content demands, capped
+      // at 660 pt on desktops: a wide hint covers this content, phones never move.
+      const exp = p.metrics.expanded;
+      const leadW = contentWidth(map.expandedLeading);
+      const trailW = contentWidth(map.expandedTrailing);
+      const centerW = liftWidth(map.expandedCenter);
+      const pad = exp.padding.side + (exp.padding.trailing ?? exp.padding.side);
+      const gap = 10;
+      const segments = [leadW, centerW, trailW].filter((w) => w > 0);
+      const natural = pad + segments.reduce((sum, w) => sum + w, 0) + gap * Math.max(0, segments.length - 1);
+      const baseW = Math.ceil(expandedWidthFor(islandScreenWidth(stageWidthRef.current, p.metrics), p.metrics));
+      const maxW = Math.floor(Math.min(stageWidthRef.current, 660) - 2 * exp.sideInset);
+      const next = Math.min(Math.max(Math.ceil(natural), baseW), Math.max(baseW, maxW));
+      setExpandedWidth((prev) => (Math.abs(next - prev) > 0.5 ? next : prev));
+    }
+
+    const width = p.presentation.kind === "expanded" ? expandedWidthRef.current : islandScreenWidth(stageWidthRef.current, m);
     const target = shapeTarget(p.presentation.kind, measure, width, m);
     const prev = last.current;
     const first = prev.key === null;
