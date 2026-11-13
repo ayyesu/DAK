@@ -72,7 +72,7 @@ import {
   selectProjectGroupingSettings,
 } from "../logicalProject";
 import { useUiStateStore } from "../uiStateStore";
-import { syncBrowserChromeTheme } from "../hooks/useTheme";
+import { syncBrowserChromeTheme, useTheme } from "../hooks/useTheme";
 import { configureClientTracing } from "../observability/clientTracing";
 import { resolveInitialServerAuthGateState } from "../environments/primary";
 import { hasHostedPairingRequest, isHostedStaticApp } from "../hostedPairing";
@@ -151,6 +151,7 @@ function RootRouteNotFoundView() {
 function RootRouteView() {
   useEffect(() => installDesktopPasteAsText(window.desktopBridge, window), []);
   const pathname = useLocation({ select: (location) => location.pathname });
+  const { resolvedTheme } = useTheme();
   const { authGateState } = Route.useRouteContext();
   const primaryEnvironmentAuthenticated = authGateState.status === "authenticated";
   const returningFromWelcomeRef = useRef(pathname === "/welcome");
@@ -266,12 +267,9 @@ function RootRouteView() {
           <IslandProvider metrics={{ top: 60 }}>
             <Island
               placement="viewport"
+              appearance={resolvedTheme}
               idleLogo={
-                <DakWordmark
-                  aria-hidden
-                  height={17}
-                  style={{ width: "auto", color: "rgba(235,235,245,0.85)" }}
-                />
+                <DakWordmark aria-hidden height={17} style={{ width: "auto", color: "currentColor" }} />
               }
             />
             <DakIslandController />
@@ -340,8 +338,8 @@ function GlassAppearanceSync() {
 function BackgroundAppearanceSync() {
   const [background] = useLocalStorage(
     APPEARANCE_BACKGROUND_STORAGE_KEY,
-    DEFAULT_APPEARANCE_BACKGROUND,
-    AppearanceBackgroundPreferences,
+  DEFAULT_APPEARANCE_BACKGROUND,
+  AppearanceBackgroundPreferences,
   );
 
   useEffect(() => {

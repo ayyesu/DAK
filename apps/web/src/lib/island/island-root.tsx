@@ -20,6 +20,8 @@ export interface IslandProps {
    * "viewport" pins it to the top centre of the window. Defaults to "container".
    */
   placement?: "container" | "viewport";
+  /** Which side "ink tracks the backdrop" the resting pill sits on. Activities stay black. Defaults to "dark". */
+  appearance?: "light" | "dark";
   /** Name of the island region for screen readers. Defaults to "Live activities". */
   label?: string;
   /** Class on the region element. Defaults to none. */
@@ -40,6 +42,7 @@ export interface IslandProps {
 /** Draws the activity stack from the nearest `<IslandProvider>`. */
 export const Island = ({
   placement = "container",
+  appearance = "dark",
   label = "Live activities",
   className,
   style,
@@ -138,6 +141,7 @@ export const Island = ({
       style={style}
       rootRef={setRoot}
       idleLogo={idleLogo}
+      appearance={appearance}
     />
   );
 };

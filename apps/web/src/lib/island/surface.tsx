@@ -117,6 +117,12 @@ export interface IslandSurfaceProps {
   rootRef?: (element: HTMLDivElement | null) => void;
   /** Drawn centred in the resting pill when no activity is running. Defaults to nothing. */
   idleLogo?: ReactNode;
+  /**
+   * Which side of "ink tracks the backdrop" the resting pill sits on: "light"
+   * draws a pale pill with dark ink, anything else keeps the fixed black
+   * pill with white ink. Activities stay black in both. Defaults to "dark".
+   */
+  appearance?: "light" | "dark";
 }
 
 export interface SurfaceChange {
@@ -826,7 +832,14 @@ const makeGrainTile = (): string | null => {
 
 /** Draws one island: the black shape, the content layers, and the pressable hit areas. */
 export const IslandSurface = (props: IslandSurfaceProps) => {
-  const { presentation, contentKey, metrics, clock, interaction } = props;
+  const { presentation, contentKey, metrics, clock, interaction, appearance } = props;
+
+  // Ink that tracks the page backdrop for the resting pill: pale surface with
+  // dark ink on a light appearance, black with light ink on dark. Activities
+  // always render black; only the idle state flips.
+  const idleLight = appearance === "light" && presentation.kind === "idle";
+  const pillFill = idleLight ? "#f2f2f6" : "#000";
+  const contentInk = idleLight ? "#1c1c1e" : "#fff";
 
   const [containerWidth, setContainerWidth] = useState(0);
   const stageWidth = islandScreenWidth(containerWidth, metrics);
@@ -2926,7 +2939,7 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
           {/* Keyline strokes under the fills: only their outer half shows, outside the black edge. */}
           <g
             fill="none"
-            stroke="#fff"
+            stroke={idleLight ? "#1c1c1e" : "#fff"}
             strokeWidth={metrics.keyline.width * 2}
             strokeOpacity={0}
             strokeLinejoin="round"
@@ -2935,9 +2948,9 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
             <path ref={kBridge} d={initialPaths.bridge} />
             <path ref={kBubble} d={initialPaths.bubble} />
           </g>
-          <path ref={svgPill} d={initialPaths.pill} fill="#000" />
-          <path ref={svgBridge} d={initialPaths.bridge} fill="#000" />
-          <path ref={svgBubble} d={initialPaths.bubble} fill="#000" />
+          <path ref={svgPill} d={initialPaths.pill} fill={pillFill} />
+          <path ref={svgBridge} d={initialPaths.bridge} fill={pillFill} />
+          <path ref={svgBubble} d={initialPaths.bubble} fill={pillFill} />
         </svg>
         {interaction ? (
           <button
@@ -2978,7 +2991,7 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
             position: "absolute",
             inset: 0,
             pointerEvents: "none",
-            color: "#fff",
+            color: contentInk,
             fontFamily:
               '-apple-system, BlinkMacSystemFont, "Inter", "Geist", system-ui, sans-serif',
             WebkitFontSmoothing: "antialiased",
@@ -3002,7 +3015,10 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
               aria-hidden
               style={{
                 position: "absolute",
-                inset: 0,
+                top: metrics.top,
+                height: metrics.idle.height,
+                left: 0,
+                right: 0,
                 display: "grid",
                 placeItems: "center",
                 pointerEvents: "none",
@@ -3012,7 +3028,32 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
             </div>
           ) : null}
         </div>
-        {metrics.sensor.opacity > 0 ? (
+        {idleLight ? (
+          // A pale pill needs a hairline edge to read as an edge on a pale page.
+          <svg
+            aria-hidden="true"
+            width={stageWidth}
+            height={stageHeight}
+            viewBox={`0 0 ${stageWidth} ${stageHeight}`}
+            style={{ position: "absolute", inset: 0, overflow: "visible", pointerEvents: "none" }}
+          >
+            <path
+              d={continuousRectPath(
+                stageWidth / 2 - metrics.idle.width / 2 - 0.5,
+                metrics.top - 0.5,
+                metrics.idle.width + 1,
+                metrics.idle.height + 1,
+                metrics.idle.height / 2 + 0.5,
+                metrics.corner.smoothing,
+              )}
+              fill="none"
+              stroke="#1c1c1e"
+              strokeOpacity={0.16}
+              strokeWidth={1}
+            />
+          </svg>
+        ) : null}
+        {metrics.sensor.opacity > 0 && presentation.kind !== "idle" ? (
           // The sensor housing stays put above the content, as the hardware does: content sliding
           // under it is hidden there. Same continuous capsule as the idle pill, inset by half a
           // point: flush with it, its antialiased edge would stack on the pill's and read larger.
@@ -3040,7 +3081,7 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
                 metrics.idle.height / 2 - sensorInset,
                 metrics.corner.smoothing,
               )}
-              fill="#000"
+              fill={pillFill}
             />
           </svg>
         ) : null}
