@@ -11484,8 +11484,6 @@ export default function ChatView(props: ChatViewProps) {
         interactionMode={interactionMode}
         interactionModeEnabled={interactionModeEnabled}
         onToggleInteractionMode={toggleInteractionMode}
-        goalComposerOpen={goalComposerOpen}
-        canOperateGoal={canOperateGoal}
       />
       <Dialog
         open={

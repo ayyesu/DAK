@@ -2,6 +2,7 @@
 
 import {
   type CSSProperties,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -32,6 +33,8 @@ export interface IslandProps {
   keyline?: KeylineSetting;
   /** The page colour behind the island (hex or rgb()), which sets the keyline's strength. Defaults to none. */
   backdrop?: string;
+  /** Drawn centred in the resting pill when no activity is running. Defaults to nothing. */
+  idleLogo?: ReactNode;
 }
 
 /** Draws the activity stack from the nearest `<IslandProvider>`. */
@@ -42,6 +45,7 @@ export const Island = ({
   style,
   keyline = "auto",
   backdrop,
+  idleLogo,
 }: IslandProps) => {
   const context = useIslandContext();
   if (!context) throw new Error("islandcn: <Island /> must be inside <IslandProvider>.");
@@ -133,6 +137,7 @@ export const Island = ({
       className={className}
       style={style}
       rootRef={setRoot}
+      idleLogo={idleLogo}
     />
   );
 };

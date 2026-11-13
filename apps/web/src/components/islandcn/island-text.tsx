@@ -34,12 +34,17 @@ const base: CSSProperties = {
  * one-line clamp breaks the line between words, so the dots follow the last whole word ("to
  * yourâ€¦"); a single word longer than the line still breaks inside itself.
  */
+/**
+ * One line, hard-clamped with an ellipsis. The island's regions are sized from
+ * the layout grid, not from the text, so unclamped text would cross the corner
+ * arcs; the clamp keeps ink inside its cell at every width.
+ */
 const oneLine: CSSProperties = {
-  whiteSpace: "normal",
-  overflowWrap: "break-word",
-  display: "-webkit-box",
-  WebkitLineClamp: 1,
-  WebkitBoxOrient: "vertical",
+  display: "block",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  maxWidth: "100%",
 };
 
 /**

@@ -270,7 +270,6 @@ import { ComposerConfigInspector } from "./ComposerConfigInspector";
 import { ComposerImageThumbnail } from "./ComposerImageThumbnail";
 import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
 import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
-import { onToggleGoalComposer } from "../../goalModeBus";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./ComposerPlanFollowUpBanner";
 import { ComposerControl, ComposerControlIcon, ComposerSelectControl } from "./ComposerControl";
@@ -3938,22 +3937,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       setComposerTrigger,
     ],
   );
-
-  // Goal mode previously had a footer toggle; the island toggles it through
-  // the same path, so the slash-prefix behavior survives the move.
-  const toggleGoalMode = () => {
-    if (slashGoalActive) {
-      const prefixLength = goalSlashPrefixLength(promptRef.current);
-      if (prefixLength > 0) {
-        applyPromptReplacement(0, prefixLength, "");
-        return;
-      }
-    }
-    props.onToggleGoalMode();
-  };
-  const toggleGoalModeRef = useRef(toggleGoalMode);
-  toggleGoalModeRef.current = toggleGoalMode;
-  useEffect(() => onToggleGoalComposer(() => toggleGoalModeRef.current()), [onToggleGoalComposer]);
 
   const readComposerSnapshot = useCallback((): {
     value: string;

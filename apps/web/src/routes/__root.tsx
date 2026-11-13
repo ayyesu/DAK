@@ -1,6 +1,7 @@
 import { PermissionUpdateNotice } from "../components/PermissionUpdateNotice";
 import { DakIslandController } from "../components/islandcn/DakIslandController";
 import { IslandNotificationActivity } from "../components/islandcn/NotificationActivity";
+import { DakWordmark } from "../components/DakWordmark";
 import { Island, IslandProvider } from "~/lib/island";
 import { type ServerLifecycleWelcomePayload } from "@dak/contracts";
 import { scopedProjectKey, scopeProjectRef } from "@dak/client-runtime/environment";
@@ -263,7 +264,16 @@ function RootRouteView() {
               desktop updates, in-app notifications). Chat views register their
               own composer modes. Wraps the shell so every route sees it. */}
           <IslandProvider metrics={{ top: 60 }}>
-            <Island placement="viewport" />
+            <Island
+              placement="viewport"
+              idleLogo={
+                <DakWordmark
+                  aria-hidden
+                  height={15}
+                  style={{ width: "auto", color: "rgba(235,235,245,0.42)" }}
+                />
+              }
+            />
             <DakIslandController />
             <IslandNotificationActivity />
             {appShell}

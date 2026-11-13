@@ -4,6 +4,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -114,6 +115,8 @@ export interface IslandSurfaceProps {
   style?: CSSProperties | undefined;
   /** Receives the root element (the region), for outside-press checks. */
   rootRef?: (element: HTMLDivElement | null) => void;
+  /** Drawn centred in the resting pill when no activity is running. Defaults to nothing. */
+  idleLogo?: ReactNode;
 }
 
 export interface SurfaceChange {
@@ -2994,6 +2997,20 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
               leaving={layer.key !== contentKey}
             />
           ))}
+          {presentation.kind === "idle" && props.idleLogo ? (
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "grid",
+                placeItems: "center",
+                pointerEvents: "none",
+              }}
+            >
+              {props.idleLogo}
+            </div>
+          ) : null}
         </div>
         {metrics.sensor.opacity > 0 ? (
           // The sensor housing stays put above the content, as the hardware does: content sliding

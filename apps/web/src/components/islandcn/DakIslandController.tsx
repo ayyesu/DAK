@@ -47,6 +47,7 @@ import { useIslandActions } from "~/lib/island";
 import { IslandButton } from "./island-button";
 import { ExpandedBottom } from "./island-layout";
 import { Spinner } from "./spinner";
+import { GoalIslandActivities } from "./GoalIslandActivity";
 import { CaptionButton } from "./island-layout";
 import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
@@ -626,5 +627,6 @@ export const DakIslandController = () => (
   <>
     <NeedsInputActivity />
     {isElectron ? <DesktopUpdateActivity /> : null}
+    <GoalIslandActivities />
   </>
 );
