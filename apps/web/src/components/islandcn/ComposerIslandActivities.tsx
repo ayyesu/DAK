@@ -16,6 +16,7 @@ import { ExpandedBottom } from "./island-layout";
 import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
 import { islandAccent, islandInk } from "./theme";
+import { islandActivityPriority } from "./activity-priority";
 
 const PLAN_ID = "composer-plan-mode";
 
@@ -103,7 +104,7 @@ export const ComposerIslandActivities = (props: ComposerIslandActivitiesProps) =
     island.start({
       id: PLAN_ID,
       label: planActive ? "Plan mode on" : "Plan mode off",
-      priority: 10,
+      priority: islandActivityPriority.plan,
       onPress: planToggle,
       ...content,
     });

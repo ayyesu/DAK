@@ -264,12 +264,19 @@ function RootRouteView() {
           {/* Dynamic Island: global live-activity surface (needs-input alerts,
               desktop updates, in-app notifications). Chat views register their
               own composer modes. Wraps the shell so every route sees it. */}
-          <IslandProvider metrics={{ top: 60 }}>
+          {/* Keep every presentation on the workspace header line. Overriding only `top`
+              moves the resting pill while the expanded card keeps islandcn's phone-notch
+              default, making it jump upward when opened. */}
+          <IslandProvider metrics={{ top: 60, expanded: { top: 60 } }}>
             <Island
               placement="viewport"
               appearance={resolvedTheme}
               idleLogo={
-                <DakWordmark aria-hidden height={17} style={{ width: "auto", color: "currentColor" }} />
+                <DakWordmark
+                  aria-hidden
+                  height={17}
+                  style={{ width: "auto", color: "currentColor" }}
+                />
               }
             />
             <DakIslandController />
@@ -338,8 +345,8 @@ function GlassAppearanceSync() {
 function BackgroundAppearanceSync() {
   const [background] = useLocalStorage(
     APPEARANCE_BACKGROUND_STORAGE_KEY,
-  DEFAULT_APPEARANCE_BACKGROUND,
-  AppearanceBackgroundPreferences,
+    DEFAULT_APPEARANCE_BACKGROUND,
+    AppearanceBackgroundPreferences,
   );
 
   useEffect(() => {

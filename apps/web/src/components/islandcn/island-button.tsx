@@ -16,6 +16,7 @@ const css = `
   background: var(--icn-bg); color: var(--icn-fg);
   transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), filter 160ms ease-out, background-color 160ms ease-out;
 }
+.icn-button-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (hover: hover) and (pointer: fine) { .icn-button:hover { filter: brightness(1.12); } }
 /* Buttons drawn smaller than 44 pt still take a 44 pt touch. */
 .icn-button::after { content: ""; position: absolute; inset: min(0px, calc((100% - 44px) / 2)); }
@@ -88,9 +89,10 @@ export const IslandButton = ({
     borderRadius: islandSize.button / 2,
     fontSize: labelSize[size],
     letterSpacing: trackingFor(labelSize[size]),
-    whiteSpace: "nowrap",
     flex: fill ? "1 1 0" : "none",
     minWidth: 0,
+    maxWidth: "100%",
+    overflow: "hidden",
     ...toneVars(tone),
   } as const satisfies CSSProperties & Record<`--icn-${string}`, string | number>;
   return (
@@ -108,7 +110,7 @@ export const IslandButton = ({
       onPointerDown={(event) => event.stopPropagation()}
     >
       <IslandStyle id="button" css={css} />
-      {children}
+      <span className="icn-button-label">{children}</span>
     </button>
   );
 };
@@ -167,7 +169,7 @@ export const IslandRoundButton = ({
       onPointerDown={(event) => event.stopPropagation()}
     >
       <IslandStyle id="button" css={css} />
-      {children}
+      <span className="icn-button-label">{children}</span>
     </button>
   );
 };

@@ -24,6 +24,7 @@ import { ExpandedBottom } from "./island-layout";
 import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
 import { islandAccent } from "./theme";
+import { islandActivityPriority } from "./activity-priority";
 
 const ISLAND_NOTIFICATION_EVENT = "dak:island-notification";
 const NOTIFICATION_ID = "dak-notification";
@@ -157,7 +158,7 @@ export const IslandNotificationActivity = () => {
         island.start({
           id: NOTIFICATION_ID,
           label: payload.title,
-          priority: 60,
+          priority: islandActivityPriority.notification,
           alert: true,
           onPress,
           ...content,

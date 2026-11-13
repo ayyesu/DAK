@@ -230,18 +230,17 @@ jobs:
   # isolation that flag buys is preserved exactly. One file at a time keeps
   # about 1.5 cores busy, so 4 vCPU runners lose nothing against 8. The shards
   # split files by recorded duration (apps/server/src/testUtils/weightedShardSequencer.ts).
-  # Two shards rather than upstream's six: this fork is billed for the minutes and
-  # the wall clock buys us little.
+  # Four shards keep the serial server suite below the PR feedback target without
+  # paying for upstream's six runners. The weighted sequencer keeps their test
+  # time even as files are added.
   test_server:
     name: Test Server ${{ matrix.shard }}
     runs-on: ubuntu-24.04
-    # Two shards carry roughly three times the work six did, and `dak` runs its
-    # test files one at a time, so a shard needs about eighteen minutes.
-    timeout-minutes: 30
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4]
     steps:
       - name: Checkout
         uses: actions/checkout@v6

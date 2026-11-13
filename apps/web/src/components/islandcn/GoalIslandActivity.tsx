@@ -6,7 +6,7 @@
  */
 
 import { TargetIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import type { EnvironmentId, GoalSummary } from "@dak/contracts";
 
@@ -22,6 +22,7 @@ import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./isla
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
 import { useIslandActions } from "~/lib/island";
 import { islandAccent } from "./theme";
+import { islandActivityPriority } from "./activity-priority";
 
 /** Goals that keep the pill on screen: a goal is running only when it is actively driving. */
 const isLiveGoal = (status: GoalSummary["status"]) => isGoalDriven(status);
@@ -52,19 +53,35 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
   const showingRef = useRef(false);
 
   const active = pickGoal(goals ?? []);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  // The query can retain the same goal while its presentation copy changes. Keep every
+  // displayed field in the key so the island updates without reacting to a fresh query object.
   const activeKey = active
-    ? `${active.id}:${active.status}:${active.progress ?? "x"}:${active.completedTaskCount}:${active.question !== null ? "q" : ""}`
+    ? JSON.stringify([
+        active.id,
+        active.status,
+        active.title,
+        active.progress,
+        active.progressLabel,
+        active.completedTaskCount,
+        active.totalTaskCount,
+        active.question !== null,
+        active.threadId,
+      ])
     : null;
+  const openGoal = useCallback(() => {
+    const goal = activeRef.current;
+    if (!goal?.threadId) return;
+    island.collapse();
+    void navigate({
+      to: "/$environmentId/$threadId",
+      params: { environmentId, threadId: goal.threadId },
+    });
+  }, [environmentId, island, navigate]);
 
   useEffect(() => {
     const activityId = `running-goal:${environmentId}`;
-    const openGoal = () => {
-      if (!active?.threadId) return;
-      void navigate({
-        to: "/$environmentId/$threadId",
-        params: { environmentId, threadId: active.threadId },
-      });
-    };
 
     if (!active) {
       if (showingRef.current) {
@@ -120,12 +137,18 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
     };
 
     if (!showingRef.current) {
-      island.start({ id: activityId, label: `Goal: ${active.title}`, priority: 70, onPress: openGoal, ...content });
+      island.start({
+        id: activityId,
+        label: `Goal: ${active.title}`,
+        priority: islandActivityPriority.goal,
+        onPress: openGoal,
+        ...content,
+      });
       showingRef.current = true;
       return;
     }
     island.update(activityId, { ...content, onPress: openGoal });
-  }, [island, navigate, activeKey, environmentId]);
+  }, [activeKey, environmentId, island, openGoal]);
 
   useEffect(
     () => () => {

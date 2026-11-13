@@ -3,6 +3,11 @@ import type { CSSProperties, ReactNode } from "react";
 import { islandMetrics } from "~/lib/island";
 
 import { islandBaseline, islandFont, islandLine, islandRow, islandSafe, islandSize } from "./theme";
+import { IslandStyle } from "./island-style";
+
+const captionButtonCss = `
+.icn-caption-button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 4px; }
+`;
 
 interface ExpandedBottomProps {
   children: ReactNode;
@@ -237,6 +242,7 @@ const captionHit = { y: (islandSize.button - islandLine.caption) / 2, x: 12 } as
 export const CaptionButton = ({ children, label, color, onPress }: CaptionButtonProps) => (
   <button
     type="button"
+    className="icn-caption-button"
     aria-label={label}
     // Presses inside island content must not reach the island's own long-press handling.
     onPointerDown={(event) => event.stopPropagation()}
@@ -257,6 +263,7 @@ export const CaptionButton = ({ children, label, color, onPress }: CaptionButton
       WebkitTapHighlightColor: "transparent",
     }}
   >
+    <IslandStyle id="caption-button" css={captionButtonCss} />
     <span
       aria-hidden
       style={{ position: "absolute", inset: `${-captionHit.y}px ${-captionHit.x}px` }}

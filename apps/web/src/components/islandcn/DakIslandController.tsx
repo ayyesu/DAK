@@ -21,7 +21,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DesktopUpdateState } from "@dak/contracts";
 
@@ -35,7 +35,6 @@ import { stackedThreadToast, toastManager } from "../ui/toast";
 import { showDesktopUpdateDownloadedToast } from "../desktopUpdate.toast";
 import {
   canCheckForUpdate,
-  getDesktopUpdateDownloadedVersion,
   getDesktopUpdateInstallConfirmationMessage,
   getDesktopUpdateActionError,
   getDesktopUpdateReleaseUrl,
@@ -53,6 +52,7 @@ import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./isla
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
 import { LinearProgress } from "./linear-progress";
 import { islandAccent, islandInk } from "./theme";
+import { islandActivityPriority } from "./activity-priority";
 
 const NEEDS_INPUT_ID = "needs-input";
 const DESKTOP_UPDATE_ID = "desktop-update";
@@ -140,7 +140,9 @@ const NeedsInputActivity = () => {
   blockedRef.current = blocked;
   const prevCountRef = useRef<number | null>(null);
   const showingRef = useRef(false);
-  const openFirst = () => {
+  const blockedCount = blocked.length;
+  const firstBlockedTitle = blocked[0]?.title ?? null;
+  const openFirst = useCallback(() => {
     const first = blockedRef.current[0];
     if (!first) return;
     island.collapse();
@@ -148,10 +150,10 @@ const NeedsInputActivity = () => {
       to: "/$environmentId/$threadId",
       params: { environmentId: first.environmentId, threadId: first.id },
     });
-  };
+  }, [island, navigate]);
 
   useEffect(() => {
-    const count = blocked.length;
+    const count = blockedCount;
     const rising = prevCountRef.current !== null && prevCountRef.current === 0 && count > 0;
     prevCountRef.current = count;
 
@@ -163,12 +165,12 @@ const NeedsInputActivity = () => {
       return;
     }
 
-    const content = needsInputContent(count, blocked[0]?.title ?? null, openFirst);
+    const content = needsInputContent(count, firstBlockedTitle, openFirst);
     if (!showingRef.current) {
       island.start({
         id: NEEDS_INPUT_ID,
         label: "Needs your input",
-        priority: 100,
+        priority: islandActivityPriority.needsInput,
         alert: rising,
         onPress: openFirst,
         ...content,
@@ -177,7 +179,7 @@ const NeedsInputActivity = () => {
       return;
     }
     island.update(NEEDS_INPUT_ID, { ...content, onPress: openFirst, transition: "update" });
-  }, [island, blocked]);
+  }, [blockedCount, firstBlockedTitle, island, openFirst]);
 
   useEffect(
     () => () => {
@@ -558,9 +560,17 @@ const DesktopUpdateActivity = () => {
       return;
     }
     const { action, actionable } = updateView(state);
+    // A current build has no live activity. Leaving a low-priority "Check" entry in the
+    // store would still occupy the island whenever no higher-priority activity is running.
+    if (!actionable) {
+      if (showingRef.current) {
+        island.end(DESKTOP_UPDATE_ID);
+        showingRef.current = false;
+      }
+      return;
+    }
     const accent = updateAccent(state);
     const copy = updateCopy(state);
-    const version = getDesktopUpdateDownloadedVersion(state);
 
     const content = {
       compact: {
@@ -598,8 +608,7 @@ const DesktopUpdateActivity = () => {
       island.start({
         id: DESKTOP_UPDATE_ID,
         label: "Desktop update",
-        // Present only when there is news; an idle pill never crowds the island.
-        priority: actionable ? 50 : -1,
+        priority: islandActivityPriority.desktopUpdate,
         onPress: () => island.expand(DESKTOP_UPDATE_ID),
         ...content,
       });
@@ -608,7 +617,7 @@ const DesktopUpdateActivity = () => {
     }
     island.update(DESKTOP_UPDATE_ID, {
       ...content,
-      priority: actionable ? 50 : -1,
+      priority: islandActivityPriority.desktopUpdate,
       onPress: () => island.expand(DESKTOP_UPDATE_ID),
     });
   }, [island, state, isPending]);
