@@ -26,14 +26,17 @@ export const useIslandContext = (): IslandContextValue | null => useContext(Isla
 const reducedQuery = "(prefers-reduced-motion: reduce)";
 
 const subscribeReduced = (onChange: () => void) => {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => undefined;
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function")
+    return () => undefined;
   const media = window.matchMedia(reducedQuery);
   media.addEventListener("change", onChange);
   return () => media.removeEventListener("change", onChange);
 };
 
 const readReduced = () =>
-  typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(reducedQuery).matches;
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia(reducedQuery).matches;
 
 /** Whether to swap springs for short crossfades. "user" follows the system setting. */
 export const useReducedMotion = (setting: ReducedMotionSetting): boolean => {
@@ -49,13 +52,17 @@ export type KeylineSetting = "auto" | "on" | "off";
 const darkQuery = "(prefers-color-scheme: dark)";
 
 const subscribeDark = (onChange: () => void) => {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => undefined;
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function")
+    return () => undefined;
   const media = window.matchMedia(darkQuery);
   media.addEventListener("change", onChange);
   return () => media.removeEventListener("change", onChange);
 };
 
-const readDark = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(darkQuery).matches;
+const readDark = () =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia(darkQuery).matches;
 
 /**
  * Gamma-encoded Rec. 709 luma (0 to 1) of a CSS colour in hex or rgb() form, the scale the
@@ -66,7 +73,8 @@ export const colourLuma = (colour: string): number | null => {
   let rgb: [number, number, number] | null = null;
   const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})([0-9a-f]{2})?$/.exec(value);
   if (hex?.[1]) {
-    const digits = hex[1].length === 3 ? [...hex[1]].map((d) => d + d) : (hex[1].match(/../g) ?? []);
+    const digits =
+      hex[1].length === 3 ? [...hex[1]].map((d) => d + d) : (hex[1].match(/../g) ?? []);
     const [r, g, b] = digits.map((d) => Number.parseInt(d, 16));
     if (r !== undefined && g !== undefined && b !== undefined) rgb = [r, g, b];
   }
@@ -104,7 +112,11 @@ export const keylineAlphaFor = (luma: number, metrics: IslandMetrics): number =>
  * Resolved keyline alpha. With a `backdrop` colour the strength follows the page's luma; without
  * one, "auto" assumes a near-black page in dark mode and draws nothing in light mode.
  */
-export const useKeyline = (setting: KeylineSetting, backdrop: string | undefined, metrics: IslandMetrics): number => {
+export const useKeyline = (
+  setting: KeylineSetting,
+  backdrop: string | undefined,
+  metrics: IslandMetrics,
+): number => {
   const dark = useSyncExternalStore(subscribeDark, readDark, () => false);
   if (setting === "off") return 0;
   const luma = backdrop === undefined ? null : colourLuma(backdrop);

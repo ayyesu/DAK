@@ -1,6 +1,13 @@
 "use client";
 
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 
 import { type KeylineSetting, useIslandContext, useKeyline, useReducedMotion } from "./context";
 import { deriveScene, type PressTarget } from "./store";
@@ -28,7 +35,14 @@ export interface IslandProps {
 }
 
 /** Draws the activity stack from the nearest `<IslandProvider>`. */
-export const Island = ({ placement = "container", label = "Live activities", className, style, keyline = "auto", backdrop }: IslandProps) => {
+export const Island = ({
+  placement = "container",
+  label = "Live activities",
+  className,
+  style,
+  keyline = "auto",
+  backdrop,
+}: IslandProps) => {
   const context = useIslandContext();
   if (!context) throw new Error("islandcn: <Island /> must be inside <IslandProvider>.");
   const { store, clock, metrics, motion, recorder } = context;
@@ -51,7 +65,8 @@ export const Island = ({ placement = "container", label = "Live activities", cla
       if (event.key !== "Escape") return;
       const focusInside = root.current?.contains(document.activeElement) ?? false;
       store.api.collapse();
-      if (focusInside) root.current?.querySelector<HTMLButtonElement>('[data-islandcn-hit="pill"]')?.focus();
+      if (focusInside)
+        root.current?.querySelector<HTMLButtonElement>('[data-islandcn-hit="pill"]')?.focus();
     };
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("keydown", onKeyDown);
@@ -70,7 +85,11 @@ export const Island = ({ placement = "container", label = "Live activities", cla
     const primaryLabel = scene.primary?.label ?? null;
     return {
       pillLabel:
-        primaryLabel === null ? null : expanded ? `${primaryLabel}, expanded. Press Escape to collapse.` : `${primaryLabel}. Press to expand.`,
+        primaryLabel === null
+          ? null
+          : expanded
+            ? `${primaryLabel}, expanded. Press Escape to collapse.`
+            : `${primaryLabel}. Press to expand.`,
       bubbleLabel: scene.detached ? `${scene.detached.label}. Press to expand.` : null,
       expanded,
       onPressStart: (target: PressTarget, event) => {

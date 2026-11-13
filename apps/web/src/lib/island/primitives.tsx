@@ -64,7 +64,8 @@ const ramp = (t: number, [from, to]: readonly [number, number]) => {
   return u * u * (3 - 2 * u);
 };
 
-const linear = (t: number, [from, to]: readonly [number, number]) => Math.min(1, Math.max(0, (t - from) / Math.max(to - from, 1e-4)));
+const linear = (t: number, [from, to]: readonly [number, number]) =>
+  Math.min(1, Math.max(0, (t - from) / Math.max(to - from, 1e-4)));
 
 const useClock = (): { clock: IslandClock; reduced: boolean } => {
   const context = useIslandContext();
@@ -117,7 +118,8 @@ const maxRetained = 4;
 
 /** Seconds a full turn lasts: the incoming digit is sharp and in, and the outgoing one gone. */
 const rollEnd = Math.max(
-  numberMotion.inDelay + Math.max(numberMotion.inSharpen[1], numberMotion.inFade[1], numberMotion.inGrow[1]),
+  numberMotion.inDelay +
+    Math.max(numberMotion.inSharpen[1], numberMotion.inFade[1], numberMotion.inGrow[1]),
   numberMotion.outFade[1],
   numberMotion.outShrink[1],
 );
@@ -163,10 +165,17 @@ const rollIn = (t: number, reduced: boolean): DigitPose => {
 };
 
 /** A place `t` seconds into its turn: the incoming digit's pose, and each outgoing glyph, bottom first. */
-const posesAt = (motion: TurnMotion, t: number, reduced: boolean): { incoming: DigitPose; outgoing: Glyph[] } => {
+const posesAt = (
+  motion: TurnMotion,
+  t: number,
+  reduced: boolean,
+): { incoming: DigitPose; outgoing: Glyph[] } => {
   switch (motion.kind) {
     case "roll":
-      return { incoming: rollIn(t, reduced), outgoing: [{ char: motion.from, pose: rollOut(t, reduced) }] };
+      return {
+        incoming: rollIn(t, reduced),
+        outgoing: [{ char: motion.from, pose: rollOut(t, reduced) }],
+      };
     case "retarget": {
       const window = [0, numberMotion.retarget] as const;
       return {
@@ -174,7 +183,10 @@ const posesAt = (motion: TurnMotion, t: number, reduced: boolean): { incoming: D
         // Each keeps the blur and size it was caught at while it fades, and drops the blur once gone.
         outgoing: motion.from.map(({ char, pose, since }) => {
           const fade = linear(t + since, window);
-          return { char, pose: { ...pose, opacity: pose.opacity * (1 - fade), blur: fade >= 1 ? 0 : pose.blur } };
+          return {
+            char,
+            pose: { ...pose, opacity: pose.opacity * (1 - fade), blur: fade >= 1 ? 0 : pose.blur },
+          };
         }),
       };
     }
@@ -206,7 +218,19 @@ interface Change {
  * fades (keeping only the more visible of two dropped the other at once: 1 to 2, then 3 after
  * 0.24 s, and the outgoing 1 vanished from 0.198).
  */
-const startTurn = ({ previous, from, now, reduced, pace }: { previous: Turn | undefined; from: string; now: number; reduced: boolean; pace: number }): Turn => {
+const startTurn = ({
+  previous,
+  from,
+  now,
+  reduced,
+  pace,
+}: {
+  previous: Turn | undefined;
+  from: string;
+  now: number;
+  reduced: boolean;
+  pace: number;
+}): Turn => {
   if (previous === undefined) return { at: now, motion: { kind: "roll", from } };
   const t = ((now - previous.at) / 1000) * pace;
   if (t >= turnLength(previous.motion)) return { at: now, motion: { kind: "roll", from } };
@@ -217,10 +241,18 @@ const startTurn = ({ previous, from, now, reduced, pace }: { previous: Turn | un
     previous.motion.kind === "retarget"
       ? previous.motion.from.map((glyph) => ({ ...glyph, since: glyph.since + t }))
       : outgoing.map((glyph) => ({ ...glyph, since: 0 }));
-  const opacityOf = (glyph: Fading) => glyph.pose.opacity * (1 - linear(glyph.since, [0, numberMotion.retarget]));
-  const shown = [{ char: from, pose: incoming, since: 0 }, ...caught].filter((glyph) => opacityOf(glyph) > 0);
-  const faintest = [...shown].sort((a, b) => opacityOf(a) - opacityOf(b)).slice(0, Math.max(0, shown.length - maxRetained));
-  return { at: now, motion: { kind: "retarget", from: shown.filter((glyph) => !faintest.includes(glyph)) } };
+  const opacityOf = (glyph: Fading) =>
+    glyph.pose.opacity * (1 - linear(glyph.since, [0, numberMotion.retarget]));
+  const shown = [{ char: from, pose: incoming, since: 0 }, ...caught].filter(
+    (glyph) => opacityOf(glyph) > 0,
+  );
+  const faintest = [...shown]
+    .sort((a, b) => opacityOf(a) - opacityOf(b))
+    .slice(0, Math.max(0, shown.length - maxRetained));
+  return {
+    at: now,
+    motion: { kind: "retarget", from: shown.filter((glyph) => !faintest.includes(glyph)) },
+  };
 };
 
 /** The glyphs a turn draws leaving, for its cell's spans. */
@@ -284,7 +316,10 @@ export const IslandNumber = ({ value, className, style, turn }: IslandNumberProp
     const turning = [...text].flatMap((char, index) => (from[index] === char ? [] : [index]));
     for (const index of turning) {
       // `from` is what the place shows now: what it was turning to, if it was turning.
-      turns.set(index, startTurn({ previous: turns.get(index), from: from[index] ?? "", now, reduced, pace }));
+      turns.set(
+        index,
+        startTurn({ previous: turns.get(index), from: from[index] ?? "", now, reduced, pace }),
+      );
     }
     const kept = sameLength ? change.cells : new Set<number>();
     setShown(text);
@@ -297,7 +332,9 @@ export const IslandNumber = ({ value, className, style, turn }: IslandNumberProp
 
   useLayoutEffect(() => {
     if (!change) return;
-    const em = fontSize.current ? Number.parseFloat(getComputedStyle(fontSize.current).fontSize) || 16 : 16;
+    const em = fontSize.current
+      ? Number.parseFloat(getComputedStyle(fontSize.current).fontSize) || 16
+      : 16;
     const blurMax = reduced ? 0 : numberMotion.blurPerEm * em;
     const roll = reduced ? 0 : numberMotion.roll * em;
     const paint = (element: HTMLSpanElement, pose: DigitPose) => {
@@ -359,7 +396,13 @@ export const IslandNumber = ({ value, className, style, turn }: IslandNumberProp
   // plain text: the split capsule shows "4…", not "4:5" clipped mid-digit. A turning cell is one
   // atomic box, so the ellipsis replaces it whole.
   return (
-    <span ref={fontSize} className={className} style={{ display: "inline", whiteSpace: "pre", ...style }} aria-label={text} role="text">
+    <span
+      ref={fontSize}
+      className={className}
+      style={{ display: "inline", whiteSpace: "pre", ...style }}
+      aria-label={text}
+      role="text"
+    >
       {chars.map((char, index) => {
         const turn = change?.turns.get(index);
         if (!change?.cells.has(index)) {
@@ -447,7 +490,11 @@ export const IslandProgress = ({
     const element = fill.current;
     if (!element) return;
     const start = clock.now() / 1000;
-    animated.set(target, start, reduced ? { kind: "tween", duration: 0.2 } : { kind: "spring", spring });
+    animated.set(
+      target,
+      start,
+      reduced ? { kind: "tween", duration: 0.2 } : { kind: "spring", spring },
+    );
     const write = (nowMs: number) => {
       const t = nowMs / 1000;
       element.style.width = `${(animated.valueAt(t) * 100).toFixed(3)}%`;
@@ -474,9 +521,26 @@ export const IslandProgress = ({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(target * 100)}
-      style={{ display: "block", width: "100%", height, borderRadius: r, background: track, overflow: "hidden", ...style }}
+      style={{
+        display: "block",
+        width: "100%",
+        height,
+        borderRadius: r,
+        background: track,
+        overflow: "hidden",
+        ...style,
+      }}
     >
-      <span ref={fill} style={{ display: "block", height: "100%", width: `${target * 100}%`, background: color, borderRadius: r }} />
+      <span
+        ref={fill}
+        style={{
+          display: "block",
+          height: "100%",
+          width: `${target * 100}%`,
+          background: color,
+          borderRadius: r,
+        }}
+      />
     </span>
   );
 };

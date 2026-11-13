@@ -10,10 +10,12 @@
 import { continuousRectPath, islandMetrics } from "~/lib/island";
 
 /** System font first, so each platform gets its own UI font; Inter or Geist elsewhere. */
-export const islandFont = '-apple-system, BlinkMacSystemFont, "Inter", "Geist", system-ui, sans-serif';
+export const islandFont =
+  '-apple-system, BlinkMacSystemFont, "Inter", "Geist", system-ui, sans-serif';
 
 /** For commands and paths in the agent preset. */
-export const islandMono = 'ui-monospace, "Geist Mono", "JetBrains Mono", Menlo, Consolas, monospace';
+export const islandMono =
+  'ui-monospace, "Geist Mono", "JetBrains Mono", Menlo, Consolas, monospace';
 
 /**
  * One accent per activity. These are tuned to read on the black island (high chroma, light
@@ -87,7 +89,10 @@ const expanded = islandMetrics.expanded;
  * top: the same sum as the engine's layout.
  */
 const centerTop =
-  Math.max(0, islandMetrics.top + islandMetrics.idle.height - (expanded.top + expanded.padding.top)) + expanded.centerTop;
+  Math.max(
+    0,
+    islandMetrics.top + islandMetrics.idle.height - (expanded.top + expanded.padding.top),
+  ) + expanded.centerTop;
 
 /**
  * Where each text style's baseline sits below the top of its line box, in pt. Measured in Chrome
@@ -175,13 +180,21 @@ export const islandSafe = {
    * `action.leading` or `action.trailing` (4), so its square corners clear the top corners' arcs.
    * The same on both sides: each inset puts the row's corner 22 from its corner centre.
    */
-  drop: Math.ceil(expanded.radius - expanded.padding.top - Math.sqrt(clipReach ** 2 - (islandSize.button / 2) ** 2)),
+  drop: Math.ceil(
+    expanded.radius -
+      expanded.padding.top -
+      Math.sqrt(clipReach ** 2 - (islandSize.button / 2) ** 2),
+  ),
   /**
    * Widest leading or trailing content that stays clear of the sensor beside it on the narrowest
    * common phone (375 pt): half the expanded width, less the sensor's half and the wider (leading)
    * padding.
    */
-  besideSensor: Math.floor((375 - 2 * expanded.sideInset - islandMetrics.idle.width) / 2 - Math.max(leadingPad, trailingPad)) - 4,
+  besideSensor:
+    Math.floor(
+      (375 - 2 * expanded.sideInset - islandMetrics.idle.width) / 2 -
+        Math.max(leadingPad, trailingPad),
+    ) - 4,
 } as const;
 
 /**

@@ -73,7 +73,14 @@ export const islandMetrics = {
      * that. `width` 0 sizes the bubble to its content instead, with `gap` between the two and
      * `trailingPadding` after the trailing content.
      */
-    detached: { outerPadding: 6.42, gap: 12, trailingPadding: 13.09, width: 62.18, slotGap: 6.085, slotEnd: 7.175 },
+    detached: {
+      outerPadding: 6.42,
+      gap: 12,
+      trailingPadding: 13.09,
+      width: 62.18,
+      slotGap: 6.085,
+      slotEnd: 7.175,
+    },
     /**
      * Widest the attached pill plus the bubble may span. Content wider than this falls back to the
      * `minimal` views. 226.85 measured with "42" and "7".
@@ -307,7 +314,14 @@ export interface IslandMetricsShape {
   };
   split: {
     attached: { outerPadding: number; gap: number; innerPadding: number };
-    detached: { outerPadding: number; gap: number; trailingPadding: number; width: number; slotGap: number; slotEnd: number };
+    detached: {
+      outerPadding: number;
+      gap: number;
+      trailingPadding: number;
+      width: number;
+      slotGap: number;
+      slotEnd: number;
+    };
     maxSpan: number;
   };
   expanded: {

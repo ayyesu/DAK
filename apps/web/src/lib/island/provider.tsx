@@ -4,7 +4,12 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { createFrameClock, type IslandClock } from "./clock";
-import { type IslandMetricsOverrides, type IslandMotionOverrides, resolveMetrics, resolveMotion } from "./config";
+import {
+  type IslandMetricsOverrides,
+  type IslandMotionOverrides,
+  resolveMetrics,
+  resolveMotion,
+} from "./config";
 import { IslandContext, type IslandContextValue } from "./context";
 import { createDevtools, type DevtoolsOptions } from "./devtools";
 import type { IslandMotion } from "./motion";
@@ -33,7 +38,14 @@ export interface IslandProviderProps {
 }
 
 /** Owns the activity stack. Put `<Island />` and the code that calls `useIsland()` inside it. */
-export const IslandProvider = ({ children, clock, devtools = false, metrics, motion, reducedMotion = "user" }: IslandProviderProps) => {
+export const IslandProvider = ({
+  children,
+  clock,
+  devtools = false,
+  metrics,
+  motion,
+  reducedMotion = "user",
+}: IslandProviderProps) => {
   const resolvedMetrics = useMemo(() => resolveMetrics(metrics), [metrics]);
   const resolvedMotion = useMemo(() => resolveMotion(motion), [motion]);
 
@@ -46,7 +58,10 @@ export const IslandProvider = ({ children, clock, devtools = false, metrics, mot
     const ownClock = createFrameClock(devtools ? { wrapTimer: (run) => flushSync(run) } : {});
     const islandClock = clock ?? ownClock;
     const recorder = devtools ? createFrameRecorder() : null;
-    const store = createIslandStore({ clock: islandClock, motion: (): IslandMotion => motionRef.current });
+    const store = createIslandStore({
+      clock: islandClock,
+      motion: (): IslandMotion => motionRef.current,
+    });
     return { clock: islandClock, ownClock, recorder, store };
   });
 

@@ -12,9 +12,24 @@ import {
   useState,
 } from "react";
 
-import { absorbsBubble, contentMotion, leadJoin, type MotionMode, retargetPress, retargetShape } from "./choreography";
+import {
+  absorbsBubble,
+  contentMotion,
+  leadJoin,
+  type MotionMode,
+  retargetPress,
+  retargetShape,
+} from "./choreography";
 import type { IslandClock } from "./clock";
-import { bubblePose, createShapeAnimation, followingClip, type FrameGeometry, frameAt, shapeAtRest, type ShapeAnimation } from "./frame";
+import {
+  bubblePose,
+  createShapeAnimation,
+  followingClip,
+  type FrameGeometry,
+  frameAt,
+  shapeAtRest,
+  type ShapeAnimation,
+} from "./frame";
 import {
   type ContentMeasure,
   emptyMeasure,
@@ -31,7 +46,13 @@ import { continuousRectPath } from "./path";
 import { isAppleWebKit, writeBlur } from "./platform";
 import { Skirts, skirtBlur, skirtDim, skirtWeight } from "./skirt";
 import type { IslandMetrics } from "./metrics";
-import type { ContentMotion, DelayedSpring, ExpandedRegion, IslandMotion, RegionLag } from "./motion";
+import type {
+  ContentMotion,
+  DelayedSpring,
+  ExpandedRegion,
+  IslandMotion,
+  RegionLag,
+} from "./motion";
 import type { FrameRecorder } from "./perf";
 import { AnimatedValue, type SpringConfig, type Transition } from "./spring";
 import type { PressTarget } from "./store";
@@ -120,8 +141,12 @@ interface LayerSize {
   regions: Record<ExpandedRegion, { x: number; y: number } | null>;
 }
 
-
-const noRegions: LayerSize["regions"] = { leading: null, center: null, trailing: null, bottom: null };
+const noRegions: LayerSize["regions"] = {
+  leading: null,
+  center: null,
+  trailing: null,
+  bottom: null,
+};
 
 const regionSlots = [
   ["expandedLeading", "leading"],
@@ -130,10 +155,36 @@ const regionSlots = [
   ["expandedBottom", "bottom"],
 ] as const satisfies readonly (readonly [SlotName, ExpandedRegion])[];
 
-const emptySize: LayerSize = { leading: 0, trailing: 0, attached: 0, detached: 0, split: null, useSplit: false, regions: noRegions };
+const emptySize: LayerSize = {
+  leading: 0,
+  trailing: 0,
+  attached: 0,
+  detached: 0,
+  split: null,
+  useSplit: false,
+  regions: noRegions,
+};
 
 /** How a layer blurs, scales and fades while it is out, set by the transition that brought it or took it. */
-type LayerLook = Pick<ContentMotion, "blur" | "enterBlur" | "scale" | "fade" | "exitFade" | "bubbleDelay" | "trailingDelay" | "trailingExitPower" | "anchor" | "sharpen" | "leadingFade" | "bubbleScale" | "bubbleSpread" | "bubbleBlur" | "bubbleSharpen" | "centerDelay"> & {
+type LayerLook = Pick<
+  ContentMotion,
+  | "blur"
+  | "enterBlur"
+  | "scale"
+  | "fade"
+  | "exitFade"
+  | "bubbleDelay"
+  | "trailingDelay"
+  | "trailingExitPower"
+  | "anchor"
+  | "sharpen"
+  | "leadingFade"
+  | "bubbleScale"
+  | "bubbleSpread"
+  | "bubbleBlur"
+  | "bubbleSharpen"
+  | "centerDelay"
+> & {
   bubbleStretch: number;
   bubbleStretchPower: number;
   /** A factor on the blur's wide part (`ContentMotion.skirt`). */
@@ -280,7 +331,20 @@ interface SlotDraw {
   skirt: number;
 }
 
-const slotDrawFields = ["opacity", "blur", "x", "y", "sx", "sy", "lift", "follow", "bandTop", "bandBottom", "cap", "skirt"] as const satisfies readonly (keyof SlotDraw)[];
+const slotDrawFields = [
+  "opacity",
+  "blur",
+  "x",
+  "y",
+  "sx",
+  "sy",
+  "lift",
+  "follow",
+  "bandTop",
+  "bandBottom",
+  "cap",
+  "skirt",
+] as const satisfies readonly (keyof SlotDraw)[];
 
 /**
  * A difference smaller than this (per field) is not carried: it is no jump anyone sees, and a
@@ -344,9 +408,14 @@ const carryLag = (carry: Carry, t: number) => {
  */
 const addCarry = (base: SlotDraw, carried: SlotCarry, weight: number, lag: number): SlotDraw => {
   const { delta, speed, ratio } = carried;
-  const at = (field: keyof SlotDraw) => base[field] + delta[field] * weight + (speed ? speed[field] * lag : 0);
+  const at = (field: keyof SlotDraw) =>
+    base[field] + delta[field] * weight + (speed ? speed[field] * lag : 0);
   return {
-    opacity: clamp01(ratio === null ? at("opacity") : base.opacity * Math.max(0, 1 + (ratio - 1) * weight + (speed ? speed.opacity * lag : 0))),
+    opacity: clamp01(
+      ratio === null
+        ? at("opacity")
+        : base.opacity * Math.max(0, 1 + (ratio - 1) * weight + (speed ? speed.opacity * lag : 0)),
+    ),
     blur: Math.max(0, at("blur")),
     x: at("x"),
     y: at("y"),
@@ -364,7 +433,20 @@ const addCarry = (base: SlotDraw, carried: SlotCarry, weight: number, lag: numbe
 
 /** What `was` drew less what `now` draws, or null when no field differs past `carryFloor`. */
 const carryOf = (was: SlotDraw, now: SlotDraw): SlotDraw | null => {
-  const delta: SlotDraw = { opacity: 0, blur: 0, x: 0, y: 0, sx: 0, sy: 0, lift: 0, follow: 0, bandTop: 0, bandBottom: 0, cap: 0, skirt: 0 };
+  const delta: SlotDraw = {
+    opacity: 0,
+    blur: 0,
+    x: 0,
+    y: 0,
+    sx: 0,
+    sy: 0,
+    lift: 0,
+    follow: 0,
+    bandTop: 0,
+    bandBottom: 0,
+    cap: 0,
+    skirt: 0,
+  };
   let moved = false;
   for (const field of slotDrawFields) {
     // A band gaining or losing its cap has no distance between the two to carry.
@@ -381,7 +463,6 @@ const carryOf = (was: SlotDraw, now: SlotDraw): SlotDraw | null => {
  */
 const carryDamping = 1;
 
-
 /**
  * Seconds between the samples a carry's speed is measured from, on each side of the change. A
  * numerical sampling step for a finite difference, not a measurement or a piece of motion tuning,
@@ -397,11 +478,26 @@ const speedStep = 1e-3;
  * smoothly there, a designed cut or snap among the samples, and gets no speed.
  */
 const speedOf = (first: SlotDraw, second: SlotDraw, third: SlotDraw, sign: 1 | -1): SlotDraw => {
-  const out: SlotDraw = { opacity: 0, blur: 0, x: 0, y: 0, sx: 0, sy: 0, lift: 0, follow: 0, bandTop: 0, bandBottom: 0, cap: 0, skirt: 0 };
+  const out: SlotDraw = {
+    opacity: 0,
+    blur: 0,
+    x: 0,
+    y: 0,
+    sx: 0,
+    sy: 0,
+    lift: 0,
+    follow: 0,
+    bandTop: 0,
+    bandBottom: 0,
+    cap: 0,
+    skirt: 0,
+  };
   for (const field of slotDrawFields) {
     const near = (sign * (first[field] - second[field])) / speedStep;
     const far = (sign * (second[field] - third[field])) / speedStep;
-    const smooth = Math.abs(near - far) <= 0.2 * Math.max(Math.abs(near), Math.abs(far)) + carryFloor[field] / speedStep;
+    const smooth =
+      Math.abs(near - far) <=
+      0.2 * Math.max(Math.abs(near), Math.abs(far)) + carryFloor[field] / speedStep;
     // Second order (the speed at `first`, not halfway to `second`): a first-order difference reads a
     // curved motion faster on one side of a change and slower on the other, and a near-cut curves
     // enough that a card whose cut ran on through a change was carried 3 opacity per second it
@@ -475,8 +571,16 @@ const lagged = (layer: AnimatedValue | undefined, t: number, delay: number, rejo
  * layer's held back by `delay` (`trailingDelay`, `lagged`), or the layer's. The frame
  * loop draws with it, and an interruption reads it to keep the slot's slide where it is (`leavingSlides`).
  */
-const enteringTrailing = (layer: AnimatedValue | undefined, own: AnimatedValue | undefined, delay: number, t: number, rejoined: boolean) =>
-  own ? full(clamp01(own.valueAt(t))) : full(clamp01((delay > 0 ? lagged(layer, t, delay, rejoined) : layer?.valueAt(t)) ?? 1));
+const enteringTrailing = (
+  layer: AnimatedValue | undefined,
+  own: AnimatedValue | undefined,
+  delay: number,
+  t: number,
+  rejoined: boolean,
+) =>
+  own
+    ? full(clamp01(own.valueAt(t)))
+    : full(clamp01((delay > 0 ? lagged(layer, t, delay, rejoined) : layer?.valueAt(t)) ?? 1));
 
 /**
  * What is left of an entering layer's blur at presence `pres`, 1 to 0. With `clear` (`enterClear`)
@@ -508,7 +612,12 @@ const layerHint = (still: boolean) => (still ? "auto" : "transform, opacity, fil
 
 /** Where a region's centre sits in the expanded slot, from layout offsets (transforms don't count). */
 const regionCentre = (element: HTMLElement | undefined) =>
-  element ? { x: element.offsetLeft + element.offsetWidth / 2, y: element.offsetTop + element.offsetHeight / 2 } : null;
+  element
+    ? {
+        x: element.offsetLeft + element.offsetWidth / 2,
+        y: element.offsetTop + element.offsetHeight / 2,
+      }
+    : null;
 
 /**
  * Keyline strength on this frame. `dipAt` is when the last collapse started (seconds), which dims
@@ -531,12 +640,19 @@ const keylineAt = (
     const d = motion.keyline;
     const since = t - dipAt;
     if (since >= 0 && since < d.dipAt) dip = 1 - (1 - d.dip) * (since / d.dipAt);
-    else if (since >= d.dipAt && since < d.backAt) dip = d.dip + (1 - d.dip) * ((since - d.dipAt) / (d.backAt - d.dipAt));
+    else if (since >= d.dipAt && since < d.backAt)
+      dip = d.dip + (1 - d.dip) * ((since - d.dipAt) / (d.backAt - d.dipAt));
   }
   return keyline * grown * expanded * dip;
 };
 
-const shadowBox: CSSProperties = { position: "absolute", top: 0, left: 0, display: "none", pointerEvents: "none" };
+const shadowBox: CSSProperties = {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  display: "none",
+  pointerEvents: "none",
+};
 
 const srOnly: CSSProperties = {
   position: "absolute",
@@ -577,12 +693,16 @@ const sameTarget = (a: ShapeTarget | null, b: ShapeTarget) =>
 const contentWidth = (element: HTMLElement | undefined) => {
   if (!element || element.childNodes.length === 0) return 0;
   const transform = getComputedStyle(element).transform;
-  const scale = transform && transform !== "none" && typeof DOMMatrixReadOnly !== "undefined" ? new DOMMatrixReadOnly(transform).a : 1;
+  const scale =
+    transform && transform !== "none" && typeof DOMMatrixReadOnly !== "undefined"
+      ? new DOMMatrixReadOnly(transform).a
+      : 1;
   return element.getBoundingClientRect().width / (scale > 0.01 ? scale : 1);
 };
 
 /** An element's laid-out height to the sub-pixel, unaffected by any scale on it or its parents. */
-const usedHeight = (element: HTMLElement | undefined) => (element ? Number.parseFloat(getComputedStyle(element).height) || 0 : 0);
+const usedHeight = (element: HTMLElement | undefined) =>
+  element ? Number.parseFloat(getComputedStyle(element).height) || 0 : 0;
 
 /**
  * A layer's opacity at `presence` under reduced motion: the leaving layer is gone by halfway and the
@@ -625,13 +745,16 @@ const fitSlot = (element: HTMLElement | undefined, natural: number, room: number
  * `delay` later (negative: earlier), as a cut when `response` is 0, else on that spring.
  */
 const bubbleCut = (exit: DelayedSpring): Transition =>
-  exit.response <= 0 ? { kind: "tween", duration: 1e-4, delay: exit.delay } : { kind: "spring", spring: exit, delay: exit.delay };
+  exit.response <= 0
+    ? { kind: "tween", duration: 1e-4, delay: exit.delay }
+    : { kind: "spring", spring: exit, delay: exit.delay };
 
 /**
  * A shadow layer's blur as feGaussianBlur's "x y" standard deviations: `blur` is twice the vertical
  * one, as in CSS drop-shadow, and `aspect` widens or narrows it sideways.
  */
-const blurDeviation = (layer: { blur: number; aspect: number }) => `${(layer.blur / 2) * layer.aspect} ${layer.blur / 2}`;
+const blurDeviation = (layer: { blur: number; aspect: number }) =>
+  `${(layer.blur / 2) * layer.aspect} ${layer.blur / 2}`;
 
 /**
  * The shadow as CSS box shadows, for Apple's WebKit (`platform.ts`): the key layer over the tail,
@@ -649,7 +772,11 @@ const boxShadow = (shadow: IslandMetrics["expanded"]["shadow"], alpha: number) =
 const shadowInset = 1;
 
 /** Places one shadow box, or hides it. */
-const placeShadow = (element: HTMLDivElement | null, box: { x: number; y: number; width: number; height: number; radius: number; lead?: number }, css: string | null) => {
+const placeShadow = (
+  element: HTMLDivElement | null,
+  box: { x: number; y: number; width: number; height: number; radius: number; lead?: number },
+  css: string | null,
+) => {
   if (!element) return;
   const show = css !== null && box.width > 2 * shadowInset && box.height > 2 * shadowInset;
   element.style.display = show ? "block" : "none";
@@ -659,7 +786,8 @@ const placeShadow = (element: HTMLDivElement | null, box: { x: number; y: number
   element.style.height = `${box.height - 2 * shadowInset}px`;
   const r = Math.max(0, box.radius - shadowInset);
   // Rounder left corners (`cornerLead`): top-left, top-right, bottom-right, bottom-left.
-  const lead = box.lead === undefined || box.lead === box.radius ? r : Math.max(0, box.lead - shadowInset);
+  const lead =
+    box.lead === undefined || box.lead === box.radius ? r : Math.max(0, box.lead - shadowInset);
   element.style.borderRadius = lead === r ? `${r}px` : `${lead}px ${r}px ${r}px ${lead}px`;
   element.style.boxShadow = css;
 };
@@ -708,7 +836,10 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
   const [leaving, setLeaving] = useState<readonly Layer[]>([]);
   if (shown.key !== contentKey) {
     const previous = shown;
-    setLeaving((list) => [...list.filter((layer) => layer.key !== contentKey && layer.key !== previous.key), previous]);
+    setLeaving((list) => [
+      ...list.filter((layer) => layer.key !== contentKey && layer.key !== previous.key),
+      previous,
+    ]);
     setShown({ key: contentKey, presentation });
   } else if (shown.presentation !== presentation) {
     setShown({ key: contentKey, presentation });
@@ -721,7 +852,10 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
   const stageWidthRef = useRef(containerWidth);
   stageWidthRef.current = containerWidth;
   const shape = useRef<ShapeAnimation | null>(null);
-  shape.current ??= createShapeAnimation(shapeTarget(presentation.kind, emptyMeasure, metrics.screen.width, metrics), metrics);
+  shape.current ??= createShapeAnimation(
+    shapeTarget(presentation.kind, emptyMeasure, metrics.screen.width, metrics),
+    metrics,
+  );
   const presence = useRef(new Map<string, AnimatedValue>());
   /**
    * A leaving layer's bubble content, when the change took it out on its own timing
@@ -813,7 +947,18 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
     activityId: string | null;
     alerting: boolean;
     handingOff: boolean;
-  }>({ key: null, kind: presentation.kind, changeId: null, width: 0, target: null, pressed: null, joining: null, activityId: null, alerting: false, handingOff: false });
+  }>({
+    key: null,
+    kind: presentation.kind,
+    changeId: null,
+    width: 0,
+    target: null,
+    pressed: null,
+    joining: null,
+    activityId: null,
+    alerting: false,
+    handingOff: false,
+  });
 
   const register = useCallback((key: string, slot: SlotName, element: HTMLElement | null) => {
     const map = slots.current.get(key) ?? {};
@@ -833,7 +978,8 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
     // Content is clipped to the island with concentric corners, as on the simulator, so arriving
     // content is revealed by the shape. The island's outline cuts everything; the concentric clip
     // (`clipPath`) applies per layer: before the blur on expanded content, after it on the rest.
-    if (content.current) content.current.style.clipPath = paths.pill ? `path("${paths.outline}")` : "none";
+    if (content.current)
+      content.current.style.clipPath = paths.pill ? `path("${paths.outline}")` : "none";
 
     const hit = pillHit.current;
     if (hit) {
@@ -854,10 +1000,17 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
       // The expanded island casts a soft shadow whose strength follows the expansion: two layers
       // (`expanded.shadow` and its `tail`) in one SVG filter, their opacities written per frame.
       const shadow = m.expanded.shadow;
-      const alpha = reduced ? (frame.expansion >= 1 ? shadow.opacity : 0) : shadow.opacity * frame.shadow;
+      const alpha = reduced
+        ? frame.expansion >= 1
+          ? shadow.opacity
+          : 0
+        : shadow.opacity * frame.shadow;
       const on = alpha > 0.002;
       shadowKey.current?.setAttribute("slope", on ? alpha.toFixed(4) : "0");
-      shadowTail.current?.setAttribute("slope", on ? (alpha * shadow.tail.strength).toFixed(4) : "0");
+      shadowTail.current?.setAttribute(
+        "slope",
+        on ? (alpha * shadow.tail.strength).toFixed(4) : "0",
+      );
       // Apple's WebKit renders the SVG filter on the CPU every frame; it gets CSS shadows instead.
       const boxes = isAppleWebKit();
       svg.current.style.filter = on && !boxes ? `url(#${shadowId.current})` : "none";
@@ -868,7 +1021,13 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
 
     // Keyline: a faint band outside the edge on dark pages. It belongs to the activity, so it
     // grows in over the first points beyond idle and is gone once only idle remains.
-    const keylineAlpha = keylineAt(frame, t, live.current, leavingKeys.current.length > 0, keylineDip.current);
+    const keylineAlpha = keylineAt(
+      frame,
+      t,
+      live.current,
+      leavingKeys.current.length > 0,
+      keylineDip.current,
+    );
     for (const path of [kPill.current, kBubble.current, kBridge.current]) {
       if (path) path.style.strokeOpacity = keylineAlpha > 0.001 ? keylineAlpha.toFixed(3) : "0";
     }
@@ -878,600 +1037,952 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
   }, []);
 
   /** Each content layer's slots for this frame, written, or put in `sink`. */
-  const drawLayers = useCallback((frame: FrameGeometry, t: number, width: number, clipPath: string, still: boolean, sink: DrawSink | null) => {
-    const { metrics: m, reduced } = live.current;
-    // Reduced motion ends any carry for good, so turning it off again brings none back.
-    if (reduced && carries.current.size > 0) carries.current.clear();
-    const { pill, bubble, paths } = frame;
-    const box = { x: pill.x, y: pill.y, w: pill.width, h: pill.height };
-    // The wide part of each blurred slot's blur (`blurSkirt`): copies asked for this frame stay, the rest go.
-    const skirt = reduced ? undefined : live.current.motion.blurSkirt;
-    const echoes = skirts.current;
-    // How much of its wide part's weight each slot gives up itself (`BlurSkirt.dim`).
-    const dim = skirtDim(skirt);
-    if (!sink) echoes.begin();
-    // Resting content sits on whole device pixels, as the simulator's does (expand-t1 at rest: the
-    // square's edges at 97 and 96 px, the compact circle's at 395 and 64, each one full pixel).
-    // A slot's resting top-left can fall anywhere (the expanded island's left edge is 41.49 px at
-    // 3x), and the browser then draws the content a fraction of a pixel off the grid, its edges
-    // half-covered. Each slot is moved by the constant that puts its resting position on the grid:
-    // at rest it is crisp, in motion it moves as before (round 23).
-    const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
-    const toGrid = (v: number) => Math.round(v * dpr) / dpr - v;
-    // At rest a slot's offset is put on the grid when it is within `gridSnap` of it (a region's
-    // follow shift, then 0). In motion it is written as computed.
-    const settle = (v: number) => {
-      if (!still) return v;
-      const on = Math.round(v * dpr);
-      return Math.abs(v * dpr - on) < gridSnap ? on / dpr : v;
-    };
-    for (const [key, map] of slots.current) {
-      const kind = layerKinds.current.get(key);
-      if (!kind || !map.root) continue;
-      const look = looks.current.get(key) ?? defaultLook(m);
-      const value = presence.current.get(key);
-      // A layer with no presence yet has not been drawn: there is nothing of it to carry.
-      if (sink && !value) continue;
-      const p = full(clamp01(value?.valueAt(t) ?? 1));
-      const entering = (value?.target ?? 1) === 1;
-      const rejoined = rejoins.current.has(key);
-      const fade = entering ? look.fade : look.exitFade;
-      // The bubble's content may come in later than the pill's (split: blue from +0.39 s), and may
-      // leave sooner (`bubbleExit`: a long-pressed bubble goes black before it joins).
-      const pBubbleLayer = entering && look.bubbleDelay !== 0 ? full(clamp01(lagged(value, t, look.bubbleDelay, rejoined) ?? 1)) : p;
-      const bubbleOut = bubbleExits.current.get(key);
-      const cut = (pres: number) => (bubbleOut ? Math.min(pres, clamp01(bubbleOut.valueAt(t))) : pres);
-      // The bubble's accent may come in on a presence of its own (`bubbleEnter`); its text keeps
-      // the layer's, whose sharpening is on time (round 23).
-      const ownBubble = entering ? bubbleEnters.current.get(key) : undefined;
-      // With `bubbleExitAccent` the cut takes the accent only; the text leaves with the layer.
-      const pBubbleText = look.bubbleExitAccent ? pBubbleLayer : cut(pBubbleLayer);
-      const pBubble = ownBubble ? cut(full(clamp01(ownBubble.valueAt(t)))) : cut(pBubbleLayer);
-      // The compact trailing slot (text, usually) comes in after the leading one, and may leave sooner.
-      const ownTrailing = entering ? trailingEnters.current.get(key) : undefined;
-      const pTrailing = entering ? enteringTrailing(value, ownTrailing, look.trailingDelay, t, rejoined) : p ** look.trailingExitPower;
-      // What this layer still carries from an interruption (`Carry`), and how much of it is left.
-      // Reduced motion draws no carry, also when it turns on while one is still resolving: the
-      // preference can change without a content change, so `carryOver` never sees it.
-      const carry = (sink && !sink.carried) || reduced ? undefined : carries.current.get(key);
-      const carryWeight = carry ? clamp01(carry.weight.valueAt(t)) : 0;
-      const carrySpeed = carry ? carryLag(carry, t) : 0;
-      // A layer hides at the presence it always did, unless what it carries still shows.
-      let carriedOpacity = 0;
-      if (carry && carryWeight > 0) {
-        // A carried ratio's speed is the multiplier's: what it carries is told by the difference alone.
-        for (const { delta, speed, ratio } of carry.slots.values()) {
-          carriedOpacity = Math.max(carriedOpacity, Math.abs(delta.opacity * carryWeight + (speed && ratio === null ? speed.opacity * carrySpeed : 0)));
-        }
-      }
-      const presenceGone = p <= 0.001 && Math.max(pBubble, pBubbleText) <= 0.001 && carriedOpacity <= 0.001;
-      // The brightest opacity this layer's slots draw this frame, carries included (`blend`): a
-      // layer coming in hides only while none of its slots shows. Its lagging parts and a carried
-      // ratio can draw more than its presence says, and hiding those while it comes in revealed
-      // them a frame later (seed 5573: the split's trailing text, held at 0.021 while the
-      // presence passed 0.001, hidden for two frames and shown again).
-      let drawnMax = 0;
-      const drawn: LayerDraw | null = sink ? { shown: true, slots: new Map(), capTravel: null } : null;
-      if (sink && drawn) sink.layers.set(key, drawn);
-      /**
-       * Adds the carry to a slot's numbers, or puts them in the sink. Returns null once they went
-       * to the sink, else the numbers to write: `base` itself when nothing is carried.
-       */
-      const blend = (name: SlotName, base: SlotDraw): SlotDraw | null => {
-        const carried = carryWeight > 0 ? carry?.slots.get(name) : undefined;
-        const out = carried ? addCarry(base, carried, carryWeight, carrySpeed) : base;
-        // The expanded root and clip write no opacity: their content's regions do.
-        if (name !== "root" && name !== "expandedClip") drawnMax = Math.max(drawnMax, out.opacity);
-        if (!drawn) return out;
-        drawn.slots.set(name, out);
-        return null;
+  const drawLayers = useCallback(
+    (
+      frame: FrameGeometry,
+      t: number,
+      width: number,
+      clipPath: string,
+      still: boolean,
+      sink: DrawSink | null,
+    ) => {
+      const { metrics: m, reduced } = live.current;
+      // Reduced motion ends any carry for good, so turning it off again brings none back.
+      if (reduced && carries.current.size > 0) carries.current.clear();
+      const { pill, bubble, paths } = frame;
+      const box = { x: pill.x, y: pill.y, w: pill.width, h: pill.height };
+      // The wide part of each blurred slot's blur (`blurSkirt`): copies asked for this frame stay, the rest go.
+      const skirt = reduced ? undefined : live.current.motion.blurSkirt;
+      const echoes = skirts.current;
+      // How much of its wide part's weight each slot gives up itself (`BlurSkirt.dim`).
+      const dim = skirtDim(skirt);
+      if (!sink) echoes.begin();
+      // Resting content sits on whole device pixels, as the simulator's does (expand-t1 at rest: the
+      // square's edges at 97 and 96 px, the compact circle's at 395 and 64, each one full pixel).
+      // A slot's resting top-left can fall anywhere (the expanded island's left edge is 41.49 px at
+      // 3x), and the browser then draws the content a fraction of a pixel off the grid, its edges
+      // half-covered. Each slot is moved by the constant that puts its resting position on the grid:
+      // at rest it is crisp, in motion it moves as before (round 23).
+      const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+      const toGrid = (v: number) => Math.round(v * dpr) / dpr - v;
+      // At rest a slot's offset is put on the grid when it is within `gridSnap` of it (a region's
+      // follow shift, then 0). In motion it is written as computed.
+      const settle = (v: number) => {
+        if (!still) return v;
+        const on = Math.round(v * dpr);
+        return Math.abs(v * dpr - on) < gridSnap ? on / dpr : v;
       };
-      if (!sink) {
-        if (kind !== "expanded") {
-          map.root.style.clipPath = clipPath;
-          writeBlur(map.root, 0);
+      for (const [key, map] of slots.current) {
+        const kind = layerKinds.current.get(key);
+        if (!kind || !map.root) continue;
+        const look = looks.current.get(key) ?? defaultLook(m);
+        const value = presence.current.get(key);
+        // A layer with no presence yet has not been drawn: there is nothing of it to carry.
+        if (sink && !value) continue;
+        const p = full(clamp01(value?.valueAt(t) ?? 1));
+        const entering = (value?.target ?? 1) === 1;
+        const rejoined = rejoins.current.has(key);
+        const fade = entering ? look.fade : look.exitFade;
+        // The bubble's content may come in later than the pill's (split: blue from +0.39 s), and may
+        // leave sooner (`bubbleExit`: a long-pressed bubble goes black before it joins).
+        const pBubbleLayer =
+          entering && look.bubbleDelay !== 0
+            ? full(clamp01(lagged(value, t, look.bubbleDelay, rejoined) ?? 1))
+            : p;
+        const bubbleOut = bubbleExits.current.get(key);
+        const cut = (pres: number) =>
+          bubbleOut ? Math.min(pres, clamp01(bubbleOut.valueAt(t))) : pres;
+        // The bubble's accent may come in on a presence of its own (`bubbleEnter`); its text keeps
+        // the layer's, whose sharpening is on time (round 23).
+        const ownBubble = entering ? bubbleEnters.current.get(key) : undefined;
+        // With `bubbleExitAccent` the cut takes the accent only; the text leaves with the layer.
+        const pBubbleText = look.bubbleExitAccent ? pBubbleLayer : cut(pBubbleLayer);
+        const pBubble = ownBubble ? cut(full(clamp01(ownBubble.valueAt(t)))) : cut(pBubbleLayer);
+        // The compact trailing slot (text, usually) comes in after the leading one, and may leave sooner.
+        const ownTrailing = entering ? trailingEnters.current.get(key) : undefined;
+        const pTrailing = entering
+          ? enteringTrailing(value, ownTrailing, look.trailingDelay, t, rejoined)
+          : p ** look.trailingExitPower;
+        // What this layer still carries from an interruption (`Carry`), and how much of it is left.
+        // Reduced motion draws no carry, also when it turns on while one is still resolving: the
+        // preference can change without a content change, so `carryOver` never sees it.
+        const carry = (sink && !sink.carried) || reduced ? undefined : carries.current.get(key);
+        const carryWeight = carry ? clamp01(carry.weight.valueAt(t)) : 0;
+        const carrySpeed = carry ? carryLag(carry, t) : 0;
+        // A layer hides at the presence it always did, unless what it carries still shows.
+        let carriedOpacity = 0;
+        if (carry && carryWeight > 0) {
+          // A carried ratio's speed is the multiplier's: what it carries is told by the difference alone.
+          for (const { delta, speed, ratio } of carry.slots.values()) {
+            carriedOpacity = Math.max(
+              carriedOpacity,
+              Math.abs(
+                delta.opacity * carryWeight +
+                  (speed && ratio === null ? speed.opacity * carrySpeed : 0),
+              ),
+            );
+          }
         }
-      }
-      const size = widths.current.get(key) ?? emptySize;
-      // Content follows the container: laid out for its resting shape, mapped into the current one.
-      const rest = rests.current.get(key);
-      const restBox = rest ? { x: width / 2 + rest.left, y: rest.top, w: rest.right - rest.left, h: rest.height } : box;
-      const sx = restBox.w > 0.5 ? box.w / restBox.w : 1;
-      const sy = restBox.h > 0.5 ? box.h / restBox.h : 1;
-      const c = m.content;
-      // A transition may follow the container less, or not at all (`ContentMotion.follow`).
-      const k = reduced ? 1 : full(Math.min(c.followMax, Math.max(c.followMin, (sx * sy) ** ((look.follow ?? c.follow) / 2))));
-      /** Writes presence and position: `cx`, `cy` is where the slot's centre goes, `w`, `h` its own size. */
-      // The leading slot may brighten ahead of the rest as it comes in (`leadingFade`).
-      const leadFade = entering ? fade * look.leadingFade : fade * look.exitLeadingFade;
-      // Coming in, blur may fall faster than presence rises (`sharpen`); going out it tracks it.
-      const peakBlur = entering ? look.enterBlur : look.blur;
-      const sharpen = entering ? look.sharpen : 1;
-      // Coming in, the blur may clear before presence is full (`enterClear`): what is left of it is
-      // measured to 1 - clear instead of 1, so the first frames keep their blur and the tail ends sooner.
-      const remaining = (pres: number, clear: number) => blurLeft(pres, entering ? clear : 0);
-      /** Blur in px at presence `pres`: the layer's curve, or the bubble's (`bubbleBlur`, capped at the peak). */
-      const layerBlur = (pres: number) => remaining(pres, look.enterClear) ** sharpen * peakBlur;
-      // A leaving accent (the leading slot) may keep its size and spread late on its own curve
-      // (`exitScale`, `exitBlur`, `exitSharpen`); its text leaves on the layer's. An incoming accent
-      // may grow from a size of its own (`enterScale`).
-      const accentBlur = entering ? layerBlur : (pres: number) => (1 - pres) ** look.exitSharpen * (look.exitBlur ?? look.blur);
-      const accentFrom = entering ? (look.enterScale ?? look.scale) : (look.exitScale ?? look.scale);
-      const accentScale = (pres: number) => accentFrom + (1 - accentFrom) * pres;
-      const bubbleBlur = (pres: number) =>
-        entering ? Math.min(look.bubbleBlurMax ?? peakBlur, (1 - pres) ** look.bubbleSharpen * look.bubbleBlur) : layerBlur(pres);
-      // A leaving bubble's accent may blur on a peak of its own (`bubbleExitBlur`); its text keeps the layer's.
-      const bubbleAccentBlur = (pres: number) => (!entering && look.bubbleExitBlur !== null ? (1 - pres) * look.bubbleExitBlur : bubbleBlur(pres));
-      // An incoming trailing slot of the compact pill or the split's attached pill may take a peak
-      // blur of its own (`trailingEnterBlur`): split-t1, t2, t9's "42" shows crisp from first sight
-      // (0.4 to 0.5 pt) while its orange is still soft (round 24).
-      const trailingBlur = (pres: number) => remaining(pres, look.trailingEnterClear) ** sharpen * (entering && look.trailingEnterBlur !== null ? look.trailingEnterBlur : peakBlur);
-      const put = (
-        name: SlotName,
-        cx: number,
-        cy: number,
-        w: number,
-        h: number,
-        pres: number,
-        follow: number,
-        power = fade,
-        scaleAt: (pres: number) => number = (pres) => look.scale + (1 - look.scale) * pres,
-        blurAt = layerBlur,
-        stretch = 1,
-        band: { top: number; bottom: number; cap?: number } | null = null,
-        glow = 0,
-        blurStretch = 1,
-      ) => {
-        const element = map[name];
-        if (!element) return;
-        const presenceScale = reduced ? 1 : scaleAt(pres);
-        const s = follow * presenceScale;
-        // Filters apply before the transform, so divide by the scale to blur by `blur` on screen.
-        // A stretched slot (`bubbleStretch`) widens its blur with it, as a layer laid out wider would;
-        // a squeezed one (`enterSqueeze`) divides by `blurStretch` too, so its blur stays nearer round.
-        const blur = reduced ? 0 : blurAt(pres) / Math.max(s * blurStretch, 0.05);
-        // The slot's blur on screen sets the weight of its wide part (`blurSkirt`); the slot gives that much up.
-        const parent = element.parentElement;
-        const copies = skirt !== undefined && parent !== null && Skirts.canCopy(element);
-        const base: SlotDraw = {
-          // A compact slot coming in may show a faint glow on the layer's presence first (`enterGlow`).
-          opacity: reduced ? reducedOpacity(pres) : Math.max(pres ** power, glow * p),
-          blur,
-          x: settle(cx - w / 2),
-          y: settle(cy - h / 2),
-          sx: s * stretch,
-          sy: s,
-          lift: 0,
-          follow: 0,
-          bandTop: band?.top ?? 0,
-          bandBottom: band?.bottom ?? 0,
-          cap: band?.cap ?? 0,
-          skirt: copies ? skirtWeight(skirt, reduced ? 0 : blurAt(pres), !entering) * look.skirt : 0,
+        const presenceGone =
+          p <= 0.001 && Math.max(pBubble, pBubbleText) <= 0.001 && carriedOpacity <= 0.001;
+        // The brightest opacity this layer's slots draw this frame, carries included (`blend`): a
+        // layer coming in hides only while none of its slots shows. Its lagging parts and a carried
+        // ratio can draw more than its presence says, and hiding those while it comes in revealed
+        // them a frame later (seed 5573: the split's trailing text, held at 0.021 while the
+        // presence passed 0.001, hidden for two frames and shown again).
+        let drawnMax = 0;
+        const drawn: LayerDraw | null = sink
+          ? { shown: true, slots: new Map(), capTravel: null }
+          : null;
+        if (sink && drawn) sink.layers.set(key, drawn);
+        /**
+         * Adds the carry to a slot's numbers, or puts them in the sink. Returns null once they went
+         * to the sink, else the numbers to write: `base` itself when nothing is carried.
+         */
+        const blend = (name: SlotName, base: SlotDraw): SlotDraw | null => {
+          const carried = carryWeight > 0 ? carry?.slots.get(name) : undefined;
+          const out = carried ? addCarry(base, carried, carryWeight, carrySpeed) : base;
+          // The expanded root and clip write no opacity: their content's regions do.
+          if (name !== "root" && name !== "expandedClip")
+            drawnMax = Math.max(drawnMax, out.opacity);
+          if (!drawn) return out;
+          drawn.slots.set(name, out);
+          return null;
         };
-        const d = blend(name, base);
-        if (!d) return;
-        const wide = copies ? d.skirt : 0;
-        element.style.opacity = `${wide > 0 ? d.opacity * (1 - wide * dim) : d.opacity}`;
-        element.style.filter = d.blur > 0.01 ? `blur(${d.blur.toFixed(2)}px)` : "none";
-        element.style.transform = `translate(${d.x}px, ${d.y}px) scale(${d.sx}, ${d.sy})`;
-        element.style.willChange = layerHint(d === base && pres >= 1 && s === 1 && stretch === 1 && blur <= 0.01);
-        const echo = skirt && parent && wide > 0 ? echoes.echo(element, parent, false, []) : null;
-        if (skirt && echo) {
-          // The copy draws where the slot does, under its band clip (copied below once written).
-          echo.node.style.opacity = `${d.opacity * wide}`;
-          echo.node.style.filter = `blur(${skirtBlur(skirt, d.sy).toFixed(2)}px)`;
-          echo.node.style.transform = element.style.transform;
-        }
-        if (band) {
-          // The clip applies after the blur, in the slot's own units (scaled about its centre), so
-          // the blurred content is cut by a crisp line at the band's screen top and bottom. The
-          // sides reach far out: the island's own outline and the sensor cut those. Carried, the
-          // slot's centre moves with its carried place.
-          const midX = d === base ? cx : cx + (d.x - base.x);
-          const midY = d === base ? cy : cy + (d.y - base.y);
-          const sy = Math.max(d.sy, 0.05);
-          const top = h / 2 + (d.bandTop - midY) / sy;
-          const bottom = h / 2 + (d.bandBottom - midY) / sy;
-          const reach = (bandReach / sy).toFixed(1);
-          const right = (w + bandReach / sy).toFixed(1);
-          if (band.cap === undefined) {
-            element.style.clipPath = `polygon(-${reach}px ${top.toFixed(2)}px, ${right}px ${top.toFixed(2)}px, ${right}px ${bottom.toFixed(2)}px, -${reach}px ${bottom.toFixed(2)}px)`;
-          } else {
-            // The band ends on the right in a half-circle of the band's half-height centred at
-            // `cap` on screen (`bubbleCap`); a stretched slot draws it as an ellipse in its own units.
-            const sx = Math.max(d.sx, 0.05);
-            const capX = (w / 2 + (d.cap - midX) / sx).toFixed(2);
-            const rx = ((d.bandBottom - d.bandTop) / 2 / sx).toFixed(2);
-            const ry = ((bottom - top) / 2).toFixed(2);
-            element.style.clipPath = `path("M -${reach} ${top.toFixed(2)} L ${capX} ${top.toFixed(2)} A ${rx} ${ry} 0 0 1 ${capX} ${bottom.toFixed(2)} L -${reach} ${bottom.toFixed(2)} Z")`;
+        if (!sink) {
+          if (kind !== "expanded") {
+            map.root.style.clipPath = clipPath;
+            writeBlur(map.root, 0);
           }
         }
-        if (echo) echo.node.style.clipPath = element.style.clipPath;
-      };
-      const at = (fx: number, fy: number) => ({ x: box.x + fx * sx, y: box.y + fy * sy });
-      // An incoming accent may be drawn narrower while the pill is narrower than at rest
-      // (`enterSqueeze`), about its inner edge: the slot moves toward the sensor by the width it loses.
-      // It may also start narrower on its presence alone (`enterNarrow`), the pill's width aside.
-      const squeezeOf = (leading: boolean) => {
-        if (!entering || !leading || reduced) return 1;
-        const byWidth = look.enterSqueeze > 0 && sx < 1 ? sx ** look.enterSqueeze : 1;
-        // Never under `narrowFloor`: the slot's width is measured through its scale (`contentWidth`),
-        // and a slot drawn at no width at all would read as empty and resize the pill.
-        const byPresence = look.enterNarrow > 0 ? Math.max(narrowFloor, p ** look.enterNarrow) : 1;
-        return byWidth * byPresence;
-      };
-      // `enterSqueezeOrigin` 1 holds the outer edge instead, so the slot moves away from the sensor.
-      const inward = (w: number, pres: number, squeeze: number) =>
-        squeeze < 1 ? (w / 2) * k * accentScale(pres) * (1 - squeeze) * (1 - 2 * look.enterSqueezeOrigin) : 0;
-      // An incoming trailing slot may start toward the sensor and slide out from under it
-      // (`trailingSlide`); `toward` is +1 for a slot left of the sensor, -1 for one right of it.
-      // A slot interrupted on its way in leaves from where it was drawn: its offset eases out from
-      // there (`leavingSlides`).
-      const kept = entering ? 0 : (leavingSlides.current.get(key)?.valueAt(t) ?? 0);
-      const slide = (toward: number, pres: number) =>
-        reduced
-          ? 0
-          : entering
-            ? look.trailingSlide !== 0
-              ? toward * look.trailingSlide * (1 - pres) ** look.trailingSlidePower
-              : 0
-            : kept !== 0
-              ? toward * kept
-              : 0;
-      /**
-       * A slot's centre `now`, moved by what puts its resting centre `restCentre` (a slot `w` by `h`)
-       * on the device-pixel grid. Without a resting layout there is nothing to snap to.
-       */
-      const onGrid = (now: { x: number; y: number }, restCentre: { x: number; y: number }, w: number, h: number) =>
-        rest ? { x: now.x + toGrid(restCentre.x - w / 2), y: now.y + toGrid(restCentre.y - h / 2) } : now;
-      const restAt = (fx: number, fy: number) => ({ x: restBox.x + fx, y: restBox.y + fy });
-      /**
-       * A compact or split slot's centre, `fx` from the resting shape's left edge, for content at
-       * presence `pres`: its fraction of the width, blended by `look.anchor` toward scaling about
-       * the island's centre with the slot's own scale. A negative anchor (toward the island's end)
-       * moves the leading slot only: iOS's returning circle starts near the pill's end while its
-       * text stays at its place (collapse-t1, t9: "42" 15 pt in from the right end throughout).
-       * `w` is the slot's own width: with it, an incoming leading slot on a negative anchor never
-       * reaches past its resting inner edge (below).
-       */
-      const slotAt = (fx: number, fy: number, pres: number, leading: boolean, w = 0, squeeze = 1, from = look.scale) => {
-        // The trailing slot may keep its distance from the pill's right end instead (`trailingRide`).
-        const share = at(fx, fy);
-        const rideBy = leading || reduced || !look.trailingRide ? 0 : look.trailingRide.by * (box.x + box.w - (restBox.w - fx) - share.x);
-        const ride = look.trailingRide ? Math.max(-look.trailingRide.max, Math.min(look.trailingRide.max, rideBy)) : 0;
-        const proportional = { x: share.x + ride, y: share.y };
-        // A leaving trailing slot may take an anchor of its own (`trailingExitAnchor`); a negative
-        // layer anchor moves the leading slot only.
-        const anchor = leading ? look.anchor : !entering && look.trailingExitAnchor !== null ? look.trailingExitAnchor : Math.max(0, look.anchor);
-        if (anchor === 0 || reduced) return { x: proportional.x + inward(w, pres, squeeze), y: proportional.y };
-        const s = k * (from + (1 - from) * pres);
-        const centred = box.x + box.w / 2 + (fx - restBox.w / 2) * s;
-        const x = proportional.x + (centred - proportional.x) * anchor;
-        // The negative anchor is fitted on pills wider than at rest. In one narrower than at rest
-        // (unsplit dips to 110 pt of its 150 while A comes back) its push turns toward the centre
-        // and put the returning circle under the sensor, a flat bite where iOS's stays round. iOS
-        // keeps the circle's inner edge at its resting place and lets the outline clip its outer
-        // side (round 35, every seen unsplit take: right edge 152.0 to 153.3 pt at every width).
-        // The collapses dip under their rest width as they settle and had the same bite on a few
-        // frames (collapse: past the sensor's end on 22% of the returning circle's frames, now none).
-        if (!leading || !entering || anchor >= 0 || w <= 0) return { x: x + inward(w, pres, squeeze), y: proportional.y };
-        const drawn = k * accentScale(pres);
-        return { x: Math.min(x, restBox.x + fx + (w / 2) * (1 - drawn)) + inward(w, pres, squeeze), y: proportional.y };
-      };
-
-      switch (kind) {
-        case "idle":
-          break;
-        case "compact": {
-          const pad = m.compact.edgePadding;
-          const h = m.compact.height;
-          const lx = pad + size.leading / 2;
-          const tx = restBox.w - pad - size.trailing / 2;
-          const squeeze = squeezeOf(true);
-          // A leaving accent's place may travel on a scale of its own (`exitTravel`); its text keeps `scale`.
-          const leadFrom = entering ? look.scale : (look.exitTravel ?? look.scale);
-          const lead = onGrid(slotAt(lx, restBox.h / 2, p, true, size.leading, squeeze, leadFrom), restAt(lx, restBox.h / 2), size.leading, h);
-          // An incoming trailing slot may grow from a scale of its own (`trailingScale`).
-          const trailFrom = entering && look.trailingScale !== null ? look.trailingScale : look.scale;
-          const trailAt = onGrid(slotAt(tx, restBox.h / 2, pTrailing, false, 0, 1, trailFrom), restAt(tx, restBox.h / 2), size.trailing, h);
-          const trail = { x: trailAt.x + slide(-1, pTrailing), y: trailAt.y };
-          const glow = entering ? look.enterGlow : 0;
-          // The squeeze narrows the blur with the accent; dividing by its square root splits that
-          // between the two axes, so the squeezed circle is not sharper at its sides than above.
-          put("leading", lead.x, lead.y, size.leading, h, p, k, leadFade, accentScale, accentBlur, squeeze, null, glow, Math.sqrt(squeeze));
-          put("trailing", trail.x, trail.y, size.trailing, h, pTrailing, k, fade, (pres) => trailFrom + (1 - trailFrom) * pres, trailingBlur, 1, null, glow);
-          break;
-        }
-        case "minimal": {
-          const slotH = m.minimal.height;
-          const split = size.useSplit ? size.split : null;
-          const show = (element: HTMLElement | undefined, visible: boolean) => {
-            if (element && !sink) element.style.visibility = visible ? "inherit" : "hidden";
+        const size = widths.current.get(key) ?? emptySize;
+        // Content follows the container: laid out for its resting shape, mapped into the current one.
+        const rest = rests.current.get(key);
+        const restBox = rest
+          ? { x: width / 2 + rest.left, y: rest.top, w: rest.right - rest.left, h: rest.height }
+          : box;
+        const sx = restBox.w > 0.5 ? box.w / restBox.w : 1;
+        const sy = restBox.h > 0.5 ? box.h / restBox.h : 1;
+        const c = m.content;
+        // A transition may follow the container less, or not at all (`ContentMotion.follow`).
+        const k = reduced
+          ? 1
+          : full(
+              Math.min(
+                c.followMax,
+                Math.max(c.followMin, (sx * sy) ** ((look.follow ?? c.follow) / 2)),
+              ),
+            );
+        /** Writes presence and position: `cx`, `cy` is where the slot's centre goes, `w`, `h` its own size. */
+        // The leading slot may brighten ahead of the rest as it comes in (`leadingFade`).
+        const leadFade = entering ? fade * look.leadingFade : fade * look.exitLeadingFade;
+        // Coming in, blur may fall faster than presence rises (`sharpen`); going out it tracks it.
+        const peakBlur = entering ? look.enterBlur : look.blur;
+        const sharpen = entering ? look.sharpen : 1;
+        // Coming in, the blur may clear before presence is full (`enterClear`): what is left of it is
+        // measured to 1 - clear instead of 1, so the first frames keep their blur and the tail ends sooner.
+        const remaining = (pres: number, clear: number) => blurLeft(pres, entering ? clear : 0);
+        /** Blur in px at presence `pres`: the layer's curve, or the bubble's (`bubbleBlur`, capped at the peak). */
+        const layerBlur = (pres: number) => remaining(pres, look.enterClear) ** sharpen * peakBlur;
+        // A leaving accent (the leading slot) may keep its size and spread late on its own curve
+        // (`exitScale`, `exitBlur`, `exitSharpen`); its text leaves on the layer's. An incoming accent
+        // may grow from a size of its own (`enterScale`).
+        const accentBlur = entering
+          ? layerBlur
+          : (pres: number) => (1 - pres) ** look.exitSharpen * (look.exitBlur ?? look.blur);
+        const accentFrom = entering
+          ? (look.enterScale ?? look.scale)
+          : (look.exitScale ?? look.scale);
+        const accentScale = (pres: number) => accentFrom + (1 - accentFrom) * pres;
+        const bubbleBlur = (pres: number) =>
+          entering
+            ? Math.min(
+                look.bubbleBlurMax ?? peakBlur,
+                (1 - pres) ** look.bubbleSharpen * look.bubbleBlur,
+              )
+            : layerBlur(pres);
+        // A leaving bubble's accent may blur on a peak of its own (`bubbleExitBlur`); its text keeps the layer's.
+        const bubbleAccentBlur = (pres: number) =>
+          !entering && look.bubbleExitBlur !== null
+            ? (1 - pres) * look.bubbleExitBlur
+            : bubbleBlur(pres);
+        // An incoming trailing slot of the compact pill or the split's attached pill may take a peak
+        // blur of its own (`trailingEnterBlur`): split-t1, t2, t9's "42" shows crisp from first sight
+        // (0.4 to 0.5 pt) while its orange is still soft (round 24).
+        const trailingBlur = (pres: number) =>
+          remaining(pres, look.trailingEnterClear) ** sharpen *
+          (entering && look.trailingEnterBlur !== null ? look.trailingEnterBlur : peakBlur);
+        const put = (
+          name: SlotName,
+          cx: number,
+          cy: number,
+          w: number,
+          h: number,
+          pres: number,
+          follow: number,
+          power = fade,
+          scaleAt: (pres: number) => number = (pres) => look.scale + (1 - look.scale) * pres,
+          blurAt = layerBlur,
+          stretch = 1,
+          band: { top: number; bottom: number; cap?: number } | null = null,
+          glow = 0,
+          blurStretch = 1,
+        ) => {
+          const element = map[name];
+          if (!element) return;
+          const presenceScale = reduced ? 1 : scaleAt(pres);
+          const s = follow * presenceScale;
+          // Filters apply before the transform, so divide by the scale to blur by `blur` on screen.
+          // A stretched slot (`bubbleStretch`) widens its blur with it, as a layer laid out wider would;
+          // a squeezed one (`enterSqueeze`) divides by `blurStretch` too, so its blur stays nearer round.
+          const blur = reduced ? 0 : blurAt(pres) / Math.max(s * blurStretch, 0.05);
+          // The slot's blur on screen sets the weight of its wide part (`blurSkirt`); the slot gives that much up.
+          const parent = element.parentElement;
+          const copies = skirt !== undefined && parent !== null && Skirts.canCopy(element);
+          const base: SlotDraw = {
+            // A compact slot coming in may show a faint glow on the layer's presence first (`enterGlow`).
+            opacity: reduced ? reducedOpacity(pres) : Math.max(pres ** power, glow * p),
+            blur,
+            x: settle(cx - w / 2),
+            y: settle(cy - h / 2),
+            sx: s * stretch,
+            sy: s,
+            lift: 0,
+            follow: 0,
+            bandTop: band?.top ?? 0,
+            bandBottom: band?.bottom ?? 0,
+            cap: band?.cap ?? 0,
+            skirt: copies
+              ? skirtWeight(skirt, reduced ? 0 : blurAt(pres), !entering) * look.skirt
+              : 0,
           };
-          show(map.attached, split === null);
-          show(map.detached, split === null);
-          show(map.splitAttachedLeading, split !== null);
-          show(map.splitAttachedTrailing, split !== null);
-          show(map.splitDetachedLeading, split !== null);
-          show(map.splitDetachedTrailing, split !== null);
-          // Bubble content rides the capsule (its left edge springs out of the pill) at its own size.
-          // It rides the bubble's live width (`span`) also once the bubble is too small to draw or
-          // gone, down to none: switching to the resting width there was a jump (canonical unsplit
-          // f174: 11.3 px at 7.6% opacity; a pressed bubble taken in by an alert: 26 px at 8%).
-          // Vertically it is centred in the island's current height while that is taller than the
-          // bubble (coming back into a split from expanded), then cut to the row's band below:
-          // the returning circle's centre tracks the collapsing shape's (split-collapse-b-t1 at
-          // 138: shape 14 to 58, green 24.7 to 48.3; split-alert-t1 at 845 and 849: 36.2 and 33.0
-          // against 36.5 and 33.3).
-          const bubbleMid = bubble.y + bubble.height / 2;
-          const boxMid = box.y + box.h / 2;
-          // The island's middle is held to where the bubble still fits inside the island's height,
-          // which is the bubble's own middle once the island is no taller: switching from one to the
-          // other as the heights crossed was a step by the pill's lift (seed 1778: 0.63 px at 5%).
-          // Once the bubble is taken in, its content keeps the resting bubble's row, as it keeps its
-          // width (`span`): falling back to the island's middle there was a step (seed 1817: 0.25 px).
-          const row = bubble.height > 0 ? bubble.height : (rest?.bubbleHeight ?? 0);
-          const room = Math.max(0, box.h - row) / 2;
-          const by = reduced ? (bubble.height > 0 ? bubbleMid : boxMid) : row > 0 ? bubbleMid + Math.max(-room, Math.min(room, boxMid - bubbleMid)) : boxMid;
-          const bw = bubble.span;
-          // Coming in, the bubble's content may hold its resting place and spread out about the
-          // resting bubble's centre (`bubbleSpread`) instead of riding the moving bubble.
-          const bubbleFrom = entering ? look.bubbleScale : look.scale;
-          const spread = entering && !reduced && rest ? look.bubbleSpread : 0;
-          const restBubbleX = rest ? width / 2 + rest.bubbleLeft : bubble.x;
-          const restBubbleW = rest ? rest.bubbleRight - rest.bubbleLeft : bw;
-          // A pressed bubble swells about its centre and its content with it, as the pill's does.
-          const gb = bubble.height > 0 ? bubble.scale : 1;
-          // The bubble's content is cut to the resting row's band (the compact height), whatever
-          // the shape around it: returning into a split, the blurred circle shows a crisp bottom
-          // edge at 50.0 to 50.7 pt inside the taller collapsing shape (split-alert-t1, 10 to 90%
-          // in 0.7 pt; split-collapse-b-t1, t2, t9), where an unclipped blur fades over 13 pt.
-          const bandMid = rest ? rest.top + rest.height / 2 : 0;
-          const band = rest && !reduced ? { top: bandMid - (rest.height / 2) * gb, bottom: bandMid + (rest.height / 2) * gb } : null;
-          for (const element of [map.detached, map.splitDetachedLeading, map.splitDetachedTrailing]) {
-            if (element && !band && !sink) element.style.clipPath = "none";
+          const d = blend(name, base);
+          if (!d) return;
+          const wide = copies ? d.skirt : 0;
+          element.style.opacity = `${wide > 0 ? d.opacity * (1 - wide * dim) : d.opacity}`;
+          element.style.filter = d.blur > 0.01 ? `blur(${d.blur.toFixed(2)}px)` : "none";
+          element.style.transform = `translate(${d.x}px, ${d.y}px) scale(${d.sx}, ${d.sy})`;
+          element.style.willChange = layerHint(
+            d === base && pres >= 1 && s === 1 && stretch === 1 && blur <= 0.01,
+          );
+          const echo = skirt && parent && wide > 0 ? echoes.echo(element, parent, false, []) : null;
+          if (skirt && echo) {
+            // The copy draws where the slot does, under its band clip (copied below once written).
+            echo.node.style.opacity = `${d.opacity * wide}`;
+            echo.node.style.filter = `blur(${skirtBlur(skirt, d.sy).toFixed(2)}px)`;
+            echo.node.style.transform = element.style.transform;
           }
-          // Coming in, the content may grow about a point on its row (`bubbleOrigin`) instead of
-          // riding the collapsing shape's middle: its top stays near the row's top and the row cuts
-          // its bottom, so the sensor bites it along its whole end.
-          const origin = entering && band && look.bubbleOrigin !== null ? band.top + look.bubbleOrigin * (band.bottom - band.top) : null;
-          // With an origin the content holds that larger, stretched form until presence reaches
-          // `bubbleHold`, then resolves on the blur's power (`bubbleSharpen`) or its own (`bubbleResolve`):
-          // iOS's patch keeps its place for 5 to 6 frames, then becomes the circle within about 6 to 10
-          // (split-collapse-b-t1, t2, t9).
-          const lobe = origin !== null ? clamp01(((1 - pBubble) / Math.max(1 - look.bubbleHold, 0.01)) ** (look.bubbleResolve ?? look.bubbleSharpen)) : null;
-          const closing = lobe ?? (1 - pBubble) ** look.sharpen;
-          const bubbleScaleAt = (pres: number) => (lobe !== null ? 1 + (bubbleFrom - 1) * lobe : bubbleFrom + (1 - bubbleFrom) * pres);
-          // The accent may settle into its size from below after its presence is complete
-          // (`bubbleSettle`); its place on the row and its text keep `bubbleScaleAt`.
-          const settling = entering && !reduced ? bubbleSettles.current.get(key) : undefined;
-          // Under `settled` (about 0.02 pt on a 22 pt circle) it is drawn at exactly scale 1, so the
-          // accent drops its compositor layer as soon as it looks settled: on its own layer the
-          // circle's edge rasterises up to 111 levels apart from the resting one (split-alert, round 27).
-          const shortfall = settling ? look.bubbleSettle * (1 - clamp01(settling.valueAt(t))) : 0;
-          const under = shortfall < settled ? 0 : shortfall;
-          const accentScaleAt = (pres: number) => bubbleScaleAt(pres) * (1 - under);
-          // The bubble's content may come in on its own opacity curve (`bubbleFade`): dimmer while
-          // its returning form is larger than the circle. Easing it back to `fade` as the form
-          // resolved left the patch too bright mid-way (split-alert blue ink 39 to 21 of 57 frames).
-          const bubbleFade = entering ? (look.bubbleFade ?? fade) : fade;
-          const bubbleY = origin === null ? by : origin + (bandMid - origin) * bubbleScaleAt(pBubble);
-          // Coming in, the bubble's content may start stretched across the lobe (`bubbleStretch`).
-          const stretch = entering && !reduced && rest ? 1 + look.bubbleStretch * closing : 1;
-          // The accent's may close faster than the size does (`bubbleStretchPower`); the text keeps the size's curve.
-          const accentStretch = entering && !reduced && rest ? 1 + look.bubbleStretch * closing ** look.bubbleStretchPower : 1;
-          // The content may ride ahead of the bubble by its left edge's speed (`bubbleLead`): coming
-          // in it leaves the sensor sooner, going out (the bubble closing in) it slides under it sooner.
-          // With a ramp it grows in as the bubble's left edge comes out of the pill: the edge starts
-          // its own height inside the attached pill's resting end.
-          const anim = shape.current;
-          const emerged = bubble.x + row - (restBox.x + restBox.w);
-          const leadShare = look.bubbleLeadRamp > 0 ? clamp01(emerged / look.bubbleLeadRamp) ** look.bubbleLeadPower : 1;
-          const lead = !reduced && look.bubbleLead !== 0 && anim ? look.bubbleLead * bubblePose(anim, t).left.velocity * leadShare : 0;
-          // Going out, the accent may slide on toward the sensor, which sits left of the bubble (`bubbleExitSlide`).
-          const exitSlide = !entering && !reduced && look.bubbleExitSlide !== 0 ? -look.bubbleExitSlide * (1 - p) ** look.bubbleExitSlidePower : 0;
-          /** Centre x of a bubble slot `dx` from the bubble's left edge (`dxRest` at rest). */
-          const bubbleSlot = (dx: number, dxRest: number) => {
-            if (spread <= 0) return bubble.x + lead + dx * gb;
-            const centre = restBubbleX + restBubbleW / 2;
-            // The spread closes with the blur (`sharpen`), so the slots are in place once sharp.
-            return centre + (restBubbleX + dxRest - centre) * (1 + spread * (1 - pBubble) ** look.sharpen);
-          };
-          // Coming in, the leading content's band may end in a cap (`bubbleCap`) right of its centre.
-          // The cap comes out from under the sensor (the attached pill's resting end) and travels to
-          // the row's half-height past the slot's resting centre as 1 - (1 - presence) ^ `bubbleCap`.
-          // It never cuts into the content's resting size (a slot wider than the cap keeps its
-          // width) and lets go once the content is in.
-          const pillEnd = restBox.x + restBox.w;
-          // A layer interrupted while it showed keeps the cap it had (`capHolds`): held where it
-          // was, or none, until the bubble is in. Otherwise the cap travels while it comes in.
-          const held = capHolds.current.get(key);
-          const holding = held !== undefined && (!entering || pBubble < 0.995);
-          const capTravel = holding ? held : !entering || look.bubbleCap <= 0 || pBubble >= 0.995 ? null : 1 - (1 - pBubble) ** look.bubbleCap;
-          if (drawn && band) drawn.capTravel = capTravel;
-          const capped = (b: typeof band, slot: { rest: number; now: number; w: number }) => {
-            if (!b || capTravel === null) return b;
-            const r = (b.bottom - b.top) / 2;
-            const travel = capTravel;
-            const end = Math.max(pillEnd + (slot.rest + r - pillEnd) * travel, slot.now + (slot.w / 2) * gb);
-            return { ...b, cap: end - r };
-          };
-          // Coming back, the attached pill's slots may keep to the resting row (`rowAnchor`).
-          const toRow = entering && band && !reduced ? look.rowAnchor : 0;
-          const onRow = (slot: { x: number; y: number }) => (toRow > 0 ? { x: slot.x, y: slot.y + (bandMid - slot.y) * toRow } : slot);
-          if (split) {
-            const s = m.split;
-            const lw = split.attached.leading;
-            const lx = s.attached.outerPadding + lw / 2;
-            const tx = s.attached.outerPadding + lw + (lw > 0 ? s.attached.gap : 0) + split.attached.trailing / 2;
-            // The attached slots may step toward the bubble and settle back (`partStep`).
-            const stepValue = entering && !reduced && look.partStep ? partSteps.current.get(key) : undefined;
-            const stepNow = stepValue && look.partStep ? look.partStep.by * stepValue.valueAt(t) : 0;
-            const step = Math.abs(stepNow) < 0.005 ? 0 : stepNow;
-            const stepped = (slot: { x: number; y: number }) => (step === 0 ? slot : { x: slot.x + step, y: slot.y });
-            const lead = onGrid(stepped(onRow(slotAt(lx, restBox.h / 2, p, true, lw))), restAt(lx, restBox.h / 2), lw, slotH);
-            const trailAt = onGrid(stepped(onRow(slotAt(tx, restBox.h / 2, pTrailing, false))), restAt(tx, restBox.h / 2), split.attached.trailing, slotH);
-            const trail = { x: trailAt.x + slide(1, pTrailing), y: trailAt.y };
-            put("splitAttachedLeading", lead.x, lead.y, lw, slotH, p, k, leadFade, accentScale, accentBlur);
-            put("splitAttachedTrailing", trail.x, trail.y, split.attached.trailing, slotH, pTrailing, k, fade, undefined, trailingBlur);
-            const dl = split.detached.leading;
-            const dlx = s.detached.outerPadding + dl / 2;
-            const dl0 = onGrid({ x: bubbleSlot(dlx, dlx), y: bubbleY }, { x: restBubbleX + dlx, y: bandMid }, dl, slotH);
-            const dlCx = dl0.x + exitSlide;
-            put("splitDetachedLeading", dlCx, dl0.y, dl, slotH, pBubble, gb, bubbleFade, accentScaleAt, bubbleAccentBlur, accentStretch, capped(band, { rest: restBubbleX + dlx, now: dlCx, w: dl }));
-            // The bubble's text is fully in at the pinch (split-t1), so it takes no trailing delay. It
-            // rides the bubble's right edge, cut to the room the bubble leaves it (`bubbleTrailing`).
-            const trailing = bubbleTrailing(split.detached, restBubbleW, m);
-            const dtx = trailing.fromRight;
-            // Coming in, the text may slide in from the bubble's end (`bubbleTrailingSlide`).
-            const textSlide = entering && !reduced && rest && look.bubbleTrailingSlide ? look.bubbleTrailingSlide.by * (1 - pBubbleText) ** look.bubbleTrailingSlide.power : 0;
-            // ...and blur on a curve of its own (`bubbleTrailingBlur`), capped where the bubble's is.
-            const textBlur = look.bubbleTrailingBlur;
-            const bubbleTextBlur = entering && textBlur ? (pres: number) => Math.min(look.bubbleBlurMax ?? peakBlur, textBlur.by * (1 - pres) ** textBlur.power) : bubbleBlur;
-            const dt0 = onGrid({ x: bubbleSlot(bw / gb - dtx, restBubbleW - dtx) + textSlide, y: bubbleY }, { x: restBubbleX + restBubbleW - dtx, y: bandMid }, trailing.width, slotH);
-            put("splitDetachedTrailing", dt0.x, dt0.y, trailing.width, slotH, pBubbleText, gb, entering && look.bubbleTrailingFade > 0 ? look.bubbleTrailingFade : bubbleFade, bubbleScaleAt, bubbleTextBlur, stretch, band);
-          } else {
-            const ax = m.minimal.attached.outerPadding + size.attached / 2;
-            const lead = onGrid(onRow(slotAt(ax, restBox.h / 2, p, true, size.attached)), restAt(ax, restBox.h / 2), size.attached, slotH);
-            put("attached", lead.x, lead.y, size.attached, slotH, p, k, fade, accentScale, accentBlur);
-            const d0 = onGrid({ x: bubbleSlot(bw / gb / 2, restBubbleW / 2), y: bubbleY }, { x: restBubbleX + restBubbleW / 2, y: bandMid }, size.detached, slotH);
-            const dCx = d0.x + exitSlide;
-            put("detached", dCx, d0.y, size.detached, slotH, pBubble, gb, bubbleFade, accentScaleAt, bubbleAccentBlur, accentStretch, capped(band, { rest: restBubbleX + restBubbleW / 2, now: dCx, w: size.detached }));
-          }
-          break;
-        }
-        case "expanded": {
-          // The expanded view's own layout (padding, grid) then lands on whole pixels too.
-          const ex = settle(rest ? box.x + toGrid(restBox.x) : box.x);
-          const ey = settle(rest ? box.y + toGrid(restBox.y) : box.y);
-          if (map.expanded && !sink) {
-            map.expanded.style.transform = `translate(${ex}px, ${ey}px)`;
-            map.expanded.style.willChange = layerHint(p >= 1 && k === 1);
-          }
-          // iOS blurs the expanded view as one layer, after its content clip: the clip's cut softens
-          // with the rest (expand-t1 140: the incoming square ramps off where the clip crosses it,
-          // half height at the clip, where a clip after the blur left a hard step). Regions that
-          // lag (`regions`, `centerDelay`) add their extra blur in quadrature on their own element.
-          // A region with its own lower peak (`RegionLag.peak`) takes the shared blur down with it;
-          // the others add the rest on their own element.
-          const peakOf = (region: ExpandedRegion) => (entering ? (look.regions[region]?.peak ?? peakBlur) : peakBlur);
-          const sharedPeak = regionSlots.reduce((low, [slot, region]) => (map[slot] && size.regions[region] ? Math.min(low, peakOf(region)) : low), peakBlur);
-          const unused = { opacity: 1, x: 0, y: 0, sx: 1, sy: 1, lift: 0, bandTop: 0, bandBottom: 0, cap: 0, skirt: 0 };
-          // Coming in, the expanded view's blur may clear early too (`enterClear`, round 40).
-          const sharedBase: SlotDraw = { ...unused, blur: reduced ? 0 : remaining(p, look.enterClear) ** sharpen * sharedPeak, follow: 0 };
-          // The regions' own blur is reckoned against the root's uncarried blur: each element's
-          // number is then carried on its own, and what they add up to on screen stays continuous.
-          const shared = sharedBase.blur;
-          const rootDrawn = blend("root", sharedBase);
-          if (rootDrawn) {
-            map.root.style.clipPath = "none";
-            writeBlur(map.root, rootDrawn.blur);
-          }
-          // Coming in, the clip may follow the content rather than the outline (`clipFollow`). A leaving
-          // layer keeps the live clip, unless it was interrupted on its way in (`leavingClip` below).
-          const follows = !reduced && rest && paths.pill ? look.clipFollow : 0;
-          // In its resting shape the following clip is the live one (`followingClip`), so what is
-          // carried is the follow that shows: none there, whatever the look asks.
-          const resting = Math.abs(sx - 1) < 1e-9 && Math.abs(sy - 1) < 1e-9 && Math.abs(pill.radius - (rest?.radius ?? pill.radius)) < 1e-9;
-          const followBase: SlotDraw = { ...unused, blur: 0, follow: resting ? 0 : follows };
-          const followDrawn = map.expandedClip ? blend("expandedClip", followBase) : null;
-          if (map.expandedClip && followDrawn) {
-            const clipFollow = followDrawn === followBase ? follows : rest && paths.pill ? clamp01(followDrawn.follow) : 0;
-            map.expandedClip.style.clipPath =
-              clipFollow > 0
-                ? `path("${followingClip(box, pill.radius, restBox, rest?.radius ?? pill.radius, m.contentClip.radius, clipFollow)} ${paths.bubbleClip}")`
-                : clipPath;
-          }
-          // The regions drawing a wide part this frame (`blurSkirt`), with the copy's opacity.
-          const skirted: { element: HTMLElement; opacity: number }[] = [];
-          // Each region keeps its fraction of the shape and scales with it.
-          for (const [slot, region] of regionSlots) {
-            const element = map[slot];
-            const centre = size.regions[region];
-            if (!element || !centre) continue;
-            // Vertically a region keeps its share of the height, or follows the bottom edge by
-            // `bottomAnchor` (expand-t1 +18: iOS's title 13 to 14 pt above rest at 0.84 of the
-            // height, its bar 17, the edge 16.6; a share of the height put them 7 and 13 up).
-            // A region may take an anchor of its own (`regionBottomAnchor`).
-            const dropY = reduced ? 0 : (look.regionBottomAnchor[region] ?? look.bottomAnchor) * (box.h - restBox.h - centre.y * (sy - 1));
-            // A region may come in after the others: its opacity and its blur each lag the layer's
-            // presence (`regions`); without an entry the center waits `centerDelay` for both.
-            const lag = entering && !reduced ? (look.regions[region] ?? (region === "center" && look.centerDelay > 0 ? { fade: look.centerDelay, blur: look.centerDelay } : null)) : null;
-            const behind = (delay: number) => (delay !== 0 ? full(clamp01(lagged(value, t, delay, rejoined) ?? 1)) : p);
-            const pr = lag ? behind(lag.fade) : p;
-            const pb = lag ? behind(lag.blur) : p;
-            // A region may grow from a scale of its own (`RegionLag.scale`) and come in from above its place (`lift`).
-            const from = lag?.scale ?? look.scale;
-            const presenceScale = reduced ? 1 : from + (1 - from) * pb;
-            const scale = k * presenceScale;
-            const lift = reduced ? 0 : (lag?.lift ?? 0) * (1 - pb);
-            // Below 0 `soften` starts the region sharper than its peak; never past no blur at all.
-            const soften = Math.max(0, 1 + (lag?.soften ?? 0) * (1 - pb));
-            const own = remaining(pb, look.enterClear) ** sharpen * peakOf(region) * soften;
-            const blur = reduced ? 0 : Math.sqrt(Math.max(0, own * own - shared * shared)) / Math.max(scale, 0.05);
-            // A leaving region may fade on its own power (`regionExitFade`).
-            const lagOpacity = pr ** (entering ? (lag?.power ?? fade) : (look.regionExitFade[region] ?? fade));
-            const lead = lag?.lead ?? 0;
-            const base: SlotDraw = {
-              ...unused,
-              opacity: reduced ? reducedOpacity(pr) : lead > 0 ? Math.max(lagOpacity, Math.min(lead, p ** fade)) : lagOpacity,
-              blur,
-              x: settle(centre.x * (sx - 1)),
-              y: settle(centre.y * (sy - 1) + dropY),
-              sx: scale,
-              sy: scale,
-              lift,
-              follow: 0,
-              // The region's blur on screen (the root's and its own in quadrature) sets the weight of its wide part.
-              skirt: skirt && !reduced && Skirts.canCopy(element) ? skirtWeight(skirt, own, !entering) * look.skirt : 0,
-            };
-            const d = blend(slot, base);
-            if (!d) continue;
-            const wide = d.skirt;
-            const shift = `translate(${d.x}px, ${d.y}px)`;
-            element.style.opacity = `${wide > 0 ? d.opacity * (1 - wide * dim) : d.opacity}`;
-            writeBlur(element, d.blur);
-            element.style.transform = d.lift > 0.005 ? `${shift} translate(0px, ${(-d.lift).toFixed(2)}px) scale(${d.sy})` : `${shift} scale(${d.sy})`;
-            if (wide > 0) skirted.push({ element, opacity: d.opacity * wide });
-          }
-          // One copy of the clipped view draws every region's wide part: the copy's own clip, then
-          // its blur (with the root's, `width` in all), each region at its own weight.
-          const clipSlot = map.expandedClip;
-          const view = map.expanded;
-          const echo = skirt && clipSlot && view && skirted.length > 0 ? echoes.echo(clipSlot, map.root, true, [view, ...regionSlots.flatMap(([slot]) => map[slot] ?? [])]) : null;
-          if (skirt && echo && clipSlot && view) {
-            echo.node.style.filter = `blur(${Math.sqrt(Math.max(0, skirt.width ** 2 - (rootDrawn?.blur ?? 0) ** 2)).toFixed(2)}px)`;
-            const copyOf = (element: HTMLElement) => echo.parts.get(element);
-            const clipCopy = copyOf(clipSlot);
-            if (clipCopy) clipCopy.style.clipPath = clipSlot.style.clipPath;
-            const viewCopy = copyOf(view);
-            if (viewCopy) viewCopy.style.transform = view.style.transform;
-            for (const [slot] of regionSlots) {
-              const element = map[slot];
-              const copy = element ? copyOf(element) : undefined;
-              if (!element || !copy) continue;
-              const part = skirted.find((entry) => entry.element === element);
-              copy.style.opacity = `${part ? part.opacity : 0}`;
-              copy.style.filter = "none";
-              copy.style.transform = element.style.transform;
+          if (band) {
+            // The clip applies after the blur, in the slot's own units (scaled about its centre), so
+            // the blurred content is cut by a crisp line at the band's screen top and bottom. The
+            // sides reach far out: the island's own outline and the sensor cut those. Carried, the
+            // slot's centre moves with its carried place.
+            const midX = d === base ? cx : cx + (d.x - base.x);
+            const midY = d === base ? cy : cy + (d.y - base.y);
+            const sy = Math.max(d.sy, 0.05);
+            const top = h / 2 + (d.bandTop - midY) / sy;
+            const bottom = h / 2 + (d.bandBottom - midY) / sy;
+            const reach = (bandReach / sy).toFixed(1);
+            const right = (w + bandReach / sy).toFixed(1);
+            if (band.cap === undefined) {
+              element.style.clipPath = `polygon(-${reach}px ${top.toFixed(2)}px, ${right}px ${top.toFixed(2)}px, ${right}px ${bottom.toFixed(2)}px, -${reach}px ${bottom.toFixed(2)}px)`;
+            } else {
+              // The band ends on the right in a half-circle of the band's half-height centred at
+              // `cap` on screen (`bubbleCap`); a stretched slot draws it as an ellipse in its own units.
+              const sx = Math.max(d.sx, 0.05);
+              const capX = (w / 2 + (d.cap - midX) / sx).toFixed(2);
+              const rx = ((d.bandBottom - d.bandTop) / 2 / sx).toFixed(2);
+              const ry = ((bottom - top) / 2).toFixed(2);
+              element.style.clipPath = `path("M -${reach} ${top.toFixed(2)} L ${capX} ${top.toFixed(2)} A ${rx} ${ry} 0 0 1 ${capX} ${bottom.toFixed(2)} L -${reach} ${bottom.toFixed(2)} Z")`;
             }
           }
-          break;
+          if (echo) echo.node.style.clipPath = element.style.clipPath;
+        };
+        const at = (fx: number, fy: number) => ({ x: box.x + fx * sx, y: box.y + fy * sy });
+        // An incoming accent may be drawn narrower while the pill is narrower than at rest
+        // (`enterSqueeze`), about its inner edge: the slot moves toward the sensor by the width it loses.
+        // It may also start narrower on its presence alone (`enterNarrow`), the pill's width aside.
+        const squeezeOf = (leading: boolean) => {
+          if (!entering || !leading || reduced) return 1;
+          const byWidth = look.enterSqueeze > 0 && sx < 1 ? sx ** look.enterSqueeze : 1;
+          // Never under `narrowFloor`: the slot's width is measured through its scale (`contentWidth`),
+          // and a slot drawn at no width at all would read as empty and resize the pill.
+          const byPresence =
+            look.enterNarrow > 0 ? Math.max(narrowFloor, p ** look.enterNarrow) : 1;
+          return byWidth * byPresence;
+        };
+        // `enterSqueezeOrigin` 1 holds the outer edge instead, so the slot moves away from the sensor.
+        const inward = (w: number, pres: number, squeeze: number) =>
+          squeeze < 1
+            ? (w / 2) * k * accentScale(pres) * (1 - squeeze) * (1 - 2 * look.enterSqueezeOrigin)
+            : 0;
+        // An incoming trailing slot may start toward the sensor and slide out from under it
+        // (`trailingSlide`); `toward` is +1 for a slot left of the sensor, -1 for one right of it.
+        // A slot interrupted on its way in leaves from where it was drawn: its offset eases out from
+        // there (`leavingSlides`).
+        const kept = entering ? 0 : (leavingSlides.current.get(key)?.valueAt(t) ?? 0);
+        const slide = (toward: number, pres: number) =>
+          reduced
+            ? 0
+            : entering
+              ? look.trailingSlide !== 0
+                ? toward * look.trailingSlide * (1 - pres) ** look.trailingSlidePower
+                : 0
+              : kept !== 0
+                ? toward * kept
+                : 0;
+        /**
+         * A slot's centre `now`, moved by what puts its resting centre `restCentre` (a slot `w` by `h`)
+         * on the device-pixel grid. Without a resting layout there is nothing to snap to.
+         */
+        const onGrid = (
+          now: { x: number; y: number },
+          restCentre: { x: number; y: number },
+          w: number,
+          h: number,
+        ) =>
+          rest
+            ? { x: now.x + toGrid(restCentre.x - w / 2), y: now.y + toGrid(restCentre.y - h / 2) }
+            : now;
+        const restAt = (fx: number, fy: number) => ({ x: restBox.x + fx, y: restBox.y + fy });
+        /**
+         * A compact or split slot's centre, `fx` from the resting shape's left edge, for content at
+         * presence `pres`: its fraction of the width, blended by `look.anchor` toward scaling about
+         * the island's centre with the slot's own scale. A negative anchor (toward the island's end)
+         * moves the leading slot only: iOS's returning circle starts near the pill's end while its
+         * text stays at its place (collapse-t1, t9: "42" 15 pt in from the right end throughout).
+         * `w` is the slot's own width: with it, an incoming leading slot on a negative anchor never
+         * reaches past its resting inner edge (below).
+         */
+        const slotAt = (
+          fx: number,
+          fy: number,
+          pres: number,
+          leading: boolean,
+          w = 0,
+          squeeze = 1,
+          from = look.scale,
+        ) => {
+          // The trailing slot may keep its distance from the pill's right end instead (`trailingRide`).
+          const share = at(fx, fy);
+          const rideBy =
+            leading || reduced || !look.trailingRide
+              ? 0
+              : look.trailingRide.by * (box.x + box.w - (restBox.w - fx) - share.x);
+          const ride = look.trailingRide
+            ? Math.max(-look.trailingRide.max, Math.min(look.trailingRide.max, rideBy))
+            : 0;
+          const proportional = { x: share.x + ride, y: share.y };
+          // A leaving trailing slot may take an anchor of its own (`trailingExitAnchor`); a negative
+          // layer anchor moves the leading slot only.
+          const anchor = leading
+            ? look.anchor
+            : !entering && look.trailingExitAnchor !== null
+              ? look.trailingExitAnchor
+              : Math.max(0, look.anchor);
+          if (anchor === 0 || reduced)
+            return { x: proportional.x + inward(w, pres, squeeze), y: proportional.y };
+          const s = k * (from + (1 - from) * pres);
+          const centred = box.x + box.w / 2 + (fx - restBox.w / 2) * s;
+          const x = proportional.x + (centred - proportional.x) * anchor;
+          // The negative anchor is fitted on pills wider than at rest. In one narrower than at rest
+          // (unsplit dips to 110 pt of its 150 while A comes back) its push turns toward the centre
+          // and put the returning circle under the sensor, a flat bite where iOS's stays round. iOS
+          // keeps the circle's inner edge at its resting place and lets the outline clip its outer
+          // side (round 35, every seen unsplit take: right edge 152.0 to 153.3 pt at every width).
+          // The collapses dip under their rest width as they settle and had the same bite on a few
+          // frames (collapse: past the sensor's end on 22% of the returning circle's frames, now none).
+          if (!leading || !entering || anchor >= 0 || w <= 0)
+            return { x: x + inward(w, pres, squeeze), y: proportional.y };
+          const drawn = k * accentScale(pres);
+          return {
+            x: Math.min(x, restBox.x + fx + (w / 2) * (1 - drawn)) + inward(w, pres, squeeze),
+            y: proportional.y,
+          };
+        };
+
+        switch (kind) {
+          case "idle":
+            break;
+          case "compact": {
+            const pad = m.compact.edgePadding;
+            const h = m.compact.height;
+            const lx = pad + size.leading / 2;
+            const tx = restBox.w - pad - size.trailing / 2;
+            const squeeze = squeezeOf(true);
+            // A leaving accent's place may travel on a scale of its own (`exitTravel`); its text keeps `scale`.
+            const leadFrom = entering ? look.scale : (look.exitTravel ?? look.scale);
+            const lead = onGrid(
+              slotAt(lx, restBox.h / 2, p, true, size.leading, squeeze, leadFrom),
+              restAt(lx, restBox.h / 2),
+              size.leading,
+              h,
+            );
+            // An incoming trailing slot may grow from a scale of its own (`trailingScale`).
+            const trailFrom =
+              entering && look.trailingScale !== null ? look.trailingScale : look.scale;
+            const trailAt = onGrid(
+              slotAt(tx, restBox.h / 2, pTrailing, false, 0, 1, trailFrom),
+              restAt(tx, restBox.h / 2),
+              size.trailing,
+              h,
+            );
+            const trail = { x: trailAt.x + slide(-1, pTrailing), y: trailAt.y };
+            const glow = entering ? look.enterGlow : 0;
+            // The squeeze narrows the blur with the accent; dividing by its square root splits that
+            // between the two axes, so the squeezed circle is not sharper at its sides than above.
+            put(
+              "leading",
+              lead.x,
+              lead.y,
+              size.leading,
+              h,
+              p,
+              k,
+              leadFade,
+              accentScale,
+              accentBlur,
+              squeeze,
+              null,
+              glow,
+              Math.sqrt(squeeze),
+            );
+            put(
+              "trailing",
+              trail.x,
+              trail.y,
+              size.trailing,
+              h,
+              pTrailing,
+              k,
+              fade,
+              (pres) => trailFrom + (1 - trailFrom) * pres,
+              trailingBlur,
+              1,
+              null,
+              glow,
+            );
+            break;
+          }
+          case "minimal": {
+            const slotH = m.minimal.height;
+            const split = size.useSplit ? size.split : null;
+            const show = (element: HTMLElement | undefined, visible: boolean) => {
+              if (element && !sink) element.style.visibility = visible ? "inherit" : "hidden";
+            };
+            show(map.attached, split === null);
+            show(map.detached, split === null);
+            show(map.splitAttachedLeading, split !== null);
+            show(map.splitAttachedTrailing, split !== null);
+            show(map.splitDetachedLeading, split !== null);
+            show(map.splitDetachedTrailing, split !== null);
+            // Bubble content rides the capsule (its left edge springs out of the pill) at its own size.
+            // It rides the bubble's live width (`span`) also once the bubble is too small to draw or
+            // gone, down to none: switching to the resting width there was a jump (canonical unsplit
+            // f174: 11.3 px at 7.6% opacity; a pressed bubble taken in by an alert: 26 px at 8%).
+            // Vertically it is centred in the island's current height while that is taller than the
+            // bubble (coming back into a split from expanded), then cut to the row's band below:
+            // the returning circle's centre tracks the collapsing shape's (split-collapse-b-t1 at
+            // 138: shape 14 to 58, green 24.7 to 48.3; split-alert-t1 at 845 and 849: 36.2 and 33.0
+            // against 36.5 and 33.3).
+            const bubbleMid = bubble.y + bubble.height / 2;
+            const boxMid = box.y + box.h / 2;
+            // The island's middle is held to where the bubble still fits inside the island's height,
+            // which is the bubble's own middle once the island is no taller: switching from one to the
+            // other as the heights crossed was a step by the pill's lift (seed 1778: 0.63 px at 5%).
+            // Once the bubble is taken in, its content keeps the resting bubble's row, as it keeps its
+            // width (`span`): falling back to the island's middle there was a step (seed 1817: 0.25 px).
+            const row = bubble.height > 0 ? bubble.height : (rest?.bubbleHeight ?? 0);
+            const room = Math.max(0, box.h - row) / 2;
+            const by = reduced
+              ? bubble.height > 0
+                ? bubbleMid
+                : boxMid
+              : row > 0
+                ? bubbleMid + Math.max(-room, Math.min(room, boxMid - bubbleMid))
+                : boxMid;
+            const bw = bubble.span;
+            // Coming in, the bubble's content may hold its resting place and spread out about the
+            // resting bubble's centre (`bubbleSpread`) instead of riding the moving bubble.
+            const bubbleFrom = entering ? look.bubbleScale : look.scale;
+            const spread = entering && !reduced && rest ? look.bubbleSpread : 0;
+            const restBubbleX = rest ? width / 2 + rest.bubbleLeft : bubble.x;
+            const restBubbleW = rest ? rest.bubbleRight - rest.bubbleLeft : bw;
+            // A pressed bubble swells about its centre and its content with it, as the pill's does.
+            const gb = bubble.height > 0 ? bubble.scale : 1;
+            // The bubble's content is cut to the resting row's band (the compact height), whatever
+            // the shape around it: returning into a split, the blurred circle shows a crisp bottom
+            // edge at 50.0 to 50.7 pt inside the taller collapsing shape (split-alert-t1, 10 to 90%
+            // in 0.7 pt; split-collapse-b-t1, t2, t9), where an unclipped blur fades over 13 pt.
+            const bandMid = rest ? rest.top + rest.height / 2 : 0;
+            const band =
+              rest && !reduced
+                ? {
+                    top: bandMid - (rest.height / 2) * gb,
+                    bottom: bandMid + (rest.height / 2) * gb,
+                  }
+                : null;
+            for (const element of [
+              map.detached,
+              map.splitDetachedLeading,
+              map.splitDetachedTrailing,
+            ]) {
+              if (element && !band && !sink) element.style.clipPath = "none";
+            }
+            // Coming in, the content may grow about a point on its row (`bubbleOrigin`) instead of
+            // riding the collapsing shape's middle: its top stays near the row's top and the row cuts
+            // its bottom, so the sensor bites it along its whole end.
+            const origin =
+              entering && band && look.bubbleOrigin !== null
+                ? band.top + look.bubbleOrigin * (band.bottom - band.top)
+                : null;
+            // With an origin the content holds that larger, stretched form until presence reaches
+            // `bubbleHold`, then resolves on the blur's power (`bubbleSharpen`) or its own (`bubbleResolve`):
+            // iOS's patch keeps its place for 5 to 6 frames, then becomes the circle within about 6 to 10
+            // (split-collapse-b-t1, t2, t9).
+            const lobe =
+              origin !== null
+                ? clamp01(
+                    ((1 - pBubble) / Math.max(1 - look.bubbleHold, 0.01)) **
+                      (look.bubbleResolve ?? look.bubbleSharpen),
+                  )
+                : null;
+            const closing = lobe ?? (1 - pBubble) ** look.sharpen;
+            const bubbleScaleAt = (pres: number) =>
+              lobe !== null ? 1 + (bubbleFrom - 1) * lobe : bubbleFrom + (1 - bubbleFrom) * pres;
+            // The accent may settle into its size from below after its presence is complete
+            // (`bubbleSettle`); its place on the row and its text keep `bubbleScaleAt`.
+            const settling = entering && !reduced ? bubbleSettles.current.get(key) : undefined;
+            // Under `settled` (about 0.02 pt on a 22 pt circle) it is drawn at exactly scale 1, so the
+            // accent drops its compositor layer as soon as it looks settled: on its own layer the
+            // circle's edge rasterises up to 111 levels apart from the resting one (split-alert, round 27).
+            const shortfall = settling ? look.bubbleSettle * (1 - clamp01(settling.valueAt(t))) : 0;
+            const under = shortfall < settled ? 0 : shortfall;
+            const accentScaleAt = (pres: number) => bubbleScaleAt(pres) * (1 - under);
+            // The bubble's content may come in on its own opacity curve (`bubbleFade`): dimmer while
+            // its returning form is larger than the circle. Easing it back to `fade` as the form
+            // resolved left the patch too bright mid-way (split-alert blue ink 39 to 21 of 57 frames).
+            const bubbleFade = entering ? (look.bubbleFade ?? fade) : fade;
+            const bubbleY =
+              origin === null ? by : origin + (bandMid - origin) * bubbleScaleAt(pBubble);
+            // Coming in, the bubble's content may start stretched across the lobe (`bubbleStretch`).
+            const stretch = entering && !reduced && rest ? 1 + look.bubbleStretch * closing : 1;
+            // The accent's may close faster than the size does (`bubbleStretchPower`); the text keeps the size's curve.
+            const accentStretch =
+              entering && !reduced && rest
+                ? 1 + look.bubbleStretch * closing ** look.bubbleStretchPower
+                : 1;
+            // The content may ride ahead of the bubble by its left edge's speed (`bubbleLead`): coming
+            // in it leaves the sensor sooner, going out (the bubble closing in) it slides under it sooner.
+            // With a ramp it grows in as the bubble's left edge comes out of the pill: the edge starts
+            // its own height inside the attached pill's resting end.
+            const anim = shape.current;
+            const emerged = bubble.x + row - (restBox.x + restBox.w);
+            const leadShare =
+              look.bubbleLeadRamp > 0
+                ? clamp01(emerged / look.bubbleLeadRamp) ** look.bubbleLeadPower
+                : 1;
+            const lead =
+              !reduced && look.bubbleLead !== 0 && anim
+                ? look.bubbleLead * bubblePose(anim, t).left.velocity * leadShare
+                : 0;
+            // Going out, the accent may slide on toward the sensor, which sits left of the bubble (`bubbleExitSlide`).
+            const exitSlide =
+              !entering && !reduced && look.bubbleExitSlide !== 0
+                ? -look.bubbleExitSlide * (1 - p) ** look.bubbleExitSlidePower
+                : 0;
+            /** Centre x of a bubble slot `dx` from the bubble's left edge (`dxRest` at rest). */
+            const bubbleSlot = (dx: number, dxRest: number) => {
+              if (spread <= 0) return bubble.x + lead + dx * gb;
+              const centre = restBubbleX + restBubbleW / 2;
+              // The spread closes with the blur (`sharpen`), so the slots are in place once sharp.
+              return (
+                centre +
+                (restBubbleX + dxRest - centre) * (1 + spread * (1 - pBubble) ** look.sharpen)
+              );
+            };
+            // Coming in, the leading content's band may end in a cap (`bubbleCap`) right of its centre.
+            // The cap comes out from under the sensor (the attached pill's resting end) and travels to
+            // the row's half-height past the slot's resting centre as 1 - (1 - presence) ^ `bubbleCap`.
+            // It never cuts into the content's resting size (a slot wider than the cap keeps its
+            // width) and lets go once the content is in.
+            const pillEnd = restBox.x + restBox.w;
+            // A layer interrupted while it showed keeps the cap it had (`capHolds`): held where it
+            // was, or none, until the bubble is in. Otherwise the cap travels while it comes in.
+            const held = capHolds.current.get(key);
+            const holding = held !== undefined && (!entering || pBubble < 0.995);
+            const capTravel = holding
+              ? held
+              : !entering || look.bubbleCap <= 0 || pBubble >= 0.995
+                ? null
+                : 1 - (1 - pBubble) ** look.bubbleCap;
+            if (drawn && band) drawn.capTravel = capTravel;
+            const capped = (b: typeof band, slot: { rest: number; now: number; w: number }) => {
+              if (!b || capTravel === null) return b;
+              const r = (b.bottom - b.top) / 2;
+              const travel = capTravel;
+              const end = Math.max(
+                pillEnd + (slot.rest + r - pillEnd) * travel,
+                slot.now + (slot.w / 2) * gb,
+              );
+              return { ...b, cap: end - r };
+            };
+            // Coming back, the attached pill's slots may keep to the resting row (`rowAnchor`).
+            const toRow = entering && band && !reduced ? look.rowAnchor : 0;
+            const onRow = (slot: { x: number; y: number }) =>
+              toRow > 0 ? { x: slot.x, y: slot.y + (bandMid - slot.y) * toRow } : slot;
+            if (split) {
+              const s = m.split;
+              const lw = split.attached.leading;
+              const lx = s.attached.outerPadding + lw / 2;
+              const tx =
+                s.attached.outerPadding +
+                lw +
+                (lw > 0 ? s.attached.gap : 0) +
+                split.attached.trailing / 2;
+              // The attached slots may step toward the bubble and settle back (`partStep`).
+              const stepValue =
+                entering && !reduced && look.partStep ? partSteps.current.get(key) : undefined;
+              const stepNow =
+                stepValue && look.partStep ? look.partStep.by * stepValue.valueAt(t) : 0;
+              const step = Math.abs(stepNow) < 0.005 ? 0 : stepNow;
+              const stepped = (slot: { x: number; y: number }) =>
+                step === 0 ? slot : { x: slot.x + step, y: slot.y };
+              const lead = onGrid(
+                stepped(onRow(slotAt(lx, restBox.h / 2, p, true, lw))),
+                restAt(lx, restBox.h / 2),
+                lw,
+                slotH,
+              );
+              const trailAt = onGrid(
+                stepped(onRow(slotAt(tx, restBox.h / 2, pTrailing, false))),
+                restAt(tx, restBox.h / 2),
+                split.attached.trailing,
+                slotH,
+              );
+              const trail = { x: trailAt.x + slide(1, pTrailing), y: trailAt.y };
+              put(
+                "splitAttachedLeading",
+                lead.x,
+                lead.y,
+                lw,
+                slotH,
+                p,
+                k,
+                leadFade,
+                accentScale,
+                accentBlur,
+              );
+              put(
+                "splitAttachedTrailing",
+                trail.x,
+                trail.y,
+                split.attached.trailing,
+                slotH,
+                pTrailing,
+                k,
+                fade,
+                undefined,
+                trailingBlur,
+              );
+              const dl = split.detached.leading;
+              const dlx = s.detached.outerPadding + dl / 2;
+              const dl0 = onGrid(
+                { x: bubbleSlot(dlx, dlx), y: bubbleY },
+                { x: restBubbleX + dlx, y: bandMid },
+                dl,
+                slotH,
+              );
+              const dlCx = dl0.x + exitSlide;
+              put(
+                "splitDetachedLeading",
+                dlCx,
+                dl0.y,
+                dl,
+                slotH,
+                pBubble,
+                gb,
+                bubbleFade,
+                accentScaleAt,
+                bubbleAccentBlur,
+                accentStretch,
+                capped(band, { rest: restBubbleX + dlx, now: dlCx, w: dl }),
+              );
+              // The bubble's text is fully in at the pinch (split-t1), so it takes no trailing delay. It
+              // rides the bubble's right edge, cut to the room the bubble leaves it (`bubbleTrailing`).
+              const trailing = bubbleTrailing(split.detached, restBubbleW, m);
+              const dtx = trailing.fromRight;
+              // Coming in, the text may slide in from the bubble's end (`bubbleTrailingSlide`).
+              const textSlide =
+                entering && !reduced && rest && look.bubbleTrailingSlide
+                  ? look.bubbleTrailingSlide.by *
+                    (1 - pBubbleText) ** look.bubbleTrailingSlide.power
+                  : 0;
+              // ...and blur on a curve of its own (`bubbleTrailingBlur`), capped where the bubble's is.
+              const textBlur = look.bubbleTrailingBlur;
+              const bubbleTextBlur =
+                entering && textBlur
+                  ? (pres: number) =>
+                      Math.min(
+                        look.bubbleBlurMax ?? peakBlur,
+                        textBlur.by * (1 - pres) ** textBlur.power,
+                      )
+                  : bubbleBlur;
+              const dt0 = onGrid(
+                { x: bubbleSlot(bw / gb - dtx, restBubbleW - dtx) + textSlide, y: bubbleY },
+                { x: restBubbleX + restBubbleW - dtx, y: bandMid },
+                trailing.width,
+                slotH,
+              );
+              put(
+                "splitDetachedTrailing",
+                dt0.x,
+                dt0.y,
+                trailing.width,
+                slotH,
+                pBubbleText,
+                gb,
+                entering && look.bubbleTrailingFade > 0 ? look.bubbleTrailingFade : bubbleFade,
+                bubbleScaleAt,
+                bubbleTextBlur,
+                stretch,
+                band,
+              );
+            } else {
+              const ax = m.minimal.attached.outerPadding + size.attached / 2;
+              const lead = onGrid(
+                onRow(slotAt(ax, restBox.h / 2, p, true, size.attached)),
+                restAt(ax, restBox.h / 2),
+                size.attached,
+                slotH,
+              );
+              put(
+                "attached",
+                lead.x,
+                lead.y,
+                size.attached,
+                slotH,
+                p,
+                k,
+                fade,
+                accentScale,
+                accentBlur,
+              );
+              const d0 = onGrid(
+                { x: bubbleSlot(bw / gb / 2, restBubbleW / 2), y: bubbleY },
+                { x: restBubbleX + restBubbleW / 2, y: bandMid },
+                size.detached,
+                slotH,
+              );
+              const dCx = d0.x + exitSlide;
+              put(
+                "detached",
+                dCx,
+                d0.y,
+                size.detached,
+                slotH,
+                pBubble,
+                gb,
+                bubbleFade,
+                accentScaleAt,
+                bubbleAccentBlur,
+                accentStretch,
+                capped(band, { rest: restBubbleX + restBubbleW / 2, now: dCx, w: size.detached }),
+              );
+            }
+            break;
+          }
+          case "expanded": {
+            // The expanded view's own layout (padding, grid) then lands on whole pixels too.
+            const ex = settle(rest ? box.x + toGrid(restBox.x) : box.x);
+            const ey = settle(rest ? box.y + toGrid(restBox.y) : box.y);
+            if (map.expanded && !sink) {
+              map.expanded.style.transform = `translate(${ex}px, ${ey}px)`;
+              map.expanded.style.willChange = layerHint(p >= 1 && k === 1);
+            }
+            // iOS blurs the expanded view as one layer, after its content clip: the clip's cut softens
+            // with the rest (expand-t1 140: the incoming square ramps off where the clip crosses it,
+            // half height at the clip, where a clip after the blur left a hard step). Regions that
+            // lag (`regions`, `centerDelay`) add their extra blur in quadrature on their own element.
+            // A region with its own lower peak (`RegionLag.peak`) takes the shared blur down with it;
+            // the others add the rest on their own element.
+            const peakOf = (region: ExpandedRegion) =>
+              entering ? (look.regions[region]?.peak ?? peakBlur) : peakBlur;
+            const sharedPeak = regionSlots.reduce(
+              (low, [slot, region]) =>
+                map[slot] && size.regions[region] ? Math.min(low, peakOf(region)) : low,
+              peakBlur,
+            );
+            const unused = {
+              opacity: 1,
+              x: 0,
+              y: 0,
+              sx: 1,
+              sy: 1,
+              lift: 0,
+              bandTop: 0,
+              bandBottom: 0,
+              cap: 0,
+              skirt: 0,
+            };
+            // Coming in, the expanded view's blur may clear early too (`enterClear`, round 40).
+            const sharedBase: SlotDraw = {
+              ...unused,
+              blur: reduced ? 0 : remaining(p, look.enterClear) ** sharpen * sharedPeak,
+              follow: 0,
+            };
+            // The regions' own blur is reckoned against the root's uncarried blur: each element's
+            // number is then carried on its own, and what they add up to on screen stays continuous.
+            const shared = sharedBase.blur;
+            const rootDrawn = blend("root", sharedBase);
+            if (rootDrawn) {
+              map.root.style.clipPath = "none";
+              writeBlur(map.root, rootDrawn.blur);
+            }
+            // Coming in, the clip may follow the content rather than the outline (`clipFollow`). A leaving
+            // layer keeps the live clip, unless it was interrupted on its way in (`leavingClip` below).
+            const follows = !reduced && rest && paths.pill ? look.clipFollow : 0;
+            // In its resting shape the following clip is the live one (`followingClip`), so what is
+            // carried is the follow that shows: none there, whatever the look asks.
+            const resting =
+              Math.abs(sx - 1) < 1e-9 &&
+              Math.abs(sy - 1) < 1e-9 &&
+              Math.abs(pill.radius - (rest?.radius ?? pill.radius)) < 1e-9;
+            const followBase: SlotDraw = { ...unused, blur: 0, follow: resting ? 0 : follows };
+            const followDrawn = map.expandedClip ? blend("expandedClip", followBase) : null;
+            if (map.expandedClip && followDrawn) {
+              const clipFollow =
+                followDrawn === followBase
+                  ? follows
+                  : rest && paths.pill
+                    ? clamp01(followDrawn.follow)
+                    : 0;
+              map.expandedClip.style.clipPath =
+                clipFollow > 0
+                  ? `path("${followingClip(box, pill.radius, restBox, rest?.radius ?? pill.radius, m.contentClip.radius, clipFollow)} ${paths.bubbleClip}")`
+                  : clipPath;
+            }
+            // The regions drawing a wide part this frame (`blurSkirt`), with the copy's opacity.
+            const skirted: { element: HTMLElement; opacity: number }[] = [];
+            // Each region keeps its fraction of the shape and scales with it.
+            for (const [slot, region] of regionSlots) {
+              const element = map[slot];
+              const centre = size.regions[region];
+              if (!element || !centre) continue;
+              // Vertically a region keeps its share of the height, or follows the bottom edge by
+              // `bottomAnchor` (expand-t1 +18: iOS's title 13 to 14 pt above rest at 0.84 of the
+              // height, its bar 17, the edge 16.6; a share of the height put them 7 and 13 up).
+              // A region may take an anchor of its own (`regionBottomAnchor`).
+              const dropY = reduced
+                ? 0
+                : (look.regionBottomAnchor[region] ?? look.bottomAnchor) *
+                  (box.h - restBox.h - centre.y * (sy - 1));
+              // A region may come in after the others: its opacity and its blur each lag the layer's
+              // presence (`regions`); without an entry the center waits `centerDelay` for both.
+              const lag =
+                entering && !reduced
+                  ? (look.regions[region] ??
+                    (region === "center" && look.centerDelay > 0
+                      ? { fade: look.centerDelay, blur: look.centerDelay }
+                      : null))
+                  : null;
+              const behind = (delay: number) =>
+                delay !== 0 ? full(clamp01(lagged(value, t, delay, rejoined) ?? 1)) : p;
+              const pr = lag ? behind(lag.fade) : p;
+              const pb = lag ? behind(lag.blur) : p;
+              // A region may grow from a scale of its own (`RegionLag.scale`) and come in from above its place (`lift`).
+              const from = lag?.scale ?? look.scale;
+              const presenceScale = reduced ? 1 : from + (1 - from) * pb;
+              const scale = k * presenceScale;
+              const lift = reduced ? 0 : (lag?.lift ?? 0) * (1 - pb);
+              // Below 0 `soften` starts the region sharper than its peak; never past no blur at all.
+              const soften = Math.max(0, 1 + (lag?.soften ?? 0) * (1 - pb));
+              const own = remaining(pb, look.enterClear) ** sharpen * peakOf(region) * soften;
+              const blur = reduced
+                ? 0
+                : Math.sqrt(Math.max(0, own * own - shared * shared)) / Math.max(scale, 0.05);
+              // A leaving region may fade on its own power (`regionExitFade`).
+              const lagOpacity =
+                pr ** (entering ? (lag?.power ?? fade) : (look.regionExitFade[region] ?? fade));
+              const lead = lag?.lead ?? 0;
+              const base: SlotDraw = {
+                ...unused,
+                opacity: reduced
+                  ? reducedOpacity(pr)
+                  : lead > 0
+                    ? Math.max(lagOpacity, Math.min(lead, p ** fade))
+                    : lagOpacity,
+                blur,
+                x: settle(centre.x * (sx - 1)),
+                y: settle(centre.y * (sy - 1) + dropY),
+                sx: scale,
+                sy: scale,
+                lift,
+                follow: 0,
+                // The region's blur on screen (the root's and its own in quadrature) sets the weight of its wide part.
+                skirt:
+                  skirt && !reduced && Skirts.canCopy(element)
+                    ? skirtWeight(skirt, own, !entering) * look.skirt
+                    : 0,
+              };
+              const d = blend(slot, base);
+              if (!d) continue;
+              const wide = d.skirt;
+              const shift = `translate(${d.x}px, ${d.y}px)`;
+              element.style.opacity = `${wide > 0 ? d.opacity * (1 - wide * dim) : d.opacity}`;
+              writeBlur(element, d.blur);
+              element.style.transform =
+                d.lift > 0.005
+                  ? `${shift} translate(0px, ${(-d.lift).toFixed(2)}px) scale(${d.sy})`
+                  : `${shift} scale(${d.sy})`;
+              if (wide > 0) skirted.push({ element, opacity: d.opacity * wide });
+            }
+            // One copy of the clipped view draws every region's wide part: the copy's own clip, then
+            // its blur (with the root's, `width` in all), each region at its own weight.
+            const clipSlot = map.expandedClip;
+            const view = map.expanded;
+            const echo =
+              skirt && clipSlot && view && skirted.length > 0
+                ? echoes.echo(clipSlot, map.root, true, [
+                    view,
+                    ...regionSlots.flatMap(([slot]) => map[slot] ?? []),
+                  ])
+                : null;
+            if (skirt && echo && clipSlot && view) {
+              echo.node.style.filter = `blur(${Math.sqrt(Math.max(0, skirt.width ** 2 - (rootDrawn?.blur ?? 0) ** 2)).toFixed(2)}px)`;
+              const copyOf = (element: HTMLElement) => echo.parts.get(element);
+              const clipCopy = copyOf(clipSlot);
+              if (clipCopy) clipCopy.style.clipPath = clipSlot.style.clipPath;
+              const viewCopy = copyOf(view);
+              if (viewCopy) viewCopy.style.transform = view.style.transform;
+              for (const [slot] of regionSlots) {
+                const element = map[slot];
+                const copy = element ? copyOf(element) : undefined;
+                if (!element || !copy) continue;
+                const part = skirted.find((entry) => entry.element === element);
+                copy.style.opacity = `${part ? part.opacity : 0}`;
+                copy.style.filter = "none";
+                copy.style.transform = element.style.transform;
+              }
+            }
+            break;
+          }
+          default: {
+            const exhaustive: never = kind;
+            return exhaustive;
+          }
         }
-        default: {
-          const exhaustive: never = kind;
-          return exhaustive;
-        }
+        // A layer going out hides at the presence it always did (its softest fade then draws at most
+        // 0.001 ^ exitFade, the rest cut). One coming in hides only while it draws nothing that shows,
+        // since what it hides now it shows again as it comes in.
+        const hidden = presenceGone && (!entering || drawnMax <= 0.001);
+        if (drawn) drawn.shown = !hidden;
+        else map.root.style.visibility = hidden ? "hidden" : "visible";
       }
-      // A layer going out hides at the presence it always did (its softest fade then draws at most
-      // 0.001 ^ exitFade, the rest cut). One coming in hides only while it draws nothing that shows,
-      // since what it hides now it shows again as it comes in.
-      const hidden = presenceGone && (!entering || drawnMax <= 0.001);
-      if (drawn) drawn.shown = !hidden;
-      else map.root.style.visibility = hidden ? "hidden" : "visible";
-    }
-    if (!sink) echoes.end();
-  }, []);
+      if (!sink) echoes.end();
+    },
+    [],
+  );
 
   /**
    * Writes one frame. Called from the clock's frame loop and right after every retarget. `still`
@@ -1479,18 +1990,21 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
    * With a `sink` nothing is written: each layer's numbers go to the sink (a retarget reads what
    * shows on either side of a change this way).
    */
-  const draw = useCallback((nowMs: number, still = false, sink: DrawSink | null = null) => {
-    const anim = shape.current;
-    if (!anim) return;
-    const { metrics: m, reduced } = live.current;
-    const width = islandScreenWidth(stageWidthRef.current, m);
-    const t = nowMs / 1000;
-    const frame = frameAt(anim, t, width, m);
-    const { pill, bubble, paths } = frame;
-    const clipPath = paths.pill ? `path("${paths.clip}")` : "none";
-    if (!sink) drawShape(frame, t, clipPath);
-    drawLayers(frame, t, width, clipPath, still, sink);
-  }, [drawShape, drawLayers]);
+  const draw = useCallback(
+    (nowMs: number, still = false, sink: DrawSink | null = null) => {
+      const anim = shape.current;
+      if (!anim) return;
+      const { metrics: m, reduced } = live.current;
+      const width = islandScreenWidth(stageWidthRef.current, m);
+      const t = nowMs / 1000;
+      const frame = frameAt(anim, t, width, m);
+      const { pill, bubble, paths } = frame;
+      const clipPath = paths.pill ? `path("${paths.clip}")` : "none";
+      if (!sink) drawShape(frame, t, clipPath);
+      drawLayers(frame, t, width, clipPath, still, sink);
+    },
+    [drawShape, drawLayers],
+  );
 
   const tick = useCallback(
     (nowMs: number) => {
@@ -1503,20 +2017,35 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
       for (const [key, value] of presence.current) {
         // A slot or region that lags its layer reads the presence that far back, so an entering
         // layer is at rest only once its latest lag has settled too (reduced motion draws no lags).
-        const settled = value.isAtRest(value.target === 1 && !live.current.reduced ? t - lagOf(looks.current.get(key)) : t);
+        const settled = value.isAtRest(
+          value.target === 1 && !live.current.reduced ? t - lagOf(looks.current.get(key)) : t,
+        );
         rest = rest && settled;
         // A layer leaves the page once gone and done carrying what an interruption left it (`carries`).
         const carry = carries.current.get(key);
         if (carry?.weight.isAtRest(t)) carries.current.delete(key);
         else if (carry) rest = false;
-        if (settled && !carries.current.has(key) && value.target === 0 && leavingKeys.current.includes(key) && !removing.current.has(key)) {
+        if (
+          settled &&
+          !carries.current.has(key) &&
+          value.target === 0 &&
+          leavingKeys.current.includes(key) &&
+          !removing.current.has(key)
+        ) {
           removing.current.add(key);
           setLeaving((list) => list.filter((layer) => layer.key !== key));
         }
       }
       // A bubble's accent may still be settling into its size after its presence is complete, and
       // a slot on a presence of its own may still be coming in or going.
-      for (const values of [bubbleSettles, bubbleEnters, trailingEnters, bubbleExits, partSteps, leavingSlides]) {
+      for (const values of [
+        bubbleSettles,
+        bubbleEnters,
+        trailingEnters,
+        bubbleExits,
+        partSteps,
+        leavingSlides,
+      ]) {
         for (const value of values.current.values()) rest = value.isAtRest(t) && rest;
       }
       if (rest) {
@@ -1554,7 +2083,15 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
    * one that showed a cap keeps it where it was (`capHolds`). Snaps and reduced motion carry nothing.
    */
   const carryOver = useCallback(
-    (before: readonly [Map<string, LayerDraw>, Map<string, LayerDraw>, Map<string, LayerDraw>] | null, changedAt: number, mode: MotionMode, timing: ContentMotion, carryResponseMin: number) => {
+    (
+      before:
+        | readonly [Map<string, LayerDraw>, Map<string, LayerDraw>, Map<string, LayerDraw>]
+        | null,
+      changedAt: number,
+      mode: MotionMode,
+      timing: ContentMotion,
+      carryResponseMin: number,
+    ) => {
       if (mode !== "spring") {
         carries.current.clear();
         capHolds.current.clear();
@@ -1580,23 +2117,37 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
           for (const [name, drawnNow] of now.slots) {
             const drawnBefore = was.slots.get(name);
             // A slot out of sight on both sides has nothing to show of a jump.
-            if (!drawnBefore || (drawnBefore.opacity <= 0.001 && drawnNow.opacity <= 0.001)) continue;
+            if (!drawnBefore || (drawnBefore.opacity <= 0.001 && drawnNow.opacity <= 0.001))
+              continue;
             const delta = carryOf(drawnBefore, drawnNow);
             if (!delta) continue;
-            const beforeSpeed = [shownEarlier.get(key)?.slots.get(name), shownEarliest.get(key)?.slots.get(name)];
+            const beforeSpeed = [
+              shownEarlier.get(key)?.slots.get(name),
+              shownEarliest.get(key)?.slots.get(name),
+            ];
             const afterSpeed = [later.get(key)?.slots.get(name), latest.get(key)?.slots.get(name)];
             // A layer going out that showed less than its new look draws carries its opacity as a
             // ratio. One that showed more keeps the sum: its new look may be nearly out and snap to
             // rest, and a ratio on that went with it (seed 1507: 0.044 to nothing at the snap).
-            const ratio = key !== current && drawnBefore.opacity > 0.001 && drawnBefore.opacity < drawnNow.opacity ? drawnBefore.opacity / drawnNow.opacity : null;
+            const ratio =
+              key !== current &&
+              drawnBefore.opacity > 0.001 &&
+              drawnBefore.opacity < drawnNow.opacity
+                ? drawnBefore.opacity / drawnNow.opacity
+                : null;
             let speed: SlotDraw | null = null;
             if (beforeSpeed[0] && beforeSpeed[1] && afterSpeed[0] && afterSpeed[1]) {
               const came = speedOf(drawnBefore, beforeSpeed[0], beforeSpeed[1], 1);
               const goes = speedOf(drawnNow, afterSpeed[0], afterSpeed[1], -1);
               speed = { ...came };
-              for (const field of slotDrawFields) speed[field] = field === "cap" && (drawnBefore.cap === 0 || drawnNow.cap === 0) ? 0 : came[field] - goes[field];
+              for (const field of slotDrawFields)
+                speed[field] =
+                  field === "cap" && (drawnBefore.cap === 0 || drawnNow.cap === 0)
+                    ? 0
+                    : came[field] - goes[field];
               // The multiplier's speed that keeps the drawn opacity's speed across the change.
-              if (ratio !== null) speed.opacity = (came.opacity - goes.opacity * ratio) / drawnNow.opacity;
+              if (ratio !== null)
+                speed.opacity = (came.opacity - goes.opacity * ratio) / drawnNow.opacity;
             }
             slotCarries.set(name, { delta, speed, ratio });
           }
@@ -1617,8 +2168,16 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
         }
         const resolve = Math.max(response, carryResponseMin);
         const weight = new AnimatedValue(1, 1e-4);
-        weight.set(0, changedAt / 1000, { kind: "spring", spring: { response: resolve, dampingFraction: carryDamping } });
-        carries.current.set(key, { weight, at: changedAt / 1000, omega: (2 * Math.PI) / resolve, slots: slotCarries });
+        weight.set(0, changedAt / 1000, {
+          kind: "spring",
+          spring: { response: resolve, dampingFraction: carryDamping },
+        });
+        carries.current.set(key, {
+          weight,
+          at: changedAt / 1000,
+          omega: (2 * Math.PI) / resolve,
+          slots: slotCarries,
+        });
       }
     },
     [sample],
@@ -1635,7 +2194,11 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
     const changedAt = p.clock.now();
     const keyChanging = last.current.key !== null && last.current.key !== p.contentKey;
     const shownBefore = keyChanging
-      ? ([sample(changedAt, true), sample(changedAt - speedStep * 1000, true), sample(changedAt - 2 * speedStep * 1000, true)] as const)
+      ? ([
+          sample(changedAt, true),
+          sample(changedAt - speedStep * 1000, true),
+          sample(changedAt - 2 * speedStep * 1000, true),
+        ] as const)
       : null;
     const map = slots.current.get(p.contentKey) ?? {};
     const hasSplit = map.splitAttachedLeading !== undefined;
@@ -1652,12 +2215,24 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
       split: hasSplit
         ? {
             attached: {
-              leading: stable(contentWidth(map.splitAttachedLeading), before?.split?.attached.leading),
-              trailing: stable(contentWidth(map.splitAttachedTrailing), before?.split?.attached.trailing),
+              leading: stable(
+                contentWidth(map.splitAttachedLeading),
+                before?.split?.attached.leading,
+              ),
+              trailing: stable(
+                contentWidth(map.splitAttachedTrailing),
+                before?.split?.attached.trailing,
+              ),
             },
             detached: {
-              leading: stable(contentWidth(map.splitDetachedLeading), before?.split?.detached.leading),
-              trailing: stable(naturalWidth(map.splitDetachedTrailing), before?.split?.detached.trailing),
+              leading: stable(
+                contentWidth(map.splitDetachedLeading),
+                before?.split?.detached.leading,
+              ),
+              trailing: stable(
+                naturalWidth(map.splitDetachedTrailing),
+                before?.split?.detached.trailing,
+              ),
             },
           }
         : null,
@@ -1668,7 +2243,11 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
     const splitShape = splitLayout(measure, m);
     if (splitShape && measure.split) {
       // The bubble keeps its width; trailing content wider than its room is cut to fit.
-      const room = bubbleTrailing(measure.split.detached, splitShape.bubbleRight - splitShape.bubbleLeft, m).room;
+      const room = bubbleTrailing(
+        measure.split.detached,
+        splitShape.bubbleRight - splitShape.bubbleLeft,
+        m,
+      ).room;
       fitSlot(map.splitDetachedTrailing, measure.split.detached.trailing, room);
     }
     widths.current.set(p.contentKey, {
@@ -1719,7 +2298,10 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
         });
       }
       if (!keyChanged) {
-        const join = contentMotion(p.motion, shapeTransition("minimal", "expanded", { swap: true, swelling: true, alert: false })).bubbleExit;
+        const join = contentMotion(
+          p.motion,
+          shapeTransition("minimal", "expanded", { swap: true, swelling: true, alert: false }),
+        ).bubbleExit;
         if (joining !== null && join && join.delay < 0 && !p.reduced && !instant) {
           const out = new AnimatedValue(1, 0.001);
           out.set(0, joining / 1000, bubbleCut(join));
@@ -1736,7 +2318,8 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
     // So may an alert: a press or `expand()` on an alerting island keeps the view and its content
     // and makes it the user's. Left as it was, the next change read as an alert's return and took
     // its lag and `afterAlert` timing: the split's part step drew 2.1 frames late (seed 317).
-    if (p.alerting !== last.current.alerting) last.current = { ...last.current, alerting: p.alerting };
+    if (p.alerting !== last.current.alerting)
+      last.current = { ...last.current, alerting: p.alerting };
 
     if (!keyChanged && !instant && !pressChanged && sameTarget(prev.target, target)) return;
 
@@ -1751,12 +2334,20 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
     });
     // An alert's return may start a little after its hold runs out (split-alert's return); a press
     // outside starts the same motion at once (held-out split-collapse-b).
-    const t0 = startMs / 1000 + (mode === "spring" && keyChanged && prev.alerting ? motion.lag[transition] : 0);
+    const t0 =
+      startMs / 1000 +
+      (mode === "spring" && keyChanged && prev.alerting ? motion.lag[transition] : 0);
 
     rests.current.set(p.contentKey, target);
     // Read before the retarget, which starts the bubble's merge.
     const absorbing = absorbsBubble(anim, { transition, target, t0 });
-    if (keyChanged && mode === "spring" && (transition === "collapse" || transition === "alertCollapse" || transition === "collapseSplit")) {
+    if (
+      keyChanged &&
+      mode === "spring" &&
+      (transition === "collapse" ||
+        transition === "alertCollapse" ||
+        transition === "collapseSplit")
+    ) {
       keylineDip.current = t0;
     }
 
@@ -1764,7 +2355,11 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
     // turns into the user's expansion) leaves the shape's motion alone: re-set to the same target on
     // the resize spring, an expansion under way bent by 0.1 pt, its shadow ramp jumped to full, and
     // the step after it read as a jump (seed 1265). A press that changes with it still folds in.
-    const sameShape = transition === "resize" && mode === "spring" && !pressChanged && sameTarget(prev.target, target);
+    const sameShape =
+      transition === "resize" &&
+      mode === "spring" &&
+      !pressChanged &&
+      sameTarget(prev.target, target);
     if ((keyChanged && !sameShape) || !sameTarget(prev.target, target) || instant) {
       retargetShape(anim, {
         transition,
@@ -1778,7 +2373,15 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
 
     if (pressChanged && !(prev.pressed !== null && keyChanged)) {
       // A swell that turned into an expansion was folded into the shape above.
-      retargetPress(anim, { pressed: p.pressed, style: p.pressStyle, t: p.clock.now() / 1000, motion, metrics: m, mode, idle: toKind === "idle" });
+      retargetPress(anim, {
+        pressed: p.pressed,
+        style: p.pressStyle,
+        t: p.clock.now() / 1000,
+        motion,
+        metrics: m,
+        mode,
+        idle: toKind === "idle",
+      });
     }
 
     if (keyChanged) {
@@ -1799,10 +2402,19 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
               : base;
       // Coming into a wide shape it may take a look of its own (`wide`): W's compact pill against A's.
       const { from: wideFrom = Number.MAX_VALUE, ...wideLook } = base.wide ?? {};
-      const timing: ContentMotion = target.right - target.left >= wideFrom ? { ...variant, ...wideLook } : variant;
+      const timing: ContentMotion =
+        target.right - target.left >= wideFrom ? { ...variant, ...wideLook } : variant;
       const tween: Transition = { kind: "tween", duration: motion.reduced.duration };
-      const fade = (spring: { response: number; dampingFraction: number; delay: number }): Transition =>
-        mode === "instant" ? { kind: "instant" } : mode === "reduced" ? tween : { kind: "spring", spring, delay: spring.delay };
+      const fade = (spring: {
+        response: number;
+        dampingFraction: number;
+        delay: number;
+      }): Transition =>
+        mode === "instant"
+          ? { kind: "instant" }
+          : mode === "reduced"
+            ? tween
+            : { kind: "spring", spring, delay: spring.delay };
       const current = presence.current.get(p.contentKey) ?? new AnimatedValue(0, 0.001);
       presence.current.set(p.contentKey, current);
       const look: LayerLook = {
@@ -1876,7 +2488,9 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
       // collapse drew the lagging center at 0.34 from the first instant (seed 835).
       // Read at nine points across that span (a sampling grid, not a fitted number).
       const lagSpan = lagOf(look);
-      const shownSince = Array.from({ length: 9 }, (_, k) => current.valueAt(changedAt / 1000 - (lagSpan * k) / 8)).some((value) => value > 0.001);
+      const shownSince = Array.from({ length: 9 }, (_, k) =>
+        current.valueAt(changedAt / 1000 - (lagSpan * k) / 8),
+      ).some((value) => value > 0.001);
       if (mode === "spring" && shownSince) rejoins.current.add(p.contentKey);
       else rejoins.current.delete(p.contentKey);
       cutting.current.delete(p.contentKey);
@@ -1906,7 +2520,11 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
         // 0 until `at`, then a step to 1 that settles back to 0 on the step's spring.
         const step = new AnimatedValue(0, 0.001);
         step.set(1, t0, { kind: "tween", duration: 0, delay: timing.partStep.at });
-        step.set(0, t0, { kind: "spring", spring: timing.partStep.spring, delay: timing.partStep.at });
+        step.set(0, t0, {
+          kind: "spring",
+          spring: timing.partStep.spring,
+          delay: timing.partStep.at,
+        });
         partSteps.current.set(p.contentKey, step);
       }
       current.set(1, t0, fade(timing.enter));
@@ -1916,13 +2534,21 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
       // a compact pill: an alert's card going to idle is wider still, and its look switched on content
       // already leaving held it at 2% until it hid (seed 508).
       const { from: exitWideFrom = Number.MAX_VALUE, ...exitWideLook } = timing.exitWide ?? {};
-      const leftWide = prev.kind === "compact" && prev.target !== null && prev.target.right - prev.target.left >= exitWideFrom;
+      const leftWide =
+        prev.kind === "compact" &&
+        prev.target !== null &&
+        prev.target.right - prev.target.left >= exitWideFrom;
       const exitLook: LayerLook = leftWide ? { ...look, ...exitWideLook } : look;
       for (const key of leavingKeys.current) {
         const leavingPresence = presence.current.get(key);
         if (bubbleExit) {
           // From what shows now; a bubble already cut stays cut whatever comes next.
-          const shown = clamp01(Math.min(leavingPresence?.valueAt(t0) ?? 1, bubbleExits.current.get(key)?.valueAt(t0) ?? 1));
+          const shown = clamp01(
+            Math.min(
+              leavingPresence?.valueAt(t0) ?? 1,
+              bubbleExits.current.get(key)?.valueAt(t0) ?? 1,
+            ),
+          );
           const out = new AnimatedValue(shown, 0.001);
           out.set(0, t0, mode === "spring" ? bubbleCut(bubbleExit) : fade(bubbleExit));
           bubbleExits.current.set(key, out);
@@ -1936,19 +2562,42 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
           leavingSlides.current.delete(key);
           const rejoined = rejoins.current.has(key);
           const slideAt = (time: number) =>
-            was.trailingSlide * (1 - enteringTrailing(leavingPresence, trailingEnters.current.get(key), was.trailingDelay, time, rejoined)) ** was.trailingSlidePower;
+            was.trailingSlide *
+            (1 -
+              enteringTrailing(
+                leavingPresence,
+                trailingEnters.current.get(key),
+                was.trailingDelay,
+                time,
+                rejoined,
+              )) **
+              was.trailingSlidePower;
           const offset = was.trailingSlide !== 0 ? slideAt(t0) : 0;
           if (Math.abs(offset) > 0.005) {
             const h = speedStep;
             const slide = new AnimatedValue(offset, 0.005);
-            slide.set(0, t0, { kind: "spring", spring: { response: Math.max(timing.exit.response, motion.content.carryResponseMin), dampingFraction: carryDamping } }, { value: offset, velocity: (offset - slideAt(t0 - h)) / h });
+            slide.set(
+              0,
+              t0,
+              {
+                kind: "spring",
+                spring: {
+                  response: Math.max(timing.exit.response, motion.content.carryResponseMin),
+                  dampingFraction: carryDamping,
+                },
+              },
+              { value: offset, velocity: (offset - slideAt(t0 - h)) / h },
+            );
             leavingSlides.current.set(key, slide);
           }
         }
         // An expanded layer interrupted on its way in keeps its clip following the content (`clipFollow`),
         // so the clip does not jump to the outline's; one that had come in fully leaves on the live clip.
         // A layer already on its way out keeps the clip it leaves with, through any later change.
-        const comingIn = was !== undefined && leavingPresence?.target === 1 && full(clamp01(leavingPresence.valueAt(t0))) < 1;
+        const comingIn =
+          was !== undefined &&
+          leavingPresence?.target === 1 &&
+          full(clamp01(leavingPresence.valueAt(t0))) < 1;
         const goingOut = was !== undefined && leavingPresence?.target === 0;
         const leavingClip = (comingIn || goingOut) && mode === "spring" ? was.clipFollow : 0;
         // A layer already on its way out keeps going; the new transition's exit takes over. A near-cut
@@ -1959,7 +2608,8 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
         // 1060: the card held at 14% for 0.3 s).
         const nearCut = mode === "spring" && timing.exit.response < motion.content.carryResponseMin;
         const goingAlready = leavingPresence?.target === 0;
-        const keepsExit = goingAlready && mode === "spring" && (nearCut || cutting.current.has(key));
+        const keepsExit =
+          goingAlready && mode === "spring" && (nearCut || cutting.current.has(key));
         if (!keepsExit) {
           leavingPresence?.set(0, t0, fade(timing.exit));
           if (nearCut) cutting.current.add(key);
@@ -1968,10 +2618,22 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
         // A layer that keeps its exit keeps the look it leaves with, so it draws that exit as it
         // would have: the new look's fade power on the old cut took a card from 14% to 2% in half a
         // frame where the cut alone draws 3% (seed 5040).
-        if (!(keepsExit && was)) looks.current.set(key, { ...exitLook, bubbleDelay: 0, trailingDelay: 0, centerDelay: 0, regions: {}, clipFollow: leavingClip });
+        if (!(keepsExit && was))
+          looks.current.set(key, {
+            ...exitLook,
+            bubbleDelay: 0,
+            trailingDelay: 0,
+            centerDelay: 0,
+            regions: {},
+            clipFollow: leavingClip,
+          });
         // Don't strand keyboard focus inside content that is going away.
         const leavingRoot = slots.current.get(key)?.root;
-        if (leavingRoot && typeof document !== "undefined" && leavingRoot.contains(document.activeElement)) {
+        if (
+          leavingRoot &&
+          typeof document !== "undefined" &&
+          leavingRoot.contains(document.activeElement)
+        ) {
           pillHit.current?.focus({ preventScroll: true });
         }
       }
@@ -2002,17 +2664,25 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
   // Drop slot maps and presence for layers that are gone.
   useLayoutEffect(() => {
     const keep = new Set([contentKey, ...visibleLeaving.map((layer) => layer.key)]);
-    for (const key of [...presence.current.keys()]) if (!keep.has(key)) presence.current.delete(key);
-    for (const key of [...bubbleExits.current.keys()]) if (!keep.has(key)) bubbleExits.current.delete(key);
-    for (const key of [...bubbleEnters.current.keys()]) if (!keep.has(key)) bubbleEnters.current.delete(key);
-    for (const key of [...trailingEnters.current.keys()]) if (!keep.has(key)) trailingEnters.current.delete(key);
-    for (const key of [...bubbleSettles.current.keys()]) if (!keep.has(key)) bubbleSettles.current.delete(key);
-    for (const key of [...partSteps.current.keys()]) if (!keep.has(key)) partSteps.current.delete(key);
-    for (const key of [...leavingSlides.current.keys()]) if (!keep.has(key)) leavingSlides.current.delete(key);
+    for (const key of [...presence.current.keys()])
+      if (!keep.has(key)) presence.current.delete(key);
+    for (const key of [...bubbleExits.current.keys()])
+      if (!keep.has(key)) bubbleExits.current.delete(key);
+    for (const key of [...bubbleEnters.current.keys()])
+      if (!keep.has(key)) bubbleEnters.current.delete(key);
+    for (const key of [...trailingEnters.current.keys()])
+      if (!keep.has(key)) trailingEnters.current.delete(key);
+    for (const key of [...bubbleSettles.current.keys()])
+      if (!keep.has(key)) bubbleSettles.current.delete(key);
+    for (const key of [...partSteps.current.keys()])
+      if (!keep.has(key)) partSteps.current.delete(key);
+    for (const key of [...leavingSlides.current.keys()])
+      if (!keep.has(key)) leavingSlides.current.delete(key);
     for (const key of [...carries.current.keys()]) if (!keep.has(key)) carries.current.delete(key);
     for (const key of [...rejoins.current]) if (!keep.has(key)) rejoins.current.delete(key);
     for (const key of [...cutting.current]) if (!keep.has(key)) cutting.current.delete(key);
-    for (const key of [...capHolds.current.keys()]) if (!keep.has(key)) capHolds.current.delete(key);
+    for (const key of [...capHolds.current.keys()])
+      if (!keep.has(key)) capHolds.current.delete(key);
     for (const key of [...looks.current.keys()]) if (!keep.has(key)) looks.current.delete(key);
     for (const key of [...rests.current.keys()]) if (!keep.has(key)) rests.current.delete(key);
     for (const key of [...slots.current.keys()]) if (!keep.has(key)) slots.current.delete(key);
@@ -2065,7 +2735,11 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
   const [initialPaths] = useState(
     () =>
       frameAt(
-        shape.current ?? createShapeAnimation(shapeTarget("idle", emptyMeasure, metrics.screen.width, metrics), metrics),
+        shape.current ??
+          createShapeAnimation(
+            shapeTarget("idle", emptyMeasure, metrics.screen.width, metrics),
+            metrics,
+          ),
         0,
         metrics.screen.width,
         metrics,
@@ -2151,13 +2825,31 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
               height={stageHeight + 600}
               colorInterpolationFilters="sRGB"
             >
-              <feGaussianBlur in="SourceAlpha" stdDeviation={blurDeviation(metrics.expanded.shadow)} result="keyBlur" />
-              <feOffset in="keyBlur" dx={0} dy={metrics.expanded.shadow.offsetY} result="keyMoved" />
+              <feGaussianBlur
+                in="SourceAlpha"
+                stdDeviation={blurDeviation(metrics.expanded.shadow)}
+                result="keyBlur"
+              />
+              <feOffset
+                in="keyBlur"
+                dx={0}
+                dy={metrics.expanded.shadow.offsetY}
+                result="keyMoved"
+              />
               <feComponentTransfer in="keyMoved" result="key">
                 <feFuncA ref={shadowKey} type="linear" slope={0} />
               </feComponentTransfer>
-              <feGaussianBlur in="SourceAlpha" stdDeviation={blurDeviation(metrics.expanded.shadow.tail)} result="tailBlur" />
-              <feOffset in="tailBlur" dx={0} dy={metrics.expanded.shadow.tail.offsetY} result="tailMoved" />
+              <feGaussianBlur
+                in="SourceAlpha"
+                stdDeviation={blurDeviation(metrics.expanded.shadow.tail)}
+                result="tailBlur"
+              />
+              <feOffset
+                in="tailBlur"
+                dx={0}
+                dy={metrics.expanded.shadow.tail.offsetY}
+                result="tailMoved"
+              />
               <feComponentTransfer in="tailMoved" result="tail">
                 <feFuncA ref={shadowTail} type="linear" slope={0} />
               </feComponentTransfer>
@@ -2172,14 +2864,49 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
                     g the shade's alpha over `full`, capped at 1. Filter results are clamped to
                     0..1, so the half is taken off after the noise is added, never before.
                   */}
-                  <feImage href={grain.href} x={0} y={0} width={grain.size} height={grain.size} preserveAspectRatio="none" result="grainTile" />
+                  <feImage
+                    href={grain.href}
+                    x={0}
+                    y={0}
+                    width={grain.size}
+                    height={grain.size}
+                    preserveAspectRatio="none"
+                    result="grainTile"
+                  />
                   <feTile in="grainTile" result="grainNoise" />
                   <feComponentTransfer in="shade" result="grainGate">
                     <feFuncA type="linear" slope={1 / Math.max(1e-4, grainFull)} />
                   </feComponentTransfer>
-                  <feComposite in="grainGate" in2="grainNoise" operator="arithmetic" k1={1} k2={0} k3={0} k4={0} result="grainScaled" />
-                  <feComposite in="shade" in2="grainScaled" operator="arithmetic" k1={0} k2={1} k3={grainLevels / 255} k4={0} result="shadeRaised" />
-                  <feComposite in="shadeRaised" in2="grainGate" operator="arithmetic" k1={0} k2={1} k3={-grainLevels / 510} k4={0} result="shadeGrain" />
+                  <feComposite
+                    in="grainGate"
+                    in2="grainNoise"
+                    operator="arithmetic"
+                    k1={1}
+                    k2={0}
+                    k3={0}
+                    k4={0}
+                    result="grainScaled"
+                  />
+                  <feComposite
+                    in="shade"
+                    in2="grainScaled"
+                    operator="arithmetic"
+                    k1={0}
+                    k2={1}
+                    k3={grainLevels / 255}
+                    k4={0}
+                    result="shadeRaised"
+                  />
+                  <feComposite
+                    in="shadeRaised"
+                    in2="grainGate"
+                    operator="arithmetic"
+                    k1={0}
+                    k2={1}
+                    k3={-grainLevels / 510}
+                    k4={0}
+                    result="shadeGrain"
+                  />
                   <feMerge>
                     <feMergeNode in="shadeGrain" />
                     <feMergeNode in="SourceGraphic" />
@@ -2194,7 +2921,13 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
             </filter>
           </defs>
           {/* Keyline strokes under the fills: only their outer half shows, outside the black edge. */}
-          <g fill="none" stroke="#fff" strokeWidth={metrics.keyline.width * 2} strokeOpacity={0} strokeLinejoin="round">
+          <g
+            fill="none"
+            stroke="#fff"
+            strokeWidth={metrics.keyline.width * 2}
+            strokeOpacity={0}
+            strokeLinejoin="round"
+          >
             <path ref={kPill} d={initialPaths.pill} />
             <path ref={kBridge} d={initialPaths.bridge} />
             <path ref={kBubble} d={initialPaths.bubble} />
@@ -2243,7 +2976,8 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
             inset: 0,
             pointerEvents: "none",
             color: "#fff",
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Geist", system-ui, sans-serif',
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "Inter", "Geist", system-ui, sans-serif',
             WebkitFontSmoothing: "antialiased",
             fontSize: 15,
             lineHeight: 1.25,
@@ -2272,7 +3006,13 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
             height={stageHeight}
             viewBox={`0 0 ${stageWidth} ${stageHeight}`}
             shapeRendering="geometricPrecision"
-            style={{ position: "absolute", inset: 0, overflow: "visible", pointerEvents: "none", opacity: metrics.sensor.opacity }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              overflow: "visible",
+              pointerEvents: "none",
+              opacity: metrics.sensor.opacity,
+            }}
           >
             <path
               d={continuousRectPath(

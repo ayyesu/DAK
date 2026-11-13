@@ -38,7 +38,14 @@ export interface SlotPair {
   trailing: number;
 }
 
-export const emptyMeasure: ContentMeasure = { leading: 0, trailing: 0, attached: 0, detached: 0, split: null, expandedHeight: 0 };
+export const emptyMeasure: ContentMeasure = {
+  leading: 0,
+  trailing: 0,
+  attached: 0,
+  detached: 0,
+  split: null,
+  expandedHeight: 0,
+};
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -50,7 +57,11 @@ export const islandScreenWidth = (containerWidth: number, metrics: IslandMetrics
 export const expandedWidth = (screenWidth: number, metrics: IslandMetrics) =>
   screenWidth - 2 * metrics.expanded.sideInset;
 
-const hiddenBubble = (right: number, height: number) => ({ bubbleLeft: right - height, bubbleRight: right, bubbleHeight: 0 });
+const hiddenBubble = (right: number, height: number) => ({
+  bubbleLeft: right - height,
+  bubbleRight: right,
+  bubbleHeight: 0,
+});
 
 /** The two pills of the compact split, or null when the content is too wide and `minimal` takes over. */
 export const splitLayout = (measure: ContentMeasure, metrics: IslandMetrics) => {
@@ -58,14 +69,18 @@ export const splitLayout = (measure: ContentMeasure, metrics: IslandMetrics) => 
   const s = metrics.split;
   const sensor = metrics.compact.sensorWidth / 2;
   const { attached, detached } = measure.split;
-  const pair = (slots: SlotPair, gap: number) => slots.leading + slots.trailing + (slots.leading > 0 && slots.trailing > 0 ? gap : 0);
-  const attachedWidth = s.attached.outerPadding + pair(attached, s.attached.gap) + s.attached.innerPadding;
+  const pair = (slots: SlotPair, gap: number) =>
+    slots.leading + slots.trailing + (slots.leading > 0 && slots.trailing > 0 ? gap : 0);
+  const attachedWidth =
+    s.attached.outerPadding + pair(attached, s.attached.gap) + s.attached.innerPadding;
   const bubbleWidth =
     s.detached.width > 0 && detached.trailing > 0
       ? s.detached.width
       : Math.max(
           metrics.minimal.detached.minWidth,
-          s.detached.outerPadding + pair(detached, s.detached.gap) + (detached.trailing > 0 ? s.detached.trailingPadding : s.detached.outerPadding),
+          s.detached.outerPadding +
+            pair(detached, s.detached.gap) +
+            (detached.trailing > 0 ? s.detached.trailingPadding : s.detached.outerPadding),
         );
   const left = -(sensor + attachedWidth);
   const bubbleLeft = sensor + metrics.minimal.gap;
@@ -81,22 +96,38 @@ export const splitLayout = (measure: ContentMeasure, metrics: IslandMetrics) => 
  */
 export const bubbleTrailing = (detached: SlotPair, bubbleWidth: number, metrics: IslandMetrics) => {
   const d = metrics.split.detached;
-  if (d.width <= 0) return { width: detached.trailing, fromRight: d.trailingPadding + detached.trailing / 2, room: Number.POSITIVE_INFINITY };
+  if (d.width <= 0)
+    return {
+      width: detached.trailing,
+      fromRight: d.trailingPadding + detached.trailing / 2,
+      room: Number.POSITIVE_INFINITY,
+    };
   const start = d.outerPadding + detached.leading + d.slotGap;
   const end = bubbleWidth - d.slotEnd;
   const room = Math.max(0, end - start);
-  return { width: Math.min(detached.trailing, room), fromRight: bubbleWidth - (start + end) / 2, room };
+  return {
+    width: Math.min(detached.trailing, room),
+    fromRight: bubbleWidth - (start + end) / 2,
+    room,
+  };
 };
 
 /** Extents of the compact pill beyond the sensor on each side, `balance` applied (0 for an empty side). */
-export const compactSides = (measure: Pick<ContentMeasure, "leading" | "trailing">, metrics: IslandMetrics) => {
+export const compactSides = (
+  measure: Pick<ContentMeasure, "leading" | "trailing">,
+  metrics: IslandMetrics,
+) => {
   const c = metrics.compact;
-  const side = (slot: number, inner: number) => (slot > 0 ? inner + Math.min(slot, c.maxSlotWidth) + c.edgePadding : 0);
+  const side = (slot: number, inner: number) =>
+    slot > 0 ? inner + Math.min(slot, c.maxSlotWidth) + c.edgePadding : 0;
   const leading = side(measure.leading, c.innerPadding.leading);
   const trailing = side(measure.trailing, c.innerPadding.trailing);
   // A side with nothing in it stays at the sensor: the rule is about two sides of content.
   if (leading <= 0 || trailing <= 0 || c.balance <= 0) return { leading, trailing };
-  return { leading: Math.max(leading, trailing * c.balance), trailing: Math.max(trailing, leading * c.balance) };
+  return {
+    leading: Math.max(leading, trailing * c.balance),
+    trailing: Math.max(trailing, leading * c.balance),
+  };
 };
 
 export const shapeTarget = (
@@ -109,7 +140,14 @@ export const shapeTarget = (
   switch (kind) {
     case "idle": {
       const { width, height } = metrics.idle;
-      return { left: -width / 2, right: width / 2, top, height, radius: height / 2, ...hiddenBubble(width / 2, height) };
+      return {
+        left: -width / 2,
+        right: width / 2,
+        top,
+        height,
+        radius: height / 2,
+        ...hiddenBubble(width / 2, height),
+      };
     }
     case "compact": {
       const c = metrics.compact;
@@ -119,15 +157,26 @@ export const shapeTarget = (
       const sides = compactSides(measure, metrics);
       const left = -Math.min(sensor + sides.leading, c.maxWidth / 2);
       const right = Math.min(sensor + sides.trailing, c.maxWidth / 2);
-      return { left, right, top, height: c.height, radius: c.height / 2, ...hiddenBubble(right, c.height) };
+      return {
+        left,
+        right,
+        top,
+        height: c.height,
+        radius: c.height / 2,
+        ...hiddenBubble(right, c.height),
+      };
     }
     case "minimal": {
       const m = metrics.minimal;
       const sensor = metrics.compact.sensorWidth / 2;
       const split = splitLayout(measure, metrics);
-      if (split) return { ...split, top, height: m.height, radius: m.height / 2, bubbleHeight: m.height };
+      if (split)
+        return { ...split, top, height: m.height, radius: m.height / 2, bubbleHeight: m.height };
       // Fallback: the attached pill keeps the sensor's trailing end and grows to the left to fit its content.
-      const left = measure.attached > 0 ? -(sensor + m.attached.innerPadding + measure.attached + m.attached.outerPadding) : -sensor;
+      const left =
+        measure.attached > 0
+          ? -(sensor + m.attached.innerPadding + measure.attached + m.attached.outerPadding)
+          : -sensor;
       const right = sensor;
       const bubbleWidth = Math.max(m.detached.minWidth, measure.detached + 2 * m.detached.padding);
       return {
@@ -144,8 +193,19 @@ export const shapeTarget = (
     case "expanded": {
       const e = metrics.expanded;
       const half = expandedWidth(screenWidth, metrics) / 2;
-      const height = clamp(measure.expandedHeight + e.padding.top + e.padding.bottom, e.minHeight, e.maxHeight);
-      return { left: -half, right: half, top: e.top, height, radius: e.radius, ...hiddenBubble(half, metrics.compact.height) };
+      const height = clamp(
+        measure.expandedHeight + e.padding.top + e.padding.bottom,
+        e.minHeight,
+        e.maxHeight,
+      );
+      return {
+        left: -half,
+        right: half,
+        top: e.top,
+        height,
+        radius: e.radius,
+        ...hiddenBubble(half, metrics.compact.height),
+      };
     }
     default: {
       const exhaustive: never = kind;

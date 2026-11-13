@@ -27,15 +27,38 @@ const css = `
  * island's `reducedMotion="always"`) it holds still: pair it with a label that says what is
  * happening, since a still arc alone reads as stuck.
  */
-export const Spinner = ({ size = 18, color = islandInk.primary, thickness = 2.25, label }: SpinnerProps) => {
+export const Spinner = ({
+  size = 18,
+  color = islandInk.primary,
+  thickness = 2.25,
+  label,
+}: SpinnerProps) => {
   const reduced = useIslandReducedMotion();
   const r = (size - thickness) / 2;
   const c = 2 * Math.PI * r;
   return (
-    <span role={label ? "status" : undefined} aria-label={label} aria-hidden={label ? undefined : true} style={{ display: "grid", placeItems: "center", width: size, height: size, flex: "none" }}>
+    <span
+      role={label ? "status" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+      style={{ display: "grid", placeItems: "center", width: size, height: size, flex: "none" }}
+    >
       <IslandStyle id="spinner" css={css} />
-      <svg className={reduced ? undefined : "icn-spinner"} width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeOpacity={0.22} strokeWidth={thickness} />
+      <svg
+        className={reduced ? undefined : "icn-spinner"}
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeOpacity={0.22}
+          strokeWidth={thickness}
+        />
         <circle
           cx={size / 2}
           cy={size / 2}

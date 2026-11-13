@@ -2,7 +2,11 @@ import type { SpringConfig } from "./spring";
 
 /** Legs that leave a motion's ending to its own spring. */
 const off = { by: 0, at: 0, max: 0, response: 0.5, dampingFraction: 1 } as const;
-const noTail = { width: { lean: off, settle: off }, height: { lean: off, settle: off }, top: { lean: off, settle: off } } as const satisfies ShapeTail;
+const noTail = {
+  width: { lean: off, settle: off },
+  height: { lean: off, settle: off },
+  top: { lean: off, settle: off },
+} as const satisfies ShapeTail;
 
 /**
  * Every spring and timing the island uses, in seconds (SwiftUI units).
@@ -161,7 +165,12 @@ export const islandMotion = {
    * of round 42's at every frame).
    */
   cornerLead: {
-    collapseSplit: { response: 0.481, dampingFraction: 0.884, delay: 0, trailing: { above: 60, below: 50 } },
+    collapseSplit: {
+      response: 0.481,
+      dampingFraction: 0.884,
+      delay: 0,
+      trailing: { above: 60, below: 50 },
+    },
   },
   /**
    * Morphs that change which content shows pass through the idle shape: the edges aim at idle and
@@ -225,15 +234,27 @@ export const islandMotion = {
     // 2.5% of its travel past compact and settles from +0.61 s with no inward correction; the height
     // swells about 1.3 pt from +0.24 s and settles from +0.56 s; the top comes back without overshoot.
     collapse: {
-      width: { lean: { by: 0.025, at: 0.396, max: 8, response: 0.3, dampingFraction: 0.866 }, settle: { at: 0.608, response: 0.409, dampingFraction: 1 } },
-      height: { lean: { by: 0.019, at: 0.242, max: 4, response: 0.287, dampingFraction: 0.724 }, settle: { at: 0.56, response: 0.372, dampingFraction: 1 } },
+      width: {
+        lean: { by: 0.025, at: 0.396, max: 8, response: 0.3, dampingFraction: 0.866 },
+        settle: { at: 0.608, response: 0.409, dampingFraction: 1 },
+      },
+      height: {
+        lean: { by: 0.019, at: 0.242, max: 4, response: 0.287, dampingFraction: 0.724 },
+        settle: { at: 0.56, response: 0.372, dampingFraction: 1 },
+      },
       top: { lean: off, settle: { at: 0.454, response: 0.28, dampingFraction: 1 } },
     },
     // alert, appear-alert and swap returns (t1, t2, t9, t10; `fit-tail.ts alertCollapse`): the same
     // ending as `collapse`, its height swell within 0.01 of it.
     alertCollapse: {
-      width: { lean: { by: 0.017, at: 0.366, max: 8, response: 0.357, dampingFraction: 0.704 }, settle: { at: 0.652, response: 0.351, dampingFraction: 1 } },
-      height: { lean: { by: 0.02, at: 0.248, max: 4, response: 0.318, dampingFraction: 0.718 }, settle: { at: 0.548, response: 0.396, dampingFraction: 1 } },
+      width: {
+        lean: { by: 0.017, at: 0.366, max: 8, response: 0.357, dampingFraction: 0.704 },
+        settle: { at: 0.652, response: 0.351, dampingFraction: 1 },
+      },
+      height: {
+        lean: { by: 0.02, at: 0.248, max: 4, response: 0.318, dampingFraction: 0.718 },
+        settle: { at: 0.548, response: 0.396, dampingFraction: 1 },
+      },
       top: { lean: off, settle: { at: 0.569, response: 0.15, dampingFraction: 1 } },
     },
     // split-alert's return and split-collapse-b (t1, t2, t9; `fit-tail.ts collapseSplit`): the same late
@@ -241,7 +262,10 @@ export const islandMotion = {
     collapseSplit: {
       width: { lean: off, settle: off },
       // Round 41: refitted with `body.collapseSplit` on every seen take (above).
-      height: { lean: { by: 0.026, at: 0.308, max: 4, response: 0.477, dampingFraction: 0.838 }, settle: { at: 0.55, response: 0.383, dampingFraction: 1 } },
+      height: {
+        lean: { by: 0.026, at: 0.308, max: 4, response: 0.477, dampingFraction: 0.838 },
+        settle: { at: 0.55, response: 0.383, dampingFraction: 1 },
+      },
       top: { lean: off, settle: { at: 0.489, response: 0.349, dampingFraction: 1 } },
     },
     split: noTail,
@@ -256,7 +280,10 @@ export const islandMotion = {
     // +0.15 s the width heads 4.2% of its travel wider than idle (2.3 pt from A, 3.5 from W), then
     // settles from +0.55 s. Capped at 4 pt: no take shows how far an expanded island widens.
     dismiss: {
-      width: { lean: { by: 0.042, at: 0.15, max: 4, response: 0.46, dampingFraction: 0.728 }, settle: { at: 0.548, response: 0.4, dampingFraction: 1 } },
+      width: {
+        lean: { by: 0.042, at: 0.15, max: 4, response: 0.46, dampingFraction: 0.728 },
+        settle: { at: 0.548, response: 0.4, dampingFraction: 1 },
+      },
       height: { lean: off, settle: off },
       top: { lean: off, settle: off },
     },
@@ -353,7 +380,13 @@ export const islandMotion = {
     // Judge round 5 (finding 2): the blob's right edge runs in at a near-constant 700 pt/s and stops
     // at the dip by 839 (290.8), with no ease-out; 0.25 / 1 was still at 301 there (sim right jitter
     // max 7.39 to 2.10 pt over 829 to 867, the pinch at 854 and the re-join at 858 to 861 kept).
-    collapseSplitVia: { dip: 24, at: 0.16, response: 0.22, dampingFraction: 1, down: { response: 0.41, dampingFraction: 0.55 } },
+    collapseSplitVia: {
+      dip: 24,
+      at: 0.16,
+      response: 0.22,
+      dampingFraction: 1,
+      down: { response: 0.41, dampingFraction: 0.55 },
+    },
     /**
      * Expanded to split: the bubble starts level with the middle of the tall pill (hidden inside
      * its straight side), then rides up to the pill's top on this spring, so it shows as a bulb at
@@ -368,7 +401,12 @@ export const islandMotion = {
      * Judge round 6 (finding 1): without it the body's bottom sat 1 pt low under the bulb
      * (`scripts/fidelity/fit-lift.ts`: top RMS 0.128 to 0.031 pt over 830 to 870).
      */
-    collapseSplitLift: { by: 1.139, response: 0.475, dampingFraction: 0.581, back: { at: 0.318, response: 0.485, dampingFraction: 0.878 } },
+    collapseSplitLift: {
+      by: 1.139,
+      response: 0.475,
+      dampingFraction: 0.581,
+      back: { at: 0.318, response: 0.485, dampingFraction: 0.878 },
+    },
     /**
      * Expanded to split: the attached pill settles wider first (left near 86), then narrows to its
      * place from `at` seconds on `response` / `dampingFraction`. Its right edge first holds `right`
@@ -564,7 +602,43 @@ export const islandMotion = {
     // times iOS's light at the sensor's right end (odd one out 0.65 to 0.84); at 0.92 it is 0.42. A
     // 0.4 s spring ended the value's ramp 1.9 frames after every take (SPREAD-ALL `in_end`).
     // W keeps round 43's text (`wide.trailingEnter`, `wide.trailingEnterClear`).
-    appear: { wide: { from: 165, trailingScale: 0.92, scale: 0.75, enterBlur: 14, enterGlow: 0.6, trailingEnter: { response: 0.33, dampingFraction: 1, delay: 0.18 }, trailingEnterClear: 0 }, enterScale: 0.95, enterNarrow: 0.2, enterSqueezeOrigin: 0.5, enter: { response: 0.45, dampingFraction: 1, delay: 0.07 }, exit: { response: 0.12, dampingFraction: 1, delay: 0 }, trailingEnter: { response: 0.37, dampingFraction: 1, delay: 0.17 }, trailingEnterBlur: 5.5, trailingScale: 0.92, trailingEnterClear: 0.08, enterGlow: 0.42, blur: 5.5, enterBlur: 12, scale: 0.8, fade: 1, exitFade: 1, bubbleDelay: 0, trailingDelay: 0, trailingExitPower: 1, anchor: 1, sharpen: 1.2, bubbleScale: 0.8, bubbleSpread: 0, bubbleBlur: 5.5, bubbleSharpen: 1, centerDelay: 0, leadingFade: 2.8 },
+    appear: {
+      wide: {
+        from: 165,
+        trailingScale: 0.92,
+        scale: 0.75,
+        enterBlur: 14,
+        enterGlow: 0.6,
+        trailingEnter: { response: 0.33, dampingFraction: 1, delay: 0.18 },
+        trailingEnterClear: 0,
+      },
+      enterScale: 0.95,
+      enterNarrow: 0.2,
+      enterSqueezeOrigin: 0.5,
+      enter: { response: 0.45, dampingFraction: 1, delay: 0.07 },
+      exit: { response: 0.12, dampingFraction: 1, delay: 0 },
+      trailingEnter: { response: 0.37, dampingFraction: 1, delay: 0.17 },
+      trailingEnterBlur: 5.5,
+      trailingScale: 0.92,
+      trailingEnterClear: 0.08,
+      enterGlow: 0.42,
+      blur: 5.5,
+      enterBlur: 12,
+      scale: 0.8,
+      fade: 1,
+      exitFade: 1,
+      bubbleDelay: 0,
+      trailingDelay: 0,
+      trailingExitPower: 1,
+      anchor: 1,
+      sharpen: 1.2,
+      bubbleScale: 0.8,
+      bubbleSpread: 0,
+      bubbleBlur: 5.5,
+      bubbleSharpen: 1,
+      centerDelay: 0,
+      leadingFade: 2.8,
+    },
     // Round 19 (triangle r18: "its blurred title lacks the curved cut beneath the stationary
     // centre"): on expand-t1, t9 and alert-t1 iOS's incoming title glows faintly from the start of
     // the opening, its glow's top at the sensor's bottom edge (50.3 pt), so the sensor cuts it along
@@ -598,7 +672,33 @@ export const islandMotion = {
     // The bottom region rides the bottom edge (`regionBottomAnchor` 1), center and trailing a quarter
     // of the way; the tile keeps its place (alert: corner inside the takes on 85% of frames from 55%,
     // bar 96% from 32%, text centre on the height grid +0.48 to -0.03 pt).
-    expand: { clipFollow: 1, regionBottomAnchor: { bottom: 1, center: 0.25, trailing: 0.25 }, enter: { response: 0.3, dampingFraction: 1, delay: 0.07 }, exit: { response: 0.24, dampingFraction: 1, delay: 0.01 }, blur: 9.5, enterBlur: 17, scale: 0.9, fade: 1.2, exitFade: 0.5, bubbleDelay: 0, trailingDelay: 0, trailingExitPower: 1, anchor: 0, sharpen: 1, bubbleScale: 0.9, bubbleSpread: 0, bubbleBlur: 14, bubbleSharpen: 1, centerDelay: 0, leadingFade: 1, regions: { center: { fade: 0.1, blur: 0, lead: 0.3 }, trailing: { fade: 0.03, blur: 0, lead: 0.5 }, bottom: { fade: 0, blur: 0, peak: 12 } } },
+    expand: {
+      clipFollow: 1,
+      regionBottomAnchor: { bottom: 1, center: 0.25, trailing: 0.25 },
+      enter: { response: 0.3, dampingFraction: 1, delay: 0.07 },
+      exit: { response: 0.24, dampingFraction: 1, delay: 0.01 },
+      blur: 9.5,
+      enterBlur: 17,
+      scale: 0.9,
+      fade: 1.2,
+      exitFade: 0.5,
+      bubbleDelay: 0,
+      trailingDelay: 0,
+      trailingExitPower: 1,
+      anchor: 0,
+      sharpen: 1,
+      bubbleScale: 0.9,
+      bubbleSpread: 0,
+      bubbleBlur: 14,
+      bubbleSharpen: 1,
+      centerDelay: 0,
+      leadingFade: 1,
+      regions: {
+        center: { fade: 0.1, blur: 0, lead: 0.3 },
+        trailing: { fade: 0.03, blur: 0, lead: 0.5 },
+        bottom: { fade: 0, blur: 0, peak: 12 },
+      },
+    },
     // Fresh round's labelled finding 1 (expand-t9, press-t9, expand-dark-t9, wide-expand-t9): iOS keeps
     // the compact digits readable and the accent bright into early growth, shows the bar's green
     // earlier, and the expanded text and accent resolve more gradually. Fitted on the median of
@@ -696,7 +796,36 @@ export const islandMotion = {
     // the ink on the median but brightened the heading against the sensor's edge (the proxy's sensor
     // group on wide-expand 0.70 to 0.84, over its p90 0.77); peaks of 6 to 8 put its focus on the
     // median on raw frames but its brightest point 25 to 56% over the takes'.
-    pressExpand: { clipFollow: 1, regionBottomAnchor: { bottom: 1, center: 0.25, trailing: 0.25 }, bottomAnchor: 0.2, enter: { response: 0.36, dampingFraction: 1, delay: 0.056 }, exit: { response: 0.28, dampingFraction: 1, delay: 0.026 }, blur: 10.5, exitBlur: 9, enterBlur: 12, enterClear: 0.03, scale: 0.9, fade: 1, exitFade: 0.65, bubbleDelay: 0, trailingDelay: 0, trailingExitPower: 1, anchor: 0, sharpen: 0.85, bubbleScale: 0.9, bubbleSpread: 0, bubbleBlur: 16, bubbleSharpen: 1, centerDelay: 0, leadingFade: 1, regions: { center: { fade: 0.065, blur: 0, lead: 0.3, peak: 10 }, trailing: { fade: 0.03, blur: 0, lead: 0.5 }, bottom: { fade: 0, blur: 0, peak: 10.5 } } },
+    pressExpand: {
+      clipFollow: 1,
+      regionBottomAnchor: { bottom: 1, center: 0.25, trailing: 0.25 },
+      bottomAnchor: 0.2,
+      enter: { response: 0.36, dampingFraction: 1, delay: 0.056 },
+      exit: { response: 0.28, dampingFraction: 1, delay: 0.026 },
+      blur: 10.5,
+      exitBlur: 9,
+      enterBlur: 12,
+      enterClear: 0.03,
+      scale: 0.9,
+      fade: 1,
+      exitFade: 0.65,
+      bubbleDelay: 0,
+      trailingDelay: 0,
+      trailingExitPower: 1,
+      anchor: 0,
+      sharpen: 0.85,
+      bubbleScale: 0.9,
+      bubbleSpread: 0,
+      bubbleBlur: 16,
+      bubbleSharpen: 1,
+      centerDelay: 0,
+      leadingFade: 1,
+      regions: {
+        center: { fade: 0.065, blur: 0, lead: 0.3, peak: 10 },
+        trailing: { fade: 0.03, blur: 0, lead: 0.5 },
+        bottom: { fade: 0, blur: 0, peak: 10.5 },
+      },
+    },
     // appear-alert-t1 (finding 8): faint orange and white already show as the pill grows.
     // Judge round 5 (finding 3): the square, label and number stay soft together longer; the label
     // reaches half opacity four frames after the square (layer-fit.py on raw captures: square opacity
@@ -756,7 +885,52 @@ export const islandMotion = {
     // Round 39: as `expand`; with `afterHandoff` it reaches swap's B (appear-alert: tile corner inside
     // the takes on 88% of frames from 40%, bar on the height grid 95% from 5%; swap 82% from 45%, 59%
     // from 6%).
-    appearExpand: { clipFollow: 1, regionBottomAnchor: { bottom: 1, center: 0.25, trailing: 0.25 }, enter: { response: 0.36, dampingFraction: 1, delay: 0.02 }, exit: { response: 0.06, dampingFraction: 1, delay: 0 }, afterHandoff: { enter: { response: 0.33, dampingFraction: 1, delay: 0.03 }, fade: 1, regions: { center: { fade: 0.07, blur: 0.03, soften: 1.5 }, bottom: { fade: 0.02, blur: 0.03 }, leading: { fade: 0, blur: 0.04, peak: 11.5, scale: 0.93, lift: 3.5, power: 1.8, soften: -0.45, lead: 0.12 }, trailing: { fade: 0, blur: 0.015 } } }, blur: 8, enterBlur: 12, scale: 0.6, fade: 1.8, exitFade: 1, bubbleDelay: 0, trailingDelay: 0, trailingExitPower: 1, anchor: 0, sharpen: 0.85, bubbleScale: 0.6, bubbleSpread: 0, bubbleBlur: 12, bubbleSharpen: 1, centerDelay: 0, leadingFade: 1, regions: { center: { fade: 0.07, blur: 0 }, leading: { fade: 0, blur: 0, scale: 0.8, lift: 5 } }, skirt: 0.5 },
+    appearExpand: {
+      clipFollow: 1,
+      regionBottomAnchor: { bottom: 1, center: 0.25, trailing: 0.25 },
+      enter: { response: 0.36, dampingFraction: 1, delay: 0.02 },
+      exit: { response: 0.06, dampingFraction: 1, delay: 0 },
+      afterHandoff: {
+        enter: { response: 0.33, dampingFraction: 1, delay: 0.03 },
+        fade: 1,
+        regions: {
+          center: { fade: 0.07, blur: 0.03, soften: 1.5 },
+          bottom: { fade: 0.02, blur: 0.03 },
+          leading: {
+            fade: 0,
+            blur: 0.04,
+            peak: 11.5,
+            scale: 0.93,
+            lift: 3.5,
+            power: 1.8,
+            soften: -0.45,
+            lead: 0.12,
+          },
+          trailing: { fade: 0, blur: 0.015 },
+        },
+      },
+      blur: 8,
+      enterBlur: 12,
+      scale: 0.6,
+      fade: 1.8,
+      exitFade: 1,
+      bubbleDelay: 0,
+      trailingDelay: 0,
+      trailingExitPower: 1,
+      anchor: 0,
+      sharpen: 0.85,
+      bubbleScale: 0.6,
+      bubbleSpread: 0,
+      bubbleBlur: 12,
+      bubbleSharpen: 1,
+      centerDelay: 0,
+      leadingFade: 1,
+      regions: {
+        center: { fade: 0.07, blur: 0 },
+        leading: { fade: 0, blur: 0, scale: 0.8, lift: 5 },
+      },
+      skirt: 0.5,
+    },
     // split-alert-t1 (judge round 2, finding 4): compact A's circle fades over about 8 frames as the
     // pill contracts (ink 0.83, 0.68, 0.49, 0.32, 0.18, 0.07), sliding under the sensor (0.2 gave 4 frames); its text is
     // gone in 1 to 2 frames.
@@ -876,7 +1050,53 @@ export const islandMotion = {
     // Round 42: half the blur's wide part (`skirt` 0.5). Added on top at 1, split-expand-b's leaving
     // content read brighter at the sensor than main (the proxy's sensor group 0.83 to 0.85, outside
     // its p90 0.63); at 0.5 it is 0.83 again and the skirt stays inside iOS's range on all seven takes.
-    swap: { clipFollow: 1, regionBottomAnchor: { bottom: 1.5, center: 0.5, trailing: 0.5 }, trailingExitAnchor: 3, enter: { response: 0.36, dampingFraction: 1, delay: 0.252 }, exit: { response: 0.33, dampingFraction: 1, delay: 0 }, bubbleExit: { response: 0, dampingFraction: 1, delay: -0.023 }, absorb: { clipFollow: 0, regionBottomAnchor: {}, enter: { response: 0.38, dampingFraction: 1, delay: 0.239 }, centerDelay: 0, regions: { leading: { fade: 0, blur: 0.01 }, center: { fade: 0.1, blur: 0.015, lead: 0.2 }, trailing: { fade: 0, blur: 0, peak: 13 }, bottom: { fade: 0, blur: 0.01, peak: 14 } }, enterBlur: 10, exitSharpen: 0.9, exitFade: 1.5 }, blur: 8, enterBlur: 12, scale: 0.6, exitScale: 1, exitSharpen: 0.6, fade: 1, exitFade: 1.3, bubbleDelay: 0, trailingDelay: 0, trailingExitPower: 1, anchor: 0, sharpen: 1, bubbleScale: 0.6, bubbleSpread: 0, bubbleBlur: 10, bubbleSharpen: 1, centerDelay: 0, leadingFade: 1, regions: { center: { fade: 0.08, blur: 0.03, peak: 10 }, bottom: { fade: 0.025, blur: 0, soften: 3, peak: 8 }, leading: { fade: 0, blur: 0.05, peak: 9, scale: 0.85, lift: 5, power: 1.2, soften: -0.3 } }, skirt: 0.5 },
+    swap: {
+      clipFollow: 1,
+      regionBottomAnchor: { bottom: 1.5, center: 0.5, trailing: 0.5 },
+      trailingExitAnchor: 3,
+      enter: { response: 0.36, dampingFraction: 1, delay: 0.252 },
+      exit: { response: 0.33, dampingFraction: 1, delay: 0 },
+      bubbleExit: { response: 0, dampingFraction: 1, delay: -0.023 },
+      absorb: {
+        clipFollow: 0,
+        regionBottomAnchor: {},
+        enter: { response: 0.38, dampingFraction: 1, delay: 0.239 },
+        centerDelay: 0,
+        regions: {
+          leading: { fade: 0, blur: 0.01 },
+          center: { fade: 0.1, blur: 0.015, lead: 0.2 },
+          trailing: { fade: 0, blur: 0, peak: 13 },
+          bottom: { fade: 0, blur: 0.01, peak: 14 },
+        },
+        enterBlur: 10,
+        exitSharpen: 0.9,
+        exitFade: 1.5,
+      },
+      blur: 8,
+      enterBlur: 12,
+      scale: 0.6,
+      exitScale: 1,
+      exitSharpen: 0.6,
+      fade: 1,
+      exitFade: 1.3,
+      bubbleDelay: 0,
+      trailingDelay: 0,
+      trailingExitPower: 1,
+      anchor: 0,
+      sharpen: 1,
+      bubbleScale: 0.6,
+      bubbleSpread: 0,
+      bubbleBlur: 10,
+      bubbleSharpen: 1,
+      centerDelay: 0,
+      leadingFade: 1,
+      regions: {
+        center: { fade: 0.08, blur: 0.03, peak: 10 },
+        bottom: { fade: 0.025, blur: 0, soften: 3, peak: 8 },
+        leading: { fade: 0, blur: 0.05, peak: 9, scale: 0.85, lift: 5, power: 1.2, soften: -0.3 },
+      },
+      skirt: 0.5,
+    },
     // collapse-t1, collapse-dark-t1 (judge round 4, finding 2): the returning circle and "42" sharpen
     // well ahead of their opacity (blur 3.8, 2.3, 1.5, 1.0, 0.5 pt at 15, 30, 43, 57, 69%): blur
     // 8.3 x (1 - p)^1.6, coming in only (scripts/fidelity/layer-fit.py: readable 6 frames late to 1 early, sharp 9 late to on time).
@@ -938,7 +1158,32 @@ export const islandMotion = {
     // (`trailingSlide` -12): centre inside on 84% of frames (52%), the proxy's sensor group 1.11 to
     // 1.08 and content 0.86 to 0.82 (lossless A/B, -t1, -t9, -t25, -t37, -t39). wide-collapse: the
     // dot's focus +0.29 to 0.00 pt, the clock's +0.30 to +0.03 and its centre 32 to 52% inside.
-    collapse: { enterClear: 0.1, trailingSlide: -12, trailingSlidePower: 1.5, enterGlow: 0.5, enterNarrow: 0.35, enterSqueezeOrigin: 1, enter: { response: 0.5, dampingFraction: 1, delay: 0.36 }, exit: { response: 0.22, dampingFraction: 1, delay: 0.017 }, blur: 7.75, enterBlur: 8.3, scale: 0.9, fade: 2, exitFade: 0.7, bubbleDelay: 0, trailingDelay: 0, trailingExitPower: 1, anchor: -2, sharpen: 1.1, bubbleScale: 0.9, bubbleSpread: 0, bubbleBlur: 8.3, bubbleSharpen: 1.6, centerDelay: 0, leadingFade: 1 },
+    collapse: {
+      enterClear: 0.1,
+      trailingSlide: -12,
+      trailingSlidePower: 1.5,
+      enterGlow: 0.5,
+      enterNarrow: 0.35,
+      enterSqueezeOrigin: 1,
+      enter: { response: 0.5, dampingFraction: 1, delay: 0.36 },
+      exit: { response: 0.22, dampingFraction: 1, delay: 0.017 },
+      blur: 7.75,
+      enterBlur: 8.3,
+      scale: 0.9,
+      fade: 2,
+      exitFade: 0.7,
+      bubbleDelay: 0,
+      trailingDelay: 0,
+      trailingExitPower: 1,
+      anchor: -2,
+      sharpen: 1.1,
+      bubbleScale: 0.9,
+      bubbleSpread: 0,
+      bubbleBlur: 8.3,
+      bubbleSharpen: 1.6,
+      centerDelay: 0,
+      leadingFade: 1,
+    },
     // alert-t1, appear-alert-t1: the same return as collapse-t1 (readable 3 to 4 frames late and
     // sharp 4 to 6 late before; within 1 after), its last 5% of opacity a little faster (98% at +2).
     // Round 15 (judge finding: appear-alert's return reads as a crisp miniature card): on
@@ -1004,7 +1249,35 @@ export const islandMotion = {
     // is app-timed), on alert-t1, -t9, -t25, -t37, -t39: the circle's focus +0.73 to +0.25 pt from
     // the takes' median and inside them from +5 frames on, the digits' centre inside on 95% (50%),
     // their focus +0.36 to +0.01.
-    alertCollapse: { enterClear: 0.1, trailingSlide: -12, trailingSlidePower: 1.5, enterGlow: 0.5, enterNarrow: 0.35, enterSqueezeOrigin: 1, regionBottomAnchor: { leading: -0.07 }, regionExitFade: { center: 1.8 }, bottomAnchor: -0.25, enter: { response: 0.42, dampingFraction: 1, delay: 0.39 }, exit: { response: 0.3, dampingFraction: 0.8, delay: 0.03 }, blur: 10, enterBlur: 6.5, scale: 0.9, fade: 1.9, exitFade: 0.8, bubbleDelay: 0, trailingDelay: 0, trailingExitPower: 1, anchor: -2, sharpen: 1.1, bubbleScale: 0.9, bubbleSpread: 0, bubbleBlur: 8.3, bubbleSharpen: 1.6, centerDelay: 0, leadingFade: 1 },
+    alertCollapse: {
+      enterClear: 0.1,
+      trailingSlide: -12,
+      trailingSlidePower: 1.5,
+      enterGlow: 0.5,
+      enterNarrow: 0.35,
+      enterSqueezeOrigin: 1,
+      regionBottomAnchor: { leading: -0.07 },
+      regionExitFade: { center: 1.8 },
+      bottomAnchor: -0.25,
+      enter: { response: 0.42, dampingFraction: 1, delay: 0.39 },
+      exit: { response: 0.3, dampingFraction: 0.8, delay: 0.03 },
+      blur: 10,
+      enterBlur: 6.5,
+      scale: 0.9,
+      fade: 1.9,
+      exitFade: 0.8,
+      bubbleDelay: 0,
+      trailingDelay: 0,
+      trailingExitPower: 1,
+      anchor: -2,
+      sharpen: 1.1,
+      bubbleScale: 0.9,
+      bubbleSpread: 0,
+      bubbleBlur: 8.3,
+      bubbleSharpen: 1.6,
+      centerDelay: 0,
+      leadingFade: 1,
+    },
     // split-alert-t1 return (finding 2): A's orange and "42" come back about 1 to 2 frames after the
     // web's did and take about 10 frames from 10 to 90%. Judge round 4 (finding 1): everything is
     // sharp by 849 to 851 while the pill and bubble are still joined, from scale 0.7; the circle
@@ -1183,7 +1456,57 @@ export const islandMotion = {
     // Round 42: a quarter of the blur's wide part (`skirt` 0.25). Added on top at 0.5, the returning green
     // lit the bubble's lower end enough for the judge-pack mask to paint it on split-collapse-b-t51 f132
     // (2.2 pt^2); split-collapse-b's skirt was inside iOS's range without any.
-    collapseSplit: { follow: 1, trailingRide: { by: 1.2, max: 8 }, partStep: { at: 0.52, by: 5, spring: { response: 0.45, dampingFraction: 1 } }, enter: { response: 0.45, dampingFraction: 0.8, delay: 0.145 }, exit: { response: 0.03, dampingFraction: 1, delay: 0 }, bubbleEnter: { response: 0.45, dampingFraction: 1, delay: 0.08 }, afterAlert: { enter: { response: 0.45, dampingFraction: 0.8, delay: 0.16 }, bubbleEnter: { response: 0.6, dampingFraction: 0.8, delay: 0.01 }, bubbleDelay: -0.08, bubbleFade: 3, bubbleResolve: 1.2, bubbleTrailingFade: 7, bubbleBlur: 24, bubbleSharpen: 1.2, bubbleScale: 1.9, bubbleSpread: 4.5, bubbleSettle: { depth: 0.07, response: 0.3, dampingFraction: 1, delay: 0.42 }, bubbleTrailingSlide: { by: 60, power: 1.6 } }, trailingEnterBlur: 5, blur: 7, enterBlur: 7, scale: 0.7, fade: 1, exitFade: 1, bubbleDelay: -0.065, trailingDelay: 0.02, trailingExitPower: 1, anchor: -0.5, rowAnchor: 0.85, sharpen: 2, bubbleScale: 1.5, bubbleSpread: 0.15, bubbleStretch: 0.7, bubbleStretchPower: 1.6, bubbleCap: 6.5, bubbleTrailingFade: 4.2, bubbleTrailingSlide: { by: 80, power: 1.2 }, bubbleTrailingBlur: { by: 6.4, power: 0.85 }, bubbleOrigin: 0, bubbleHold: 0.42, bubbleResolve: 1.6, bubbleFade: 1.55, bubbleBlur: 36, bubbleSharpen: 2.3, centerDelay: 0, leadingFade: 0.6, skirt: 0.25 },
+    collapseSplit: {
+      follow: 1,
+      trailingRide: { by: 1.2, max: 8 },
+      partStep: { at: 0.52, by: 5, spring: { response: 0.45, dampingFraction: 1 } },
+      enter: { response: 0.45, dampingFraction: 0.8, delay: 0.145 },
+      exit: { response: 0.03, dampingFraction: 1, delay: 0 },
+      bubbleEnter: { response: 0.45, dampingFraction: 1, delay: 0.08 },
+      afterAlert: {
+        enter: { response: 0.45, dampingFraction: 0.8, delay: 0.16 },
+        bubbleEnter: { response: 0.6, dampingFraction: 0.8, delay: 0.01 },
+        bubbleDelay: -0.08,
+        bubbleFade: 3,
+        bubbleResolve: 1.2,
+        bubbleTrailingFade: 7,
+        bubbleBlur: 24,
+        bubbleSharpen: 1.2,
+        bubbleScale: 1.9,
+        bubbleSpread: 4.5,
+        bubbleSettle: { depth: 0.07, response: 0.3, dampingFraction: 1, delay: 0.42 },
+        bubbleTrailingSlide: { by: 60, power: 1.6 },
+      },
+      trailingEnterBlur: 5,
+      blur: 7,
+      enterBlur: 7,
+      scale: 0.7,
+      fade: 1,
+      exitFade: 1,
+      bubbleDelay: -0.065,
+      trailingDelay: 0.02,
+      trailingExitPower: 1,
+      anchor: -0.5,
+      rowAnchor: 0.85,
+      sharpen: 2,
+      bubbleScale: 1.5,
+      bubbleSpread: 0.15,
+      bubbleStretch: 0.7,
+      bubbleStretchPower: 1.6,
+      bubbleCap: 6.5,
+      bubbleTrailingFade: 4.2,
+      bubbleTrailingSlide: { by: 80, power: 1.2 },
+      bubbleTrailingBlur: { by: 6.4, power: 0.85 },
+      bubbleOrigin: 0,
+      bubbleHold: 0.42,
+      bubbleResolve: 1.6,
+      bubbleFade: 1.55,
+      bubbleBlur: 36,
+      bubbleSharpen: 2.3,
+      centerDelay: 0,
+      leadingFade: 0.6,
+      skirt: 0.25,
+    },
     // split-t1 (finding 3): the attached pill's orange and "42" stay soft through the neck while the
     // bubble's blue and "7" come in; the bubble no longer waits behind the pill.
     // Round 15 (judge finding: the blue comes out as a diffuse glow, not a clipped crescent): on
@@ -1259,7 +1582,41 @@ export const islandMotion = {
     // "42" keeps 1 pt further from the sensor (`trailingExitAnchor` -1; -2 also held it out of the cut
     // until +7 but moved white across x 255 at equal width, content-size 1.68 to 1.80). The "7" keeps presence ^ 1.6: on
     // ^ 3 it cleared the cut's +19 and +20 frames by 1 pt^2 but came in a frame later than every take.
-    split: { enter: { response: 0.36, dampingFraction: 1, delay: 0.31 }, exit: { response: 0.3, dampingFraction: 1, delay: 0 }, trailingEnter: { response: 0.25, dampingFraction: 1, delay: 0.36 }, bubbleEnter: { response: 0.2, dampingFraction: 1, delay: 0.32 }, trailingSlide: 46, trailingSlidePower: 1.5, trailingEnterBlur: 7, trailingExitAnchor: -1, blur: 5.5, enterBlur: 8, exitScale: 0.5, exitBlur: 7, scale: 0.8, fade: 0.8, exitFade: 0.8, bubbleDelay: -0.115, trailingDelay: 0.02, trailingExitPower: 1, anchor: 0, sharpen: 1, bubbleScale: 0.8, bubbleSpread: 0, bubbleBlur: 15, bubbleBlurMax: 8, bubbleSharpen: 0.85, bubbleFade: 1.3, bubbleLead: 0.0167, bubbleLeadRamp: 21, bubbleLeadPower: 5, bubbleTrailingFade: 1.6, centerDelay: 0, leadingFade: 0.7, skirt: 0 },
+    split: {
+      enter: { response: 0.36, dampingFraction: 1, delay: 0.31 },
+      exit: { response: 0.3, dampingFraction: 1, delay: 0 },
+      trailingEnter: { response: 0.25, dampingFraction: 1, delay: 0.36 },
+      bubbleEnter: { response: 0.2, dampingFraction: 1, delay: 0.32 },
+      trailingSlide: 46,
+      trailingSlidePower: 1.5,
+      trailingEnterBlur: 7,
+      trailingExitAnchor: -1,
+      blur: 5.5,
+      enterBlur: 8,
+      exitScale: 0.5,
+      exitBlur: 7,
+      scale: 0.8,
+      fade: 0.8,
+      exitFade: 0.8,
+      bubbleDelay: -0.115,
+      trailingDelay: 0.02,
+      trailingExitPower: 1,
+      anchor: 0,
+      sharpen: 1,
+      bubbleScale: 0.8,
+      bubbleSpread: 0,
+      bubbleBlur: 15,
+      bubbleBlurMax: 8,
+      bubbleSharpen: 0.85,
+      bubbleFade: 1.3,
+      bubbleLead: 0.0167,
+      bubbleLeadRamp: 21,
+      bubbleLeadPower: 5,
+      bubbleTrailingFade: 1.6,
+      centerDelay: 0,
+      leadingFade: 0.7,
+      skirt: 0,
+    },
     // unsplit-t1 (finding 9): the returning orange stays a faint crescent at the sensor a little longer.
     // Judge round 3, blind cue b: the leaving orange, "42" and blue stay bright as the sensor cuts
     // them (exit 0.35: crescent peak RMS 0.144 to 0.048, blue 0.125 to 0.104, scripts/fidelity/crescent.py).
@@ -1343,7 +1700,39 @@ export const islandMotion = {
     // on toward the sensor on (1 - presence) ^ 2 (`bubbleExitSlide`, new), is cut 20 ms later (0.06 s)
     // and blurs from 6 px, so the sensor covers it bright instead of the patch fading where it stands
     // (4.5 left it 1.2 pt sharper than the takes at equal width, 7 left it 1.6 pt softer).
-    unsplit: { exitBlur: 4.5, bubbleExitBlur: 6, bubbleExitSlide: 12, bubbleExitSlidePower: 2, enterSqueeze: 3.8, enterScale: 1.3, trailingEnterBlur: 8, trailingExitAnchor: 9, trailingSlide: -3, trailingSlidePower: 0.5, bubbleExitAccent: true, enter: { response: 0.3, dampingFraction: 1, delay: 0.26 }, exit: { response: 0.26, dampingFraction: 1, delay: 0 }, bubbleExit: { response: 0.08, dampingFraction: 1, delay: 0.06 }, blur: 6.5, enterBlur: 9, scale: 0.8, fade: 1, exitFade: 0.8, bubbleDelay: 0, trailingDelay: 0.03, trailingExitPower: 1, anchor: -2, sharpen: 0.75, bubbleScale: 0.8, bubbleSpread: 0, bubbleBlur: 8, bubbleSharpen: 1, centerDelay: 0, leadingFade: 1.3, skirt: 2 },
+    unsplit: {
+      exitBlur: 4.5,
+      bubbleExitBlur: 6,
+      bubbleExitSlide: 12,
+      bubbleExitSlidePower: 2,
+      enterSqueeze: 3.8,
+      enterScale: 1.3,
+      trailingEnterBlur: 8,
+      trailingExitAnchor: 9,
+      trailingSlide: -3,
+      trailingSlidePower: 0.5,
+      bubbleExitAccent: true,
+      enter: { response: 0.3, dampingFraction: 1, delay: 0.26 },
+      exit: { response: 0.26, dampingFraction: 1, delay: 0 },
+      bubbleExit: { response: 0.08, dampingFraction: 1, delay: 0.06 },
+      blur: 6.5,
+      enterBlur: 9,
+      scale: 0.8,
+      fade: 1,
+      exitFade: 0.8,
+      bubbleDelay: 0,
+      trailingDelay: 0.03,
+      trailingExitPower: 1,
+      anchor: -2,
+      sharpen: 0.75,
+      bubbleScale: 0.8,
+      bubbleSpread: 0,
+      bubbleBlur: 8,
+      bubbleSharpen: 1,
+      centerDelay: 0,
+      leadingFade: 1.3,
+      skirt: 2,
+    },
     // dismiss-t1 (judge round 3, blind cue b): the leaving circle and "42" scale about the island's
     // centre, so they slide in under the sensor and it cuts them into a hard crescent (at 136 pt
     // wide the circle's centre sits 19.8 pt from the pill's edge, not 16.3), staying brighter and
@@ -1391,8 +1780,58 @@ export const islandMotion = {
     // on p ^ 0.525 (`exitLeadingFade` 0.75, new) under a 14 px peak blur while "12:45" leaves as
     // before: dismiss-wide left 1.00 to 0.50, swap's W left 0.98 to 0.50, content-size 0.77 to 0.76
     // and 0.73 to 0.72 (lab A/B on nine and eleven takes, merged into every seen take's series).
-    dismiss: { exitWide: { from: 165, scale: 0.9, exitTravel: 0.8, exitLeadingFade: 0.75, exitBlur: 14, exitFade: 0.7 }, enter: { response: 0.2, dampingFraction: 1, delay: 0 }, exit: { response: 0.2, dampingFraction: 1, delay: 0 }, blur: 4.5, enterBlur: 6, scale: 0.8, exitScale: 1, exitBlur: 12, exitSharpen: 2, fade: 0.8, exitFade: 0.6, bubbleDelay: 0, trailingDelay: 0, trailingExitPower: 1, anchor: 1, sharpen: 1, bubbleScale: 0.9, bubbleSpread: 0, bubbleBlur: 6, bubbleSharpen: 1, centerDelay: 0, leadingFade: 1, skirt: 1 },
-    resize: { enter: { response: 0.3, dampingFraction: 1, delay: 0.08 }, exit: { response: 0.16, dampingFraction: 1, delay: 0 }, blur: 5.5, enterBlur: 8, scale: 0.85, fade: 1, exitFade: 1, bubbleDelay: 0, trailingDelay: 0, trailingExitPower: 1, anchor: 0, sharpen: 1, bubbleScale: 0.85, bubbleSpread: 0, bubbleBlur: 8, bubbleSharpen: 1, centerDelay: 0, leadingFade: 1 },
+    dismiss: {
+      exitWide: {
+        from: 165,
+        scale: 0.9,
+        exitTravel: 0.8,
+        exitLeadingFade: 0.75,
+        exitBlur: 14,
+        exitFade: 0.7,
+      },
+      enter: { response: 0.2, dampingFraction: 1, delay: 0 },
+      exit: { response: 0.2, dampingFraction: 1, delay: 0 },
+      blur: 4.5,
+      enterBlur: 6,
+      scale: 0.8,
+      exitScale: 1,
+      exitBlur: 12,
+      exitSharpen: 2,
+      fade: 0.8,
+      exitFade: 0.6,
+      bubbleDelay: 0,
+      trailingDelay: 0,
+      trailingExitPower: 1,
+      anchor: 1,
+      sharpen: 1,
+      bubbleScale: 0.9,
+      bubbleSpread: 0,
+      bubbleBlur: 6,
+      bubbleSharpen: 1,
+      centerDelay: 0,
+      leadingFade: 1,
+      skirt: 1,
+    },
+    resize: {
+      enter: { response: 0.3, dampingFraction: 1, delay: 0.08 },
+      exit: { response: 0.16, dampingFraction: 1, delay: 0 },
+      blur: 5.5,
+      enterBlur: 8,
+      scale: 0.85,
+      fade: 1,
+      exitFade: 1,
+      bubbleDelay: 0,
+      trailingDelay: 0,
+      trailingExitPower: 1,
+      anchor: 0,
+      sharpen: 1,
+      bubbleScale: 0.85,
+      bubbleSpread: 0,
+      bubbleBlur: 8,
+      bubbleSharpen: 1,
+      centerDelay: 0,
+      leadingFade: 1,
+    },
   },
   press: {
     /** The hold squish for a controlled `IslandView pressed`. Settles, no bounce. */
@@ -1438,7 +1877,12 @@ export const islandMotion = {
      * 0.123, idlehold 0.156 to 0.170.
      */
     idleRelease: { spring: { response: 0.53, dampingFraction: 0.77 }, carry: 0.03 },
-    idleWiden: { by: 1.12, rise: { response: 0.425, dampingFraction: 0.925 }, hold: 0.57, fall: { response: 0.3, dampingFraction: 1.15 } },
+    idleWiden: {
+      by: 1.12,
+      rise: { response: 0.425, dampingFraction: 0.925 },
+      hold: 0.57,
+      fall: { response: 0.3, dampingFraction: 1.15 },
+    },
     /** A tap's swell on an activity turns back this long after touch-down at the soonest (tap-t1, t2, t3 peak +0.21 s after touch-down). */
     tapReturn: 0.22,
     /**
@@ -1572,7 +2016,16 @@ export const islandMotion = {
    * top, the copy adds the faint tail and leaves the core as fitted. `floor` 0.012 cleared two of the
    * items and not unsplit's; `dim` 0 clears all of them and keeps every skirt gain (R42.md).
    */
-  blurSkirt: { width: 13.3, gain: 0.036, max: 0.045, floor: 0.004, exitGain: 0.036, power: 0.5, dim: 0, tail: 0 },
+  blurSkirt: {
+    width: 13.3,
+    gain: 0.036,
+    max: 0.045,
+    floor: 0.004,
+    exitGain: 0.036,
+    power: 0.5,
+    dim: 0,
+    tail: 0,
+  },
   /** prefers-reduced-motion: shape and content crossfade over this long, no springs, no blur. */
   reduced: { duration: 0.2 },
 } as const satisfies IslandMotionShape;
@@ -1647,7 +2100,10 @@ export interface ContentMotion {
    * absorbs the bubble as a lobe (a long-press on the bubble, `swap` out of the split): iOS shows the
    * expanded view's leading content sooner and its center later than out of a single pill.
    */
-  absorb?: Pick<ContentMotion, "enter" | "centerDelay" | "regions" | "clipFollow" | "regionBottomAnchor"> & {
+  absorb?: Pick<
+    ContentMotion,
+    "enter" | "centerDelay" | "regions" | "clipFollow" | "regionBottomAnchor"
+  > & {
     /** Optional: the absorbing change's own peak incoming blur (round 20: split-expand-b keeps 10 where swap took 12). */
     enterBlur?: number;
     /**
@@ -1671,13 +2127,40 @@ export interface ContentMotion {
    * least `from` points wide, over this transition's own fields: W's 178 pt compact pill against
    * A's 150 (round 43, wide-appear's "12:45"; `appearWide` does the same for the edges).
    */
-  wide?: { from: number } & Partial<Pick<ContentMotion, "scale" | "enterBlur" | "sharpen" | "trailingEnterBlur" | "trailingEnter" | "trailingScale" | "trailingEnterClear" | "enterGlow" | "leadingFade">>;
+  wide?: { from: number } & Partial<
+    Pick<
+      ContentMotion,
+      | "scale"
+      | "enterBlur"
+      | "sharpen"
+      | "trailingEnterBlur"
+      | "trailingEnter"
+      | "trailingScale"
+      | "trailingEnterClear"
+      | "enterGlow"
+      | "leadingFade"
+    >
+  >;
   /**
    * Optional, defaults to none. How the layer this change takes out leaves when the compact pill it
    * leaves is at least `from` points wide, over this transition's own fields. `wide` reads the shape
    * the change goes to, so it cannot tell W's dismiss from A's: both go to idle.
    */
-  exitWide?: { from: number } & Partial<Pick<ContentMotion, "scale" | "blur" | "exitScale" | "exitTravel" | "exitLeadingFade" | "exitBlur" | "exitSharpen" | "exitFade" | "anchor" | "trailingExitPower">>;
+  exitWide?: { from: number } & Partial<
+    Pick<
+      ContentMotion,
+      | "scale"
+      | "blur"
+      | "exitScale"
+      | "exitTravel"
+      | "exitLeadingFade"
+      | "exitBlur"
+      | "exitSharpen"
+      | "exitFade"
+      | "anchor"
+      | "trailingExitPower"
+    >
+  >;
   /**
    * Optional, defaults to the fields below. How the incoming layer comes in when the change leaves an
    * alert whose hold ran out, over this transition's own fields. Round 22: back into the split,
@@ -1688,7 +2171,22 @@ export interface ContentMotion {
    * may blur on a curve of its own (`bubbleBlur`, `bubbleSharpen`).
    */
   afterAlert?: Partial<
-    Pick<ContentMotion, "enter" | "bubbleEnter" | "bubbleDelay" | "bubbleFade" | "bubbleResolve" | "bubbleTrailingFade" | "bubbleTrailingSlide" | "bubbleBlur" | "bubbleSharpen" | "bubbleScale" | "bubbleSpread" | "bubbleHold" | "bubbleSettle">
+    Pick<
+      ContentMotion,
+      | "enter"
+      | "bubbleEnter"
+      | "bubbleDelay"
+      | "bubbleFade"
+      | "bubbleResolve"
+      | "bubbleTrailingFade"
+      | "bubbleTrailingSlide"
+      | "bubbleBlur"
+      | "bubbleSharpen"
+      | "bubbleScale"
+      | "bubbleSpread"
+      | "bubbleHold"
+      | "bubbleSettle"
+    >
   >;
   /**
    * Optional, defaults to none. The incoming bubble's accent settles into its size from below: it

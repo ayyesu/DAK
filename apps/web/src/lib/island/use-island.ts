@@ -25,7 +25,8 @@ export const useIsland = (): IslandApi => {
  */
 export const useIslandActions = (): IslandApi => {
   const context = useIslandContext();
-  if (!context) throw new Error("islandcn: useIslandActions() must be called inside <IslandProvider>.");
+  if (!context)
+    throw new Error("islandcn: useIslandActions() must be called inside <IslandProvider>.");
   return context.store.api;
 };
 

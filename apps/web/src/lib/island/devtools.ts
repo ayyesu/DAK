@@ -64,7 +64,10 @@ export const createDevtools = (options: {
 
   const load = (name: string, paused: boolean) => {
     const sequence = sequences[name];
-    if (!sequence) throw new Error(`islandcn: no sequence named "${name}". Known: ${Object.keys(sequences).join(", ")}`);
+    if (!sequence)
+      throw new Error(
+        `islandcn: no sequence named "${name}". Known: ${Object.keys(sequences).join(", ")}`,
+      );
     for (const cancel of loaded?.cancels ?? []) cancel();
     clock.pause();
     clock.setTime(0);

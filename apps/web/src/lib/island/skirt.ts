@@ -20,14 +20,18 @@ export const skirtWeight = (skirt: BlurSkirt | undefined, sigma: number, leaving
   const gain = leaving ? (skirt.exitGain ?? skirt.gain) : skirt.gain;
   const tail = skirt.tail ?? 0;
   const ending = tail > 0 ? Math.min(1, sigma / tail) : 1;
-  return Math.min(skirt.max, Math.max(0, gain * sigma ** (skirt.power ?? 2) - skirt.floor)) * ending;
+  return (
+    Math.min(skirt.max, Math.max(0, gain * sigma ** (skirt.power ?? 2) - skirt.floor)) * ending
+  );
 };
 
 /** How much of the weight the slot itself gives up (`BlurSkirt.dim`). */
-export const skirtDim = (skirt: BlurSkirt | undefined) => (skirt ? Math.min(1, Math.max(0, skirt.dim ?? 1)) : 1);
+export const skirtDim = (skirt: BlurSkirt | undefined) =>
+  skirt ? Math.min(1, Math.max(0, skirt.dim ?? 1)) : 1;
 
 /** The copy's blur in its own units: `width` on screen through a scale of `scale`, never past 20 widths. */
-export const skirtBlur = (skirt: BlurSkirt, scale: number) => Math.min(skirt.width / Math.max(scale, 0.05), skirt.width * 20);
+export const skirtBlur = (skirt: BlurSkirt, scale: number) =>
+  Math.min(skirt.width / Math.max(scale, 0.05), skirt.width * 20);
 
 /** One element's copy: `node` is what was added to the page, `parts` each copied descendant by its source. */
 export interface Echo {
@@ -113,9 +117,19 @@ export class Skirts {
    * the blur then applies after the copy's own clip. `parts` are descendants of `source` whose
    * copies the caller writes to.
    */
-  echo(source: HTMLElement, parent: HTMLElement, wrap: boolean, parts: readonly HTMLElement[]): Echo | null {
+  echo(
+    source: HTMLElement,
+    parent: HTMLElement,
+    wrap: boolean,
+    parts: readonly HTMLElement[],
+  ): Echo | null {
     const was = this.echoes.get(source);
-    if (was && !was.stale && was.node.parentNode === parent && parts.every((part) => was.parts.has(part))) {
+    if (
+      was &&
+      !was.stale &&
+      was.node.parentNode === parent &&
+      parts.every((part) => was.parts.has(part))
+    ) {
       was.used = true;
       return was;
     }

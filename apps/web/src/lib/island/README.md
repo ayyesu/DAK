@@ -23,7 +23,12 @@ const Checkout = () => {
       label: "Payment processing",
       compact: { leading: <CardIcon />, trailing: <Spinner /> },
       minimal: <Spinner />,
-      expanded: { leading: <CardIcon />, center: "Processing", trailing: "$42", bottom: <Progress value={0.3} /> },
+      expanded: {
+        leading: <CardIcon />,
+        center: "Processing",
+        trailing: "$42",
+        bottom: <Progress value={0.3} />,
+      },
     });
     upload.update({ compact: { trailing: <Check /> }, alert: true });
     setTimeout(() => upload.end(), 3000);
@@ -36,12 +41,12 @@ On a desktop page, pin it to the window instead: `<Island placement="viewport" /
 
 ## Presentations
 
-| Presentation | When | What draws |
-| --- | --- | --- |
-| `idle` | No activity | The resting pill (94.85 x 36.84, 13.91 from the top) |
-| `compact` | One activity | `compact.leading` left of the sensor, `compact.trailing` right of it. Each side fits its own content, but neither reaches less than `metrics.compact.balance` (0.7475) of the other; the short side grows and its content stays at the outer edge |
-| `minimal` (the split) | Two activities | Both pills show their activity's compact content, as on the phone: the primary's `compact.leading` and `compact.trailing` side by side left of the sensor (the pill ends at the sensor's right edge and grows left), the second's in a detached capsule 7.82 to the right, which pinches off with a gooey neck. The capsule is 62.18 wide whatever its trailing content, which sits centred after the leading content and ends in an ellipsis when it is wider. When the content is too wide (`metrics.split.maxSpan`), each pill falls back to its `minimal` view |
-| `expanded` | Long-press, `expand()`, or an alerting update | 374.34 wide on a phone, 13.83 from the sides and top; `leading`, `center`, `trailing` on the top row (all top-aligned: give content its own frame to centre it) and `bottom` below. Height follows the content (84 to 180) |
+| Presentation          | When                                          | What draws                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `idle`                | No activity                                   | The resting pill (94.85 x 36.84, 13.91 from the top)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `compact`             | One activity                                  | `compact.leading` left of the sensor, `compact.trailing` right of it. Each side fits its own content, but neither reaches less than `metrics.compact.balance` (0.7475) of the other; the short side grows and its content stays at the outer edge                                                                                                                                                                                                                                                                                                                  |
+| `minimal` (the split) | Two activities                                | Both pills show their activity's compact content, as on the phone: the primary's `compact.leading` and `compact.trailing` side by side left of the sensor (the pill ends at the sensor's right edge and grows left), the second's in a detached capsule 7.82 to the right, which pinches off with a gooey neck. The capsule is 62.18 wide whatever its trailing content, which sits centred after the leading content and ends in an ellipsis when it is wider. When the content is too wide (`metrics.split.maxSpan`), each pill falls back to its `minimal` view |
+| `expanded`            | Long-press, `expand()`, or an alerting update | 374.34 wide on a phone, 13.83 from the sides and top; `leading`, `center`, `trailing` on the top row (all top-aligned: give content its own frame to centre it) and `bottom` below. Height follows the content (84 to 180)                                                                                                                                                                                                                                                                                                                                         |
 
 Primary means highest `priority`, then first started, among the activities on show: activities that share a `group` show one at a time. `minimal` falls back to `compact.leading`. On the simulator the split never showed `minimal`; it stays as the fallback for content that doesn't fit.
 
@@ -163,20 +168,20 @@ Springs use SwiftUI's parameters and are solved in closed form (`spring.ts`): `r
 
 Every value in `motion.ts` is fitted to a phone simulator with this solver (`scripts/fidelity/fit.ts`) and names the take it came from. Each presentation change picks a transition (`ShapeTransition`), and `choreography.ts` turns it into springs per property:
 
-| Transition | When | Shape |
-| --- | --- | --- |
-| `appear` | idle to compact | edges 0.483 / 0.62 (8 to 11% overshoot) |
-| `expand` | compact to expanded, same activity (alert, `expand()`) | edges 0.517 / 0.824, height 0.497 / 0.825 |
-| `pressExpand` | the same out of a long-press swell | 0.387 / 0.792, starting from the swollen shape and its speed |
-| `appearExpand` | idle straight to expanded (an activity that starts with `alert`) | 0.54 / 0.811 |
-| `swap` | to expanded for another activity than the one showing, or from the split | edges aim at idle, retarget after 0.231 s; height waits for the retarget. From the split the bubble joins as a lobe (as in `unsplit`), is gone at the retarget, and the retarget comes at the unsplit's 0.203 s (the turn of any change that absorbs the bubble) |
-| `collapse` | expanded to compact | edges aim at idle on 0.479 / 0.894, retarget after 0.311 s on 0.46 / 0.555 (the waist to about 105 wide and the bounce back); height 0.453 / 0.928; top lifts 1.4 |
-| `alertCollapse` | expanded to compact when an alert's hold runs out | as `collapse`: edges 0.535 / 0.84, retarget after 0.29 s on 0.466 / 0.59; height 0.481 / 0.908; top lifts 1.4 |
-| `collapseSplit` | expanded to the split | an alert's return starts 0.045 s late (`lag`), a press outside at once; the whole right side shrinks as one tall blob to about 290, the bubble sits at its place inside it, then the pill pulls back to the sensor (0.3 / 1) and that pinches the bubble off (frame 854); the attached pill settles 5.5 wider on the left first; height 0.45 / 0.9 |
-| `split` | compact to the split | edges through idle (retarget 0.215 s); the bubble's right edge rides the same spring, its left edge springs out of the pill (0.376 / 0.811 from +0.345 s) and pinches off at about +0.53 s |
-| `unsplit` | split to compact | the bubble's left edge closes the gap within a tick (the neck), the bubble slides left under the sensor as its own lobe (0.38 / 1) and is gone at +0.19 s; the pill contracts through idle (retarget 0.203 s) |
-| `dismiss` | to idle | 0.442 / 0.97 |
-| `resize` | content changed size in place | 0.5 / 0.82 |
+| Transition      | When                                                                     | Shape                                                                                                                                                                                                                                                                                                                                              |
+| --------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `appear`        | idle to compact                                                          | edges 0.483 / 0.62 (8 to 11% overshoot)                                                                                                                                                                                                                                                                                                            |
+| `expand`        | compact to expanded, same activity (alert, `expand()`)                   | edges 0.517 / 0.824, height 0.497 / 0.825                                                                                                                                                                                                                                                                                                          |
+| `pressExpand`   | the same out of a long-press swell                                       | 0.387 / 0.792, starting from the swollen shape and its speed                                                                                                                                                                                                                                                                                       |
+| `appearExpand`  | idle straight to expanded (an activity that starts with `alert`)         | 0.54 / 0.811                                                                                                                                                                                                                                                                                                                                       |
+| `swap`          | to expanded for another activity than the one showing, or from the split | edges aim at idle, retarget after 0.231 s; height waits for the retarget. From the split the bubble joins as a lobe (as in `unsplit`), is gone at the retarget, and the retarget comes at the unsplit's 0.203 s (the turn of any change that absorbs the bubble)                                                                                   |
+| `collapse`      | expanded to compact                                                      | edges aim at idle on 0.479 / 0.894, retarget after 0.311 s on 0.46 / 0.555 (the waist to about 105 wide and the bounce back); height 0.453 / 0.928; top lifts 1.4                                                                                                                                                                                  |
+| `alertCollapse` | expanded to compact when an alert's hold runs out                        | as `collapse`: edges 0.535 / 0.84, retarget after 0.29 s on 0.466 / 0.59; height 0.481 / 0.908; top lifts 1.4                                                                                                                                                                                                                                      |
+| `collapseSplit` | expanded to the split                                                    | an alert's return starts 0.045 s late (`lag`), a press outside at once; the whole right side shrinks as one tall blob to about 290, the bubble sits at its place inside it, then the pill pulls back to the sensor (0.3 / 1) and that pinches the bubble off (frame 854); the attached pill settles 5.5 wider on the left first; height 0.45 / 0.9 |
+| `split`         | compact to the split                                                     | edges through idle (retarget 0.215 s); the bubble's right edge rides the same spring, its left edge springs out of the pill (0.376 / 0.811 from +0.345 s) and pinches off at about +0.53 s                                                                                                                                                         |
+| `unsplit`       | split to compact                                                         | the bubble's left edge closes the gap within a tick (the neck), the bubble slides left under the sensor as its own lobe (0.38 / 1) and is gone at +0.19 s; the pill contracts through idle (retarget 0.203 s)                                                                                                                                      |
+| `dismiss`       | to idle                                                                  | 0.442 / 0.97                                                                                                                                                                                                                                                                                                                                       |
+| `resize`        | content changed size in place                                            | 0.5 / 0.82                                                                                                                                                                                                                                                                                                                                         |
 
 Content follows the container. Each layer is laid out for its own resting shape; while the shape morphs, every slot keeps its centre at the same fraction of the current shape's width and height, and scales by (width ratio x height ratio) ^ (`metrics.content.follow` / 2). On the simulator the compact circle grows and slides toward the expanded square as the island opens, and expanded content shrinks inside the island as it closes, so content always fits the outline and is never cut by it while it is still sharp. The expanded view moves its four regions separately.
 
@@ -304,8 +309,8 @@ All motion reads time from an `IslandClock`:
 
 ```ts
 interface IslandClock {
-  now(): number;                                         // ms
-  onFrame(onFrame: (now: number) => void): () => void;   // per frame until unsubscribed
+  now(): number; // ms
+  onFrame(onFrame: (now: number) => void): () => void; // per frame until unsubscribed
   at(at: number, run: (due: number) => void): () => void; // timer on island time
 }
 ```
@@ -316,21 +321,21 @@ interface IslandClock {
 interface IslandDevtools {
   pause(): void;
   resume(): void;
-  step(ms: number): number;        // advance paused time, firing timers at their exact times
-  seek(ms: number): number;        // replays the loaded sequence from 0, so the frame is exact
+  step(ms: number): number; // advance paused time, firing timers at their exact times
+  seek(ms: number): number; // replays the loaded sequence from 0, so the frame is exact
   play(name: string, options?: { paused?: boolean }): { duration: number };
   now(): number;
   setTimeScale(scale: number): void;
   readonly sequences: readonly string[];
   presentation(): "idle" | "compact" | "minimal" | "expanded";
-  stats(): FrameStats;             // frame gaps and per-frame work while animating
+  stats(): FrameStats; // frame gaps and per-frame work while animating
   clearStats(): void;
 }
 
 interface IslandSequence {
-  setup?: (island: SequenceIsland) => void;  // runs instantly before time 0
+  setup?: (island: SequenceIsland) => void; // runs instantly before time 0
   events: readonly { at: number; run: (island: SequenceIsland) => void }[];
-  duration: number;                          // ms
+  duration: number; // ms
 }
 // SequenceIsland is IslandApi plus press(target?: "pill" | "bubble") and release().
 ```
@@ -339,18 +344,18 @@ State changes made by timers render synchronously under devtools, and springs st
 
 ## Files
 
-| File | What |
-| --- | --- |
-| `index.ts` | Public exports |
-| `provider.tsx`, `island-root.tsx`, `view.tsx`, `use-island.ts` | React API |
-| `store.ts` | Activity stack, alerts, long-press, scene derivation |
-| `surface.tsx`, `layer.tsx`, `frame.ts` | Renderer: frame loop, content layers, per-frame geometry |
-| `geometry.ts` | Target shape for each presentation, and which transition a change uses |
-| `choreography.ts` | Springs per property for each transition: through idle, the swell hand-off, the bubble pinch and merge |
-| `path.ts` | Rounded rectangles, capsules, the content mask, the metaball neck |
-| `spring.ts` | Closed-form springs, `AnimatedValue` |
-| `clock.ts`, `devtools.ts`, `perf.ts` | Clock, `window.__islandcn`, frame timing |
-| `platform.ts` | Apple's WebKit: blurred content as its own layer, CSS shadows in place of the SVG filter |
-| `primitives.tsx` | `IslandNumber`, `IslandProgress` |
-| `metrics.ts`, `motion.ts`, `config.ts` | The two tables and their override merge |
-| `types.ts`, `context.ts` | Shared types, React context, reduced-motion hook |
+| File                                                           | What                                                                                                   |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `index.ts`                                                     | Public exports                                                                                         |
+| `provider.tsx`, `island-root.tsx`, `view.tsx`, `use-island.ts` | React API                                                                                              |
+| `store.ts`                                                     | Activity stack, alerts, long-press, scene derivation                                                   |
+| `surface.tsx`, `layer.tsx`, `frame.ts`                         | Renderer: frame loop, content layers, per-frame geometry                                               |
+| `geometry.ts`                                                  | Target shape for each presentation, and which transition a change uses                                 |
+| `choreography.ts`                                              | Springs per property for each transition: through idle, the swell hand-off, the bubble pinch and merge |
+| `path.ts`                                                      | Rounded rectangles, capsules, the content mask, the metaball neck                                      |
+| `spring.ts`                                                    | Closed-form springs, `AnimatedValue`                                                                   |
+| `clock.ts`, `devtools.ts`, `perf.ts`                           | Clock, `window.__islandcn`, frame timing                                                               |
+| `platform.ts`                                                  | Apple's WebKit: blurred content as its own layer, CSS shadows in place of the SVG filter               |
+| `primitives.tsx`                                               | `IslandNumber`, `IslandProgress`                                                                       |
+| `metrics.ts`, `motion.ts`, `config.ts`                         | The two tables and their override merge                                                                |
+| `types.ts`, `context.ts`                                       | Shared types, React context, reduced-motion hook                                                       |

@@ -53,10 +53,17 @@ interface IslandButtonProps {
 const toneVars = (tone: ButtonTone) =>
   tone.kind === "accent"
     ? { "--icn-bg": tone.color, "--icn-fg": tone.text ?? "#000", "--icn-ring": tone.color }
-    : { "--icn-bg": islandInk.fill, "--icn-fg": islandInk.primary, "--icn-ring": islandInk.primary };
+    : {
+        "--icn-bg": islandInk.fill,
+        "--icn-fg": islandInk.primary,
+        "--icn-ring": islandInk.primary,
+      };
 
 /** Label size in pt per button size. */
-const labelSize = { regular: 17, compact: 15 } as const satisfies Record<NonNullable<IslandButtonProps["size"]>, number>;
+const labelSize = { regular: 17, compact: 15 } as const satisfies Record<
+  NonNullable<IslandButtonProps["size"]>,
+  number
+>;
 
 // Presses inside island content must not bubble into the island's own long-press handling.
 const stop = (event: MouseEvent) => event.stopPropagation();
@@ -65,7 +72,15 @@ const stop = (event: MouseEvent) => event.stopPropagation();
  * A capsule button for the expanded view: 44 pt tall (the minimum touch target), 17 pt
  * semibold. Works with mouse, touch and keyboard because it is a real `<button>`.
  */
-export const IslandButton = ({ children, onPress, tone = { kind: "neutral" }, fill = true, disabled = false, label, size = "regular" }: IslandButtonProps) => {
+export const IslandButton = ({
+  children,
+  onPress,
+  tone = { kind: "neutral" },
+  fill = true,
+  disabled = false,
+  label,
+  size = "regular",
+}: IslandButtonProps) => {
   const reduced = useIslandReducedMotion();
   const style = {
     height: islandSize.button,
@@ -79,10 +94,19 @@ export const IslandButton = ({ children, onPress, tone = { kind: "neutral" }, fi
     ...toneVars(tone),
   } as const satisfies CSSProperties & Record<`--icn-${string}`, string | number>;
   return (
-    <button type="button" className="icn-button" data-reduced={reduced ? "" : undefined} style={style} disabled={disabled} aria-label={label} onClick={(event) => {
-      stop(event);
-      onPress();
-    }} onPointerDown={(event) => event.stopPropagation()}>
+    <button
+      type="button"
+      className="icn-button"
+      data-reduced={reduced ? "" : undefined}
+      style={style}
+      disabled={disabled}
+      aria-label={label}
+      onClick={(event) => {
+        stop(event);
+        onPress();
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
       <IslandStyle id="button" css={css} />
       {children}
     </button>
@@ -129,10 +153,19 @@ export const IslandRoundButton = ({
     "--icn-ring": iconColor,
   } as const satisfies CSSProperties & Record<`--icn-${string}`, string | number>;
   return (
-    <button type="button" className="icn-button" data-reduced={reduced ? "" : undefined} style={style} aria-label={label} disabled={disabled} onClick={(event) => {
-      stop(event);
-      onPress();
-    }} onPointerDown={(event) => event.stopPropagation()}>
+    <button
+      type="button"
+      className="icn-button"
+      data-reduced={reduced ? "" : undefined}
+      style={style}
+      aria-label={label}
+      disabled={disabled}
+      onClick={(event) => {
+        stop(event);
+        onPress();
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
       <IslandStyle id="button" css={css} />
       {children}
     </button>

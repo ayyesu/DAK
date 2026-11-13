@@ -31,7 +31,8 @@ export const steadyTurn = {
 /** Seconds a change lasts: the outgoing digit is gone and the incoming one at rest. */
 const TURN_SECONDS = Math.max(steadyTurn.outFade[1], steadyTurn.grow[1], steadyTurn.inFade[1]);
 
-const progress = (t: number, [from, to]: readonly [number, number]) => Math.min(1, Math.max(0, (t - from) / (to - from)));
+const progress = (t: number, [from, to]: readonly [number, number]) =>
+  Math.min(1, Math.max(0, (t - from) / (to - from)));
 
 const smooth = (u: number) => u * u * (3 - 2 * u);
 
@@ -46,13 +47,21 @@ interface Pose {
 const incomingAt = (t: number): Pose => {
   const fade = progress(t, steadyTurn.inFade);
   const grow = progress(t, steadyTurn.grow);
-  return { opacity: smooth(fade), blur: 1 - fade, scale: steadyTurn.scale + (1 - steadyTurn.scale) * (1 - (1 - grow) ** 2) };
+  return {
+    opacity: smooth(fade),
+    blur: 1 - fade,
+    scale: steadyTurn.scale + (1 - steadyTurn.scale) * (1 - (1 - grow) ** 2),
+  };
 };
 
 /** The outgoing digit `t` seconds into the change. */
 const outgoingAt = (t: number): Pose => {
   const fade = progress(t, steadyTurn.outFade);
-  return { opacity: 1 - smooth(fade), blur: fade >= 1 ? 0 : fade, scale: 1 - (1 - steadyTurn.scale) * fade * fade };
+  return {
+    opacity: 1 - smooth(fade),
+    blur: fade >= 1 ? 0 : fade,
+    scale: 1 - (1 - steadyTurn.scale) * fade * fade,
+  };
 };
 
 /**
@@ -60,7 +69,11 @@ const outgoingAt = (t: number): Pose => {
  * taken at that moment shows.
  */
 export const steadyPosesAt = (t: number, em: number) => {
-  const pose = (p: Pose) => ({ opacity: p.opacity, blur: p.blur * steadyTurn.blurPerEm * em, scale: p.scale });
+  const pose = (p: Pose) => ({
+    opacity: p.opacity,
+    blur: p.blur * steadyTurn.blurPerEm * em,
+    scale: p.scale,
+  });
   return { incoming: pose(incomingAt(t)), outgoing: pose(outgoingAt(t)) };
 };
 
@@ -97,7 +110,8 @@ export const SteadyNumber = ({ value, style }: SteadyNumberProps) => {
     const now = performance.now();
     const turns = new Map<number, PlaceTurn>();
     // A place still changing keeps going; a new change at it starts over from what it was turning to.
-    for (const [place, turn] of changes.turns) if ((now - turn.at) / 1000 < TURN_SECONDS && place < text.length) turns.set(place, turn);
+    for (const [place, turn] of changes.turns)
+      if ((now - turn.at) / 1000 < TURN_SECONDS && place < text.length) turns.set(place, turn);
     const before = [...shown];
     const after = [...text];
     for (let place = 0; place < after.length; place += 1) {
@@ -113,7 +127,9 @@ export const SteadyNumber = ({ value, style }: SteadyNumberProps) => {
   const outgoing = useRef(new Map<number, HTMLSpanElement>());
 
   useLayoutEffect(() => {
-    const em = wrapper.current ? Number.parseFloat(getComputedStyle(wrapper.current).fontSize) || 16 : 16;
+    const em = wrapper.current
+      ? Number.parseFloat(getComputedStyle(wrapper.current).fontSize) || 16
+      : 16;
     const blurMax = steadyTurn.blurPerEm * em;
     const paint = (element: HTMLSpanElement | undefined, pose: Pose) => {
       if (!element) return;
@@ -152,7 +168,12 @@ export const SteadyNumber = ({ value, style }: SteadyNumberProps) => {
   const chars = [...text];
   // Plain inline, as `IslandNumber` is, so a slot cut to fit ends the text in an ellipsis.
   return (
-    <span ref={wrapper} aria-label={text} role="text" style={{ display: "inline", whiteSpace: "pre", ...style }}>
+    <span
+      ref={wrapper}
+      aria-label={text}
+      role="text"
+      style={{ display: "inline", whiteSpace: "pre", ...style }}
+    >
       {chars.map((char, index) => {
         const place = chars.length - 1 - index;
         if (!changes.cells.has(place)) {
@@ -172,7 +193,12 @@ export const SteadyNumber = ({ value, style }: SteadyNumberProps) => {
                 if (element) incoming.current.set(place, element);
                 else incoming.current.delete(place);
               }}
-              style={{ gridArea: "1 / 1", justifySelf: "center", opacity: turn ? 0 : 1, willChange: "opacity, transform, filter" }}
+              style={{
+                gridArea: "1 / 1",
+                justifySelf: "center",
+                opacity: turn ? 0 : 1,
+                willChange: "opacity, transform, filter",
+              }}
             >
               {char}
             </span>
@@ -181,7 +207,12 @@ export const SteadyNumber = ({ value, style }: SteadyNumberProps) => {
                 if (element) outgoing.current.set(place, element);
                 else outgoing.current.delete(place);
               }}
-              style={{ gridArea: "1 / 1", justifySelf: "center", opacity: turn ? 1 : 0, willChange: "opacity, transform, filter" }}
+              style={{
+                gridArea: "1 / 1",
+                justifySelf: "center",
+                opacity: turn ? 1 : 0,
+                willChange: "opacity, transform, filter",
+              }}
             >
               {turn?.from ?? ""}
             </span>

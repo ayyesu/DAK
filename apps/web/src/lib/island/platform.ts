@@ -22,7 +22,8 @@ export const isAppleWebKit = (): boolean => {
   const ua = navigator.userAgent;
   // Blink keeps "AppleWebKit" in its user agent for compatibility, so rule its tokens out.
   // Chrome, Edge and Firefox on iOS say CriOS, EdgiOS and FxiOS: they run Apple's WebKit.
-  cached = /AppleWebKit\//.test(ua) && !/(Chrome|Chromium|Edg|OPR|SamsungBrowser)\/|Android/.test(ua);
+  cached =
+    /AppleWebKit\//.test(ua) && !/(Chrome|Chromium|Edg|OPR|SamsungBrowser)\/|Android/.test(ua);
   return cached;
 };
 

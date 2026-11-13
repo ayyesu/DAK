@@ -273,11 +273,7 @@ import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
 import { onToggleGoalComposer } from "../../goalModeBus";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./ComposerPlanFollowUpBanner";
-import {
-  ComposerControl,
-  ComposerControlIcon,
-  ComposerSelectControl,
-} from "./ComposerControl";
+import { ComposerControl, ComposerControlIcon, ComposerSelectControl } from "./ComposerControl";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
 import {
   startingPointsWithoutProviderCommands,
@@ -3957,10 +3953,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   };
   const toggleGoalModeRef = useRef(toggleGoalMode);
   toggleGoalModeRef.current = toggleGoalMode;
-  useEffect(
-    () => onToggleGoalComposer(() => toggleGoalModeRef.current()),
-    [onToggleGoalComposer],
-  );
+  useEffect(() => onToggleGoalComposer(() => toggleGoalModeRef.current()), [onToggleGoalComposer]);
 
   const readComposerSnapshot = useCallback((): {
     value: string;

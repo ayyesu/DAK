@@ -56,7 +56,11 @@ export const cornerClearance = (size: number): number => {
   if (a * a + b * b <= reach * reach) return 0;
   // Smallest t with (a - t)^2 + (b - t)^2 <= reach^2: move the centre along the diagonal.
   const sum = a + b;
-  return Math.ceil(((sum - Math.sqrt(Math.max(0, sum * sum - 2 * (a * a + b * b - reach * reach)))) / 2) * 10) / 10;
+  return (
+    Math.ceil(
+      ((sum - Math.sqrt(Math.max(0, sum * sum - 2 * (a * a + b * b - reach * reach)))) / 2) * 10,
+    ) / 10
+  );
 };
 
 /**
@@ -76,7 +80,11 @@ const reachPadding = {
   none: {},
   inset: { paddingLeft: bottomInset.leading, paddingRight: bottomInset.trailing },
   lift: { paddingBottom: islandSafe.lift, paddingRight: islandSafe.mirror },
-  action: { paddingLeft: islandSafe.action.leading, paddingRight: islandSafe.action.trailing, paddingBottom: islandSafe.action.bottom },
+  action: {
+    paddingLeft: islandSafe.action.leading,
+    paddingRight: islandSafe.action.trailing,
+    paddingBottom: islandSafe.action.bottom,
+  },
 } as const satisfies Record<NonNullable<ExpandedBottomProps["reach"]>, CSSProperties>;
 
 /**
@@ -88,8 +96,23 @@ const reachPadding = {
  * width, so on a narrow phone a row of a meter and two buttons would run past the island's edge
  * and push the last button out of the clip. Rows get exactly the island's width instead.
  */
-export const ExpandedBottom = ({ children, reach = "none", gap = 8, style }: ExpandedBottomProps) => (
-  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap, minWidth: 0, contain: "inline-size", ...reachPadding[reach], ...style }}>
+export const ExpandedBottom = ({
+  children,
+  reach = "none",
+  gap = 8,
+  style,
+}: ExpandedBottomProps) => (
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "minmax(0, 1fr)",
+      gap,
+      minWidth: 0,
+      contain: "inline-size",
+      ...reachPadding[reach],
+      ...style,
+    }}
+  >
     {children}
   </div>
 );
@@ -153,11 +176,15 @@ const aloneCaptionInset = (() => {
   const height = expanded.padding.top + row + expanded.padding.bottom;
   const cornerY = height - expanded.radius - expanded.padding.top;
   const dy = captionTop + islandLine.caption - cornerY;
-  return Math.max(0, Math.ceil((corner.trailing - Math.sqrt(Math.max(0, clipReach ** 2 - dy ** 2))) * 10) / 10);
+  return Math.max(
+    0,
+    Math.ceil((corner.trailing - Math.sqrt(Math.max(0, clipReach ** 2 - dy ** 2))) * 10) / 10,
+  );
 })();
 
 /** The top margin that puts a frame of `height` centred on `line`, never above the content top. */
-const rowOffset = (line: number, height: number) => Math.max(0, Math.round((line - height / 2) * 100) / 100);
+const rowOffset = (line: number, height: number) =>
+  Math.max(0, Math.round((line - height / 2) * 100) / 100);
 
 /**
  * The trailing region's big value with a caption under it. The value's baseline sits on the title's
@@ -182,7 +209,9 @@ export const ValueStack = ({ value, caption, alone = false, line }: ValueStackPr
       }}
     >
       {value}
-      <span style={{ display: "block", minWidth: 0, paddingRight: alone ? aloneCaptionInset : 0 }}>{caption}</span>
+      <span style={{ display: "block", minWidth: 0, paddingRight: alone ? aloneCaptionInset : 0 }}>
+        {caption}
+      </span>
     </div>
   );
 
@@ -228,7 +257,10 @@ export const CaptionButton = ({ children, label, color, onPress }: CaptionButton
       WebkitTapHighlightColor: "transparent",
     }}
   >
-    <span aria-hidden style={{ position: "absolute", inset: `${-captionHit.y}px ${-captionHit.x}px` }} />
+    <span
+      aria-hidden
+      style={{ position: "absolute", inset: `${-captionHit.y}px ${-captionHit.x}px` }}
+    />
     {children}
   </button>
 );
@@ -237,8 +269,21 @@ export const CaptionButton = ({ children, label, color, onPress }: CaptionButton
  * A fixed-height frame for the expanded view's leading or trailing region, centred on a row line
  * (`line`), so side content sits level with the title beside it and with the other side.
  */
-export const ExpandedSide = ({ children, height = islandSize.expandedTile, line, align = "start" }: ExpandedSideProps) => (
-  <div style={{ display: "flex", alignItems: "center", justifyContent: align === "end" ? "flex-end" : "flex-start", height, marginTop: line === undefined ? 0 : rowOffset(line, height) }}>
+export const ExpandedSide = ({
+  children,
+  height = islandSize.expandedTile,
+  line,
+  align = "start",
+}: ExpandedSideProps) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: align === "end" ? "flex-end" : "flex-start",
+      height,
+      marginTop: line === undefined ? 0 : rowOffset(line, height),
+    }}
+  >
     {children}
   </div>
 );
@@ -247,7 +292,13 @@ export const ExpandedSide = ({ children, height = islandSize.expandedTile, line,
  * A glyph and a short label for the leading or trailing region of the expanded view, which sit
  * beside the sensor. The label ends in an ellipsis before it can slide under the sensor.
  */
-export const SensorSide = ({ glyph, children, color, align = "start", inset = false }: {
+export const SensorSide = ({
+  glyph,
+  children,
+  color,
+  align = "start",
+  inset = false,
+}: {
   /** A 22 pt glyph before the label. Defaults to none. */
   glyph?: ReactNode;
   /** The label, usually `CompactText`. */
@@ -265,7 +316,9 @@ export const SensorSide = ({ glyph, children, color, align = "start", inset = fa
       alignItems: "center",
       justifyContent: align === "end" ? "flex-end" : "flex-start",
       gap: 7,
-      maxWidth: islandSafe.besideSensor - (inset ? islandSafe.action[align === "end" ? "trailing" : "leading"] : 0),
+      maxWidth:
+        islandSafe.besideSensor -
+        (inset ? islandSafe.action[align === "end" ? "trailing" : "leading"] : 0),
       minWidth: 0,
       marginLeft: inset && align === "start" ? islandSafe.action.leading : 0,
       marginRight: inset && align === "end" ? islandSafe.action.trailing : 0,
@@ -274,7 +327,9 @@ export const SensorSide = ({ glyph, children, color, align = "start", inset = fa
     }}
   >
     {glyph}
-    {children === undefined ? null : <span style={{ minWidth: 0, overflow: "hidden" }}>{children}</span>}
+    {children === undefined ? null : (
+      <span style={{ minWidth: 0, overflow: "hidden" }}>{children}</span>
+    )}
   </span>
 );
 
@@ -288,7 +343,11 @@ export const sensorRowHeight = 26;
  * with the label instead of hanging below it. The trailing side keeps clear of the top corner's arc
  * by moving in, never down.
  */
-export const SensorRow = ({ children, glyph, align = "start" }: {
+export const SensorRow = ({
+  children,
+  glyph,
+  align = "start",
+}: {
   /** The label, a control or a time. */
   children: ReactNode;
   /** A glyph before the label, about 18 pt. Defaults to none. */
@@ -320,6 +379,9 @@ export const SensorRow = ({ children, glyph, align = "start" }: {
  * instead of lifting every row to clear them.
  */
 export const BottomBar = ({ children }: { children: ReactNode }) => (
-  <div style={{ paddingLeft: bottomInset.leading, paddingRight: bottomInset.trailing, paddingTop: 4 }}>{children}</div>
+  <div
+    style={{ paddingLeft: bottomInset.leading, paddingRight: bottomInset.trailing, paddingTop: 4 }}
+  >
+    {children}
+  </div>
 );
-

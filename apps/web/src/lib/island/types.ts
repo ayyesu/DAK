@@ -13,8 +13,19 @@ import type { ReactNode } from "react";
 export type IslandPresentation =
   | { kind: "idle" }
   | { kind: "compact"; leading?: ReactNode; trailing?: ReactNode }
-  | { kind: "minimal"; attached: ReactNode; detached?: ReactNode; split?: { attached: CompactContent; detached: CompactContent } }
-  | { kind: "expanded"; leading?: ReactNode; trailing?: ReactNode; center?: ReactNode; bottom?: ReactNode };
+  | {
+      kind: "minimal";
+      attached: ReactNode;
+      detached?: ReactNode;
+      split?: { attached: CompactContent; detached: CompactContent };
+    }
+  | {
+      kind: "expanded";
+      leading?: ReactNode;
+      trailing?: ReactNode;
+      center?: ReactNode;
+      bottom?: ReactNode;
+    };
 
 export type PresentationKind = IslandPresentation["kind"];
 

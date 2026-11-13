@@ -34,9 +34,16 @@ const instant: Transition = { kind: "instant" };
  * an expanded view (a long-press on the bubble). Its shape turns late (`retargetShape`) and its
  * incoming content may have its own timing (`ContentMotion.absorb`).
  */
-export const absorbsBubble = (anim: ShapeAnimation, options: { transition: ShapeTransition; target: { bubbleHeight: number }; t0: number }): boolean => {
+export const absorbsBubble = (
+  anim: ShapeAnimation,
+  options: { transition: ShapeTransition; target: { bubbleHeight: number }; t0: number },
+): boolean => {
   const { transition, target, t0 } = options;
-  return anim.bubbleHeight.valueAt(t0) >= 0.5 && target.bubbleHeight === 0 && (transition === "unsplit" || transition === "swap");
+  return (
+    anim.bubbleHeight.valueAt(t0) >= 0.5 &&
+    target.bubbleHeight === 0 &&
+    (transition === "unsplit" || transition === "swap")
+  );
 };
 
 export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void => {
@@ -44,17 +51,32 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
   if (target.height > anim.restHeight) anim.restHeight = target.height;
 
   // The expanded shadow eases in behind an opening shape (`shadowRamp`) and otherwise follows it.
-  const opening = target.height > idle.height + 1 && anim.height.valueAt(t0) < idle.height + 0.05 * (target.height - idle.height);
+  const opening =
+    target.height > idle.height + 1 &&
+    anim.height.valueAt(t0) < idle.height + 0.05 * (target.height - idle.height);
   if (mode === "spring" && opening) {
     anim.shadow.set(0, t0, instant);
-    anim.shadow.set(1, t0, { kind: "spring", spring: kind === "pressExpand" ? motion.shadowRampPress : motion.shadowRamp });
+    anim.shadow.set(1, t0, {
+      kind: "spring",
+      spring: kind === "pressExpand" ? motion.shadowRampPress : motion.shadowRamp,
+    });
   } else {
     anim.shadow.set(1, t0, instant);
   }
 
   if (mode !== "spring") {
-    const go: Transition = mode === "instant" ? instant : { kind: "tween", duration: motion.reduced.duration };
-    for (const key of ["left", "right", "top", "height", "radius", "bubbleLeft", "bubbleRight", "bubbleHeight"] as const) {
+    const go: Transition =
+      mode === "instant" ? instant : { kind: "tween", duration: motion.reduced.duration };
+    for (const key of [
+      "left",
+      "right",
+      "top",
+      "height",
+      "radius",
+      "bubbleLeft",
+      "bubbleRight",
+      "bubbleHeight",
+    ] as const) {
       anim[key].set(target[key], t0, go);
     }
     anim.leadRadius.set(target.radius, t0, go);
@@ -68,7 +90,8 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
 
   const go = (spring: SpringConfig, delay = 0): Transition => ({ kind: "spring", spring, delay });
   anim.neck = null;
-  const edges = kind === "appear" ? appearEdges(motion, target.right - target.left) : motion.shape[kind];
+  const edges =
+    kind === "appear" ? appearEdges(motion, target.right - target.left) : motion.shape[kind];
 
   // A visible bubble that goes away. On unsplit, and on a swap from the split to an expanded view
   // (a long-press on the bubble), it slides into the pill as its own lobe (below): the two join with
@@ -83,16 +106,36 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
   // (unsplit-t1 +0.203 s), `bubble.absorbExpand` toward an expanded view (split-expand-b's takes,
   // against split-alert-t1's +0.231 out of a single pill). The body and corner wait for the turn,
   // so they move with it.
-  const via = absorbing ? (kind === "swap" ? (motion.bubble.absorbExpand ?? motion.viaIdle.unsplit) : motion.viaIdle.unsplit) : motion.viaIdle[kind];
+  const via = absorbing
+    ? kind === "swap"
+      ? (motion.bubble.absorbExpand ?? motion.viaIdle.unsplit)
+      : motion.viaIdle.unsplit
+    : motion.viaIdle[kind];
   const turnShift = via - motion.viaIdle[kind];
-  const body = { ...motion.body[kind], delay: Math.max(0, motion.body[kind].delay + (motion.body[kind].delay > 0 ? turnShift : 0)) };
-  const second = kind === "collapse" ? motion.retarget.collapse : kind === "alertCollapse" ? motion.retarget.alertCollapse : edges;
+  const body = {
+    ...motion.body[kind],
+    delay: Math.max(0, motion.body[kind].delay + (motion.body[kind].delay > 0 ? turnShift : 0)),
+  };
+  const second =
+    kind === "collapse"
+      ? motion.retarget.collapse
+      : kind === "alertCollapse"
+        ? motion.retarget.alertCollapse
+        : edges;
 
   // Fold a long-press swell (and an idle swell's widening) into the base values so the change
   // carries its size and speed.
-  const start: { left?: Start; right?: Start; top?: Start; height?: Start; radius?: Start; leadRadius?: Start } = {};
+  const start: {
+    left?: Start;
+    right?: Start;
+    top?: Start;
+    height?: Start;
+    radius?: Start;
+    leadRadius?: Start;
+  } = {};
   const squish = anim.squish.valueAt(t0);
-  const moving = (value: ShapeAnimation["squish"]) => Math.abs(value.valueAt(t0)) > 1e-4 || Math.abs(value.velocityAt(t0)) > 1e-3;
+  const moving = (value: ShapeAnimation["squish"]) =>
+    Math.abs(value.valueAt(t0)) > 1e-4 || Math.abs(value.velocityAt(t0)) > 1e-3;
   if (moving(anim.squish) || moving(anim.widen)) {
     const pose = pillPose(anim, t0);
     const g = 1 + squish * anim.squishFactor;
@@ -101,7 +144,10 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
     start.top = pose.top;
     start.height = pose.height;
     start.radius = { value: anim.radius.valueAt(t0) * g, velocity: anim.radius.velocityAt(t0) * g };
-    start.leadRadius = { value: anim.leadRadius.valueAt(t0) * g, velocity: anim.leadRadius.velocityAt(t0) * g };
+    start.leadRadius = {
+      value: anim.leadRadius.valueAt(t0) * g,
+      velocity: anim.leadRadius.velocityAt(t0) * g,
+    };
     anim.squish.set(0, t0, instant);
     anim.widen.set(0, t0, instant);
   }
@@ -119,7 +165,8 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
 
   if (bubbleShown && target.bubbleHeight === 0 && !absorbing) {
     const bubbleRight = anim.bubbleRight.valueAt(t0);
-    if (bubbleRight > anim.right.valueAt(t0)) start.right = { value: bubbleRight, velocity: anim.bubbleRight.velocityAt(t0) };
+    if (bubbleRight > anim.right.valueAt(t0))
+      start.right = { value: bubbleRight, velocity: anim.bubbleRight.velocityAt(t0) };
     anim.bubbleHeight.set(0, t0, instant);
   }
 
@@ -135,7 +182,12 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
     // split-alert-t1: the attached pill settles wider first, then narrows to its place.
     const spread = motion.bubble.collapseSplitSpread;
     const via = motion.bubble.collapseSplitVia;
-    anim.left.set(target.left - spread.left, t0, go(edges), start.left ?? kicked(anim.left, target.left - spread.left, t0, spread.kick));
+    anim.left.set(
+      target.left - spread.left,
+      t0,
+      go(edges),
+      start.left ?? kicked(anim.left, target.left - spread.left, t0, spread.kick),
+    );
     anim.left.set(target.left, t0, go(spread, spread.at));
     // The right side shrinks as one blob with the bubble first (down to the bubble's dip), then
     // pulls back to the sensor's edge, which is what pinches the bubble off.
@@ -145,14 +197,23 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
       // for a few frames), then pulls back. Under the bulb the body peels in ahead of the bubble's
       // right edge first (`rightPeel`), so the two share the down leg only until then.
       const peel = spread.rightPeel;
-      if (peel.at < spread.rightSettle.at) anim.right.set(target.right + peel.to, t0, go(peel, peel.at));
-      anim.right.set(target.right + spread.right, t0, go(spread.rightSettle, spread.rightSettle.at));
+      if (peel.at < spread.rightSettle.at)
+        anim.right.set(target.right + peel.to, t0, go(peel, peel.at));
+      anim.right.set(
+        target.right + spread.right,
+        t0,
+        go(spread.rightSettle, spread.rightSettle.at),
+      );
       anim.right.set(target.right, t0, go(spread.rightBack, spread.rightBack.at));
     } else {
       anim.right.set(target.right, t0, go(edges, via.at));
     }
     const tip = spread.neckTip;
-    anim.neck = { gap: spread.neckGap, power: spread.neckPower, ...(tip ? { tip: { length: tip.length, reach: tip.reach, until: t0 + tip.until } } : {}) };
+    anim.neck = {
+      gap: spread.neckGap,
+      power: spread.neckPower,
+      ...(tip ? { tip: { length: tip.length, reach: tip.reach, until: t0 + tip.until } } : {}),
+    };
   } else {
     edge(anim.left, target.left, idle.left, start.left);
     edge(anim.right, target.right, idle.right, start.right);
@@ -162,7 +223,11 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
   // Absorbing the bubble, the corner may have its own spring from the turn (`absorbExpandCorner`).
   const absorbCorner = absorbing && kind === "swap" ? motion.bubble.absorbExpandCorner : undefined;
   const corner = absorbCorner ?? motion.corner[kind];
-  const cornerDelay = absorbCorner ? Math.max(0, via + absorbCorner.delay) : corner.delay > 0 ? Math.max(0, corner.delay + turnShift) : 0;
+  const cornerDelay = absorbCorner
+    ? Math.max(0, via + absorbCorner.delay)
+    : corner.delay > 0
+      ? Math.max(0, corner.delay + turnShift)
+      : 0;
   anim.radius.set(target.radius, t0, go(corner, cornerDelay), start.radius);
   // The left corners may have their own spring (`cornerLead`, round 43); otherwise they move as one.
   const lead = absorbCorner ? undefined : motion.cornerLead?.[kind];
@@ -181,7 +246,8 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
   // after the legs above. The split's edges have their own legs, so only its height and top take one.
   const tail = motion.tail[kind];
   const ownEdges = kind === "collapseSplit" && target.bubbleHeight > 0;
-  const width0 = (start.right?.value ?? anim.right.valueAt(t0)) - (start.left?.value ?? anim.left.valueAt(t0));
+  const width0 =
+    (start.right?.value ?? anim.right.valueAt(t0)) - (start.left?.value ?? anim.left.valueAt(t0));
   const height0 = start.height?.value ?? anim.height.valueAt(t0);
   const top0 = start.top?.value ?? anim.top.valueAt(t0);
   if (!ownEdges) {
@@ -189,8 +255,18 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
     queueTail(anim.left, { to: target.left, lean: -lean / 2, legs: tail.width, t0 });
     queueTail(anim.right, { to: target.right, lean: lean / 2, legs: tail.width, t0 });
   }
-  queueTail(anim.height, { to: target.height, lean: leanOf(tail.height, target.height - height0), legs: tail.height, t0 });
-  queueTail(anim.top, { to: target.top, lean: leanOf(tail.top, target.top - top0), legs: tail.top, t0 });
+  queueTail(anim.height, {
+    to: target.height,
+    lean: leanOf(tail.height, target.height - height0),
+    legs: tail.height,
+    t0,
+  });
+  queueTail(anim.top, {
+    to: target.top,
+    lean: leanOf(tail.top, target.top - top0),
+    legs: tail.top,
+    t0,
+  });
   if (kind === "collapseSplit" && target.bubbleHeight > 0) {
     // split-alert-t1: the pill lifts as it shrinks and settles back; the bubble keeps its place.
     const lift = motion.bubble.collapseSplitLift;
@@ -200,7 +276,10 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
     anim.lift.set(0, t0, go(body));
   }
 
-  if (!(kind === "collapseSplit" && target.bubbleHeight > 0 && !bubbleShown) && anim.bubbleRise.target !== 0) {
+  if (
+    !(kind === "collapseSplit" && target.bubbleHeight > 0 && !bubbleShown) &&
+    anim.bubbleRise.target !== 0
+  ) {
     // Only the collapse into the split lifts the bubble; anywhere else the pill is capsule height,
     // where the rise makes no difference, or the bubble is about to merge.
     anim.bubbleRise.set(0, t0, instant);
@@ -274,7 +353,17 @@ export const retargetShape = (anim: ShapeAnimation, change: ShapeChange): void =
  * sooner, while the change itself (the turn, the content) keeps its time. A null `joinAt` (the
  * press let go before it was decided) puts the bubble back at `restLeft`.
  */
-export const leadJoin = (anim: ShapeAnimation, options: { joinAt: number | null; t: number; idleRight: number; restLeft: number; motion: IslandMotion; mode: MotionMode }): void => {
+export const leadJoin = (
+  anim: ShapeAnimation,
+  options: {
+    joinAt: number | null;
+    t: number;
+    idleRight: number;
+    restLeft: number;
+    motion: IslandMotion;
+    mode: MotionMode;
+  },
+): void => {
   const { joinAt, t, idleRight, restLeft, motion, mode } = options;
   const lead = motion.bubble.joinLead ?? 0;
   if (mode !== "spring" || lead <= 0) return;
@@ -298,23 +387,34 @@ export const leadJoin = (anim: ShapeAnimation, options: { joinAt: number | null;
 };
 
 /** Points a tail leans past its target for a change of `travel` points: `by` of it, at most `max`. */
-const leanOf = (legs: TailLegs, travel: number) => Math.sign(legs.lean.by) * Math.min(Math.abs(legs.lean.by * travel), legs.lean.max);
+const leanOf = (legs: TailLegs, travel: number) =>
+  Math.sign(legs.lean.by) * Math.min(Math.abs(legs.lean.by * travel), legs.lean.max);
 
 /**
  * Queues a tail's legs on one value: from `lean.at` it heads for `to + lean`, from `settle.at` it
  * settles onto `to`. Both start after the legs already planned, so they only shape the ending.
  */
-const queueTail = (value: ShapeAnimation["left"], options: { to: number; lean: number; legs: TailLegs; t0: number }): void => {
+const queueTail = (
+  value: ShapeAnimation["left"],
+  options: { to: number; lean: number; legs: TailLegs; t0: number },
+): void => {
   const { to, lean, legs, t0 } = options;
-  if (legs.lean.by !== 0 && legs.lean.at > 0) value.set(to + lean, t0, { kind: "spring", spring: legs.lean, delay: legs.lean.at });
-  if (legs.settle.at > 0) value.set(to, t0, { kind: "spring", spring: legs.settle, delay: legs.settle.at });
+  if (legs.lean.by !== 0 && legs.lean.at > 0)
+    value.set(to + lean, t0, { kind: "spring", spring: legs.lean, delay: legs.lean.at });
+  if (legs.settle.at > 0)
+    value.set(to, t0, { kind: "spring", spring: legs.settle, delay: legs.settle.at });
 };
 
 /**
  * A leg that starts already moving: `kick` times its travel per second (round 23,
  * `collapseSplitVia.kick`). Undefined without a kick, so the leg starts from where it is, at rest.
  */
-const kicked = (value: { valueAt: (t: number) => number }, to: number, t0: number, kick: number | undefined): { value: number; velocity: number } | undefined => {
+const kicked = (
+  value: { valueAt: (t: number) => number },
+  to: number,
+  t0: number,
+  kick: number | undefined,
+): { value: number; velocity: number } | undefined => {
   if (!kick) return undefined;
   const from = value.valueAt(t0);
   return { value: from, velocity: kick * (to - from) };
@@ -329,7 +429,8 @@ const appearEdges = (motion: IslandMotion, width: number): SpringConfig => {
   if (k === 0) return base;
   return {
     response: base.response + (wide.spring.response - base.response) * k,
-    dampingFraction: base.dampingFraction + (wide.spring.dampingFraction - base.dampingFraction) * k,
+    dampingFraction:
+      base.dampingFraction + (wide.spring.dampingFraction - base.dampingFraction) * k,
   };
 };
 
@@ -339,7 +440,15 @@ const appearEdges = (motion: IslandMotion, width: number): SpringConfig => {
  */
 export const retargetPress = (
   anim: ShapeAnimation,
-  options: { pressed: "pill" | "bubble" | null; style: "swell" | "squish"; t: number; motion: IslandMotion; metrics: IslandMetrics; mode: MotionMode; idle?: boolean },
+  options: {
+    pressed: "pill" | "bubble" | null;
+    style: "swell" | "squish";
+    t: number;
+    motion: IslandMotion;
+    metrics: IslandMetrics;
+    mode: MotionMode;
+    idle?: boolean;
+  },
 ): void => {
   const { pressed, style, t, motion, metrics, mode, idle = false } = options;
   if (pressed) anim.squishFactor = style === "swell" ? metrics.press.swell : metrics.press.squish;
@@ -347,23 +456,45 @@ export const retargetPress = (
   // split-expand-b, frame 263); the two join only when the expansion absorbs the bubble.
   if (pressed === "bubble") anim.neck = { gap: 0.01, power: 1.5 };
   const go = (spring: SpringConfig): Transition =>
-    mode === "instant" ? instant : mode === "reduced" ? { kind: "tween", duration: motion.reduced.duration } : { kind: "spring", spring };
+    mode === "instant"
+      ? instant
+      : mode === "reduced"
+        ? { kind: "tween", duration: motion.reduced.duration }
+        : { kind: "spring", spring };
   // The stack's swell springs back with no bounce (idletap-t1); the controlled squish rebounds.
   const down = style === "swell" ? motion.press.swell : motion.press.down;
   // An idle island's swell may turn back on its own spring, keeping only part of its outward speed
   // (`idleRelease`), so it rounds over a flat top (round 30).
   const idleRelease = style === "swell" && idle ? motion.press.idleRelease : undefined;
-  const up = idleRelease ? idleRelease.spring : style === "swell" ? motion.press.release : motion.press.up;
+  const up = idleRelease
+    ? idleRelease.spring
+    : style === "swell"
+      ? motion.press.release
+      : motion.press.up;
   // The bubble may swell on its own spring and to its own size, in units of the pill's factor.
   const bubbleDown = style === "swell" ? (motion.press.bubbleSwell ?? down) : down;
-  const bubbleTo = style === "swell" && anim.squishFactor > 0 ? (metrics.press.bubbleSwell ?? metrics.press.swell) / anim.squishFactor : 1;
-  for (const [part, value] of [["pill", anim.squish], ["bubble", anim.bubbleSquish]] as const) {
+  const bubbleTo =
+    style === "swell" && anim.squishFactor > 0
+      ? (metrics.press.bubbleSwell ?? metrics.press.swell) / anim.squishFactor
+      : 1;
+  for (const [part, value] of [
+    ["pill", anim.squish],
+    ["bubble", anim.bubbleSquish],
+  ] as const) {
     const on = pressed === part;
     // Leave a part that is already where it should be alone, so it stays at rest.
     if (!on && value.target === 0 && value.isAtRest(t)) continue;
     const bubble = part === "bubble";
-    const from = !on && idleRelease && mode === "spring" ? { value: value.valueAt(t), velocity: value.velocityAt(t) * idleRelease.carry } : undefined;
-    value.set(on ? (bubble ? bubbleTo : 1) : 0, t, go(on ? (bubble ? bubbleDown : down) : up), from);
+    const from =
+      !on && idleRelease && mode === "spring"
+        ? { value: value.valueAt(t), velocity: value.velocityAt(t) * idleRelease.carry }
+        : undefined;
+    value.set(
+      on ? (bubble ? bubbleTo : 1) : 0,
+      t,
+      go(on ? (bubble ? bubbleDown : down) : up),
+      from,
+    );
     // As an idle pill's swell turns back, its width runs on: it widens on a slow spring and lets
     // go `hold` later (`idleWiden`, round 31), while its height returns with the swell.
     const widen = motion.press.idleWiden;
@@ -375,4 +506,5 @@ export const retargetPress = (
 };
 
 /** Content crossfade settings for a transition. */
-export const contentMotion = (motion: IslandMotion, transition: ShapeTransition): ContentMotion => motion.contentTiming[transition];
+export const contentMotion = (motion: IslandMotion, transition: ShapeTransition): ContentMotion =>
+  motion.contentTiming[transition];

@@ -2,7 +2,13 @@ export { IslandProvider, type IslandProviderProps } from "./provider";
 export { Island, type IslandProps } from "./island-root";
 export { IslandView, type IslandViewProps } from "./view";
 export { useIsland, useIslandActions, useIslandReducedMotion } from "./use-island";
-export { IslandNumber, IslandProgress, numberMotion, type IslandNumberProps, type IslandProgressProps } from "./primitives";
+export {
+  IslandNumber,
+  IslandProgress,
+  numberMotion,
+  type IslandNumberProps,
+  type IslandProgressProps,
+} from "./primitives";
 export { colourLuma, keylineAlphaFor, type KeylineSetting } from "./context";
 
 export type {
@@ -26,7 +32,18 @@ export { createFrameClock, defaultClock, type ControllableClock, type IslandCloc
 export { AnimatedValue, solveSpring, type SpringConfig, type Transition } from "./spring";
 export { islandMetrics, type IslandMetrics } from "./metrics";
 export { islandMotion, shapeTransitions, type IslandMotion, type ShapeTransition } from "./motion";
-export { resolveMetrics, resolveMotion, type IslandMetricsOverrides, type IslandMotionOverrides } from "./config";
-export { bridgePath, capsulePath, continuousRectPath, roundedRectPath, type CornerShape } from "./path";
+export {
+  resolveMetrics,
+  resolveMotion,
+  type IslandMetricsOverrides,
+  type IslandMotionOverrides,
+} from "./config";
+export {
+  bridgePath,
+  capsulePath,
+  continuousRectPath,
+  roundedRectPath,
+  type CornerShape,
+} from "./path";
 export type { IslandDevtools, DevtoolsOptions } from "./devtools";
 export type { FrameStats } from "./perf";

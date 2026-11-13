@@ -54,23 +54,35 @@ export interface IslandScene {
 const byPriority = (a: Activity, b: Activity) => b.priority - a.priority || a.order - b.order;
 
 /** Content identity of an activity: a crossfade update bumps its revision, so its layer is replaced. */
-const keyOf = (activity: Activity) => (activity.revision > 0 ? `${activity.id}#${activity.revision}` : activity.id);
+const keyOf = (activity: Activity) =>
+  activity.revision > 0 ? `${activity.id}#${activity.revision}` : activity.id;
 
 /** The activity of `group` on show: the one brought forward, else the first started. */
 const shownOf = (snapshot: Pick<IslandSnapshot, "activities" | "front">, group: string) => {
   const members = snapshot.activities.filter((a) => a.group === group);
   const forward = snapshot.front[group];
   if (forward !== undefined && members.some((a) => a.id === forward)) return forward;
-  return members.reduce<Activity | null>((first, a) => (first === null || a.order < first.order ? a : first), null)?.id ?? null;
+  return (
+    members.reduce<Activity | null>(
+      (first, a) => (first === null || a.order < first.order ? a : first),
+      null,
+    )?.id ?? null
+  );
 };
 
 /** Whether an activity shows: ungrouped ones always, grouped ones in turn and never mid-handoff. */
-export const isShown = (snapshot: Pick<IslandSnapshot, "activities" | "front" | "handoff">, activity: Activity) =>
-  activity.group === null || (snapshot.handoff !== activity.group && shownOf(snapshot, activity.group) === activity.id);
+export const isShown = (
+  snapshot: Pick<IslandSnapshot, "activities" | "front" | "handoff">,
+  activity: Activity,
+) =>
+  activity.group === null ||
+  (snapshot.handoff !== activity.group && shownOf(snapshot, activity.group) === activity.id);
 
 export const deriveScene = (snapshot: IslandSnapshot): IslandScene => {
   const [first, second] = snapshot.activities.filter((a) => isShown(snapshot, a));
-  const expanded = snapshot.expanded ? snapshot.activities.find((a) => a.id === snapshot.expanded?.id) : undefined;
+  const expanded = snapshot.expanded
+    ? snapshot.activities.find((a) => a.id === snapshot.expanded?.id)
+    : undefined;
   if (expanded) {
     return {
       presentation: { kind: "expanded", ...expanded.content.expanded },
@@ -81,7 +93,13 @@ export const deriveScene = (snapshot: IslandSnapshot): IslandScene => {
     };
   }
   if (!first) {
-    return { presentation: { kind: "idle" }, contentKey: "idle", label: "", primary: null, detached: null };
+    return {
+      presentation: { kind: "idle" },
+      contentKey: "idle",
+      label: "",
+      primary: null,
+      detached: null,
+    };
   }
   if (!second) {
     return {
@@ -133,7 +151,10 @@ export interface IslandStore {
   release(options?: { cancel?: boolean }): void;
 }
 
-export const createIslandStore = (options: { clock: IslandClock; motion: () => IslandMotion }): IslandStore => {
+export const createIslandStore = (options: {
+  clock: IslandClock;
+  motion: () => IslandMotion;
+}): IslandStore => {
   const { clock } = options;
   let snapshot: IslandSnapshot = {
     activities: [],
@@ -149,7 +170,12 @@ export const createIslandStore = (options: { clock: IslandClock; motion: () => I
   /** Timers of the press in progress (decide, expand, spring back). */
   let pressTimers: (() => void)[] = [];
   /** The press in progress: what is held, when it went down, and whether it became a long-press. */
-  let holding: { target: PressTarget; at: number; long: boolean; activityId: string | null } | null = null;
+  let holding: {
+    target: PressTarget;
+    at: number;
+    long: boolean;
+    activityId: string | null;
+  } | null = null;
   const cancelHold = () => {
     for (const cancel of pressTimers) cancel();
     pressTimers = [];
@@ -167,12 +193,23 @@ export const createIslandStore = (options: { clock: IslandClock; motion: () => I
   const listeners = new Set<() => void>();
 
   // `at` lets timers stamp the exact time they were due, so stepped captures stay exact.
-  const commit = (next: Omit<IslandSnapshot, "changeId" | "changedAt" | "instant">, at = clock.now()) => {
+  const commit = (
+    next: Omit<IslandSnapshot, "changeId" | "changedAt" | "instant">,
+    at = clock.now(),
+  ) => {
     const before = deriveScene(snapshot);
-    const draft: IslandSnapshot = { ...next, changeId: snapshot.changeId, changedAt: snapshot.changedAt, instant: snapshot.instant };
+    const draft: IslandSnapshot = {
+      ...next,
+      changeId: snapshot.changeId,
+      changedAt: snapshot.changedAt,
+      instant: snapshot.instant,
+    };
     const after = deriveScene(draft);
     const shown = before.contentKey !== after.contentKey;
-    snapshot = shown || instant ? { ...draft, changeId: snapshot.changeId + 1, changedAt: at, instant } : draft;
+    snapshot =
+      shown || instant
+        ? { ...draft, changeId: snapshot.changeId + 1, changedAt: at, instant }
+        : draft;
     for (const listener of [...listeners]) listener();
   };
 
@@ -213,7 +250,12 @@ export const createIslandStore = (options: { clock: IslandClock; motion: () => I
     // Held-out swap-t2: the shown activity leaves to idle (the dismiss motion), the island stays
     // empty, then the alerting one expands from idle; the alert window counts from the departure,
     // and the one that left does not come back.
-    commit({ ...snapshot, expanded: null, handoff: group, front: { ...snapshot.front, [group]: id } });
+    commit({
+      ...snapshot,
+      expanded: null,
+      handoff: group,
+      front: { ...snapshot.front, [group]: id },
+    });
     const expandAt = now + m.group.handoff * 1000;
     alertTimers.push(
       clock.at(expandAt, (due) => {
@@ -266,12 +308,22 @@ export const createIslandStore = (options: { clock: IslandClock; motion: () => I
         revision: update.transition === "crossfade" ? found.revision + 1 : found.revision,
       };
       const replace = (activity: Activity) =>
-        commit({ ...snapshot, activities: snapshot.activities.map((a) => (a.id === id ? activity : a)).sort(byPriority) });
-      const changesContent = update.compact !== undefined || update.expanded !== undefined || "minimal" in update;
+        commit({
+          ...snapshot,
+          activities: snapshot.activities.map((a) => (a.id === id ? activity : a)).sort(byPriority),
+        });
+      const changesContent =
+        update.compact !== undefined || update.expanded !== undefined || "minimal" in update;
       const delay = options.motion().alertContentDelay;
       // Only an activity on show has content to keep: one waiting hidden in its group expands with
       // the update already applied (held-out swap-t2: B comes in showing "8" and its bar at 0.8).
-      if (update.alert && changesContent && delay > 0 && snapshot.expanded?.id !== id && isShown(snapshot, found)) {
+      if (
+        update.alert &&
+        changesContent &&
+        delay > 0 &&
+        snapshot.expanded?.id !== id &&
+        isShown(snapshot, found)
+      ) {
         // iOS expands with the content it had, then changes it in place (alert-t1: "42" turns into
         // "43" and the bar moves once the expanded view is in).
         replace({ ...next, content: found.content, revision: found.revision });
@@ -281,13 +333,33 @@ export const createIslandStore = (options: { clock: IslandClock; motion: () => I
           const current = snapshot.activities.find((a) => a.id === id);
           if (!current) return;
           const content = mergeContent(current.content, update);
-          commit({ ...snapshot, activities: snapshot.activities.map((a) => (a.id === id ? { ...current, content, revision: next.revision } : a)) }, due);
+          commit(
+            {
+              ...snapshot,
+              activities: snapshot.activities.map((a) =>
+                a.id === id ? { ...current, content, revision: next.revision } : a,
+              ),
+            },
+            due,
+          );
         });
         pendingContent.set(id, () => {
           cancel();
           pendingContent.delete(id);
           const current = snapshot.activities.find((a) => a.id === id);
-          if (current) commit({ ...snapshot, activities: snapshot.activities.map((a) => (a.id === id ? { ...current, content: mergeContent(current.content, update), revision: next.revision } : a)) });
+          if (current)
+            commit({
+              ...snapshot,
+              activities: snapshot.activities.map((a) =>
+                a.id === id
+                  ? {
+                      ...current,
+                      content: mergeContent(current.content, update),
+                      revision: next.revision,
+                    }
+                  : a,
+              ),
+            });
         });
         return;
       }
@@ -300,10 +372,22 @@ export const createIslandStore = (options: { clock: IslandClock; motion: () => I
       const ending = snapshot.activities.find((a) => a.id === id);
       const expanded = snapshot.expanded?.id === id ? null : snapshot.expanded;
       // An activity handed to mid-handoff that ends calls the handoff off.
-      const handingTo = ending !== undefined && ending.group !== null && snapshot.handoff === ending.group && snapshot.front[ending.group] === id;
+      const handingTo =
+        ending !== undefined &&
+        ending.group !== null &&
+        snapshot.handoff === ending.group &&
+        snapshot.front[ending.group] === id;
       if (!expanded || handingTo) clearAlert();
-      const front = Object.fromEntries(Object.entries(snapshot.front).filter(([, forward]) => forward !== id));
-      commit({ ...snapshot, activities: snapshot.activities.filter((a) => a.id !== id), expanded, front, handoff: handingTo ? null : snapshot.handoff });
+      const front = Object.fromEntries(
+        Object.entries(snapshot.front).filter(([, forward]) => forward !== id),
+      );
+      commit({
+        ...snapshot,
+        activities: snapshot.activities.filter((a) => a.id !== id),
+        expanded,
+        front,
+        handoff: handingTo ? null : snapshot.handoff,
+      });
     },
     expand(id) {
       // Default: the primary activity among those on show.
@@ -312,7 +396,10 @@ export const createIslandStore = (options: { clock: IslandClock; motion: () => I
       if (!target || !activity) return;
       clearAlert();
       // Expanding a hidden activity of a group brings it forward.
-      const front = activity.group === null ? snapshot.front : { ...snapshot.front, [activity.group]: activity.id };
+      const front =
+        activity.group === null
+          ? snapshot.front
+          : { ...snapshot.front, [activity.group]: activity.id };
       commit({ ...snapshot, expanded: { id: target, reason: "user" }, front, handoff: null });
     },
     collapse() {
@@ -383,7 +470,15 @@ export const createIslandStore = (options: { clock: IslandClock; motion: () => I
           holding = null;
           pressTimers = [];
           clearAlert();
-          commit({ ...snapshot, pressed: null, joining: null, expanded: { id: activity.id, reason: "user" } }, due);
+          commit(
+            {
+              ...snapshot,
+              pressed: null,
+              joining: null,
+              expanded: { id: activity.id, reason: "user" },
+            },
+            due,
+          );
         }),
       );
     },
@@ -426,7 +521,14 @@ export const createIslandStore = (options: { clock: IslandClock; motion: () => I
         holding = null;
         for (const apply of [...pendingContent.values()]) apply();
         pendingContent.clear();
-        commit({ activities: [], expanded: null, pressed: null, joining: null, front: {}, handoff: null });
+        commit({
+          activities: [],
+          expanded: null,
+          pressed: null,
+          joining: null,
+          front: {},
+          handoff: null,
+        });
       } finally {
         instant = false;
       }

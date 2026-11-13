@@ -50,7 +50,9 @@ const oneLine: CSSProperties = {
 export const feedTurn = 0.25;
 
 /** Tabular figures, for a value whose digits change in place: it keeps its width as they turn. */
-export const tabularFigures = { fontVariantNumeric: "tabular-nums" } as const satisfies CSSProperties;
+export const tabularFigures = {
+  fontVariantNumeric: "tabular-nums",
+} as const satisfies CSSProperties;
 
 /**
  * How a value's changed digits move. "live" (the default) is the engine's `IslandNumber`: the old
@@ -65,7 +67,12 @@ export type NumberMotion = "live" | "steady" | "none";
  * A value whose changed digits turn over when it updates, like a live status activity's numbers, in
  * tabular figures so it keeps its width. With reduced motion it changes in place.
  */
-export const NumberText = ({ value, style, turn, motion = "live" }: {
+export const NumberText = ({
+  value,
+  style,
+  turn,
+  motion = "live",
+}: {
   /** The number, or text such as "4:07". Write a negative value with a minus sign (U+2212), not a hyphen. */
   value: number | string;
   /** Styles on the text. Defaults to none. */
@@ -79,12 +86,26 @@ export const NumberText = ({ value, style, turn, motion = "live" }: {
   const figures = { ...tabularFigures, ...style };
   // "none": a clock that simply changes, as the system's recorder does; any crossing showed two digits at once.
   if (reduced || motion === "none") return <span style={figures}>{value}</span>;
-  return motion === "steady" ? <SteadyNumber value={value} style={figures} /> : <IslandNumber value={value} style={figures} turn={turn} />;
+  return motion === "steady" ? (
+    <SteadyNumber value={value} style={figures} />
+  ) : (
+    <IslandNumber value={value} style={figures} turn={turn} />
+  );
 };
 
 /** 15 pt semibold, the trailing text in compact and minimal. */
 export const CompactText = ({ children, color = islandInk.primary, style }: TextProps) => (
-  <span style={{ ...base, display: "block", fontSize: islandSize.compactText, fontWeight: 600, lineHeight: `${islandLine.compact}px`, color, ...style }}>
+  <span
+    style={{
+      ...base,
+      display: "block",
+      fontSize: islandSize.compactText,
+      fontWeight: 600,
+      lineHeight: `${islandLine.compact}px`,
+      color,
+      ...style,
+    }}
+  >
     {children}
   </span>
 );
@@ -104,7 +125,12 @@ const isSign = (unit: ReactNode) => typeof unit === "string" && !/\p{L}/u.test(u
  * semibold; a sign ("%") is set at the figure's own size and weight, since a small sign beside a
  * large figure read as a footnote.
  */
-export const ExpandedValue = ({ children, unit, color = islandInk.primary, style }: TextProps & {
+export const ExpandedValue = ({
+  children,
+  unit,
+  color = islandInk.primary,
+  style,
+}: TextProps & {
   /** Smaller text after the number, such as "min". Defaults to none. */
   unit?: ReactNode;
 }) => (
@@ -126,14 +152,34 @@ export const ExpandedValue = ({ children, unit, color = islandInk.primary, style
     {unit === undefined ? null : isSign(unit) ? (
       <span style={{ marginLeft: "-0.04em" }}>{unit}</span>
     ) : (
-      <span style={{ fontSize: islandSize.title, fontWeight: 600, letterSpacing: trackingFor(islandSize.title), marginLeft: unitGap(unit) }}>{unit}</span>
+      <span
+        style={{
+          fontSize: islandSize.title,
+          fontWeight: 600,
+          letterSpacing: trackingFor(islandSize.title),
+          marginLeft: unitGap(unit),
+        }}
+      >
+        {unit}
+      </span>
     )}
   </span>
 );
 
 /** 17 pt semibold, the expanded view's title. */
 export const ExpandedTitle = ({ children, color = islandInk.primary, style }: TextProps) => (
-  <span style={{ ...base, ...oneLine, fontSize: islandSize.title, fontWeight: 600, lineHeight: `${islandLine.title}px`, letterSpacing: trackingFor(islandSize.title), color, ...style }}>
+  <span
+    style={{
+      ...base,
+      ...oneLine,
+      fontSize: islandSize.title,
+      fontWeight: 600,
+      lineHeight: `${islandLine.title}px`,
+      letterSpacing: trackingFor(islandSize.title),
+      color,
+      ...style,
+    }}
+  >
     {children}
   </span>
 );
@@ -143,21 +189,52 @@ export const ExpandedTitle = ({ children, color = islandInk.primary, style }: Te
  * the sensor. A step lighter than the file or the person it is about, so it reads as context.
  */
 export const ContextLabel = ({ children, color = islandInk.secondary, style }: TextProps) => (
-  <span style={{ ...base, display: "block", minWidth: 0, fontSize: islandSize.subtitle, fontWeight: 500, lineHeight: `${islandLine.subtitle}px`, color, ...style }}>
+  <span
+    style={{
+      ...base,
+      display: "block",
+      minWidth: 0,
+      fontSize: islandSize.subtitle,
+      fontWeight: 500,
+      lineHeight: `${islandLine.subtitle}px`,
+      color,
+      ...style,
+    }}
+  >
     {children}
   </span>
 );
 
 /** 15 pt regular in secondary grey, under the title. */
 export const ExpandedSubtitle = ({ children, color = islandInk.secondary, style }: TextProps) => (
-  <span style={{ ...base, ...oneLine, fontSize: islandSize.subtitle, fontWeight: 400, lineHeight: `${islandLine.subtitle}px`, color, ...style }}>
+  <span
+    style={{
+      ...base,
+      ...oneLine,
+      fontSize: islandSize.subtitle,
+      fontWeight: 400,
+      lineHeight: `${islandLine.subtitle}px`,
+      color,
+      ...style,
+    }}
+  >
     {children}
   </span>
 );
 
 /** 13 pt medium in secondary grey, for times and labels under bars. */
 export const Caption = ({ children, color = islandInk.secondary, style }: TextProps) => (
-  <span style={{ ...base, display: "block", fontSize: islandSize.caption, fontWeight: 500, lineHeight: `${islandLine.caption}px`, color, ...style }}>
+  <span
+    style={{
+      ...base,
+      display: "block",
+      fontSize: islandSize.caption,
+      fontWeight: 500,
+      lineHeight: `${islandLine.caption}px`,
+      color,
+      ...style,
+    }}
+  >
     {children}
   </span>
 );
@@ -181,12 +258,18 @@ export const TitleStack = ({
   /** Extra styles. Defaults to none. */
   style?: CSSProperties | undefined;
 }) => (
-  <div style={{ display: "grid", gap: islandLine.stackGap, minWidth: 0, textAlign: align === "center" ? "center" : "left", ...style }}>
+  <div
+    style={{
+      display: "grid",
+      gap: islandLine.stackGap,
+      minWidth: 0,
+      textAlign: align === "center" ? "center" : "left",
+      ...style,
+    }}
+  >
     <ExpandedTitle>{title}</ExpandedTitle>
     {subtitle === undefined ? null : (
-      <ExpandedSubtitle
-        style={subtitleLines > 1 ? { WebkitLineClamp: subtitleLines } : undefined}
-      >
+      <ExpandedSubtitle style={subtitleLines > 1 ? { WebkitLineClamp: subtitleLines } : undefined}>
         {subtitle}
       </ExpandedSubtitle>
     )}
@@ -197,7 +280,10 @@ export const TitleStack = ({
  * A glyph and a short value side by side, for `minimal`. On the reference phone the split shows each
  * activity's compact pair in its own capsule (measured: a 22 pt circle, then the value 7 pt after it).
  */
-export const MinimalPair = ({ leading, trailing }: {
+export const MinimalPair = ({
+  leading,
+  trailing,
+}: {
   /** The glyph, ring or art. */
   leading: ReactNode;
   /** A short value, three to five characters. */
@@ -224,7 +310,10 @@ const bubbleCss = `
  * included, it shows `children`. An empty trailing slot gives a round bubble sized to the leading
  * content, the way a minimal view sits in its own circle.
  */
-export const BubbleForm = ({ bubble, children }: {
+export const BubbleForm = ({
+  bubble,
+  children,
+}: {
   /** What the slot shows in the split's bubble. `null` leaves it empty there. */
   bubble: ReactNode;
   /** What it shows everywhere else. */
@@ -244,7 +333,12 @@ export const BubbleForm = ({ bubble, children }: {
  */
 export const withBubble = (compact: CompactContent, bubble: ReactNode): CompactContent => ({
   leading: <BubbleForm bubble={bubble}>{compact.leading}</BubbleForm>,
-  trailing: compact.trailing === undefined || compact.trailing === null ? compact.trailing : <BubbleForm bubble={null}>{compact.trailing}</BubbleForm>,
+  trailing:
+    compact.trailing === undefined || compact.trailing === null ? (
+      compact.trailing
+    ) : (
+      <BubbleForm bubble={null}>{compact.trailing}</BubbleForm>
+    ),
 });
 
 const swapCss = `
@@ -259,14 +353,21 @@ const swapCss = `
  * timing; `Swap` is for one piece of content that changes while the rest stays. The old content
  * leaves at once, which reads as one morph. With reduced motion it swaps instantly.
  */
-export const Swap = ({ id, children }: {
+export const Swap = ({
+  id,
+  children,
+}: {
   /** Change it to play the swap. */
   id: string;
   children: ReactNode;
 }) => {
   const reduced = useIslandReducedMotion();
   return (
-    <span key={id} className={reduced ? undefined : "icn-swap"} style={reduced ? { display: "inline-flex" } : undefined}>
+    <span
+      key={id}
+      className={reduced ? undefined : "icn-swap"}
+      style={reduced ? { display: "inline-flex" } : undefined}
+    >
       <IslandStyle id="swap" css={swapCss} />
       {children}
     </span>

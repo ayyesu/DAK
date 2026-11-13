@@ -1,6 +1,13 @@
 import type { ShapeTarget } from "./geometry";
 import type { IslandMetrics } from "./metrics";
-import { bridgePath, capsulePath, chamferPath, cuspPath, continuousRectPath, roundedRectPath } from "./path";
+import {
+  bridgePath,
+  capsulePath,
+  chamferPath,
+  cuspPath,
+  continuousRectPath,
+  roundedRectPath,
+} from "./path";
 import { AnimatedValue } from "./spring";
 
 /** The animated numbers behind the shape. One spring per property. */
@@ -53,7 +60,11 @@ export interface ShapeAnimation {
    * `tip` draws the pointed nubs its first break leaves (`collapseSplitSpread.neckTip`), up to the
    * absolute time `until`.
    */
-  neck: { gap: number; power: number; tip?: { length: number; reach: number; until: number } } | null;
+  neck: {
+    gap: number;
+    power: number;
+    tip?: { length: number; reach: number; until: number };
+  } | null;
   /**
    * From `at` seconds the neck is drawn as in a merge (`metrics.bridge`) whatever `neck` says: a
    * pressed bubble whose join is decided starts joining ahead of the change (`bubble.joinLead`).
@@ -67,9 +78,28 @@ export interface ShapeAnimation {
   cornerTrail: { above: number; below: number } | null;
 }
 
-const animatedKeys = ["left", "right", "top", "height", "radius", "leadRadius", "bubbleLeft", "bubbleRight", "bubbleHeight", "bubbleRise", "lift", "squish", "bubbleSquish", "widen", "shadow"] as const;
+const animatedKeys = [
+  "left",
+  "right",
+  "top",
+  "height",
+  "radius",
+  "leadRadius",
+  "bubbleLeft",
+  "bubbleRight",
+  "bubbleHeight",
+  "bubbleRise",
+  "lift",
+  "squish",
+  "bubbleSquish",
+  "widen",
+  "shadow",
+] as const;
 
-export const createShapeAnimation = (target: ShapeTarget, metrics: IslandMetrics): ShapeAnimation => ({
+export const createShapeAnimation = (
+  target: ShapeTarget,
+  metrics: IslandMetrics,
+): ShapeAnimation => ({
   left: new AnimatedValue(target.left),
   right: new AnimatedValue(target.right),
   top: new AnimatedValue(target.top),
@@ -135,7 +165,7 @@ const bubbleBase = (shape: ShapeAnimation, t: number, stageWidth: number) => {
   // 39.5 to 36.8 tall). Top-aligned within half a point of the pill, it stepped 0.28 pt there.
   const rise = Math.min(1, Math.max(0, shape.bubbleRise.valueAt(t)));
   const pillHeight = shape.height.valueAt(t);
-  const top = shape.top.valueAt(t) + (pillHeight - height) / 2 * (1 - rise);
+  const top = shape.top.valueAt(t) + ((pillHeight - height) / 2) * (1 - rise);
   return { left, top, width, height };
 };
 
@@ -179,7 +209,14 @@ export interface FrameGeometry {
    * the island's own corners, which cuts content blurred past the clip (expanded content is clipped
    * before it is blurred, as on iOS).
    */
-  paths: { pill: string; bubble: string; bridge: string; clip: string; outline: string; bubbleClip: string };
+  paths: {
+    pill: string;
+    bubble: string;
+    bridge: string;
+    clip: string;
+    outline: string;
+    bubbleClip: string;
+  };
   /** 0 at capsule height, 1 at the expanded shape's resting height. */
   expansion: number;
   /** The expanded shadow's strength, 0 to 1: the expansion, held back while the shadow eases in. */
@@ -192,7 +229,12 @@ const smoothstep = (x: number) => {
 };
 
 /** Pose of the shape at time `t` (seconds), laid out on a stage `stageWidth` wide. */
-export const frameAt = (shape: ShapeAnimation, t: number, stageWidth: number, metrics: IslandMetrics): FrameGeometry => {
+export const frameAt = (
+  shape: ShapeAnimation,
+  t: number,
+  stageWidth: number,
+  metrics: IslandMetrics,
+): FrameGeometry => {
   const pose = pillPose(shape, t);
   const width = Math.max(0, pose.right.value - pose.left.value);
   const h = Math.max(0, pose.height.value);
@@ -203,13 +245,19 @@ export const frameAt = (shape: ShapeAnimation, t: number, stageWidth: number, me
   const own = Math.max(0, Math.min(shape.radius.valueAt(t) * g, h / 2, width / 2));
   // The right corners share the leading radius while the pill is tall (`cornerLead.trailing`).
   const trail = shape.cornerTrail;
-  const share = trail && lead !== own ? smoothstep((h - trail.below) / Math.max(1e-6, trail.above - trail.below)) : 0;
+  const share =
+    trail && lead !== own
+      ? smoothstep((h - trail.below) / Math.max(1e-6, trail.above - trail.below))
+      : 0;
   const radius = share > 0 ? own + (lead - own) * share : own;
 
   // The shadow follows the expansion, not the press swell: a swollen compact pill casts none
   // (judge round 2, finding 12), so the swell is divided back out.
   const capsuleHeight = metrics.compact.height;
-  const expansion = Math.min(1, Math.max(0, (h / g - capsuleHeight) / Math.max(1, shape.restHeight - capsuleHeight)));
+  const expansion = Math.min(
+    1,
+    Math.max(0, (h / g - capsuleHeight) / Math.max(1, shape.restHeight - capsuleHeight)),
+  );
 
   // The bubble swells about its own centre when it is the one pressed.
   const base = bubbleBase(shape, t, stageWidth);
@@ -236,8 +284,23 @@ export const frameAt = (shape: ShapeAnimation, t: number, stageWidth: number, me
   const smoothing = metrics.corner.smoothing;
   const pill =
     smoothing > 0
-      ? continuousRectPath(x + dx, y + dy, dw, dh, Math.min(radius, dh / 2, dw / 2), smoothing, Math.min(lead, dh / 2, dw / 2))
-      : roundedRectPath(x + dx, y + dy, dw, dh, superCorner(radius), lead === radius ? undefined : superCorner(lead));
+      ? continuousRectPath(
+          x + dx,
+          y + dy,
+          dw,
+          dh,
+          Math.min(radius, dh / 2, dw / 2),
+          smoothing,
+          Math.min(lead, dh / 2, dw / 2),
+        )
+      : roundedRectPath(
+          x + dx,
+          y + dy,
+          dw,
+          dh,
+          superCorner(radius),
+          lead === radius ? undefined : superCorner(lead),
+        );
   const showBubble = bh >= 0.5;
   const neck = shape.joinFrom !== null && t >= shape.joinFrom ? null : shape.neck;
   const bubble = showBubble ? capsulePath(bl, by, bw, bh, smoothing) : "";
@@ -247,30 +310,60 @@ export const frameAt = (shape: ShapeAnimation, t: number, stageWidth: number, me
   const pillCap = { x: x + width - h / 2, y: y + h / 2, r: h / 2 };
   const bubbleCap = { x: bl + bh / 2, y: by + bh / 2, r: bh / 2 };
   const maxGap = neck?.gap ?? metrics.bridge.maxGap;
-  const joined = capsules ? bridgePath(pillCap, bubbleCap, { ...metrics.bridge, maxGap, ...(neck?.power !== undefined ? { power: neck.power } : {}) }) : "";
+  const joined = capsules
+    ? bridgePath(pillCap, bubbleCap, {
+        ...metrics.bridge,
+        maxGap,
+        ...(neck?.power !== undefined ? { power: neck.power } : {}),
+      })
+    : "";
   // Once the neck has snapped, each end keeps a pointed nub toward the other that shrinks as they part
   // (round 40): until the return's own time, so the break after the rejoin is round, as on iOS.
   const tip = neck?.tip;
   let nubs = "";
   if (capsules && joined === "" && tip && t < tip.until && tip.reach > 0) {
-    const gap = Math.hypot(bubbleCap.x - pillCap.x, bubbleCap.y - pillCap.y) - pillCap.r - bubbleCap.r;
+    const gap =
+      Math.hypot(bubbleCap.x - pillCap.x, bubbleCap.y - pillCap.y) - pillCap.r - bubbleCap.r;
     const length = tip.length * Math.min(1, Math.max(0, 1 - (gap - maxGap) / tip.reach));
-    if (gap >= 0 && length > 0) nubs = `${cuspPath(pillCap, bubbleCap, length)} ${cuspPath(bubbleCap, pillCap, length)}`;
+    if (gap >= 0 && length > 0)
+      nubs = `${cuspPath(pillCap, bubbleCap, length)} ${cuspPath(bubbleCap, pillCap, length)}`;
   }
   const bridge = joined || nubs;
   const { chamfer, radius: clipRadius } = metrics.contentClip;
-  const clipOf = (cx: number, cy: number, cw: number, ch: number, r: number, cap: number, rl = r) => {
+  const clipOf = (
+    cx: number,
+    cy: number,
+    cw: number,
+    ch: number,
+    r: number,
+    cap: number,
+    rl = r,
+  ) => {
     if (chamfer > 0 && cap === clipRadius) return chamferPath(cx, cy, cw, ch, r * chamfer);
     // Concentric with the island, its corner radius capped: big corners clip content, capsules don't.
     const inset = Math.max(0, r - cap);
     const rc = Math.min(r, cap);
-    if (rl === r) return roundedRectPath(cx + inset, cy + inset, Math.max(0, cw - 2 * inset), Math.max(0, ch - 2 * inset), { rx: rc, ry: rc, exponent: 2 });
+    if (rl === r)
+      return roundedRectPath(
+        cx + inset,
+        cy + inset,
+        Math.max(0, cw - 2 * inset),
+        Math.max(0, ch - 2 * inset),
+        { rx: rc, ry: rc, exponent: 2 },
+      );
     // Rounder left corners (`cornerLead`): the left side is inset by its own radius, the top and
     // bottom by the smaller one, so neither side's content is cut more than its own corner asks.
     const insetL = Math.max(0, rl - cap);
     const v = Math.min(inset, insetL);
     const rcl = Math.min(rl, cap);
-    return roundedRectPath(cx + insetL, cy + v, Math.max(0, cw - inset - insetL), Math.max(0, ch - 2 * v), { rx: rc, ry: rc, exponent: 2 }, { rx: rcl, ry: rcl, exponent: 2 });
+    return roundedRectPath(
+      cx + insetL,
+      cy + v,
+      Math.max(0, cw - inset - insetL),
+      Math.max(0, ch - 2 * v),
+      { rx: rc, ry: rc, exponent: 2 },
+      { rx: rcl, ry: rcl, exponent: 2 },
+    );
   };
   const bubbleClip = showBubble ? clipOf(bl, by, bw, bh, bh / 2, clipRadius) : "";
   const clip = `${clipOf(x, y, width, h, radius, clipRadius, lead)} ${bubbleClip}`;
@@ -278,7 +371,14 @@ export const frameAt = (shape: ShapeAnimation, t: number, stageWidth: number, me
 
   return {
     pill: { x, y, width, height: h, radius, lead },
-    drawn: { x: x + dx, y: y + dy, width: dw, height: dh, radius: Math.min(radius, dh / 2, dw / 2), lead: Math.min(lead, dh / 2, dw / 2) },
+    drawn: {
+      x: x + dx,
+      y: y + dy,
+      width: dw,
+      height: dh,
+      radius: Math.min(radius, dh / 2, dw / 2),
+      lead: Math.min(lead, dh / 2, dw / 2),
+    },
     bubble: { x: bl, y: by, width: showBubble ? bw : 0, height: bh, span: bw, scale: gb },
     paths: { pill, bubble, bridge, clip, outline, bubbleClip },
     expansion,
@@ -308,17 +408,30 @@ export const followingClip = (
   const live = { inset: Math.max(0, radius - cap), r: Math.min(radius, cap) };
   // In its resting shape the mapped clip is the live one: drawn by the same call, so a resting frame
   // is the same to the bit whether or not the layer follows.
-  const still = Math.abs(sx - 1) < 1e-9 && Math.abs(sy - 1) < 1e-9 && Math.abs(radius - restRadius) < 1e-9;
+  const still =
+    Math.abs(sx - 1) < 1e-9 && Math.abs(sy - 1) < 1e-9 && Math.abs(radius - restRadius) < 1e-9;
   if (follow <= 0 || still) {
-    return roundedRectPath(box.x + live.inset, box.y + live.inset, Math.max(0, box.w - 2 * live.inset), Math.max(0, box.h - 2 * live.inset), { rx: live.r, ry: live.r, exponent: 2 });
+    return roundedRectPath(
+      box.x + live.inset,
+      box.y + live.inset,
+      Math.max(0, box.w - 2 * live.inset),
+      Math.max(0, box.h - 2 * live.inset),
+      { rx: live.r, ry: live.r, exponent: 2 },
+    );
   }
   const resting = { inset: Math.max(0, restRadius - cap), r: Math.min(restRadius, cap) };
   const mix = (a: number, b: number) => (follow >= 1 ? b : a + (b - a) * follow);
   const ix = mix(live.inset, resting.inset * sx);
   const iy = mix(live.inset, resting.inset * sy);
-  return roundedRectPath(box.x + ix, box.y + iy, Math.max(0, box.w - 2 * ix), Math.max(0, box.h - 2 * iy), {
-    rx: Math.max(0, mix(live.r, resting.r * sx)),
-    ry: Math.max(0, mix(live.r, resting.r * sy)),
-    exponent: 2,
-  });
+  return roundedRectPath(
+    box.x + ix,
+    box.y + iy,
+    Math.max(0, box.w - 2 * ix),
+    Math.max(0, box.h - 2 * iy),
+    {
+      rx: Math.max(0, mix(live.r, resting.r * sx)),
+      ry: Math.max(0, mix(live.r, resting.r * sy)),
+      exponent: 2,
+    },
+  );
 };

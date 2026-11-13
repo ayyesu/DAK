@@ -72,7 +72,7 @@
         // The Dynamic Island engine and its islandcn toolkit are cohesive
         // vendored sets; the toolkit exports are its public API.
         "src/lib/island/**": ["exports", "nsExports", "duplicates"],
-        "src/components/islandcn/**": ["exports", "nsExports", "duplicates"]
+        "src/components/islandcn/**": ["exports", "nsExports", "duplicates"],
       },
     },
     "apps/mobile": {

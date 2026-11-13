@@ -41,7 +41,8 @@ interface ClockOptions {
   wrapTimer?: (run: () => void) => void;
 }
 
-const hasWindow = () => typeof window !== "undefined" && typeof window.requestAnimationFrame === "function";
+const hasWindow = () =>
+  typeof window !== "undefined" && typeof window.requestAnimationFrame === "function";
 
 /** The real clock: wall time from `performance.now()`, frames from `requestAnimationFrame`. */
 export const createFrameClock = (options: ClockOptions = {}): ControllableClock => {
@@ -66,7 +67,9 @@ export const createFrameClock = (options: ClockOptions = {}): ControllableClock 
 
   const runTimersUntil = (time: number, setNow: (t: number) => void) => {
     for (;;) {
-      const due = timers.filter((timer) => timer.at <= time).sort((a, b) => a.at - b.at || a.id - b.id)[0];
+      const due = timers
+        .filter((timer) => timer.at <= time)
+        .sort((a, b) => a.at - b.at || a.id - b.id)[0];
       if (!due) return;
       timers = timers.filter((timer) => timer.id !== due.id);
       setNow(due.at);

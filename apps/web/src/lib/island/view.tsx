@@ -3,7 +3,12 @@
 import { type CSSProperties, useMemo } from "react";
 
 import { defaultClock, type IslandClock } from "./clock";
-import { type IslandMetricsOverrides, type IslandMotionOverrides, resolveMetrics, resolveMotion } from "./config";
+import {
+  type IslandMetricsOverrides,
+  type IslandMotionOverrides,
+  resolveMetrics,
+  resolveMotion,
+} from "./config";
 import { type KeylineSetting, useIslandContext, useKeyline, useReducedMotion } from "./context";
 import { IslandSurface } from "./surface";
 import type { IslandPresentation, ReducedMotionSetting } from "./types";
@@ -66,8 +71,14 @@ export const IslandView = ({
   backdrop,
 }: IslandViewProps) => {
   const context = useIslandContext();
-  const resolvedMetrics = useMemo(() => (metrics ? resolveMetrics(metrics) : (context?.metrics ?? resolveMetrics())), [metrics, context]);
-  const resolvedMotion = useMemo(() => (motion ? resolveMotion(motion) : (context?.motion ?? resolveMotion())), [motion, context]);
+  const resolvedMetrics = useMemo(
+    () => (metrics ? resolveMetrics(metrics) : (context?.metrics ?? resolveMetrics())),
+    [metrics, context],
+  );
+  const resolvedMotion = useMemo(
+    () => (motion ? resolveMotion(motion) : (context?.motion ?? resolveMotion())),
+    [motion, context],
+  );
   const reduced = useReducedMotion(reducedMotion ?? context?.reducedMotion ?? "user");
   const keylineAlpha = useKeyline(keyline, backdrop, resolvedMetrics);
 

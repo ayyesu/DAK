@@ -30,17 +30,39 @@ interface LinearProgressProps {
  * A capsule progress bar. The fill eases to each new value on the island's clock, as a Live
  * Activity's bar does (the engine's `IslandProgress`). With reduced motion it jumps.
  */
-export const LinearProgress = ({ value, color = islandAccent.blue, track = islandInk.track, height = 6, label, ends = "round", glide = 500 }: LinearProgressProps) => {
+export const LinearProgress = ({
+  value,
+  color = islandAccent.blue,
+  track = islandInk.track,
+  height = 6,
+  label,
+  ends = "round",
+  glide = 500,
+}: LinearProgressProps) => {
   const reduced = useIslandReducedMotion();
   const clamped = Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
   const a11y = label
-    ? { role: "progressbar" as const, "aria-label": label, "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(clamped * 100) }
+    ? {
+        role: "progressbar" as const,
+        "aria-label": label,
+        "aria-valuemin": 0,
+        "aria-valuemax": 100,
+        "aria-valuenow": Math.round(clamped * 100),
+      }
     : { "aria-hidden": true };
   return (
     <span {...a11y} style={{ display: "block", width: "100%" }}>
       {ends === "square" ? (
         // The track clips a full-width fill that slides in from the left, so its leading edge stays straight.
-        <span style={{ display: "block", height, borderRadius: height / 2, background: track, overflow: "hidden" }}>
+        <span
+          style={{
+            display: "block",
+            height,
+            borderRadius: height / 2,
+            background: track,
+            overflow: "hidden",
+          }}
+        >
           <span
             style={{
               display: "block",
@@ -52,8 +74,24 @@ export const LinearProgress = ({ value, color = islandAccent.blue, track = islan
           />
         </span>
       ) : reduced ? (
-        <span style={{ display: "block", height, borderRadius: height / 2, background: track, overflow: "hidden" }}>
-          <span style={{ display: "block", height: "100%", width: `${clamped * 100}%`, borderRadius: height / 2, background: color }} />
+        <span
+          style={{
+            display: "block",
+            height,
+            borderRadius: height / 2,
+            background: track,
+            overflow: "hidden",
+          }}
+        >
+          <span
+            style={{
+              display: "block",
+              height: "100%",
+              width: `${clamped * 100}%`,
+              borderRadius: height / 2,
+              background: color,
+            }}
+          />
         </span>
       ) : (
         // The engine's bar announces itself too; the wrapper above owns the name, so hide it.
@@ -69,7 +107,10 @@ export const LinearProgress = ({ value, color = islandAccent.blue, track = islan
 export type PlayheadSource = { kind: "elapsed"; since: number } | { kind: "fixed"; ms: number };
 
 const playheadAt = (source: PlayheadSource, duration: number) =>
-  Math.min(duration, Math.max(0, source.kind === "elapsed" ? Date.now() - source.since : source.ms));
+  Math.min(
+    duration,
+    Math.max(0, source.kind === "elapsed" ? Date.now() - source.since : source.ms),
+  );
 
 interface TimeProgressProps {
   /** Where the playhead is. */
@@ -92,7 +133,15 @@ interface TimeProgressProps {
  * A bar that fills with time, such as a track's scrubber. It moves on its own every half second
  * while the source is moving, and only it re-renders.
  */
-export const TimeProgress = ({ source, duration, color, track, height, label, ends = "round" }: TimeProgressProps) => {
+export const TimeProgress = ({
+  source,
+  duration,
+  color,
+  track,
+  height,
+  label,
+  ends = "round",
+}: TimeProgressProps) => {
   const [position, setPosition] = useState(() => playheadAt(source, duration));
   const key = source.kind === "elapsed" ? `e${source.since}` : `f${source.ms}`;
   useEffect(() => {
@@ -102,5 +151,14 @@ export const TimeProgress = ({ source, duration, color, track, height, label, en
     return () => window.clearInterval(timer);
     // `key` holds every field of `source` that matters.
   }, [key, duration]);
-  return <LinearProgress value={duration > 0 ? position / duration : 0} color={color} track={track} height={height} label={label} ends={ends} />;
+  return (
+    <LinearProgress
+      value={duration > 0 ? position / duration : 0}
+      color={color}
+      track={track}
+      height={height}
+      label={label}
+      ends={ends}
+    />
+  );
 };

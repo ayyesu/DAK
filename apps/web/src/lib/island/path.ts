@@ -63,18 +63,28 @@ interface Vec {
  * (optional, defaults to `radius`) is the two left corners' radius: a shrinking island's leading end
  * can stay rounder than its trailing one (round 43, `islandMotion.cornerLead`).
  */
-export const continuousRectPath = (x: number, y: number, width: number, height: number, radius: number, smoothing: number, leading: number = radius): string => {
+export const continuousRectPath = (
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  smoothing: number,
+  leading: number = radius,
+): string => {
   const w = Math.max(0, width);
   const h = Math.max(0, height);
   if (w === 0 || h === 0) return "";
   const r = Math.max(0, Math.min(radius, w / 2, h / 2));
   const rl = Math.max(0, Math.min(leading, w / 2, h / 2));
-  if (r < 1e-3 && rl < 1e-3) return `M ${fmt(x)} ${fmt(y)} H ${fmt(x + w)} V ${fmt(y + h)} H ${fmt(x)} Z`;
+  if (r < 1e-3 && rl < 1e-3)
+    return `M ${fmt(x)} ${fmt(y)} H ${fmt(x + w)} V ${fmt(y + h)} H ${fmt(x)} Z`;
   const across = edgeEase(r, smoothing, w / 2);
   const down = edgeEase(r, smoothing, h / 2);
   const acrossL = rl === r ? across : edgeEase(rl, smoothing, w / 2);
   const downL = rl === r ? down : edgeEase(rl, smoothing, h / 2);
-  const pt = (k: Vec, u: Vec, du: number, v: Vec, dv: number) => `${fmt(k.x + u.x * du + v.x * dv)} ${fmt(k.y + u.y * du + v.y * dv)}`;
+  const pt = (k: Vec, u: Vec, du: number, v: Vec, dv: number) =>
+    `${fmt(k.x + u.x * du + v.x * dv)} ${fmt(k.y + u.y * du + v.y * dv)}`;
   // `u` points back along the edge the path arrives on, `v` along the edge it leaves on.
   const corner = (k: Vec, u: Vec, v: Vec, inc: EdgeEase, out: EdgeEase, rc: number) =>
     `L ${pt(k, u, inc.p, v, 0)} ` +
@@ -121,8 +131,16 @@ const cornerPath = (cx: number, cy: number, c: CornerShape, from: number): strin
  * A rectangle with superellipse corners, drawn clockwise. Corner axes clamp to half each side.
  * `leading` (optional, defaults to `corner`) shapes the two left corners.
  */
-export const roundedRectPath = (x: number, y: number, width: number, height: number, corner: CornerShape, leading: CornerShape = corner): string => {
-  if ((corner.smoothing ?? 0) > 0) return continuousRectPath(x, y, width, height, corner.rx, corner.smoothing ?? 0, leading.rx);
+export const roundedRectPath = (
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  corner: CornerShape,
+  leading: CornerShape = corner,
+): string => {
+  if ((corner.smoothing ?? 0) > 0)
+    return continuousRectPath(x, y, width, height, corner.rx, corner.smoothing ?? 0, leading.rx);
   const w = Math.max(0, width);
   const h = Math.max(0, height);
   if (w === 0 || h === 0) return "";
@@ -150,7 +168,13 @@ export const roundedRectPath = (x: number, y: number, width: number, height: num
 };
 
 /** A capsule: round ends on the shorter side, semicircles unless `smoothing` (0 to 1) eases the shoulders. */
-export const capsulePath = (x: number, y: number, width: number, height: number, smoothing = 0): string => {
+export const capsulePath = (
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  smoothing = 0,
+): string => {
   const r = Math.min(width, height) / 2;
   return roundedRectPath(x, y, width, height, { rx: r, ry: r, exponent: 2, smoothing });
 };
@@ -215,7 +239,9 @@ export const bridgePath = (a: Circle, b: Circle, options: BridgeOptions): string
   const p4 = polar(b, angle4, b.r);
 
   const total = a.r + b.r;
-  const handle = Math.min(v * options.handleSize, Math.hypot(p1.x - p3.x, p1.y - p3.y) / total) * Math.min(1, (d * 2) / total);
+  const handle =
+    Math.min(v * options.handleSize, Math.hypot(p1.x - p3.x, p1.y - p3.y) / total) *
+    Math.min(1, (d * 2) / total);
   const h1 = polar(p1, angle1 - Math.PI / 2, a.r * handle);
   const h2 = polar(p2, angle2 + Math.PI / 2, a.r * handle);
   const h3 = polar(p3, angle3 + Math.PI / 2, b.r * handle);
@@ -232,7 +258,12 @@ export const bridgePath = (a: Circle, b: Circle, options: BridgeOptions): string
  * narrow. Drawn as a closed path through the circle's centre, so filled with the circle it adds
  * only the nub. Empty for a length under 0.01 pt.
  */
-export const cuspPath = (c: Circle, toward: { x: number; y: number }, length: number, base = 0.5): string => {
+export const cuspPath = (
+  c: Circle,
+  toward: { x: number; y: number },
+  length: number,
+  base = 0.5,
+): string => {
   const d = Math.hypot(toward.x - c.x, toward.y - c.y);
   if (c.r <= 0 || d < 1e-6 || length < 0.01) return "";
   const aim = Math.atan2(toward.y - c.y, toward.x - c.x);
@@ -250,7 +281,13 @@ export const cuspPath = (c: Circle, toward: { x: number; y: number }, length: nu
  * The simulator clips expanded content this way (the 52 pt square and the bar lose their outer
  * corners along x + y = r).
  */
-export const chamferPath = (x: number, y: number, width: number, height: number, leg: number): string => {
+export const chamferPath = (
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  leg: number,
+): string => {
   const w = Math.max(0, width);
   const h = Math.max(0, height);
   if (w === 0 || h === 0) return "";

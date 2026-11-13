@@ -47,15 +47,8 @@ import { useIslandActions } from "~/lib/island";
 import { IslandButton } from "./island-button";
 import { ExpandedBottom } from "./island-layout";
 import { Spinner } from "./spinner";
-import {
-  CaptionButton,
-} from "./island-layout";
-import {
-  CompactText,
-  ExpandedSubtitle,
-  ExpandedTitle,
-  TitleStack,
-} from "./island-text";
+import { CaptionButton } from "./island-layout";
+import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
 import { LinearProgress } from "./linear-progress";
 import { islandAccent, islandInk } from "./theme";
@@ -73,7 +66,12 @@ const needsInputContent = (count: number, firstTitle: string | null, onOpen: () 
   compact: {
     leading: (
       <IslandCompactGlyph>
-        <MessageCircleQuestionIcon size={21} strokeWidth={2} color={islandAccent.orange} aria-hidden />
+        <MessageCircleQuestionIcon
+          size={21}
+          strokeWidth={2}
+          color={islandAccent.orange}
+          aria-hidden
+        />
       </IslandCompactGlyph>
     ),
     trailing: (
@@ -84,13 +82,23 @@ const needsInputContent = (count: number, firstTitle: string | null, onOpen: () 
   },
   minimal: (
     <IslandCompactGlyph>
-      <MessageCircleQuestionIcon size={21} strokeWidth={2} color={islandAccent.orange} aria-hidden />
+      <MessageCircleQuestionIcon
+        size={21}
+        strokeWidth={2}
+        color={islandAccent.orange}
+        aria-hidden
+      />
     </IslandCompactGlyph>
   ),
   expanded: {
     leading: (
       <IslandTile color={islandAccent.orange}>
-        <MessageCircleQuestionIcon size={26} strokeWidth={2} color={islandAccent.orange} aria-hidden />
+        <MessageCircleQuestionIcon
+          size={26}
+          strokeWidth={2}
+          color={islandAccent.orange}
+          aria-hidden
+        />
       </IslandTile>
     ),
     center: (
@@ -202,7 +210,8 @@ const updateCopy = (state: DesktopUpdateState) => {
     case "checking":
       return { title: "Checking for updates…", subtitle: "Looking for a new build of DAK" };
     case "downloading": {
-      const percent = typeof state.downloadPercent === "number" ? Math.floor(state.downloadPercent) : null;
+      const percent =
+        typeof state.downloadPercent === "number" ? Math.floor(state.downloadPercent) : null;
       return {
         title: "Downloading update",
         subtitle: `DAK ${version ?? ""}${percent === null ? "" : ` · ${percent}%`}`.trim(),
@@ -216,7 +225,9 @@ const updateCopy = (state: DesktopUpdateState) => {
     case "error":
       return {
         title: "Could not update",
-        subtitle: state.message?.trim() || (state.canRetry ? "Something went wrong. Try again." : "Update failed"),
+        subtitle:
+          state.message?.trim() ||
+          (state.canRetry ? "Something went wrong. Try again." : "Update failed"),
       };
     case "available":
       return {
@@ -249,13 +260,19 @@ const updateAccent = (state: DesktopUpdateState) => {
 const updateGlyph = (state: DesktopUpdateState, size: number) => {
   const color = updateAccent(state);
   const strokeWidth = 2;
-  if (state.status === "checking") return <RefreshCwIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
-  if (state.status === "available") return <DownloadIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
-  if (state.status === "downloading") return <DownloadIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
+  if (state.status === "checking")
+    return <RefreshCwIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
+  if (state.status === "available")
+    return <DownloadIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
+  if (state.status === "downloading")
+    return <DownloadIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
   if (state.status === "downloaded" || updateView(state).action === "install")
     return <CheckIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
-  if (state.status === "error") return <TriangleAlertIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
-  return <RefreshCwIcon size={size} strokeWidth={strokeWidth} color={islandInk.tertiary} aria-hidden />;
+  if (state.status === "error")
+    return <TriangleAlertIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
+  return (
+    <RefreshCwIcon size={size} strokeWidth={strokeWidth} color={islandInk.tertiary} aria-hidden />
+  );
 };
 
 const updateTail = (state: DesktopUpdateState): string => {
@@ -263,7 +280,9 @@ const updateTail = (state: DesktopUpdateState): string => {
     case "checking":
       return "Checking…";
     case "downloading":
-      return typeof state.downloadPercent === "number" ? `${Math.floor(state.downloadPercent)}%` : "…";
+      return typeof state.downloadPercent === "number"
+        ? `${Math.floor(state.downloadPercent)}%`
+        : "…";
     case "downloaded":
       return "Ready";
     case "error":
@@ -296,7 +315,11 @@ const withReleaseNotes = (
     {node}
     {releaseNotesFor(state) ? (
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <CaptionButton color={islandAccent.sky} label="What changed in this nightly build" onPress={handlers.onReleaseNotes}>
+        <CaptionButton
+          color={islandAccent.sky}
+          label="What changed in this nightly build"
+          onPress={handlers.onReleaseNotes}
+        >
           What&apos;s new
         </CaptionButton>
       </div>
@@ -304,7 +327,12 @@ const withReleaseNotes = (
   </ExpandedBottom>
 );
 
-const updateButton = (state: DesktopUpdateState, action: DesktopUpdateView, busy: boolean, handlers: UpdateActionHandlers) => {
+const updateButton = (
+  state: DesktopUpdateState,
+  action: DesktopUpdateView,
+  busy: boolean,
+  handlers: UpdateActionHandlers,
+) => {
   switch (state.status) {
     case "checking":
       return (
@@ -325,7 +353,12 @@ const updateButton = (state: DesktopUpdateState, action: DesktopUpdateView, busy
     case "downloaded":
       return withReleaseNotes(
         state,
-        <IslandButton tone={{ kind: "accent", color: islandAccent.green }} onPress={handlers.onInstall} disabled={busy} label="Restart to update">
+        <IslandButton
+          tone={{ kind: "accent", color: islandAccent.green }}
+          onPress={handlers.onInstall}
+          disabled={busy}
+          label="Restart to update"
+        >
           <PowerIcon size={17} strokeWidth={2.25} aria-hidden /> Restart to update
         </IslandButton>,
         handlers,
@@ -333,7 +366,12 @@ const updateButton = (state: DesktopUpdateState, action: DesktopUpdateView, busy
     case "available":
       return withReleaseNotes(
         state,
-        <IslandButton tone={{ kind: "accent", color: islandAccent.blue, text: "#fff" }} onPress={handlers.onDownload} disabled={busy} label="Download update">
+        <IslandButton
+          tone={{ kind: "accent", color: islandAccent.blue, text: "#fff" }}
+          onPress={handlers.onDownload}
+          disabled={busy}
+          label="Download update"
+        >
           <DownloadIcon size={17} strokeWidth={2.25} aria-hidden /> Download
         </IslandButton>,
         handlers,
@@ -342,14 +380,24 @@ const updateButton = (state: DesktopUpdateState, action: DesktopUpdateView, busy
       return action.action === "install"
         ? withReleaseNotes(
             state,
-            <IslandButton tone={{ kind: "accent", color: islandAccent.orange }} onPress={handlers.onInstall} disabled={busy} label="Retry install">
+            <IslandButton
+              tone={{ kind: "accent", color: islandAccent.orange }}
+              onPress={handlers.onInstall}
+              disabled={busy}
+              label="Retry install"
+            >
               <PowerIcon size={17} strokeWidth={2.25} aria-hidden /> Retry install
             </IslandButton>,
             handlers,
           )
         : withReleaseNotes(
             state,
-            <IslandButton tone={{ kind: "accent", color: islandAccent.orange }} onPress={handlers.onDownload} disabled={busy} label="Retry download">
+            <IslandButton
+              tone={{ kind: "accent", color: islandAccent.orange }}
+              onPress={handlers.onDownload}
+              disabled={busy}
+              label="Retry download"
+            >
               <DownloadIcon size={17} strokeWidth={2.25} aria-hidden /> Retry download
             </IslandButton>,
             handlers,
@@ -357,7 +405,11 @@ const updateButton = (state: DesktopUpdateState, action: DesktopUpdateView, busy
     default:
       return withReleaseNotes(
         state,
-        <IslandButton onPress={handlers.onCheck} disabled={busy || !canCheckForUpdate(state)} label="Check for updates">
+        <IslandButton
+          onPress={handlers.onCheck}
+          disabled={busy || !canCheckForUpdate(state)}
+          label="Check for updates"
+        >
           <RefreshCwIcon size={17} strokeWidth={2.25} aria-hidden /> Check for updates
         </IslandButton>,
         handlers,
@@ -383,7 +435,8 @@ const DesktopUpdateActivity = () => {
           stackedThreadToast({
             type: "error",
             title: "Could not check for updates",
-            description: result.state.message ?? "Automatic updates are not available in this build.",
+            description:
+              result.state.message ?? "Automatic updates are not available in this build.",
           }),
         );
       })
@@ -409,7 +462,13 @@ const DesktopUpdateActivity = () => {
         if (!shouldToastDesktopUpdateActionResult(result)) return;
         const actionError = getDesktopUpdateActionError(result);
         if (!actionError) return;
-        toastManager.add(stackedThreadToast({ type: "error", title: "Could not download update", description: actionError }));
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Could not download update",
+            description: actionError,
+          }),
+        );
       })
       .catch((error: unknown) => {
         toastManager.add(
@@ -441,14 +500,21 @@ const DesktopUpdateActivity = () => {
             if (!shouldToastDesktopUpdateActionResult(result)) return;
             const actionError = getDesktopUpdateActionError(result);
             if (!actionError) return;
-            toastManager.add(stackedThreadToast({ type: "error", title: "Could not install update", description: actionError }));
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Could not install update",
+                description: actionError,
+              }),
+            );
           })
           .catch((error: unknown) => {
             toastManager.add(
               stackedThreadToast({
                 type: "error",
                 title: "Could not install update",
-                description: error instanceof Error ? error.message : "An unexpected error occurred.",
+                description:
+                  error instanceof Error ? error.message : "An unexpected error occurred.",
               }),
             );
           })
@@ -470,7 +536,9 @@ const DesktopUpdateActivity = () => {
     if (!state) return;
     const url = getDesktopUpdateReleaseUrl(state.downloadedVersion ?? state.availableVersion);
     if (!url) return;
-    void ensureLocalApi().shell.openExternal(url).catch(() => undefined);
+    void ensureLocalApi()
+      .shell.openExternal(url)
+      .catch(() => undefined);
   };
 
   const releaseNotesHandlers: UpdateActionHandlers = {
@@ -497,11 +565,18 @@ const DesktopUpdateActivity = () => {
       compact: {
         leading: (
           <IslandCompactGlyph>
-            {state.status === "checking" ? <Spinner size={15} color={accent} thickness={2} /> : updateGlyph(state, 19)}
+            {state.status === "checking" ? (
+              <Spinner size={15} color={accent} thickness={2} />
+            ) : (
+              updateGlyph(state, 19)
+            )}
           </IslandCompactGlyph>
         ),
         trailing: (
-          <CompactText style={{ fontVariantNumeric: "tabular-nums" }} color={actionable ? accent : islandInk.secondary}>
+          <CompactText
+            style={{ fontVariantNumeric: "tabular-nums" }}
+            color={actionable ? accent : islandInk.secondary}
+          >
             {updateTail(state)}
           </CompactText>
         ),
@@ -530,7 +605,11 @@ const DesktopUpdateActivity = () => {
       showingRef.current = true;
       return;
     }
-    island.update(DESKTOP_UPDATE_ID, { ...content, priority: actionable ? 50 : -1, onPress: () => island.expand(DESKTOP_UPDATE_ID) });
+    island.update(DESKTOP_UPDATE_ID, {
+      ...content,
+      priority: actionable ? 50 : -1,
+      onPress: () => island.expand(DESKTOP_UPDATE_ID),
+    });
   }, [island, state, isPending]);
 
   useEffect(

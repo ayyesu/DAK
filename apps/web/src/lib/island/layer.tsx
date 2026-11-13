@@ -55,18 +55,44 @@ const slotBase: CSSProperties = {
  */
 const fitText = (children: ReactNode, maxWidth: number) =>
   typeof children === "string" || typeof children === "number" ? (
-    <span style={{ display: "block", maxWidth, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{children}</span>
+    <span
+      style={{
+        display: "block",
+        maxWidth,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </span>
   ) : (
     children
   );
 
-const Slot = ({ name, register, style, children }: { name: SlotName; register: RegisterSlot; style: CSSProperties; children?: ReactNode }) => (
+const Slot = ({
+  name,
+  register,
+  style,
+  children,
+}: {
+  name: SlotName;
+  register: RegisterSlot;
+  style: CSSProperties;
+  children?: ReactNode;
+}) => (
   <div data-slot={name} ref={(element) => register(name, element)} style={style}>
     {children}
   </div>
 );
 
-export const IslandLayer = ({ presentation, register, metrics, expandedWidth, leaving }: IslandLayerProps) => {
+export const IslandLayer = ({
+  presentation,
+  register,
+  metrics,
+  expandedWidth,
+  leaving,
+}: IslandLayerProps) => {
   const rootStyle: CSSProperties = {
     position: "absolute",
     inset: 0,
@@ -90,7 +116,12 @@ export const IslandLayer = ({ presentation, register, metrics, expandedWidth, le
     case "compact": {
       const max = metrics.compact.maxSlotWidth;
       // Clipped across only, so rings and glows can still spill a little above and below.
-      const style: CSSProperties = { ...slotBase, height: metrics.compact.height, maxWidth: max, overflowX: "clip" };
+      const style: CSSProperties = {
+        ...slotBase,
+        height: metrics.compact.height,
+        maxWidth: max,
+        overflowX: "clip",
+      };
       return root(
         <>
           <Slot name="leading" register={register} style={style}>
@@ -139,7 +170,12 @@ export const IslandLayer = ({ presentation, register, metrics, expandedWidth, le
       // The content clip sits inside the layer's blur, so the blur softens the clip's cut too.
       return root(
         <Slot name="expandedClip" register={register} style={{ position: "absolute", inset: 0 }}>
-          <ExpandedGrid presentation={presentation} register={register} metrics={metrics} expandedWidth={expandedWidth} />
+          <ExpandedGrid
+            presentation={presentation}
+            register={register}
+            metrics={metrics}
+            expandedWidth={expandedWidth}
+          />
         </Slot>,
       );
     default: {
@@ -216,7 +252,10 @@ const ExpandedGrid = ({
       const side = Math.max(l, t);
       // Equal sides keep the center on the island's centre line. When that would squeeze the
       // center below its own width, each side keeps its own width and the center takes the rest.
-      const next = c + 2 * side <= room ? `${side}px minmax(0, 1fr) ${side}px` : `${l}px minmax(0, 1fr) ${t}px`;
+      const next =
+        c + 2 * side <= room
+          ? `${side}px minmax(0, 1fr) ${side}px`
+          : `${l}px minmax(0, 1fr) ${t}px`;
       setColumns((previous) => (previous === next ? previous : next));
     };
     measure();
@@ -226,7 +265,8 @@ const ExpandedGrid = ({
     });
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
-    for (const element of [inner.current, leading.current, center.current, trailing.current]) if (element) observer.observe(element);
+    for (const element of [inner.current, leading.current, center.current, trailing.current])
+      if (element) observer.observe(element);
     return () => {
       live = false;
       observer.disconnect();
@@ -254,13 +294,18 @@ const ExpandedGrid = ({
         style={{
           display: "grid",
           gridTemplateColumns: columns ?? "max-content minmax(0, 1fr) max-content",
-          gridTemplateAreas: hasBottom ? '"leading center trailing" "bottom bottom bottom"' : '"leading center trailing"',
+          gridTemplateAreas: hasBottom
+            ? '"leading center trailing" "bottom bottom bottom"'
+            : '"leading center trailing"',
           columnGap: gap,
           rowGap: hasBottom ? e.rowGap : 0,
           alignItems: "start",
         }}
       >
-        <div ref={(element) => register("expandedLeading", element)} style={{ ...region, gridArea: "leading" }}>
+        <div
+          ref={(element) => register("expandedLeading", element)}
+          style={{ ...region, gridArea: "leading" }}
+        >
           <div ref={leading} style={intrinsic}>
             {presentation.leading}
           </div>
@@ -286,7 +331,10 @@ const ExpandedGrid = ({
             {presentation.center}
           </div>
         </div>
-        <div ref={(element) => register("expandedTrailing", element)} style={{ ...region, gridArea: "trailing", justifySelf: "end" }}>
+        <div
+          ref={(element) => register("expandedTrailing", element)}
+          style={{ ...region, gridArea: "trailing", justifySelf: "end" }}
+        >
           <div ref={trailing} style={intrinsic}>
             {presentation.trailing}
           </div>
@@ -294,7 +342,12 @@ const ExpandedGrid = ({
         {hasBottom ? (
           <div
             ref={(element) => register("expandedBottom", element)}
-            style={{ ...region, gridArea: "bottom", paddingInline: e.bottomInset, contain: "inline-size" }}
+            style={{
+              ...region,
+              gridArea: "bottom",
+              paddingInline: e.bottomInset,
+              contain: "inline-size",
+            }}
           >
             {presentation.bottom}
           </div>
