@@ -23,9 +23,8 @@ import { IslandCompactGlyph, IslandTile } from "./islandContent";
 import { useIslandActions } from "~/lib/island";
 import { islandAccent } from "./theme";
 
-/** Goals that keep the pill on screen: working, or parked at the provider. */
-const isLiveGoal = (status: GoalSummary["status"]) =>
-  isGoalDriven(status) || status === "waiting_provider";
+/** Goals that keep the pill on screen: a goal is running only when it is actively driving. */
+const isLiveGoal = (status: GoalSummary["status"]) => isGoalDriven(status);
 
 const pickGoal = (goals: ReadonlyArray<GoalSummary>): GoalSummary | null => {
   let best: GoalSummary | null = null;
@@ -38,7 +37,6 @@ const pickGoal = (goals: ReadonlyArray<GoalSummary>): GoalSummary | null => {
 
 const statusLine = (goal: GoalSummary): string => {
   if (goal.question !== null) return "Needs your answer";
-  if (goal.status === "waiting_provider") return "Waiting for provider";
   if (goal.totalTaskCount > 0) {
     const tasks = `${goal.completedTaskCount} of ${goal.totalTaskCount} tasks`;
     return goal.progressLabel ?? `${tasks}`;
