@@ -262,6 +262,19 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       ipcRenderer.removeListener(IpcChannels.WINDOW_FULLSCREEN_STATE_CHANNEL, wrappedListener);
     };
   },
+  getDisplayHasNotch: () =>
+    ipcRenderer.sendSync(IpcChannels.GET_DISPLAY_HAS_NOTCH_CHANNEL) === true,
+  onDisplayHasNotchChange: (listener) => {
+    const wrappedListener = (_event: Electron.IpcRendererEvent, hasNotch: unknown) => {
+      if (typeof hasNotch !== "boolean") return;
+      listener(hasNotch);
+    };
+
+    ipcRenderer.on(IpcChannels.DISPLAY_HAS_NOTCH_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.DISPLAY_HAS_NOTCH_CHANNEL, wrappedListener);
+    };
+  },
   getUpdateState: () => ipcRenderer.invoke(IpcChannels.UPDATE_GET_STATE_CHANNEL),
   setUpdateChannel: (channel) =>
     ipcRenderer.invoke(IpcChannels.UPDATE_SET_CHANNEL_CHANNEL, channel),

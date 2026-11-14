@@ -37,7 +37,7 @@ const Checkout = () => {
 };
 ```
 
-On a desktop page, pin it to the window instead: `<Island placement="viewport" />`. Wider containers clamp the compact shapes to phone width (402 pt), while the expanded view starts at 374.34 wide and grows with its content (capped at 660 pt) instead of staying 374 everywhere.
+On a desktop page, pin it to the window instead: `<Island placement="viewport" />`. On a display with a physical camera notch, add `hideWhenIdle` so the resting pill fades out and the island only appears while an activity is running (DAK's root route does this through the `islandStyle` setting). Wider containers clamp the compact shapes to phone width (402 pt), while the expanded view starts at 374.34 wide and grows with its content (capped at 660 pt) instead of staying 374 everywhere.
 
 ## Presentations
 

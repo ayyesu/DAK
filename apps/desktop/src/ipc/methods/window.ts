@@ -39,6 +39,7 @@ import * as ElectronWindow from "../../electron/ElectronWindow.ts";
 import * as Electron from "electron";
 import * as MacPermissions from "../../permissions/MacPermissions.ts";
 import { safariPermissionCheck } from "../../preview/BrowserImport/SafariPermission.ts";
+import { windowDisplayHasNotch } from "../../window/DisplayNotch.ts";
 import * as IpcChannels from "../channels.ts";
 import * as DesktopIpc from "../DesktopIpc.ts";
 import {
@@ -88,6 +89,20 @@ export const getWindowFullscreenState = DesktopIpc.makeSyncIpcMethod({
     const electronWindow = yield* ElectronWindow.ElectronWindow;
     const window = yield* electronWindow.currentMainOrFirst;
     return Option.isSome(window) && window.value.isFullScreen();
+  }),
+});
+
+export const getDisplayHasNotch = DesktopIpc.makeSyncIpcMethod({
+  channel: IpcChannels.GET_DISPLAY_HAS_NOTCH_CHANNEL,
+  result: Schema.Boolean,
+  handler: Effect.fn("desktop.ipc.window.getDisplayHasNotch")(function* () {
+    const environment = yield* DesktopEnvironment.DesktopEnvironment;
+    const electronWindow = yield* ElectronWindow.ElectronWindow;
+    const window = yield* electronWindow.currentMainOrFirst;
+    return (
+      Option.isSome(window) &&
+      windowDisplayHasNotch(window.value, Electron.screen, environment.platform)
+    );
   }),
 });
 

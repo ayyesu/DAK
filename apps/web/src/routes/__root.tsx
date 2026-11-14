@@ -66,6 +66,8 @@ import {
 } from "~/appearanceBackground";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useClientSettings } from "../hooks/useSettings";
+import { useDisplayHasNotch } from "../hooks/useDisplayHasNotch";
+import { resolveIslandStyle } from "../lib/islandStyle";
 import {
   deriveLogicalProjectKeyFromSettings,
   derivePhysicalProjectKeyFromPath,
@@ -152,6 +154,9 @@ function RootRouteView() {
   useEffect(() => installDesktopPasteAsText(window.desktopBridge, window), []);
   const pathname = useLocation({ select: (location) => location.pathname });
   const { resolvedTheme } = useTheme();
+  const islandStyleSetting = useClientSettings((settings) => settings.islandStyle);
+  const displayHasNotch = useDisplayHasNotch();
+  const islandStyle = resolveIslandStyle(islandStyleSetting, displayHasNotch);
   const { authGateState } = Route.useRouteContext();
   const primaryEnvironmentAuthenticated = authGateState.status === "authenticated";
   const returningFromWelcomeRef = useRef(pathname === "/welcome");
@@ -271,6 +276,7 @@ function RootRouteView() {
             <Island
               placement="viewport"
               appearance={resolvedTheme}
+              hideWhenIdle={islandStyle === "notch"}
               idleLogo={
                 <DakWordmark
                   aria-hidden

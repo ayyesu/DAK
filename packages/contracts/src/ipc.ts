@@ -1220,6 +1220,13 @@ export interface DesktopBridge {
   onQuitShortcut?: (listener: (event: QuitShortcutHintEvent) => void) => () => void;
   getWindowFullscreenState: () => boolean;
   onWindowFullscreenStateChange: (listener: (fullscreen: boolean) => void) => () => void;
+  /**
+   * Whether the display the window is on has a physical camera notch (macOS only).
+   * Optional: older desktop builds never provide it, and non-macOS builds report false.
+   */
+  getDisplayHasNotch?: () => boolean;
+  /** Fires when the answer above changes: display (un)plugged or the window moved to another display. */
+  onDisplayHasNotchChange?: (listener: (hasNotch: boolean) => void) => () => void;
   getUpdateState: () => Promise<DesktopUpdateState>;
   setUpdateChannel: (channel: DesktopUpdateChannel) => Promise<DesktopUpdateState>;
   checkForUpdate: () => Promise<DesktopUpdateCheckResult>;

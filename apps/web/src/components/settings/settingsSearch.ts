@@ -358,6 +358,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["notification toast popup completion input approval failure"],
   },
   {
+    id: "island-style",
+    title: "Island style",
+    to: "/settings/appearance",
+    searchTerms: ["dynamic island notch macbook camera pill resting hide"],
+  },
+  {
     id: "time-format",
     title: "Time format",
     to: "/settings/general",

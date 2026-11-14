@@ -37,6 +37,12 @@ export interface IslandProps {
   backdrop?: string;
   /** Drawn centred in the resting pill when no activity is running. Defaults to nothing. */
   idleLogo?: ReactNode;
+  /**
+   * Fade the resting pill out while no activity is running, so the island only appears
+   * when it has something to show. For displays with a real camera notch, where a
+   * resting pill reads as a second, fake notch. Defaults to false.
+   */
+  hideWhenIdle?: boolean;
 }
 
 /** Draws the activity stack from the nearest `<IslandProvider>`. */
@@ -49,6 +55,7 @@ export const Island = ({
   keyline = "auto",
   backdrop,
   idleLogo,
+  hideWhenIdle = false,
 }: IslandProps) => {
   const context = useIslandContext();
   if (!context) throw new Error("islandcn: <Island /> must be inside <IslandProvider>.");
@@ -59,6 +66,25 @@ export const Island = ({
   const keylineAlpha = useKeyline(keyline, backdrop, metrics);
   const root = useRef<HTMLDivElement | null>(null);
   const expanded = scene.presentation.kind === "expanded";
+  const idleHidden = hideWhenIdle && scene.presentation.kind === "idle";
+  // Fade out after the dismiss motion has played; fade in at once so an activity never
+  // starts from an invisible pill. Reduced motion gets an instant flip: the fade sits
+  // behind the dismiss spring, and reduced motion has no spring to sit behind.
+  const regionStyle = useMemo<CSSProperties | undefined>(
+    () =>
+      hideWhenIdle
+        ? {
+            ...style,
+            opacity: idleHidden ? 0 : 1,
+            transition: reduced
+              ? "none"
+              : idleHidden
+                ? "opacity 180ms ease 220ms"
+                : "opacity 60ms linear",
+          }
+        : style,
+    [hideWhenIdle, idleHidden, reduced, style],
+  );
 
   // A press outside the island, or Escape, collapses an expanded island.
   useEffect(() => {
@@ -139,7 +165,7 @@ export const Island = ({
       recorder={recorder}
       interaction={interaction}
       className={className}
-      style={style}
+      style={regionStyle}
       rootRef={setRoot}
       idleLogo={idleLogo}
       appearance={appearance}
