@@ -120,7 +120,7 @@ import {
 } from "../keybindings";
 import { isModelPickerOpen } from "../modelPickerVisibility";
 import { useShortcutModifierState } from "../shortcutModifierState";
-import { ensureLocalApi, readLocalApi } from "../localApi";
+import { readLocalApi } from "../localApi";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
 import { useDesktopUpdateState } from "../state/desktopUpdate";
@@ -139,13 +139,11 @@ import { formatRelativeTimeLabel } from "../timestampFormat";
 import { Kbd } from "./ui/kbd";
 import {
   getArm64IntelBuildWarningDescription,
-  getDesktopUpdateActionError,
-  getDesktopUpdateInstallConfirmationMessage,
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
   shouldShowArm64IntelBuildWarning,
-  shouldToastDesktopUpdateActionResult,
 } from "./desktopUpdate.logic";
+import { useDesktopUpdateActions } from "./desktopUpdate.actions";
 import { showDesktopUpdateDownloadedToast } from "./desktopUpdate.toast";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -3271,7 +3269,7 @@ export default function LegacySidebar() {
   const suppressProjectClickAfterDragRef = useRef(false);
   const suppressProjectClickForContextMenuRef = useRef(false);
   const desktopUpdateState = useDesktopUpdateState();
-  const [desktopUpdateActionPending, setDesktopUpdateActionPending] = useState(false);
+  const desktopUpdateActions = useDesktopUpdateActions();
   const clearSelection = useThreadSelectionStore((s) => s.clearSelection);
   const setSelectionAnchor = useThreadSelectionStore((s) => s.setAnchor);
   const platform = navigator.platform;
@@ -3750,96 +3748,29 @@ export default function LegacySidebar() {
     : shortcutLabelForCommand(keybindings, "commandPalette.toggle", newThreadShortcutLabelOptions);
   const handleDesktopUpdateButtonClick = useCallback(async () => {
     const bridge = window.desktopBridge;
-    if (!bridge || !desktopUpdateState) return;
+    const state = desktopUpdateState;
+    if (!bridge || !state) return;
     if (
       desktopUpdateButtonDisabled ||
       desktopUpdateButtonAction === "none" ||
-      desktopUpdateActionPending
+      desktopUpdateActions.isPending
     ) {
       return;
     }
 
-    setDesktopUpdateActionPending(true);
-
     if (desktopUpdateButtonAction === "download") {
-      void bridge
-        .downloadUpdate()
-        .then((result) => {
-          if (result.completed) {
-            showDesktopUpdateDownloadedToast(bridge, result.state);
-          }
-          if (!shouldToastDesktopUpdateActionResult(result)) return;
-          const actionError = getDesktopUpdateActionError(result);
-          if (!actionError) return;
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Could not download update",
-              description: actionError,
-            }),
-          );
-        })
-        .catch((error) => {
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Could not start update download",
-              description: error instanceof Error ? error.message : "An unexpected error occurred.",
-            }),
-          );
-        })
-        .finally(() => setDesktopUpdateActionPending(false));
+      const result = await desktopUpdateActions.download();
+      // The island announces this too; the legacy sidebar keeps its own toast
+      // because this button lives inside the warning that asked for it.
+      if (result?.completed) showDesktopUpdateDownloadedToast(bridge, result.state);
       return;
     }
 
     if (desktopUpdateButtonAction === "install") {
-      let confirmed = false;
-      try {
-        confirmed = await ensureLocalApi().dialogs.confirm(
-          getDesktopUpdateInstallConfirmationMessage(desktopUpdateState),
-        );
-      } catch (error) {
-        setDesktopUpdateActionPending(false);
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Could not confirm update",
-            description: error instanceof Error ? error.message : "Update confirmation failed.",
-          }),
-        );
-        return;
-      }
-      if (!confirmed) {
-        setDesktopUpdateActionPending(false);
-        return;
-      }
-      void bridge
-        .installUpdate()
-        .then((result) => {
-          if (!shouldToastDesktopUpdateActionResult(result)) return;
-          const actionError = getDesktopUpdateActionError(result);
-          if (!actionError) return;
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Could not install update",
-              description: actionError,
-            }),
-          );
-        })
-        .catch((error) => {
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Could not install update",
-              description: error instanceof Error ? error.message : "An unexpected error occurred.",
-            }),
-          );
-        })
-        .finally(() => setDesktopUpdateActionPending(false));
+      await desktopUpdateActions.install(state);
     }
   }, [
-    desktopUpdateActionPending,
+    desktopUpdateActions,
     desktopUpdateButtonAction,
     desktopUpdateButtonDisabled,
     desktopUpdateState,
@@ -3875,7 +3806,7 @@ export default function LegacySidebar() {
         arm64IntelBuildWarningDescription={arm64IntelBuildWarningDescription}
         desktopUpdateButtonAction={desktopUpdateButtonAction}
         desktopUpdateButtonDisabled={desktopUpdateButtonDisabled}
-        desktopUpdateActionPending={desktopUpdateActionPending}
+        desktopUpdateActionPending={desktopUpdateActions.isPending}
         handleDesktopUpdateButtonClick={handleDesktopUpdateButtonClick}
         projectSortOrder={sidebarProjectSortOrder}
         threadSortOrder={sidebarThreadSortOrder}

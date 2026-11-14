@@ -56,7 +56,7 @@ export function showDesktopUpdateDownloadedToast(
     title: "Update downloaded",
     description: (
       <>
-        Restart the app from the update button to install it.
+        Restart DAK to install it.
         {releaseUrl ? <ReleaseNotesLink releaseUrl={releaseUrl} shell={shell} /> : null}
       </>
     ),

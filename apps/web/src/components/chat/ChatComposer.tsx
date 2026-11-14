@@ -272,12 +272,7 @@ import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
 import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./ComposerPlanFollowUpBanner";
-import {
-  ComposerControl,
-  ComposerControlIcon,
-  ComposerControlSeparator,
-  ComposerSelectControl,
-} from "./ComposerControl";
+import { ComposerControl, ComposerControlIcon, ComposerSelectControl } from "./ComposerControl";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
 import {
   startingPointsWithoutProviderCommands,
@@ -1084,10 +1079,8 @@ import { toastManager } from "../ui/toast";
 import { Textarea } from "../ui/textarea";
 import {
   FileIcon,
-  BotIcon,
   CircleAlertIcon,
   PaperclipIcon,
-  PencilRulerIcon,
   PlayIcon,
   ShieldIcon,
   TargetIcon,
@@ -1249,16 +1242,10 @@ const supervisedRuntimeModeOption = {
   ...runtimeModeConfig["approval-required"],
 };
 const ComposerFooterModeControls = memo(function ComposerFooterModeControls(props: {
-  showInteractionModeToggle: boolean;
-  interactionMode: ProviderInteractionMode;
   runtimeMode: RuntimeMode;
   runtimeModeOptions: ReadonlyArray<RuntimeModeOption>;
   size?: "sm" | "xs";
   hidden?: boolean;
-  showGoalModeToggle: boolean;
-  goalModeOpen: boolean;
-  onToggleGoalMode: () => void;
-  onToggleInteractionMode: () => void;
   onRuntimeModeChange: (mode: RuntimeMode) => void;
 }) {
   const size = props.size ?? "sm";
@@ -1268,86 +1255,9 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
     props.runtimeModeOptions.find((option) => option.mode === props.runtimeMode) ??
     supervisedRuntimeModeOption;
   const RuntimeModeIcon = runtimeModeOption.icon;
-  const interactionModeTooltip =
-    props.interactionMode === "plan"
-      ? "Plan mode. Click to return to normal build mode"
-      : "Default mode. Click to enter plan mode";
-
-  const interactionModeToggle = props.showInteractionModeToggle ? (
-    <>
-      <ComposerControlSeparator size={size} />
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <ComposerControl
-              size={size}
-              className="shrink-0 whitespace-nowrap"
-              aria-pressed={props.interactionMode === "plan"}
-              type="button"
-              onClick={props.onToggleInteractionMode}
-              aria-label={interactionModeTooltip}
-            />
-          }
-        >
-          {props.interactionMode === "plan" ? (
-            <ComposerControlIcon
-              icon={PencilRulerIcon}
-              size={size}
-              className="text-current opacity-100"
-            />
-          ) : (
-            <ComposerControlIcon
-              icon={BotIcon}
-              size={size}
-              opticalSize={size === "xs" ? "default" : "large"}
-            />
-          )}
-          <span data-composer-control-label className="sr-only sm:not-sr-only">
-            {props.interactionMode === "plan" ? "Plan" : "Build"}
-          </span>
-        </TooltipTrigger>
-        <TooltipPopup side="top">{interactionModeTooltip}</TooltipPopup>
-      </Tooltip>
-    </>
-  ) : null;
-
-  const goalModeToggle = props.showGoalModeToggle ? (
-    <>
-      <ComposerControlSeparator size={size} />
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <ComposerControl
-              size={size}
-              className="shrink-0 whitespace-nowrap"
-              aria-pressed={props.goalModeOpen}
-              type="button"
-              onClick={props.onToggleGoalMode}
-              aria-label="Goal mode"
-            />
-          }
-        >
-          <ComposerControlIcon
-            icon={TargetIcon}
-            size={size}
-            className={props.goalModeOpen ? "text-current opacity-100" : undefined}
-          />
-          <span data-composer-control-label className="sr-only sm:not-sr-only">
-            Goal
-          </span>
-        </TooltipTrigger>
-        <TooltipPopup side="top">
-          Goal mode gives the agent an outcome to plan, execute and verify
-        </TooltipPopup>
-      </Tooltip>
-    </>
-  ) : null;
 
   return (
     <>
-      {goalModeToggle}
-      <ComposerControlSeparator size={size} />
-
       <Tooltip>
         <Select
           open={open}
@@ -1395,8 +1305,6 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
         </Select>
         <TooltipPopup side="top">{runtimeModeOption.description}</TooltipPopup>
       </Tooltip>
-
-      {interactionModeToggle}
     </>
   );
 });
@@ -4030,20 +3938,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     ],
   );
 
-  // The footer toggle turns Goal Mode on and off. When the goal was entered
-  // by typing `/goal `, the prefix is what holds the mode open, so leaving
-  // strips it rather than flipping a flag nothing is reading.
-  const toggleGoalMode = () => {
-    if (slashGoalActive) {
-      const prefixLength = goalSlashPrefixLength(promptRef.current);
-      if (prefixLength > 0) {
-        applyPromptReplacement(0, prefixLength, "");
-        return;
-      }
-    }
-    props.onToggleGoalMode();
-  };
-
   const readComposerSnapshot = useCallback((): {
     value: string;
     cursor: number;
@@ -5626,22 +5520,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           ? [{ id: "traits", label: "Reasoning", content: providerTraitsPicker }]
           : []),
         {
+          // Plan mode and Goal mode moved to the dynamic island.
           id: "mode",
-          label: "Mode & Access",
+          label: "Access",
           content: (
             <ComposerFooterModeControls
-              showInteractionModeToggle={planModeUiEnabled}
-              interactionMode={interactionMode}
               runtimeMode={compatibleRuntimeMode}
               runtimeModeOptions={compatibleRuntimeModeOptions}
               size="sm"
-              // Goal Mode is a mode of this composer, so it belongs beside
-              // the other mode controls. Typing `/goal ` still works; the
-              // toggle is how a user finds the feature in the first place.
-              showGoalModeToggle={props.canOperateGoal}
-              goalModeOpen={props.goalModeOpen || slashGoalActive}
-              onToggleGoalMode={toggleGoalMode}
-              onToggleInteractionMode={toggleInteractionMode}
               onRuntimeModeChange={handleRuntimeModeChange}
             />
           ),

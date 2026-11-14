@@ -91,6 +91,9 @@ export default defineConfig({
       // Macroscope's glob-per-line ignore grammar, not Markdown: formatting
       // it rewrites `*` as `_` and joins lines.
       ".macroscope/ignore.md",
+      // Vendored islandcn reference markdown: long measurement tables in the
+      // upstream style, not the repo's prose format.
+      "apps/web/src/lib/island/README.md",
       ".alchemy",
       "dist",
       "dist-electron",
@@ -274,6 +277,13 @@ export default defineConfig({
         // has no findings and stays covered too.
         files: ["apps/web/src/**"],
         rules: { "shadcn/no-raw-colors": "error" },
+      },
+      {
+        // The islandcn toolkit and the island engine inject their own CSS
+        // (IslandStyle) rather than Tailwind; icn-* classes are declared by
+        // that stylesheet, and the island's fixed black pill is the design.
+        files: ["apps/web/src/components/islandcn/**", "apps/web/src/lib/island/**"],
+        rules: { "shadcn/no-unknown-classes": "off", "shadcn/no-raw-colors": "off" },
       },
       {
         // Third-party marks (brand logos, the macOS permission panes, Codex's Computer Use

@@ -21,11 +21,7 @@ const state = vi.hoisted(() => ({
   limited: false,
   subagent: false,
   background: [] as Array<{ taskId: string; kind: "command" | "monitor" }>,
-  add: vi.fn(
-    (_toast: { title: string; description: string; actionProps: { onClick: () => void } }) =>
-      "toast-1",
-  ),
-  close: vi.fn(),
+  island: vi.fn(),
   navigate: vi.fn(),
   sound: vi.fn(),
   notification: vi.fn(function (_title: string, options: NotificationOptions) {
@@ -119,8 +115,8 @@ vi.mock("../threadNotifications", async (importOriginal) => ({
   playNotificationSound: state.sound,
   setNotificationBadge: vi.fn(),
 }));
-vi.mock("./ui/toast", () => ({
-  toastManager: { add: state.add, close: state.close },
+vi.mock("./islandcn/NotificationActivity", () => ({
+  showIslandNotificationFromNotice: state.island,
 }));
 
 import { ThreadNotificationCoordinator } from "./ThreadNotificationCoordinator";
@@ -187,7 +183,7 @@ describe("thread notifications", () => {
     state.input = true;
     await render();
     expect(state.sound).not.toHaveBeenCalled();
-    expect(state.add).not.toHaveBeenCalled();
+    expect(state.island).not.toHaveBeenCalled();
     expect(state.notification).not.toHaveBeenCalled();
   });
 
@@ -195,12 +191,11 @@ describe("thread notifications", () => {
     await render();
     await complete();
     await render();
-    expect(state.add).toHaveBeenCalledTimes(1);
-    const toast = state.add.mock.calls[0]?.[0];
-    expect(toast?.title).toBe("Thread completed");
-    expect(toast?.description).toBe("Fix the login form");
-    toast?.actionProps.onClick();
-    expect(state.close).toHaveBeenCalledWith("toast-1");
+    expect(state.island).toHaveBeenCalledTimes(1);
+    const notice = state.island.mock.calls[0]?.[0];
+    expect(notice?.title).toBe("Thread completed");
+    expect(notice?.body).toBe("Fix the login form");
+    notice?.action?.open();
     expect(state.navigate).toHaveBeenCalledWith({
       to: "/$environmentId/$threadId",
       params: { environmentId: "env-1", threadId: "thread-1" },
@@ -209,7 +204,7 @@ describe("thread notifications", () => {
   });
 
   it.each(["active", "blurred", "hidden", "archived", "disabled"])(
-    "does not show a completion toast for %s threads",
+    "does not show a completion alert for %s threads",
     async (condition) => {
       await render();
       if (condition === "active") state.active.threadId = "thread-1";
@@ -218,7 +213,7 @@ describe("thread notifications", () => {
       if (condition === "archived") state.archivedAt = "2026-09-13T09:00:00.000Z";
       if (condition === "disabled") state.inApp = false;
       await complete();
-      expect(state.add).not.toHaveBeenCalled();
+      expect(state.island).not.toHaveBeenCalled();
     },
   );
 
@@ -234,8 +229,8 @@ describe("thread notifications", () => {
     state[event] = true;
     await render();
     await render();
-    expect(state.add).toHaveBeenCalledTimes(1);
-    expect(state.add).toHaveBeenLastCalledWith(expect.objectContaining({ title }));
+    expect(state.island).toHaveBeenCalledTimes(1);
+    expect(state.island).toHaveBeenLastCalledWith(expect.objectContaining({ title }));
     expect(state.sound).toHaveBeenCalledWith("input", expect.any(Function));
     expect(state.notification).not.toHaveBeenCalled();
 
@@ -245,7 +240,7 @@ describe("thread notifications", () => {
     state[event] = true;
     await render();
     await render();
-    expect(state.add).toHaveBeenCalledTimes(1);
+    expect(state.island).toHaveBeenCalledTimes(1);
     expect(state.notification).toHaveBeenCalledTimes(1);
     expect(state.notification).toHaveBeenCalledWith(title, {
       body: "Fix the login form",
@@ -258,11 +253,11 @@ describe("thread notifications", () => {
     await render();
     state.background = [{ taskId: "watch", kind: "monitor" }];
     await complete();
-    expect(state.add).not.toHaveBeenCalled();
+    expect(state.island).not.toHaveBeenCalled();
     state.background = [{ taskId: "dev", kind: "command" }];
     await render();
-    expect(state.add).toHaveBeenCalledTimes(1);
-    expect(state.add).toHaveBeenLastCalledWith(
+    expect(state.island).toHaveBeenCalledTimes(1);
+    expect(state.island).toHaveBeenLastCalledWith(
       expect.objectContaining({ title: "Thread completed" }),
     );
   });
@@ -273,11 +268,11 @@ describe("thread notifications", () => {
     state.mode = "notifications";
     await render();
     await complete();
-    expect(state.add).not.toHaveBeenCalled();
+    expect(state.island).not.toHaveBeenCalled();
     expect(state.notification).toHaveBeenCalledTimes(1);
     state.inApp = true;
     await render();
-    expect(state.add).not.toHaveBeenCalled();
+    expect(state.island).not.toHaveBeenCalled();
   });
 
   it("does not replay a completion when opting in from all alerts off", async () => {
@@ -286,14 +281,14 @@ describe("thread notifications", () => {
     await complete();
     state.inApp = true;
     await render();
-    expect(state.add).not.toHaveBeenCalled();
+    expect(state.island).not.toHaveBeenCalled();
   });
 
   it("compares the environment as well as the thread", async () => {
     state.active = { environmentId: "env-2", threadId: "thread-1" };
     await render();
     await complete();
-    expect(state.add).toHaveBeenCalledTimes(1);
+    expect(state.island).toHaveBeenCalledTimes(1);
   });
 
   it("does not replay completed threads on first load or reconnect", async () => {
@@ -302,15 +297,15 @@ describe("thread notifications", () => {
     await render();
     state.live = true;
     await render();
-    expect(state.add).not.toHaveBeenCalled();
+    expect(state.island).not.toHaveBeenCalled();
   });
 
-  it("keeps sound but replaces the system popup when showing a toast", async () => {
+  it("keeps sound but replaces the system popup with the island", async () => {
     state.mode = "notifications-and-sound";
     await render();
     await complete();
     expect(state.sound).toHaveBeenCalledWith("completion", expect.any(Function));
-    expect(state.add).toHaveBeenCalledTimes(1);
+    expect(state.island).toHaveBeenCalledTimes(1);
     expect(state.notification).not.toHaveBeenCalled();
   });
 
@@ -319,7 +314,7 @@ describe("thread notifications", () => {
     state.focused = false;
     await render();
     await complete();
-    expect(state.add).not.toHaveBeenCalled();
+    expect(state.island).not.toHaveBeenCalled();
     expect(state.notification).toHaveBeenCalledWith("Thread completed", {
       body: "Fix the login form",
       tag: "env-1:thread-1",

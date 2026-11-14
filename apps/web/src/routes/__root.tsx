@@ -1,4 +1,8 @@
 import { PermissionUpdateNotice } from "../components/PermissionUpdateNotice";
+import { DakIslandController } from "../components/islandcn/DakIslandController";
+import { IslandNotificationActivity } from "../components/islandcn/NotificationActivity";
+import { DakWordmark } from "../components/DakWordmark";
+import { Island, IslandProvider } from "~/lib/island";
 import { type ServerLifecycleWelcomePayload } from "@dak/contracts";
 import { scopedProjectKey, scopeProjectRef } from "@dak/client-runtime/environment";
 import {
@@ -68,7 +72,7 @@ import {
   selectProjectGroupingSettings,
 } from "../logicalProject";
 import { useUiStateStore } from "../uiStateStore";
-import { syncBrowserChromeTheme } from "../hooks/useTheme";
+import { syncBrowserChromeTheme, useTheme } from "../hooks/useTheme";
 import { configureClientTracing } from "../observability/clientTracing";
 import { resolveInitialServerAuthGateState } from "../environments/primary";
 import { hasHostedPairingRequest, isHostedStaticApp } from "../hostedPairing";
@@ -147,6 +151,7 @@ function RootRouteNotFoundView() {
 function RootRouteView() {
   useEffect(() => installDesktopPasteAsText(window.desktopBridge, window), []);
   const pathname = useLocation({ select: (location) => location.pathname });
+  const { resolvedTheme } = useTheme();
   const { authGateState } = Route.useRouteContext();
   const primaryEnvironmentAuthenticated = authGateState.status === "authenticated";
   const returningFromWelcomeRef = useRef(pathname === "/welcome");
@@ -215,7 +220,6 @@ function RootRouteView() {
       </AppSidebarLayout>
     </CommandPalette>
   );
-
   // FirstRunGate holds back everything below it — including EventRouter,
   // whose welcome payload navigates into a thread — until the first-run
   // decision is known, so a fresh install renders nothing (not the shell,
@@ -257,7 +261,28 @@ function RootRouteView() {
           {primaryEnvironmentAuthenticated ? <ProviderUpdateLaunchNotification /> : null}
           {/* Hosted Nightly is "hosted-static", not authenticated, and needs it too. */}
           <NightlyMobileBetaNotice />
-          {appShell}
+          {/* Dynamic Island: global live-activity surface (needs-input alerts,
+              desktop updates, in-app notifications). Chat views register their
+              own composer modes. Wraps the shell so every route sees it. */}
+          {/* Keep every presentation on the workspace header line. Overriding only `top`
+              moves the resting pill while the expanded card keeps islandcn's phone-notch
+              default, making it jump upward when opened. */}
+          <IslandProvider metrics={{ top: 60, expanded: { top: 60 } }}>
+            <Island
+              placement="viewport"
+              appearance={resolvedTheme}
+              idleLogo={
+                <DakWordmark
+                  aria-hidden
+                  height={17}
+                  style={{ width: "auto", color: "currentColor" }}
+                />
+              }
+            />
+            <DakIslandController />
+            <IslandNotificationActivity />
+            {appShell}
+          </IslandProvider>
           {/* Above the router: a theme draft is judged by walking the app, so the
               editor has to survive navigation away from settings. */}
           <ThemeEditorHost />

@@ -8,7 +8,8 @@ import type { AppRouter } from "./router";
 /**
  * Owns renderer-wide providers. The Electron browser host intentionally sits
  * outside the router so its webviews survive route transitions, but it must
- * share the same atom registry as routed UI.
+ * share the same atom registry as routed UI. The Dynamic Island is mounted in
+ * the root route, where it can reach router navigation.
  */
 export function AppRoot({ router }: { readonly router: AppRouter }) {
   return (
