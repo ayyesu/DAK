@@ -9,5 +9,6 @@ export const islandActivityPriority = {
   desktopUpdate: 50,
   notification: 60,
   goal: 70,
+  goalAttention: 90,
   needsInput: 100,
 } as const;

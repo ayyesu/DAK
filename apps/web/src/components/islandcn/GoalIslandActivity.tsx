@@ -15,7 +15,12 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEnvironmentQuery } from "~/state/query";
 import { serverEnvironment } from "~/state/server";
 import { useEnvironmentIds } from "../../state/environments";
-import { isGoalDriven, goalStatusLabel } from "../chat/GoalMode.logic";
+import {
+  goalIslandActionLabel,
+  goalIslandHeadline,
+  goalNeedsIslandAttention,
+  isGoalIslandVisible,
+} from "../chat/GoalMode.logic";
 import { IslandButton } from "./island-button";
 import { ExpandedBottom } from "./island-layout";
 import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
@@ -24,25 +29,39 @@ import { useIslandActions } from "~/lib/island";
 import { islandAccent } from "./theme";
 import { islandActivityPriority } from "./activity-priority";
 
-/** Goals that keep the pill on screen: a goal is running only when it is actively driving. */
-const isLiveGoal = (status: GoalSummary["status"]) => isGoalDriven(status);
-
+/** The goal most worthy of the ambient surface: intervention before background work. */
 const pickGoal = (goals: ReadonlyArray<GoalSummary>): GoalSummary | null => {
   let best: GoalSummary | null = null;
   for (const goal of goals) {
-    if (!isLiveGoal(goal.status)) continue;
-    if (best === null || goal.lastActivityAt > best.lastActivityAt) best = goal;
+    if (!isGoalIslandVisible(goal)) continue;
+    if (best === null) {
+      best = goal;
+      continue;
+    }
+    const goalNeedsAttention = goalNeedsIslandAttention(goal);
+    const bestNeedsAttention = goalNeedsIslandAttention(best);
+    if (
+      goalNeedsAttention !== bestNeedsAttention
+        ? goalNeedsAttention
+        : goal.lastActivityAt > best.lastActivityAt
+    )
+      best = goal;
   }
   return best;
 };
 
-const statusLine = (goal: GoalSummary): string => {
-  if (goal.question !== null) return "Needs your answer";
-  if (goal.totalTaskCount > 0) {
-    const tasks = `${goal.completedTaskCount} of ${goal.totalTaskCount} tasks`;
-    return goal.progressLabel ?? `${tasks}`;
-  }
-  return goal.progressLabel ?? goalStatusLabel(goal.status);
+const goalColor = (goal: GoalSummary) =>
+  goal.status === "failed"
+    ? islandAccent.red
+    : goalNeedsIslandAttention(goal)
+      ? islandAccent.orange
+      : islandAccent.purple;
+
+const compactLabel = (goal: GoalSummary): string => {
+  if (goal.question !== null || goal.status === "needs_input") return "Reply";
+  if (goal.status === "waiting_provider") return "Waiting";
+  if (goal.status === "failed") return "Review";
+  return goal.progress !== null ? `${goal.progress}%` : "Goal";
 };
 
 const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId }) => {
@@ -51,6 +70,7 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
   const goalsQuery = useEnvironmentQuery(serverEnvironment.goalsLive({ environmentId, input: {} }));
   const goals = goalsQuery.data?.goals ?? null;
   const showingRef = useRef(false);
+  const wasAttentionRef = useRef(false);
 
   const active = pickGoal(goals ?? []);
   const activeRef = useRef(active);
@@ -66,7 +86,9 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
         active.progressLabel,
         active.completedTaskCount,
         active.totalTaskCount,
-        active.question !== null,
+        active.question,
+        active.waitingReason,
+        active.currentTaskTitle,
         active.threadId,
       ])
     : null;
@@ -88,48 +110,44 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
         island.end(activityId);
         showingRef.current = false;
       }
+      wasAttentionRef.current = false;
       return;
     }
 
     const canOpen = active.threadId !== null;
+    const attention = goalNeedsIslandAttention(active);
+    const color = goalColor(active);
+    const actionLabel = goalIslandActionLabel(active);
     const content = {
       compact: {
         leading: (
           <IslandCompactGlyph>
-            <TargetIcon size={20} strokeWidth={1.75} color={islandAccent.purple} aria-hidden />
+            <TargetIcon size={20} strokeWidth={1.75} color={color} aria-hidden />
           </IslandCompactGlyph>
         ),
-        trailing: (
-          <CompactText color={islandAccent.purple}>
-            {active.progress !== null ? `${active.progress}%` : "Goal"}
-          </CompactText>
-        ),
+        trailing: <CompactText color={color}>{compactLabel(active)}</CompactText>,
       },
       minimal: (
         <IslandCompactGlyph>
-          <TargetIcon size={20} strokeWidth={1.75} color={islandAccent.purple} aria-hidden />
+          <TargetIcon size={20} strokeWidth={1.75} color={color} aria-hidden />
         </IslandCompactGlyph>
       ),
       expanded: {
         leading: (
-          <IslandTile color={islandAccent.purple}>
-            <TargetIcon size={24} strokeWidth={1.75} color={islandAccent.purple} aria-hidden />
+          <IslandTile color={color}>
+            <TargetIcon size={24} strokeWidth={1.75} color={color} aria-hidden />
           </IslandTile>
         ),
         center: (
           <TitleStack
             title={<ExpandedTitle>{active.title}</ExpandedTitle>}
-            subtitle={<ExpandedSubtitle>{statusLine(active)}</ExpandedSubtitle>}
+            subtitle={<ExpandedSubtitle>{goalIslandHeadline(active)}</ExpandedSubtitle>}
           />
         ),
         bottom: canOpen ? (
           <ExpandedBottom reach="action">
-            <IslandButton
-              tone={{ kind: "accent", color: islandAccent.purple }}
-              onPress={openGoal}
-              label="Open the goal's thread"
-            >
-              Open goal
+            <IslandButton tone={{ kind: "accent", color }} onPress={openGoal} label={actionLabel}>
+              {actionLabel}
             </IslandButton>
           </ExpandedBottom>
         ) : undefined,
@@ -140,14 +158,22 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
       island.start({
         id: activityId,
         label: `Goal: ${active.title}`,
-        priority: islandActivityPriority.goal,
+        priority: attention ? islandActivityPriority.goalAttention : islandActivityPriority.goal,
         onPress: openGoal,
         ...content,
       });
       showingRef.current = true;
+      wasAttentionRef.current = attention;
       return;
     }
-    island.update(activityId, { ...content, onPress: openGoal });
+    const alert = !wasAttentionRef.current && attention;
+    wasAttentionRef.current = attention;
+    island.update(activityId, {
+      ...content,
+      priority: attention ? islandActivityPriority.goalAttention : islandActivityPriority.goal,
+      onPress: openGoal,
+      ...(alert ? { alert, transition: "crossfade" as const } : {}),
+    });
   }, [activeKey, environmentId, island, openGoal]);
 
   useEffect(
