@@ -1,11 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
-import { DownloadIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useEnvironments } from "~/state/environments";
 import { isDesktopLocalConnectionTarget } from "~/connection/desktopLocal";
 import { useDismissedProviderUpdateNotificationKeys } from "../providerUpdateDismissal";
-import { ProviderUpdateEnvironmentRows } from "./ProviderUpdateEnvironmentRows";
 import { useLocalEnvironmentUpdateGroups } from "./ProviderUpdateLaunchNotification.environments";
 import {
   collectProviderUpdateCandidates,
@@ -14,7 +12,7 @@ import {
   localEnvironmentUpdateNotificationKey,
 } from "./ProviderUpdateLaunchNotification.logic";
 import { ProviderUpdatePrimaryNotification } from "./ProviderUpdatePrimaryNotification";
-import { stackedThreadToast, toastManager } from "./ui/toast";
+import { showIslandNotification } from "./islandcn/NotificationActivity";
 
 /**
  * True when a desktop-local secondary backend (the parallel WSL backend) is
@@ -48,7 +46,6 @@ export function ProviderUpdateLaunchNotification() {
 }
 
 const seenProviderUpdateNotificationKeys = new Set<string>();
-type ProviderUpdateToastId = ReturnType<typeof toastManager.add>;
 
 // While a local backend (e.g. WSL) is still connecting, defer the popover so it
 // reflects every environment. Cap the wait so a stuck or failed backend can't
@@ -62,7 +59,6 @@ function ProviderUpdateEnvironmentsNotification() {
     useDismissedProviderUpdateNotificationKeys();
 
   const activeToastRef = useRef<{
-    readonly toastId: ProviderUpdateToastId;
     readonly key: string;
   } | null>(null);
   const notificationKeyRef = useRef<string | null>(null);
@@ -75,10 +71,7 @@ function ProviderUpdateEnvironmentsNotification() {
   // and we fall back to the single-prompt flow).
   useEffect(() => {
     return () => {
-      if (activeToastRef.current !== null) {
-        toastManager.close(activeToastRef.current.toastId);
-        activeToastRef.current = null;
-      }
+      activeToastRef.current = null;
     };
   }, []);
 
@@ -108,11 +101,7 @@ function ProviderUpdateEnvironmentsNotification() {
   const isGated = isAnySettling && !settleGraceElapsed;
 
   const openProviderSettings = useCallback(() => {
-    const active = activeToastRef.current;
-    if (active !== null) {
-      toastManager.close(active.toastId);
-      activeToastRef.current = null;
-    }
+    activeToastRef.current = null;
     void navigate({ to: "/settings/providers" });
   }, [navigate]);
 
@@ -136,7 +125,6 @@ function ProviderUpdateEnvironmentsNotification() {
       !hasInteractedRef.current &&
       (notificationKey === null || !isGated)
     ) {
-      toastManager.close(active.toastId);
       activeToastRef.current = null;
     }
 
@@ -157,34 +145,24 @@ function ProviderUpdateEnvironmentsNotification() {
       activeToastRef.current = null;
     };
 
-    const toastId = toastManager.add(
-      stackedThreadToast({
-        type: "warning",
-        title: getProviderUpdateInitialToastView({
-          updateProviders: candidateUnion,
-          oneClickProviders: candidateUnion,
-        }).title,
-        description: (
-          <ProviderUpdateEnvironmentRows
-            onInteract={() => {
-              hasInteractedRef.current = true;
-            }}
-          />
-        ),
-        timeout: 0,
-        actionProps: {
-          children: "Settings",
-          onClick: openProviderSettings,
+    const view = getProviderUpdateInitialToastView({
+      updateProviders: candidateUnion,
+      oneClickProviders: candidateUnion,
+    });
+    showIslandNotification({
+      tone: "warning",
+      kind: "input",
+      title: view.title,
+      body: view.description,
+      action: {
+        label: "Settings",
+        open: () => {
+          dismissPrompt();
+          openProviderSettings();
         },
-        actionVariant: "outline",
-        data: {
-          hideCopyButton: true,
-          leadingIcon: <DownloadIcon aria-hidden="true" className="size-4 text-success" />,
-          onClose: dismissPrompt,
-        },
-      }),
-    );
-    activeToastRef.current = { toastId, key: notificationKey };
+      },
+    });
+    activeToastRef.current = { key: notificationKey };
   }, [
     notificationKey,
     isGated,

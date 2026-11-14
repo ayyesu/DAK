@@ -10,11 +10,12 @@ import { useCallback, useEffect, useRef } from "react";
 
 import type { EnvironmentId, GoalSummary } from "@dak/contracts";
 
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 
 import { useEnvironmentQuery } from "~/state/query";
 import { serverEnvironment } from "~/state/server";
 import { useEnvironmentIds } from "../../state/environments";
+import { openGoalWork } from "../../goalModeBus";
 import {
   goalIslandActionLabel,
   goalIslandHeadline,
@@ -67,12 +68,21 @@ const compactLabel = (goal: GoalSummary): string => {
 const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId }) => {
   const island = useIslandActions();
   const navigate = useNavigate();
+  const { environmentId: routedEnvironmentId, threadId: routedThreadId } = useParams({
+    strict: false,
+  });
   const goalsQuery = useEnvironmentQuery(serverEnvironment.goalsLive({ environmentId, input: {} }));
   const goals = goalsQuery.data?.goals ?? null;
   const showingRef = useRef(false);
   const wasAttentionRef = useRef(false);
 
-  const active = pickGoal(goals ?? []);
+  // An island activity belongs to the thread currently in view. Leaving that
+  // thread restores the island to the state of the destination, rather than
+  // keeping a background goal pinned over unrelated work.
+  const active =
+    routedEnvironmentId === environmentId && routedThreadId !== undefined
+      ? pickGoal((goals ?? []).filter((goal) => goal.threadId === routedThreadId))
+      : null;
   const activeRef = useRef(active);
   activeRef.current = active;
   // The query can retain the same goal while its presentation copy changes. Keep every
@@ -99,7 +109,7 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
     void navigate({
       to: "/$environmentId/$threadId",
       params: { environmentId, threadId: goal.threadId },
-    });
+    }).then(() => openGoalWork(goal.id));
   }, [environmentId, island, navigate]);
 
   useEffect(() => {

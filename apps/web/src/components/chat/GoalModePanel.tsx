@@ -56,7 +56,7 @@ import { Spinner } from "../ui/spinner";
 import { Textarea } from "../ui/textarea";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { onOpenGoalComposer } from "../../goalModeBus";
+import { onOpenGoalComposer, onOpenGoalWork } from "../../goalModeBus";
 import { GoalBlockerPanel } from "./GoalBlockerPanel";
 import { GoalChangedFiles } from "./GoalChangedFiles";
 import { goalChangedFiles } from "./GoalChanges.logic";
@@ -235,6 +235,9 @@ function GoalCard(props: {
   readonly busy: boolean;
   /** The composer above is open; the card stays compact until it closes. */
   readonly compact: boolean;
+  /** The island opened this thread's dedicated goal-work surface. */
+  readonly showWork: boolean;
+  readonly onCloseWork: () => void;
   readonly run: GoalRun;
   /** The thread's changed files, for the goal's own file summary. */
   readonly turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
@@ -268,6 +271,12 @@ function GoalCard(props: {
   const [allCriteriaOpen, setAllCriteriaOpen] = useState(false);
   const [otherGoalsOpen, setOtherGoalsOpen] = useState(false);
   const nowMinute = useNowMinute();
+
+  useEffect(() => {
+    if (!props.showWork) return;
+    setCollapsedState(false);
+    setWorkOpen(true);
+  }, [props.showWork]);
 
   const collapsed = collapsedState;
   const expanded = !collapsed;
@@ -568,7 +577,10 @@ function GoalCard(props: {
           now={now}
           loading={goalDetail === null && watchQuery.error === null}
           error={watchQuery.error}
-          onBack={() => setWorkOpen(false)}
+          onBack={() => {
+            setWorkOpen(false);
+            props.onCloseWork();
+          }}
           {...(goal.threadId === null
             ? {}
             : {
@@ -989,6 +1001,7 @@ export function GoalModePanel(props: {
   const [hiddenGoalIds, setHiddenGoalIds] = useState<ReadonlySet<string>>(new Set());
   const [hiddenGoalsOpen, setHiddenGoalsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [goalWorkOpen, setGoalWorkOpen] = useState(false);
 
   // The selection belongs to one thread; switching threads must not keep
   // showing the previous thread's goal.
@@ -1004,6 +1017,14 @@ export function GoalModePanel(props: {
   // The palette and the chat.key command ask for Goal Mode without owning its
   // state; subscribe here, next to the consumer.
   useEffect(() => onOpenGoalComposer(() => props.onGoalModeOpenChange(true)), [props]);
+  useEffect(
+    () =>
+      onOpenGoalWork((goalId) => {
+        setSelectedGoalId(goalId);
+        setGoalWorkOpen(true);
+      }),
+    [],
+  );
 
   const allGoals = useMemo(
     () =>
@@ -1025,7 +1046,7 @@ export function GoalModePanel(props: {
     selectGoalForThread(goals, props.threadId);
   const otherGoals = goals.filter((candidate) => candidate.id !== goal?.id);
 
-  if (projectId === null) return null;
+  if (projectId === null || !goalWorkOpen) return null;
   // Hiding the last goal must not take the panel away with it: the hidden
   // goals are the only way back to them.
   if (goal === null && goalsQuery.error === null && hiddenGoals.length === 0) return null;
@@ -1070,6 +1091,8 @@ export function GoalModePanel(props: {
           canOperate={canOperate}
           busy={busy}
           compact={props.goalModeOpen || goalIsDriven}
+          showWork={goalWorkOpen}
+          onCloseWork={() => setGoalWorkOpen(false)}
           run={run}
           turnDiffSummaries={props.turnDiffSummaries}
           onOpenTurnDiff={props.onOpenTurnDiff}

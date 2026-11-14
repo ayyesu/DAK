@@ -41,6 +41,10 @@ export interface IslandNotificationPayload {
   readonly body: string;
   /** Null when the notice has nowhere to navigate to. */
   readonly action: { readonly label: string; readonly open: () => void } | null;
+  /** An optional second action for compact two-choice notices, such as updates. */
+  readonly secondaryAction?: { readonly label: string; readonly open: () => void } | null;
+  /** `null` keeps a progress notice present until its producer replaces it. */
+  readonly durationMs?: number | null;
 }
 
 /** Hand a notice to the island; the bus keeps the coordinator router-free. */
@@ -103,16 +107,17 @@ export const IslandNotificationActivity = () => {
       if (dismissTimer.current !== null) window.clearTimeout(dismissTimer.current);
       dismissTimer.current = null;
     };
-    const armDismissTimer = () => {
+    const armDismissTimer = (durationMs: number | null | undefined) => {
       clearDismissTimer();
+      if (durationMs === null) return;
       dismissTimer.current = window.setTimeout(() => {
         island.end(NOTIFICATION_ID);
         showingRef.current = false;
         dismissTimer.current = null;
-      }, NOTICE_TTL_MS);
+      }, durationMs ?? NOTICE_TTL_MS);
     };
-    const makeOnPress = (payload: IslandNotificationPayload) => () => {
-      payload.action?.open();
+    const makeOnPress = (open: () => void) => () => {
+      open();
       clearDismissTimer();
       island.end(NOTIFICATION_ID);
       showingRef.current = false;
@@ -123,7 +128,7 @@ export const IslandNotificationActivity = () => {
       if (!payload) return;
 
       const color = toneColor(payload.tone);
-      const onPress = makeOnPress(payload);
+      const onPress = payload.action === null ? undefined : makeOnPress(payload.action.open);
       const content = {
         compact: {
           leading: <IslandCompactGlyph>{toneIcon(payload, 20)}</IslandCompactGlyph>,
@@ -140,32 +145,57 @@ export const IslandNotificationActivity = () => {
           bottom:
             payload.action === null ? undefined : (
               <ExpandedBottom reach="action">
-                <IslandButton
-                  tone={{ kind: "accent", color }}
-                  onPress={onPress}
-                  label={payload.action.label}
-                >
-                  {payload.action.label}
-                </IslandButton>
+                {payload.secondaryAction === null || payload.secondaryAction === undefined ? (
+                  <IslandButton
+                    tone={{ kind: "accent", color }}
+                    onPress={onPress!}
+                    label={payload.action.label}
+                  >
+                    {payload.action.label}
+                  </IslandButton>
+                ) : (
+                  <div className="flex min-w-0 gap-2">
+                    <IslandButton
+                      size="compact"
+                      tone={{ kind: "neutral" }}
+                      onPress={makeOnPress(payload.secondaryAction.open)}
+                      label={payload.secondaryAction.label}
+                    >
+                      {payload.secondaryAction.label}
+                    </IslandButton>
+                    <IslandButton
+                      size="compact"
+                      tone={{ kind: "accent", color }}
+                      onPress={onPress!}
+                      label={payload.action.label}
+                    >
+                      {payload.action.label}
+                    </IslandButton>
+                  </div>
+                )}
               </ExpandedBottom>
             ),
         },
       };
 
       if (showingRef.current) {
-        island.update(NOTIFICATION_ID, { ...content, alert: true, onPress });
+        island.update(NOTIFICATION_ID, {
+          ...content,
+          alert: true,
+          ...(onPress === undefined ? {} : { onPress }),
+        });
       } else {
         island.start({
           id: NOTIFICATION_ID,
           label: payload.title,
           priority: islandActivityPriority.notification,
           alert: true,
-          onPress,
+          ...(onPress === undefined ? {} : { onPress }),
           ...content,
         });
         showingRef.current = true;
       }
-      armDismissTimer();
+      armDismissTimer(payload.durationMs);
     };
 
     window.addEventListener(ISLAND_NOTIFICATION_EVENT, listener);
