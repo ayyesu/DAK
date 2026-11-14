@@ -24,6 +24,7 @@ export type IslandPresentation =
       leading?: ReactNode;
       trailing?: ReactNode;
       center?: ReactNode;
+      centerAlign?: "center" | "start";
       bottom?: ReactNode;
     };
 
@@ -45,6 +46,12 @@ export interface ExpandedContent {
   trailing?: ReactNode;
   /** Between leading and trailing, below the sensor. Defaults to nothing. */
   center?: ReactNode;
+  /**
+   * Where copy sits in the centre column when it is narrower than the column. "center" (the
+   * default) centres the block under the sensor; "start" sets it against the leading content, so
+   * short copy beside an icon stays next to it instead of floating towards the middle.
+   */
+  centerAlign?: "center" | "start";
   /** Full width under the top row. Defaults to nothing. */
   bottom?: ReactNode;
 }

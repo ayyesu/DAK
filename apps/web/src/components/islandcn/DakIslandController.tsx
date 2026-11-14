@@ -30,7 +30,7 @@ import { IslandButton } from "./island-button";
 import { ExpandedBottom } from "./island-layout";
 import { GoalIslandActivities } from "./GoalIslandActivity";
 import { showIslandNotification } from "./NotificationActivity";
-import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
+import { CompactText, TitleStack } from "./island-text";
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
 import { islandAccent } from "./theme";
 import { islandActivityPriority } from "./activity-priority";
@@ -66,12 +66,8 @@ const needsInputContent = (kind: "approval" | "input", title: string, onOpen: ()
     minimal: <IslandCompactGlyph>{glyph(21)}</IslandCompactGlyph>,
     expanded: {
       leading: <IslandTile color={accent}>{glyph(26)}</IslandTile>,
-      center: (
-        <TitleStack
-          title={<ExpandedTitle>{heading}</ExpandedTitle>}
-          subtitle={<ExpandedSubtitle>{title}</ExpandedSubtitle>}
-        />
-      ),
+      centerAlign: "start" as const,
+      center: <TitleStack title={heading} subtitle={title} subtitleLines={2} />,
       bottom: (
         <ExpandedBottom reach="action">
           <IslandButton

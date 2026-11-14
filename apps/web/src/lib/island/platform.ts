@@ -40,3 +40,16 @@ export const writeBlur = (element: HTMLElement, px: number, holdLayer = false) =
   element.style.filter = on ? `blur(${px.toFixed(2)}px)` : "none";
   if (isAppleWebKit()) element.style.willChange = on || holdLayer ? "filter" : "auto";
 };
+
+let cachedApple: boolean | null = null;
+
+/**
+ * True where `-apple-system` resolves to SF Pro: macOS, iOS and iPadOS. Elsewhere the island sets
+ * its text in Inter, which has its own spacing. Read once; false on the server.
+ */
+export const isApplePlatform = (): boolean => {
+  if (cachedApple !== null) return cachedApple;
+  if (typeof navigator === "undefined") return false;
+  cachedApple = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+  return cachedApple;
+};

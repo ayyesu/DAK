@@ -194,6 +194,7 @@ export const IslandNotificationActivity = () => {
           leading: <IslandTile color={color}>{toneIcon(payload, 26)}</IslandTile>,
           // Plain strings: TitleStack already sets them in the title and subtitle styles, and a
           // wrapped subtitle (a nested one-line span) would defeat its line clamp.
+          centerAlign: "start" as const,
           center: <TitleStack title={payload.title} subtitle={payload.body} subtitleLines={2} />,
           bottom:
             action === null ? undefined : (

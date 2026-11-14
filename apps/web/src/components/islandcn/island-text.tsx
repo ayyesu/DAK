@@ -26,6 +26,10 @@ const base: CSSProperties = {
   // hyphen to a digit's width in the fallback fonts ("launch - cut - v3.mov"), so only values that
   // change (`NumberText`, `TickingTime`, `tabularFigures`) turn them on.
   WebkitFontSmoothing: "antialiased",
+  // Inter's optical-size axis follows the font size (opsz 14 to 32); spelled out so a parent can't
+  // switch it off. Kerning on, since the nowrap/clamp styles below don't touch it.
+  fontOpticalSizing: "auto",
+  fontKerning: "normal",
 };
 
 /**
@@ -171,12 +175,38 @@ export const ExpandedValue = ({
   </span>
 );
 
+/**
+ * Clamp to `lines` lines with an ellipsis. `line-clamp` only works on a `-webkit-box` that may
+ * wrap, so this replaces `oneLine` (whose `nowrap` would keep the text on one line) instead of
+ * adding to it.
+ */
+const clampedLines = (lines: number, wrap: "balance" | "pretty"): CSSProperties => ({
+  display: "-webkit-box",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: lines,
+  overflow: "hidden",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  // "balance" evens out a wrapped title's lines; "pretty" keeps a lone word off the last line of a
+  // sentence. Both only change where a line breaks, never what is cut.
+  textWrap: wrap,
+  maxWidth: "100%",
+});
+
 /** 17 pt semibold, the expanded view's title. */
-export const ExpandedTitle = ({ children, color = islandInk.primary, style }: TextProps) => (
+export const ExpandedTitle = ({
+  children,
+  color = islandInk.primary,
+  style,
+  lines = 1,
+}: TextProps & {
+  /** Lines before it ends in an ellipsis. Defaults to 1. */
+  lines?: number;
+}) => (
   <span
     style={{
       ...base,
-      ...oneLine,
+      ...(lines > 1 ? clampedLines(lines, "balance") : oneLine),
       fontSize: islandSize.title,
       fontWeight: 600,
       lineHeight: `${islandLine.title}px`,
@@ -210,21 +240,6 @@ export const ContextLabel = ({ children, color = islandInk.secondary, style }: T
   </span>
 );
 
-/**
- * Clamp to `lines` lines with an ellipsis. `line-clamp` only works on a `-webkit-box` that may
- * wrap, so this replaces `oneLine` (whose `nowrap` would keep the text on one line) instead of
- * adding to it.
- */
-const clampedLines = (lines: number): CSSProperties => ({
-  display: "-webkit-box",
-  WebkitBoxOrient: "vertical",
-  WebkitLineClamp: lines,
-  overflow: "hidden",
-  whiteSpace: "normal",
-  overflowWrap: "anywhere",
-  maxWidth: "100%",
-});
-
 /** 15 pt regular in secondary grey, under the title. */
 export const ExpandedSubtitle = ({
   children,
@@ -238,7 +253,7 @@ export const ExpandedSubtitle = ({
   <span
     style={{
       ...base,
-      ...(lines > 1 ? clampedLines(lines) : oneLine),
+      ...(lines > 1 ? clampedLines(lines, "pretty") : oneLine),
       fontSize: islandSize.subtitle,
       fontWeight: 400,
       lineHeight: `${islandLine.subtitle}px`,
@@ -272,6 +287,7 @@ export const TitleStack = ({
   title,
   subtitle,
   align = "start",
+  titleLines = 1,
   subtitleLines = 1,
   style,
 }: {
@@ -281,6 +297,8 @@ export const TitleStack = ({
   subtitle?: ReactNode;
   /** Horizontal alignment. Defaults to "start". */
   align?: "start" | "center";
+  /** Lines the title may wrap to before it truncates. Defaults to 1. */
+  titleLines?: number;
   /** Lines the subtitle may wrap to before it truncates. Defaults to 1. */
   subtitleLines?: number;
   /** Extra styles. Defaults to none. */
@@ -295,7 +313,7 @@ export const TitleStack = ({
       ...style,
     }}
   >
-    <ExpandedTitle>{title}</ExpandedTitle>
+    <ExpandedTitle lines={titleLines}>{title}</ExpandedTitle>
     {subtitle === undefined ? null : (
       <ExpandedSubtitle lines={subtitleLines}>{subtitle}</ExpandedSubtitle>
     )}

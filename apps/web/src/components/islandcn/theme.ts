@@ -8,10 +8,16 @@
  */
 
 import { continuousRectPath, islandMetrics } from "~/lib/island";
+import { isApplePlatform } from "~/lib/island/platform";
 
-/** System font first, so each platform gets its own UI font; Inter or Geist elsewhere. */
+/**
+ * SF Pro where the system has it (macOS, iOS), Inter everywhere else. Inter is vendored
+ * (`public/fonts`, `@font-face` in index.css) so Windows and Linux do not fall through to Segoe UI
+ * or a stray system font; a bare "Inter" only matches if the user happens to have it installed.
+ * "Inter Variable" has the optical-size axis, which the browser sets from the font size.
+ */
 export const islandFont =
-  '-apple-system, BlinkMacSystemFont, "Inter", "Geist", system-ui, sans-serif';
+  '-apple-system, BlinkMacSystemFont, "Inter Variable", "Inter", system-ui, sans-serif';
 
 /** For commands and paths in the agent preset. */
 export const islandMono =
@@ -219,8 +225,13 @@ export const islandTracking = {
 
 const trackingTable: Readonly<Record<number, number | undefined>> = islandTracking;
 
-/** `islandTracking` for a font size in pt, 0 for sizes it doesn't list. */
-export const trackingFor = (size: number): number => trackingTable[size] ?? 0;
+/**
+ * `islandTracking` for a font size in pt, 0 for sizes it doesn't list. The table was measured on
+ * SF Pro, so it applies only where SF is the font. Inter spaces itself by size through its
+ * optical-size axis, and SF's tightening on top of that would crowd it.
+ */
+export const trackingFor = (size: number): number =>
+  isApplePlatform() ? (trackingTable[size] ?? 0) : 0;
 
 /**
  * A `clip-path` that cuts a `width` by `height` box to the island's continuous corner (radius

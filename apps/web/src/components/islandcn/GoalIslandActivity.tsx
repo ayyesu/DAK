@@ -24,7 +24,7 @@ import {
 } from "../chat/GoalMode.logic";
 import { IslandButton } from "./island-button";
 import { ExpandedBottom } from "./island-layout";
-import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
+import { CompactText, TitleStack } from "./island-text";
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
 import { LinearProgress } from "./linear-progress";
 import { useIslandActions } from "~/lib/island";
@@ -157,10 +157,16 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
             <TargetIcon size={24} strokeWidth={1.75} color={color} aria-hidden />
           </IslandTile>
         ),
+        // Plain strings: TitleStack sets them itself, and a nested one-line span would defeat
+        // the wrap. A goal's title is the user's own words and its headline can be a sentence
+        // (a provider limit, a question), so both may take two lines before they truncate.
+        centerAlign: "start" as const,
         center: (
           <TitleStack
-            title={<ExpandedTitle>{active.title}</ExpandedTitle>}
-            subtitle={<ExpandedSubtitle>{goalIslandHeadline(active)}</ExpandedSubtitle>}
+            title={active.title}
+            titleLines={2}
+            subtitle={goalIslandHeadline(active)}
+            subtitleLines={2}
           />
         ),
         bottom: canOpen ? (

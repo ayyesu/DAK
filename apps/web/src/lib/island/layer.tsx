@@ -321,7 +321,7 @@ const ExpandedGrid = ({
             left: centerShift,
             display: "flex",
             alignSelf: "start",
-            justifyContent: "center",
+            justifyContent: presentation.centerAlign === "start" ? "flex-start" : "center",
             textAlign: "center",
             minWidth: 0,
             maxWidth: "100%",
