@@ -210,12 +210,35 @@ export const ContextLabel = ({ children, color = islandInk.secondary, style }: T
   </span>
 );
 
+/**
+ * Clamp to `lines` lines with an ellipsis. `line-clamp` only works on a `-webkit-box` that may
+ * wrap, so this replaces `oneLine` (whose `nowrap` would keep the text on one line) instead of
+ * adding to it.
+ */
+const clampedLines = (lines: number): CSSProperties => ({
+  display: "-webkit-box",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: lines,
+  overflow: "hidden",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  maxWidth: "100%",
+});
+
 /** 15 pt regular in secondary grey, under the title. */
-export const ExpandedSubtitle = ({ children, color = islandInk.secondary, style }: TextProps) => (
+export const ExpandedSubtitle = ({
+  children,
+  color = islandInk.secondary,
+  style,
+  lines = 1,
+}: TextProps & {
+  /** Lines before it ends in an ellipsis. Defaults to 1. */
+  lines?: number;
+}) => (
   <span
     style={{
       ...base,
-      ...oneLine,
+      ...(lines > 1 ? clampedLines(lines) : oneLine),
       fontSize: islandSize.subtitle,
       fontWeight: 400,
       lineHeight: `${islandLine.subtitle}px`,
@@ -274,9 +297,7 @@ export const TitleStack = ({
   >
     <ExpandedTitle>{title}</ExpandedTitle>
     {subtitle === undefined ? null : (
-      <ExpandedSubtitle style={subtitleLines > 1 ? { WebkitLineClamp: subtitleLines } : undefined}>
-        {subtitle}
-      </ExpandedSubtitle>
+      <ExpandedSubtitle lines={subtitleLines}>{subtitle}</ExpandedSubtitle>
     )}
   </div>
 );

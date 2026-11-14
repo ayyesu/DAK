@@ -976,6 +976,7 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
     kind: PresentationKind;
     changeId: number | null;
     width: number;
+    expandedWidth: number;
     target: ShapeTarget | null;
     pressed: PressTarget | null;
     joining: number | null;
@@ -987,6 +988,7 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
     kind: presentation.kind,
     changeId: null,
     width: 0,
+    expandedWidth: 0,
     target: null,
     pressed: null,
     joining: null,
@@ -2030,10 +2032,9 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
       const anim = shape.current;
       if (!anim) return;
       const { metrics: m, reduced, presentation } = live.current;
-      const width =
-        presentation.kind === "expanded"
-          ? expandedWidthRef.current
-          : islandScreenWidth(stageWidthRef.current, m);
+      // Always the stage width: `frameAt` and `drawLayers` centre on it. The expanded shape's own
+      // width is already in `anim` (set by `retarget` through `shapeTarget`).
+      const width = islandScreenWidth(stageWidthRef.current, m);
       const t = nowMs / 1000;
       const frame = frameAt(anim, t, width, m);
       const { pill, bubble, paths } = frame;
@@ -2326,18 +2327,29 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
       setExpandedWidth((prev) => (Math.abs(next - prev) > 0.5 ? next : prev));
     }
 
-    const width =
-      p.presentation.kind === "expanded"
-        ? expandedWidthRef.current
-        : islandScreenWidth(stageWidthRef.current, m);
-    const target = shapeTarget(p.presentation.kind, measure, width, m);
+    // The stage width, for every presentation. Only the expanded shape also takes the width its
+    // content grew to; passing that in as `width` made `shapeTarget` subtract the side insets a
+    // second time and centre the shape on the wrong axis (27.66 pt too narrow on the right).
+    const width = islandScreenWidth(stageWidthRef.current, m);
+    const expandedW = expandedWidthRef.current;
+    const target = shapeTarget(
+      p.presentation.kind,
+      measure,
+      width,
+      m,
+      p.presentation.kind === "expanded" ? expandedW : undefined,
+    );
     const prev = last.current;
     const first = prev.key === null;
     const keyChanged = prev.key !== p.contentKey;
     const change = p.change;
     const changeStamped = change !== null && change.id !== prev.changeId;
     // Snap on mount, on instant changes, and when the container resizes (desktop window, rotation).
-    const instant = first || (changeStamped && change.instant) || prev.width !== width;
+    const instant =
+      first ||
+      (changeStamped && change.instant) ||
+      prev.width !== width ||
+      (p.presentation.kind === "expanded" && prev.expandedWidth !== expandedW);
     const startMs = (keyChanged || changeStamped) && change !== null ? change.at : p.clock.now();
     const pressChanged = prev.pressed !== p.pressed;
 
@@ -2706,6 +2718,7 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
       kind: toKind,
       changeId: change?.id ?? null,
       width,
+      expandedWidth: expandedW,
       target,
       pressed: p.pressed,
       joining,

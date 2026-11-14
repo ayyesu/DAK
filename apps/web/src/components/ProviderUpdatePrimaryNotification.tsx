@@ -20,6 +20,7 @@ import {
   getProviderUpdateInitialToastView,
   getProviderUpdateProgressToastView,
   getProviderUpdateRejectedToastView,
+  getProviderUpdateRunningToastView,
   providerUpdateNotificationKey,
   shouldShowPrimaryProviderUpdateToast,
   type ProviderUpdateToastView,
@@ -27,6 +28,8 @@ import {
 import { useAtomCommand } from "../state/use-atom-command";
 
 const seenProviderUpdateNotificationKeys = new Set<string>();
+/** The longest a running update's notice stays up with no final state: a provider install can be slow. */
+const PROVIDER_UPDATE_BUSY_MAX_MS = 5 * 60_000;
 type ActiveProviderUpdateNotice =
   | {
       readonly kind: "prompt";
@@ -40,28 +43,44 @@ type ActiveProviderUpdateNotice =
       readonly providerCount: number;
     };
 
+/** What the compact pill has room to say about each phase; the full title is for the expanded view. */
+const COMPACT_LABEL: Record<ProviderUpdateToastView["phase"], string> = {
+  initial: "Update",
+  running: "Updating",
+  succeeded: "Updated",
+  failed: "Update failed",
+  unchanged: "Still outdated",
+};
+
 function showProviderUpdateNotice(input: {
   readonly view: ProviderUpdateToastView;
   readonly openSettings: () => void;
   readonly update?: (() => void) | undefined;
 }) {
-  const tone =
-    input.view.type === "success" ? "success" : input.view.type === "error" ? "error" : "warning";
-  const duration =
-    input.view.type === "loading" || input.view.phase === "running" ? null : undefined;
+  const { view } = input;
+  const busy = view.type === "loading" || view.phase === "running";
+  const tone = view.type === "success" ? "success" : view.type === "error" ? "error" : "warning";
+  // A running update is capped, not endless: if the provider never reports a final state the
+  // notice still goes away. Every other notice keeps the island's default time.
   showIslandNotification({
     tone,
-    kind: input.view.type === "success" ? "completion" : "input",
-    title: input.view.title,
-    body: input.view.description,
-    action:
-      input.update === undefined
+    // Only a finished update is a completion. Everything else about an update is an update, so it
+    // gets the download glyph, not the shield that means "approval needed".
+    kind: view.type === "success" ? "completion" : "update",
+    title: view.title,
+    body: view.description,
+    compactLabel: COMPACT_LABEL[view.phase],
+    busy,
+    action: busy
+      ? null
+      : input.update === undefined
         ? { label: "Settings", open: input.openSettings }
-        : { label: "Update", open: input.update },
-    ...(input.update === undefined
+        : // Starting the update must not dismiss the island: the busy notice replaces this one.
+          { label: "Update", open: input.update, keepOpen: true },
+    ...(input.update === undefined || busy
       ? {}
       : { secondaryAction: { label: "Settings", open: input.openSettings } }),
-    ...(duration === undefined ? {} : { durationMs: duration }),
+    ...(busy ? { durationMs: PROVIDER_UPDATE_BUSY_MAX_MS } : {}),
   });
 }
 
@@ -176,6 +195,11 @@ export function ProviderUpdatePrimaryNotification() {
         providerCount,
       };
       activeNoticeRef.current = activeUpdate;
+      // Answer the press at once: the island turns into a spinner instead of vanishing.
+      showProviderUpdateNotice({
+        view: getProviderUpdateRunningToastView(providerCount),
+        openSettings: openProviderSettings,
+      });
 
       void (async () => {
         const results = [];

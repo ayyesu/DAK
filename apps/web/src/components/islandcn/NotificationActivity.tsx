@@ -22,17 +22,32 @@ import type { ReactNode } from "react";
 import { useIsland } from "~/lib/island";
 import { IslandButton } from "./island-button";
 import { ExpandedBottom } from "./island-layout";
-import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
+import { Spinner } from "./spinner";
+import { CompactText, TitleStack } from "./island-text";
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
 import { islandAccent } from "./theme";
 import { islandActivityPriority } from "./activity-priority";
 
+const noop = () => {};
 const ISLAND_NOTIFICATION_EVENT = "dak:island-notification";
 const NOTIFICATION_ID = "dak-notification";
 /** How long a transient notice lingers before it dismisses itself. */
 const NOTICE_TTL_MS = 6_500;
+/** A notice with two choices needs time to be read and answered. */
+const CHOICE_TTL_MS = 15_000;
 
 export type IslandNotificationTone = "success" | "warning" | "error";
+
+export interface IslandNotificationAction {
+  readonly label: string;
+  readonly open: () => void;
+  /**
+   * Leave the island up after the press, for an action that starts work: its producer replaces
+   * the notice with the next state (busy, then done) instead of the island vanishing. Defaults
+   * to false.
+   */
+  readonly keepOpen?: boolean;
+}
 
 export interface IslandNotificationPayload {
   readonly tone: IslandNotificationTone;
@@ -41,11 +56,15 @@ export interface IslandNotificationPayload {
   readonly title: string;
   readonly body: string;
   /** Null when the notice has nowhere to navigate to. */
-  readonly action: { readonly label: string; readonly open: () => void } | null;
+  readonly action: IslandNotificationAction | null;
   /** An optional second action for compact two-choice notices, such as updates. */
-  readonly secondaryAction?: { readonly label: string; readonly open: () => void } | null;
+  readonly secondaryAction?: IslandNotificationAction | null;
   /** `null` keeps a progress notice present until its producer replaces it. */
   readonly durationMs?: number | null;
+  /** Work is in progress: a spinner replaces the glyph and the buttons go. Defaults to false. */
+  readonly busy?: boolean;
+  /** The few words the compact pill has room for. Defaults to `title`, which is often too long. */
+  readonly compactLabel?: string;
 }
 
 /** Hand a notice to the island; the bus keeps the coordinator router-free. */
@@ -86,6 +105,7 @@ const toneColor = (tone: IslandNotificationTone): string =>
 
 const toneIcon = (payload: IslandNotificationPayload, size: number): ReactNode => {
   const color = toneColor(payload.tone);
+  if (payload.busy === true) return <Spinner size={size} color={color} />;
   if (payload.kind === "completion") {
     return <CircleCheckIcon size={size} strokeWidth={2.25} color={color} aria-hidden />;
   }
@@ -148,9 +168,9 @@ export const IslandNotificationActivity = () => {
   }, [armDismissTimer, clearDismissTimer, visible]);
 
   useEffect(() => {
-    const makeOnPress = (open: () => void) => () => {
-      open();
-      endCurrent();
+    const makeOnPress = (action: IslandNotificationAction) => () => {
+      action.open();
+      if (action.keepOpen !== true) endCurrent();
     };
 
     const listener = (event: Event) => {
@@ -158,37 +178,40 @@ export const IslandNotificationActivity = () => {
       if (!payload) return;
 
       const color = toneColor(payload.tone);
-      const onPress = payload.action === null ? undefined : makeOnPress(payload.action.open);
+      const action = payload.busy === true ? null : payload.action;
+      // A tap on the island's body fires this. With two choices one of them commits (Update), so
+      // the body must not: it only expands or collapses. A single action may answer the tap.
+      const hasChoice = payload.secondaryAction !== null && payload.secondaryAction !== undefined;
+      const onPress = action === null || hasChoice ? undefined : makeOnPress(action);
       const content = {
         compact: {
           leading: <IslandCompactGlyph>{toneIcon(payload, 20)}</IslandCompactGlyph>,
-          trailing: <CompactText color={color}>{payload.title}</CompactText>,
+          trailing: (
+            <CompactText color={color}>{payload.compactLabel ?? payload.title}</CompactText>
+          ),
         },
         expanded: {
           leading: <IslandTile color={color}>{toneIcon(payload, 26)}</IslandTile>,
-          center: (
-            <TitleStack
-              title={<ExpandedTitle>{payload.title}</ExpandedTitle>}
-              subtitle={<ExpandedSubtitle>{payload.body}</ExpandedSubtitle>}
-            />
-          ),
+          // Plain strings: TitleStack already sets them in the title and subtitle styles, and a
+          // wrapped subtitle (a nested one-line span) would defeat its line clamp.
+          center: <TitleStack title={payload.title} subtitle={payload.body} subtitleLines={2} />,
           bottom:
-            payload.action === null ? undefined : (
+            action === null ? undefined : (
               <ExpandedBottom reach="action">
                 {payload.secondaryAction === null || payload.secondaryAction === undefined ? (
                   <IslandButton
                     tone={{ kind: "accent", color }}
-                    onPress={onPress!}
-                    label={payload.action.label}
+                    onPress={makeOnPress(action)}
+                    label={action.label}
                   >
-                    {payload.action.label}
+                    {action.label}
                   </IslandButton>
                 ) : (
                   <div className="flex min-w-0 gap-2">
                     <IslandButton
                       size="compact"
                       tone={{ kind: "neutral" }}
-                      onPress={makeOnPress(payload.secondaryAction.open)}
+                      onPress={makeOnPress(payload.secondaryAction)}
                       label={payload.secondaryAction.label}
                     >
                       {payload.secondaryAction.label}
@@ -196,10 +219,10 @@ export const IslandNotificationActivity = () => {
                     <IslandButton
                       size="compact"
                       tone={{ kind: "accent", color }}
-                      onPress={onPress!}
-                      label={payload.action.label}
+                      onPress={makeOnPress(action)}
+                      label={action.label}
                     >
-                      {payload.action.label}
+                      {action.label}
                     </IslandButton>
                   </div>
                 )}
@@ -212,7 +235,11 @@ export const IslandNotificationActivity = () => {
         island.update(NOTIFICATION_ID, {
           ...content,
           alert: true,
-          ...(onPress === undefined ? {} : { onPress }),
+          // Morph the old state into the new one (prompt, busy, done) instead of cutting.
+          transition: "crossfade",
+          // `onPress` is kept when absent from an update, so a notice with no handler must
+          // replace the old one's, or a tap would run the previous notice's action.
+          onPress: onPress ?? noop,
         });
       } else {
         island.start({
@@ -225,7 +252,10 @@ export const IslandNotificationActivity = () => {
         });
         showingRef.current = true;
       }
-      const ttl = payload.durationMs === null ? null : (payload.durationMs ?? NOTICE_TTL_MS);
+      const ttl =
+        payload.durationMs === null
+          ? null
+          : (payload.durationMs ?? (hasChoice && !payload.busy ? CHOICE_TTL_MS : NOTICE_TTL_MS));
       ttlRef.current = ttl;
       // A notice already on screen has its clock running; a new one waits for its turn.
       if (armedRef.current) armDismissTimer(ttl);

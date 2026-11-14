@@ -130,11 +130,17 @@ export const compactSides = (
   };
 };
 
+/**
+ * `screenWidth` is the stage width (`islandScreenWidth`), never an expanded width. The expanded
+ * shape is `expandedWidth` wide unless the caller passes the width its content grew to
+ * (`expandedWidthOverride`, already net of the side insets): the inset is subtracted once, here.
+ */
 export const shapeTarget = (
   kind: PresentationKind,
   measure: ContentMeasure,
   screenWidth: number,
   metrics: IslandMetrics,
+  expandedWidthOverride?: number,
 ): ShapeTarget => {
   const top = metrics.top;
   switch (kind) {
@@ -192,7 +198,7 @@ export const shapeTarget = (
     }
     case "expanded": {
       const e = metrics.expanded;
-      const half = expandedWidth(screenWidth, metrics) / 2;
+      const half = (expandedWidthOverride ?? expandedWidth(screenWidth, metrics)) / 2;
       const height = clamp(
         measure.expandedHeight + e.padding.top + e.padding.bottom,
         e.minHeight,

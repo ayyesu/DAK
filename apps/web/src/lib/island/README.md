@@ -37,7 +37,7 @@ const Checkout = () => {
 };
 ```
 
-On a desktop page, pin it to the window instead: `<Island placement="viewport" />`. Wider containers clamp the island to phone width (402 pt), so the expanded view is 374 wide everywhere.
+On a desktop page, pin it to the window instead: `<Island placement="viewport" />`. Wider containers clamp the compact shapes to phone width (402 pt), while the expanded view starts at 374.34 wide and grows with its content (capped at 660 pt) instead of staying 374 everywhere.
 
 ## Presentations
 

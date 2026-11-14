@@ -151,7 +151,8 @@ function ProviderUpdateEnvironmentsNotification() {
     });
     showIslandNotification({
       tone: "warning",
-      kind: "input",
+      kind: "update",
+      compactLabel: "Update",
       title: view.title,
       body: view.description,
       action: {
