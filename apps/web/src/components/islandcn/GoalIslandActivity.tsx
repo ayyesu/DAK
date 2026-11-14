@@ -26,6 +26,7 @@ import { IslandButton } from "./island-button";
 import { ExpandedBottom } from "./island-layout";
 import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
+import { LinearProgress } from "./linear-progress";
 import { useIslandActions } from "~/lib/island";
 import { islandAccent, islandThemeAccent } from "./theme";
 import { islandActivityPriority } from "./activity-priority";
@@ -63,6 +64,13 @@ const compactLabel = (goal: GoalSummary): string => {
   if (goal.status === "waiting_provider") return "Waiting";
   if (goal.status === "failed") return "Review";
   return goal.progress !== null ? `${goal.progress}%` : "Goal";
+};
+
+/** A calm, evidence-based progress cue for the expanded activity. */
+const goalProgressValue = (goal: GoalSummary): number | null => {
+  if (goal.progress !== null) return Math.min(100, Math.max(0, goal.progress)) / 100;
+  if (goal.totalTaskCount === 0) return null;
+  return Math.min(1, Math.max(0, goal.completedTaskCount / goal.totalTaskCount));
 };
 
 const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId }) => {
@@ -128,6 +136,7 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
     const attention = goalNeedsIslandAttention(active);
     const color = goalColor(active);
     const actionLabel = goalIslandActionLabel(active);
+    const progress = attention ? null : goalProgressValue(active);
     const content = {
       compact: {
         leading: (
@@ -155,7 +164,15 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
           />
         ),
         bottom: canOpen ? (
-          <ExpandedBottom reach="action">
+          <ExpandedBottom reach="action" gap={6}>
+            {progress === null ? null : (
+              <LinearProgress
+                value={progress}
+                color={color}
+                height={4}
+                label={`Goal progress: ${Math.round(progress * 100)}%`}
+              />
+            )}
             <IslandButton tone={{ kind: "accent", color }} onPress={openGoal} label={actionLabel}>
               {actionLabel}
             </IslandButton>
