@@ -27,7 +27,7 @@ import { ExpandedBottom } from "./island-layout";
 import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
 import { useIslandActions } from "~/lib/island";
-import { islandAccent } from "./theme";
+import { islandAccent, islandThemeAccent } from "./theme";
 import { islandActivityPriority } from "./activity-priority";
 
 /** The goal most worthy of the ambient surface: intervention before background work. */
@@ -56,7 +56,7 @@ const goalColor = (goal: GoalSummary) =>
     ? islandAccent.red
     : goalNeedsIslandAttention(goal)
       ? islandAccent.orange
-      : islandAccent.purple;
+      : islandThemeAccent;
 
 const compactLabel = (goal: GoalSummary): string => {
   if (goal.question !== null || goal.status === "needs_input") return "Reply";

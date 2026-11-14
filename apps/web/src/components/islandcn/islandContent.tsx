@@ -28,6 +28,7 @@ export const IslandTile = ({
       height: islandSize.expandedTile,
       borderRadius: islandSize.expandedTileRadius,
       background: tint(color, 0.16),
+      transition: "background-color 160ms ease-out",
       clipPath: continuousCorner(
         islandSize.expandedTile,
         islandSize.expandedTile,

@@ -36,6 +36,13 @@ export const islandAccent = {
 
 export type IslandAccentName = keyof typeof islandAccent;
 
+/**
+ * DAK's selected theme accent, lifted slightly for reliable contrast on the
+ * island's black surface. It is a CSS value rather than a sampled colour, so
+ * theme changes apply immediately without rebuilding live activities.
+ */
+export const islandThemeAccent = "color-mix(in srgb, var(--app-theme-accent, #bf5af2) 78%, white)";
+
 /** Neutral ink on the black island. */
 export const islandInk = {
   primary: "#ffffff",
@@ -223,10 +230,10 @@ export const trackingFor = (size: number): number => trackingTable[size] ?? 0;
 export const continuousCorner = (width: number, height: number, radius: number): string =>
   `path("${continuousRectPath(0, 0, width, height, radius, islandMetrics.corner.smoothing)}")`;
 
-/** Mixes an accent with transparency: `tint("#ff9f0a", 0.2)`. Accepts #rgb and #rrggbb. */
+/** Mixes an accent with transparency: `tint("#ff9f0a", 0.2)`. Accepts CSS theme colours too. */
 export const tint = (hex: string, alpha: number): string => {
   const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex);
-  if (!match?.[1]) return hex;
+  if (!match?.[1]) return `color-mix(in srgb, ${hex} ${Math.round(alpha * 100)}%, transparent)`;
   const digits = match[1].length === 3 ? [...match[1]].map((d) => d + d).join("") : match[1];
   const value = Number.parseInt(digits, 16);
   const r = (value >> 16) & 255;
