@@ -337,6 +337,11 @@ function createTextGeneration(
       Effect.succeed({
         title: "Update workflow",
       }),
+    generateIslandCopy: () =>
+      Effect.succeed({
+        detail: "Working on it",
+        compact: "Working",
+      }),
     ...overrides,
   };
 
@@ -380,6 +385,17 @@ function createTextGeneration(
           (cause) =>
             new TextGenerationError({
               operation: "generateThreadTitle",
+              detail: "fake text generation failed",
+              ...(cause !== undefined ? { cause } : {}),
+            }),
+        ),
+      ),
+    generateIslandCopy: (input) =>
+      implementation.generateIslandCopy(input).pipe(
+        Effect.mapError(
+          (cause) =>
+            new TextGenerationError({
+              operation: "generateIslandCopy",
               detail: "fake text generation failed",
               ...(cause !== undefined ? { cause } : {}),
             }),

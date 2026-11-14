@@ -24,11 +24,14 @@ import type * as TextGeneration from "./TextGeneration.ts";
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
+  buildIslandCopyPrompt,
   buildPrContentPrompt,
   buildThreadTitlePrompt,
 } from "./TextGenerationPrompts.ts";
 import {
+  isTextGenerationError,
   sanitizeCommitSubject,
+  sanitizeIslandCopy,
   sanitizePrTitle,
   sanitizeThreadTitle,
   toJsonSchemaObject,
@@ -341,10 +344,30 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
       });
       return { title: sanitizeThreadTitle(generated.title) };
     });
+  const generateIslandCopy: TextGeneration.TextGeneration["Service"]["generateIslandCopy"] =
+    Effect.fn("MuseTextGeneration.generateIslandCopy")(function* (input) {
+      const generated = yield* runMuseJson({
+        operation: "generateIslandCopy",
+        ...buildIslandCopyPrompt({ subject: input.subject }),
+        modelSelection: input.modelSelection,
+      });
+      return yield* Effect.try({
+        try: () => sanitizeIslandCopy("generateIslandCopy", generated),
+        catch: (cause) =>
+          isTextGenerationError(cause)
+            ? cause
+            : new TextGenerationError({
+                operation: "generateIslandCopy",
+                detail: "The model returned unusable island copy.",
+                cause,
+              }),
+      });
+    });
   return {
     generateCommitMessage,
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
+    generateIslandCopy,
   } satisfies TextGeneration.TextGeneration["Service"];
 });

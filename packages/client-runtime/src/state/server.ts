@@ -991,6 +991,14 @@ export function createServerEnvironmentAtoms<R, E>(
       tag: WS_METHODS.providerAuthSubscribe,
       idleTtlMs: 0,
     }),
+    islandGenerateCopy: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:island:generate-copy",
+      tag: WS_METHODS.islandGenerateCopy,
+      concurrency: {
+        mode: "singleFlight",
+        key: ({ environmentId, input }) => JSON.stringify([environmentId, input]),
+      },
+    }),
     startProviderAuth: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:provider:auth-start",
       tag: WS_METHODS.providerAuthStart,

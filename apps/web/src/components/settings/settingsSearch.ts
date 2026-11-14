@@ -364,6 +364,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["dynamic island notch macbook camera pill resting hide"],
   },
   {
+    id: "island-smart-text",
+    title: "Smart island text",
+    to: "/settings/appearance",
+    searchTerms: ["island smart text ai model goal status copy line provider text generation"],
+  },
+  {
     id: "time-format",
     title: "Time format",
     to: "/settings/general",

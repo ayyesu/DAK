@@ -136,6 +136,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.projectsEnsureScratch]: "orchestration",
   [WS_METHODS.projectsCreateNew]: "orchestration",
   [WS_METHODS.shellOpenInEditor]: "workspace",
+  [WS_METHODS.islandGenerateCopy]: "orchestration",
   [WS_METHODS.filesystemBrowse]: "workspace",
   [WS_METHODS.agentSessionsScan]: "workspace",
   [WS_METHODS.agentSessionsImport]: "workspace",

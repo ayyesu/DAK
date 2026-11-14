@@ -313,6 +313,16 @@ export type ChatWidth = typeof ChatWidth.Type;
 export const IslandStyle = Schema.Literals(["auto", "classic"]);
 export type IslandStyle = typeof IslandStyle.Type;
 
+/**
+ * Whether the goal island's short lines are written by the user's text-generation
+ * model. The deterministic copy always renders first; model copy only replaces it
+ * when it arrives quickly and passes validation. Off means the island never calls
+ * the model, so no goal text leaves the environment.
+ */
+export const IslandSmartText = Schema.Boolean.pipe(
+  Schema.withDecodingDefault(Effect.succeed(true)),
+);
+
 export const ClientSettingsSchema = Schema.Struct({
   notificationMode: NotificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("off" as const)),
@@ -323,6 +333,7 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   chatWidth: ChatWidth.pipe(Schema.withDecodingDefault(Effect.succeed("comfortable" as const))),
   islandStyle: IslandStyle.pipe(Schema.withDecodingDefault(Effect.succeed("auto" as const))),
+  islandSmartText: IslandSmartText,
   loadBalancingEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   loadBalancingWeights: LoadBalancingWeights.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   appearanceContrast: AppearanceContrast.pipe(
@@ -1869,6 +1880,7 @@ export const ClientSettingsPatch = Schema.Struct({
   diffColorScheme: Schema.optionalKey(DiffColorScheme),
   chatWidth: Schema.optionalKey(ChatWidth),
   islandStyle: Schema.optionalKey(IslandStyle),
+  islandSmartText: Schema.optionalKey(Schema.Boolean),
   loadBalancingEnabled: Schema.optionalKey(Schema.Boolean),
   loadBalancingWeights: Schema.optionalKey(LoadBalancingWeights),
   appearanceContrast: Schema.optionalKey(AppearanceContrast),

@@ -17,11 +17,14 @@ import type * as TextGeneration from "./TextGeneration.ts";
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
+  buildIslandCopyPrompt,
   buildPrContentPrompt,
   buildThreadTitlePrompt,
 } from "./TextGenerationPrompts.ts";
 import {
+  isTextGenerationError,
   sanitizeCommitSubject,
+  sanitizeIslandCopy,
   sanitizePrTitle,
   sanitizeThreadTitle,
 } from "./TextGenerationUtils.ts";
@@ -144,10 +147,32 @@ export function fromRunner(name: string, run: Runner): TextGeneration.TextGenera
       };
     });
 
+  const generateIslandCopy: TextGeneration.TextGeneration["Service"]["generateIslandCopy"] =
+    Effect.fn(`${name}.generateIslandCopy`)(function* (input) {
+      const generated = yield* run({
+        operation: "generateIslandCopy",
+        cwd: input.cwd,
+        modelSelection: input.modelSelection,
+        ...buildIslandCopyPrompt({ subject: input.subject }),
+      });
+      return yield* Effect.try({
+        try: () => sanitizeIslandCopy("generateIslandCopy", generated),
+        catch: (cause) =>
+          isTextGenerationError(cause)
+            ? cause
+            : new TextGenerationError({
+                operation: "generateIslandCopy",
+                detail: "The model returned unusable island copy.",
+                cause,
+              }),
+      });
+    });
+
   return {
     generateCommitMessage,
     generatePrContent,
     generateBranchName,
     generateThreadTitle,
+    generateIslandCopy,
   } satisfies TextGeneration.TextGeneration["Service"];
 }

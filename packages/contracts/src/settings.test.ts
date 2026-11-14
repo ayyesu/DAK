@@ -364,6 +364,23 @@ describe("ClientSettings island style", () => {
   });
 });
 
+describe("ClientSettings smart island text", () => {
+  it("defaults to on for settings saved before the option existed", () => {
+    expect(decodeClientSettings({}).islandSmartText).toBe(true);
+  });
+
+  it.each([true, false])("round-trips %s", (islandSmartText) => {
+    const settings = decodeClientSettings({ islandSmartText });
+    expect(encodeClientSettings(settings).islandSmartText).toBe(islandSmartText);
+    expect(decodeClientSettingsPatch({ islandSmartText }).islandSmartText).toBe(islandSmartText);
+  });
+
+  it("rejects non-boolean values", () => {
+    expect(() => decodeClientSettings({ islandSmartText: "yes" })).toThrow();
+    expect(() => decodeClientSettingsPatch({ islandSmartText: "yes" })).toThrow();
+  });
+});
+
 describe("ClientSettings load balancing", () => {
   it("requires opt-in when settings are new or omit load balancing", () => {
     expect(decodeClientSettings({}).loadBalancingEnabled).toBe(false);

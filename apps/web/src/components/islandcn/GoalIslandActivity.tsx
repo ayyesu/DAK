@@ -27,6 +27,8 @@ import { ExpandedBottom } from "./island-layout";
 import { CompactText, TitleStack } from "./island-text";
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
 import { LinearProgress } from "./linear-progress";
+import { buildIslandCopySubject } from "./islandCopy.logic";
+import { useIslandCopy } from "./useIslandCopy";
 import { useIslandActions } from "~/lib/island";
 import { islandAccent, islandThemeAccent } from "./theme";
 import { islandActivityPriority } from "./activity-priority";
@@ -83,6 +85,8 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
   const goals = goalsQuery.data?.goals ?? null;
   const showingRef = useRef(false);
   const wasAttentionRef = useRef(false);
+  const lastBaseKeyRef = useRef<string | null>(null);
+  const lastCopyKeyRef = useRef<string | null>(null);
 
   // An island activity belongs to the thread currently in view. Leaving that
   // thread restores the island to the state of the destination, rather than
@@ -93,9 +97,19 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
       : null;
   const activeRef = useRef(active);
   activeRef.current = active;
+  // LLM copy upgrades the deterministic lines when it lands; until then (and on any
+  // failure) the goal's own headline and label render. Deterministic copy is the
+  // source of truth; the model only replaces it.
+  const copy = useIslandCopy(
+    active === null ? null : buildIslandCopySubject(active),
+    active === null
+      ? { detail: "Goal", compact: "Goal" }
+      : { detail: goalIslandHeadline(active), compact: compactLabel(active) },
+    { environmentId, threadId: active?.threadId ?? null, scope: active?.id },
+  );
   // The query can retain the same goal while its presentation copy changes. Keep every
   // displayed field in the key so the island updates without reacting to a fresh query object.
-  const activeKey = active
+  const baseKey = active
     ? JSON.stringify([
         active.id,
         active.status,
@@ -110,6 +124,8 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
         active.threadId,
       ])
     : null;
+  const copyKey = `${copy.detail} ${copy.compact}`;
+  const activeKey = baseKey === null ? null : JSON.stringify([baseKey, copyKey]);
   const openGoal = useCallback(() => {
     const goal = activeRef.current;
     if (!goal?.threadId) return;
@@ -129,8 +145,17 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
         showingRef.current = false;
       }
       wasAttentionRef.current = false;
+      lastBaseKeyRef.current = null;
+      lastCopyKeyRef.current = null;
       return;
     }
+
+    // Copy-only changes (the LLM answer landing) update the two lines with a
+    // crossfade and no alert.
+    const onlyCopyChanged =
+      lastBaseKeyRef.current === baseKey && lastCopyKeyRef.current !== copyKey;
+    lastBaseKeyRef.current = baseKey;
+    lastCopyKeyRef.current = copyKey;
 
     const canOpen = active.threadId !== null;
     const attention = goalNeedsIslandAttention(active);
@@ -144,7 +169,7 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
             <TargetIcon size={20} strokeWidth={1.75} color={color} aria-hidden />
           </IslandCompactGlyph>
         ),
-        trailing: <CompactText color={color}>{compactLabel(active)}</CompactText>,
+        trailing: <CompactText color={color}>{copy.compact}</CompactText>,
       },
       minimal: (
         <IslandCompactGlyph>
@@ -165,7 +190,7 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
           <TitleStack
             title={active.title}
             titleLines={2}
-            subtitle={goalIslandHeadline(active)}
+            subtitle={copy.detail}
             subtitleLines={2}
           />
         ),
@@ -205,9 +230,10 @@ const GoalActivity = ({ environmentId }: { readonly environmentId: EnvironmentId
       ...content,
       priority: attention ? islandActivityPriority.goalAttention : islandActivityPriority.goal,
       onPress: openGoal,
-      ...(alert ? { alert, transition: "crossfade" as const } : {}),
+      ...(alert || onlyCopyChanged ? { transition: "crossfade" as const } : {}),
+      ...(alert ? { alert: true } : {}),
     });
-  }, [activeKey, environmentId, island, openGoal]);
+  }, [activeKey, baseKey, copy.detail, copy.compact, environmentId, island, openGoal]);
 
   useEffect(
     () => () => {

@@ -154,6 +154,8 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.projectsEnsureScratch]: AuthOrchestrationOperateScope,
   [WS_METHODS.projectsCreateNew]: AuthOrchestrationOperateScope,
   [WS_METHODS.shellOpenInEditor]: AuthOrchestrationOperateScope,
+  // Spends the user's model quota generating island copy; same scope as an operate call.
+  [WS_METHODS.islandGenerateCopy]: AuthOrchestrationOperateScope,
   [WS_METHODS.filesystemBrowse]: AuthFilesystemReadScope,
   [WS_METHODS.agentSessionsScan]: AuthOrchestrationReadScope,
   [WS_METHODS.agentSessionsImport]: AuthOrchestrationOperateScope,
