@@ -323,6 +323,8 @@ const ExpandedGrid = ({
             alignSelf: "start",
             justifyContent: "center",
             textAlign: "center",
+            minWidth: 0,
+            maxWidth: "100%",
             marginTop: centerTop,
           }}
         >

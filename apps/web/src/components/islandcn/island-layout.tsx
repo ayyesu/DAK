@@ -113,6 +113,7 @@ export const ExpandedBottom = ({
       gridTemplateColumns: "minmax(0, 1fr)",
       gap,
       minWidth: 0,
+      boxSizing: "border-box",
       contain: "inline-size",
       ...reachPadding[reach],
       ...style,
