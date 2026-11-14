@@ -2030,7 +2030,10 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
       const anim = shape.current;
       if (!anim) return;
       const { metrics: m, reduced, presentation } = live.current;
-      const width = presentation.kind === "expanded" ? expandedWidthRef.current : islandScreenWidth(stageWidthRef.current, m);
+      const width =
+        presentation.kind === "expanded"
+          ? expandedWidthRef.current
+          : islandScreenWidth(stageWidthRef.current, m);
       const t = nowMs / 1000;
       const frame = frameAt(anim, t, width, m);
       const { pill, bubble, paths } = frame;
@@ -2313,14 +2316,20 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
       const pad = exp.padding.side + (exp.padding.trailing ?? exp.padding.side);
       const gap = 10;
       const segments = [leadW, centerW, trailW].filter((w) => w > 0);
-      const natural = pad + segments.reduce((sum, w) => sum + w, 0) + gap * Math.max(0, segments.length - 1);
-      const baseW = Math.ceil(expandedWidthFor(islandScreenWidth(stageWidthRef.current, p.metrics), p.metrics));
+      const natural =
+        pad + segments.reduce((sum, w) => sum + w, 0) + gap * Math.max(0, segments.length - 1);
+      const baseW = Math.ceil(
+        expandedWidthFor(islandScreenWidth(stageWidthRef.current, p.metrics), p.metrics),
+      );
       const maxW = Math.floor(Math.min(stageWidthRef.current, 660) - 2 * exp.sideInset);
       const next = Math.min(Math.max(Math.ceil(natural), baseW), Math.max(baseW, maxW));
       setExpandedWidth((prev) => (Math.abs(next - prev) > 0.5 ? next : prev));
     }
 
-    const width = p.presentation.kind === "expanded" ? expandedWidthRef.current : islandScreenWidth(stageWidthRef.current, m);
+    const width =
+      p.presentation.kind === "expanded"
+        ? expandedWidthRef.current
+        : islandScreenWidth(stageWidthRef.current, m);
     const target = shapeTarget(p.presentation.kind, measure, width, m);
     const prev = last.current;
     const first = prev.key === null;

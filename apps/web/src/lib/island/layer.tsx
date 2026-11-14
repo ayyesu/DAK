@@ -307,19 +307,19 @@ const ExpandedGrid = ({
             {presentation.leading}
           </div>
         </div>
-          <div
-            ref={(element) => register("expandedCenter", element)}
-            style={{
-              ...region,
-              gridArea: "center",
-              position: "relative",
-              left: centerShift,
-              display: "flex",
-              alignSelf: "center",
-              justifyContent: "center",
-              textAlign: "center",
-            }}
-          >
+        <div
+          ref={(element) => register("expandedCenter", element)}
+          style={{
+            ...region,
+            gridArea: "center",
+            position: "relative",
+            left: centerShift,
+            display: "flex",
+            alignSelf: "center",
+            justifyContent: "center",
+            textAlign: "center",
+          }}
+        >
           <div ref={center} style={intrinsic}>
             {presentation.center}
           </div>
