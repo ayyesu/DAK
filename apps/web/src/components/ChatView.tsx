@@ -10,6 +10,7 @@ import {
 import * as DateTime from "effect/DateTime";
 import { restorePlanFollowUpComposer } from "./ChatView.logic";
 import { ComposerIslandActivities } from "./islandcn/ComposerIslandActivities";
+import { ComposerFeedbackIslandActivity } from "./islandcn/ComposerFeedbackIslandActivity";
 import { assistantCitationsToPlainText } from "@dak/shared/assistantCitations";
 import { prepareQueuedEditAttachments, recoverQueuedMessageEdit } from "./chat/queuedMessageEdit";
 import {
@@ -11485,6 +11486,7 @@ export default function ChatView(props: ChatViewProps) {
         interactionModeEnabled={interactionModeEnabled}
         onToggleInteractionMode={toggleInteractionMode}
       />
+      <ComposerFeedbackIslandActivity uploading={feedbackUploading} />
       <Dialog
         open={
           deviceSetupThread !== null &&
