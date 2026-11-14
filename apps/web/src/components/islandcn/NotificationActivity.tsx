@@ -11,14 +11,15 @@
 import {
   CircleAlertIcon,
   CircleCheckIcon,
+  DownloadIcon,
   MessageCircleQuestionIcon,
   ShieldQuestionIcon,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import type { ReactNode } from "react";
 
-import { useIslandActions } from "~/lib/island";
+import { useIsland } from "~/lib/island";
 import { IslandButton } from "./island-button";
 import { ExpandedBottom } from "./island-layout";
 import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
@@ -35,8 +36,8 @@ export type IslandNotificationTone = "success" | "warning" | "error";
 
 export interface IslandNotificationPayload {
   readonly tone: IslandNotificationTone;
-  /** What kind of thing happened: a finished run, or a waiting one. */
-  readonly kind: "completion" | "input";
+  /** What kind of thing happened: a finished run, a waiting one, or an update. */
+  readonly kind: "completion" | "input" | "update";
   readonly title: string;
   readonly body: string;
   /** Null when the notice has nowhere to navigate to. */
@@ -88,6 +89,10 @@ const toneIcon = (payload: IslandNotificationPayload, size: number): ReactNode =
   if (payload.kind === "completion") {
     return <CircleCheckIcon size={size} strokeWidth={2.25} color={color} aria-hidden />;
   }
+  // A failed update reads as a failure; the download glyph would not.
+  if (payload.kind === "update" && payload.tone !== "error") {
+    return <DownloadIcon size={size} strokeWidth={2.25} color={color} aria-hidden />;
+  }
   return payload.tone === "error" ? (
     <CircleAlertIcon size={size} strokeWidth={2.25} color={color} aria-hidden />
   ) : payload.tone === "warning" ? (
@@ -98,29 +103,54 @@ const toneIcon = (payload: IslandNotificationPayload, size: number): ReactNode =
 };
 
 export const IslandNotificationActivity = () => {
-  const island = useIslandActions();
+  const island = useIsland();
   const dismissTimer = useRef<number | null>(null);
   const showingRef = useRef(false);
+  /** Whether this notice's clock has started; it starts only once the notice is on screen. */
+  const armedRef = useRef(false);
+  const ttlRef = useRef<number | null>(null);
+  const visible = island.activities[0]?.id === NOTIFICATION_ID;
+
+  const clearDismissTimer = useCallback(() => {
+    if (dismissTimer.current !== null) window.clearTimeout(dismissTimer.current);
+    dismissTimer.current = null;
+  }, []);
+
+  const endCurrent = useCallback(() => {
+    clearDismissTimer();
+    armedRef.current = false;
+    showingRef.current = false;
+    island.end(NOTIFICATION_ID);
+  }, [clearDismissTimer, island]);
+
+  const armDismissTimer = useCallback(
+    (durationMs: number | null) => {
+      clearDismissTimer();
+      armedRef.current = true;
+      if (durationMs === null) return;
+      dismissTimer.current = window.setTimeout(endCurrent, durationMs);
+    },
+    [clearDismissTimer, endCurrent],
+  );
+
+  // A notice can wait behind higher-priority activities, such as a thread blocked on
+  // approval. Its clock runs only while it is on screen: news the user never saw is
+  // never spent, and a notice pushed aside gets its full time when it returns.
+  useEffect(() => {
+    if (!showingRef.current) return;
+    if (visible) {
+      if (!armedRef.current) armDismissTimer(ttlRef.current);
+      return;
+    }
+    if (!armedRef.current) return;
+    clearDismissTimer();
+    armedRef.current = false;
+  }, [armDismissTimer, clearDismissTimer, visible]);
 
   useEffect(() => {
-    const clearDismissTimer = () => {
-      if (dismissTimer.current !== null) window.clearTimeout(dismissTimer.current);
-      dismissTimer.current = null;
-    };
-    const armDismissTimer = (durationMs: number | null | undefined) => {
-      clearDismissTimer();
-      if (durationMs === null) return;
-      dismissTimer.current = window.setTimeout(() => {
-        island.end(NOTIFICATION_ID);
-        showingRef.current = false;
-        dismissTimer.current = null;
-      }, durationMs ?? NOTICE_TTL_MS);
-    };
     const makeOnPress = (open: () => void) => () => {
       open();
-      clearDismissTimer();
-      island.end(NOTIFICATION_ID);
-      showingRef.current = false;
+      endCurrent();
     };
 
     const listener = (event: Event) => {
@@ -195,7 +225,10 @@ export const IslandNotificationActivity = () => {
         });
         showingRef.current = true;
       }
-      armDismissTimer(payload.durationMs);
+      const ttl = payload.durationMs === null ? null : (payload.durationMs ?? NOTICE_TTL_MS);
+      ttlRef.current = ttl;
+      // A notice already on screen has its clock running; a new one waits for its turn.
+      if (armedRef.current) armDismissTimer(ttl);
     };
 
     window.addEventListener(ISLAND_NOTIFICATION_EVENT, listener);
@@ -204,7 +237,7 @@ export const IslandNotificationActivity = () => {
       clearDismissTimer();
       if (showingRef.current) island.end(NOTIFICATION_ID);
     };
-  }, [island]);
+  }, [armDismissTimer, clearDismissTimer, endCurrent, island]);
 
   return null;
 };

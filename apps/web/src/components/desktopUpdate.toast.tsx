@@ -9,7 +9,7 @@ import { toastManager } from "./ui/toast";
 
 type DesktopUpdateShell = Pick<DesktopBridge, "openExternal">;
 
-async function openDesktopUpdateReleaseNotes(
+export async function openDesktopUpdateReleaseNotes(
   shell: DesktopUpdateShell | undefined,
   releaseUrl: string,
 ): Promise<void> {

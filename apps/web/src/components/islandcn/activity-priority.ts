@@ -6,7 +6,6 @@
 export const islandActivityPriority = {
   plan: 10,
   feedback: 40,
-  desktopUpdate: 50,
   notification: 60,
   goal: 70,
   goalAttention: 90,

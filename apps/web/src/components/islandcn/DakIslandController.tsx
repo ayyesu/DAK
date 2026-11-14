@@ -2,188 +2,183 @@
  * Registers DAK's global Dynamic Island activities. Lives in the root route,
  * so it sees every environment and thread, not just the routed one:
  *
- * - "Check for updates" (Electron only): mirrors the desktop update state,
- *   expands to an action button. The idle case stays invisible at the bottom
- *   of the stack; it surfaces on its own when there is news.
- * - "Needs your input": any thread blocked on an approval or a user question
- *   anywhere in the workspace. Alerts once on the transition into blocked.
+ * - "Approval needed" / "Input needed": one activity per thread blocked on an
+ *   approval or a user question, anywhere in the workspace. Each names its thread
+ *   and waits until that thread is answered, with no timeout and no queue.
+ * - Desktop update news (Electron only): a transient notice when the update
+ *   state gains something to act on. The sidebar's update control owns the
+ *   whole flow; this only points at it.
  *
  * Composer-local activities (plan mode, goal composer) live in the chat view,
  * next to the state they reflect.
  */
 
-import {
-  RefreshCwIcon,
-  CheckIcon,
-  DownloadIcon,
-  MessageCircleQuestionIcon,
-  PowerIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
-import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { MessageCircleQuestionIcon, ShieldQuestionIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import type { DesktopUpdateState } from "@dak/contracts";
+import type { EnvironmentThreadShell } from "@dak/client-runtime/state/shell";
 
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 
 import { useThreadShells } from "~/state/entities";
 import { useDesktopUpdateState } from "~/state/desktopUpdate";
 import { isElectron } from "~/env";
-import { ensureLocalApi } from "~/localApi";
-import { stackedThreadToast, toastManager } from "../ui/toast";
-import { showDesktopUpdateDownloadedToast } from "../desktopUpdate.toast";
-import {
-  canCheckForUpdate,
-  getDesktopUpdateInstallConfirmationMessage,
-  getDesktopUpdateActionError,
-  getDesktopUpdateReleaseUrl,
-  isDesktopUpdateButtonDisabled,
-  resolveDesktopUpdateButtonAction,
-  shouldToastDesktopUpdateActionResult,
-} from "../desktopUpdate.logic";
 import { useIslandActions } from "~/lib/island";
+import { revealSidebarUpdateControl } from "../sidebar/sidebarUpdateControlBus";
 import { IslandButton } from "./island-button";
 import { ExpandedBottom } from "./island-layout";
-import { Spinner } from "./spinner";
 import { GoalIslandActivities } from "./GoalIslandActivity";
-import { CaptionButton } from "./island-layout";
+import { showIslandNotification } from "./NotificationActivity";
 import { CompactText, ExpandedSubtitle, ExpandedTitle, TitleStack } from "./island-text";
 import { IslandCompactGlyph, IslandTile } from "./islandContent";
-import { LinearProgress } from "./linear-progress";
-import { islandAccent, islandInk } from "./theme";
+import { islandAccent } from "./theme";
 import { islandActivityPriority } from "./activity-priority";
 
-const NEEDS_INPUT_ID = "needs-input";
-const DESKTOP_UPDATE_ID = "desktop-update";
+/** One activity per thread, so two blocked threads are two pills, not one queue. */
+const needsInputId = (shell: EnvironmentThreadShell) =>
+  `needs-input:${shell.environmentId}:${shell.id}`;
 
-/** Blocked means the agent stopped and is waiting on a human. */
-const useBlockedThreads = () => {
-  const shells = useThreadShells();
-  return shells.filter((shell) => shell.hasPendingApprovals || shell.hasPendingUserInput);
+/** What the thread is waiting for, in the sidebar's own words; an approval outranks the question. */
+const needsInputKind = (shell: EnvironmentThreadShell): "approval" | "input" | null =>
+  shell.hasPendingApprovals ? "approval" : shell.hasPendingUserInput ? "input" : null;
+
+const needsInputLabel = (kind: "approval" | "input", title: string): string =>
+  `${kind === "approval" ? "Approval" : "Input"} needed: ${title}`;
+
+const needsInputContent = (kind: "approval" | "input", title: string, onOpen: () => void) => {
+  const accent = islandAccent.orange;
+  const glyph = (size: number) =>
+    kind === "approval" ? (
+      <ShieldQuestionIcon size={size} strokeWidth={2} color={accent} aria-hidden />
+    ) : (
+      <MessageCircleQuestionIcon size={size} strokeWidth={2} color={accent} aria-hidden />
+    );
+  const heading = kind === "approval" ? "Approval needed" : "Input needed";
+
+  return {
+    compact: {
+      leading: <IslandCompactGlyph>{glyph(21)}</IslandCompactGlyph>,
+      trailing: (
+        <CompactText color={accent}>{kind === "approval" ? "Approval" : "Input"}</CompactText>
+      ),
+    },
+    minimal: <IslandCompactGlyph>{glyph(21)}</IslandCompactGlyph>,
+    expanded: {
+      leading: <IslandTile color={accent}>{glyph(26)}</IslandTile>,
+      center: (
+        <TitleStack
+          title={<ExpandedTitle>{heading}</ExpandedTitle>}
+          subtitle={<ExpandedSubtitle>{title}</ExpandedSubtitle>}
+        />
+      ),
+      bottom: (
+        <ExpandedBottom reach="action">
+          <IslandButton
+            tone={{ kind: "accent", color: accent }}
+            onPress={onOpen}
+            label={`Open ${title}`}
+          >
+            Open thread
+          </IslandButton>
+        </ExpandedBottom>
+      ),
+    },
+  };
 };
 
-const needsInputContent = (count: number, firstTitle: string | null, onOpen: () => void) => ({
-  compact: {
-    leading: (
-      <IslandCompactGlyph>
-        <MessageCircleQuestionIcon
-          size={21}
-          strokeWidth={2}
-          color={islandAccent.orange}
-          aria-hidden
-        />
-      </IslandCompactGlyph>
-    ),
-    trailing: (
-      <CompactText color={islandAccent.orange} style={{ fontVariantNumeric: "tabular-nums" }}>
-        {count === 1 ? "1 thread" : `${count} threads`}
-      </CompactText>
-    ),
-  },
-  minimal: (
-    <IslandCompactGlyph>
-      <MessageCircleQuestionIcon
-        size={21}
-        strokeWidth={2}
-        color={islandAccent.orange}
-        aria-hidden
-      />
-    </IslandCompactGlyph>
-  ),
-  expanded: {
-    leading: (
-      <IslandTile color={islandAccent.orange}>
-        <MessageCircleQuestionIcon
-          size={26}
-          strokeWidth={2}
-          color={islandAccent.orange}
-          aria-hidden
-        />
-      </IslandTile>
-    ),
-    center: (
-      <TitleStack
-        title={<ExpandedTitle>Needs your input</ExpandedTitle>}
-        subtitle={
-          <ExpandedSubtitle>
-            {firstTitle === null
-              ? count === 1
-                ? "A thread is blocked on you"
-                : `${count} threads are blocked on you`
-              : count > 1
-                ? `${firstTitle} · +${count - 1} more`
-                : firstTitle}
-          </ExpandedSubtitle>
-        }
-      />
-    ),
-    bottom: (
-      <ExpandedBottom reach="action">
-        <IslandButton
-          tone={{ kind: "accent", color: islandAccent.orange }}
-          onPress={onOpen}
-          label="Open the blocked thread"
-        >
-          Open thread
-        </IslandButton>
-      </ExpandedBottom>
-    ),
-  },
-});
-
-const NeedsInputActivity = () => {
+/**
+ * One activity per thread waiting on a human, the way the pre-island "Input needed"
+ * and "Approval needed" notices worked: it names the thread, offers to open it, and
+ * stays for as long as the agent is waiting. Nothing times it out and nothing queues
+ * behind it: a blocked agent has stopped, so the only ways out are answering it or
+ * cancelling it. The thread already open in front of the user needs no pill, because
+ * its approval UI is on screen.
+ */
+const NeedsInputActivities = () => {
   const island = useIslandActions();
   const navigate = useNavigate();
-  const blocked = useBlockedThreads();
-  const blockedRef = useRef(blocked);
-  blockedRef.current = blocked;
-  const prevCountRef = useRef<number | null>(null);
-  const showingRef = useRef(false);
-  const blockedCount = blocked.length;
-  const firstBlockedTitle = blocked[0]?.title ?? null;
-  const openFirst = useCallback(() => {
-    const first = blockedRef.current[0];
-    if (!first) return;
-    island.collapse();
-    void navigate({
-      to: "/$environmentId/$threadId",
-      params: { environmentId: first.environmentId, threadId: first.id },
-    });
-  }, [island, navigate]);
-
+  const { environmentId: routedEnvironmentId, threadId: routedThreadId } = useParams({
+    strict: false,
+  });
+  const shells = useThreadShells();
+  // Per-activity content, so a shell emission that changes nothing the card shows
+  // never reaches the island.
+  const contentRef = useRef(new Map<string, string>());
+  const registeredRef = useRef(new Set<string>());
+  /**
+   * Threads in the previous snapshot, and those blocked in it. A thread that starts
+   * waiting is news; one that arrives already waiting is not, it predates this client.
+   */
+  const presentRef = useRef(new Set<string>());
+  const blockedWasRef = useRef(new Set<string>());
   useEffect(() => {
-    const count = blockedCount;
-    const rising = prevCountRef.current !== null && prevCountRef.current === 0 && count > 0;
-    prevCountRef.current = count;
+    const registered = new Set<string>();
+    const present = new Set<string>();
+    const blockedNow = new Set<string>();
 
-    if (count === 0) {
-      if (showingRef.current) {
-        island.end(NEEDS_INPUT_ID);
-        showingRef.current = false;
+    for (const shell of shells) {
+      const id = needsInputId(shell);
+      present.add(id);
+      const kind = needsInputKind(shell);
+      if (kind === null) continue;
+      blockedNow.add(id);
+
+      // The thread open in front of the user needs no pill; the cleanup below
+      // ends the one it was showing.
+      if (shell.environmentId === routedEnvironmentId && shell.id === routedThreadId) continue;
+
+      registered.add(id);
+      const open = () => {
+        island.collapse();
+        void navigate({
+          to: "/$environmentId/$threadId",
+          params: { environmentId: shell.environmentId, threadId: shell.id },
+        });
+      };
+      const content = needsInputContent(kind, shell.title, open);
+      const signature = `${kind}:${shell.title}`;
+      const changed = contentRef.current.get(id) !== signature;
+
+      if (!registeredRef.current.has(id)) {
+        island.start({
+          id,
+          label: needsInputLabel(kind, shell.title),
+          priority: islandActivityPriority.needsInput,
+          // Only a thread this client watched start waiting asks for attention; work
+          // that was already waiting when the page opened is stated, not announced.
+          alert: presentRef.current.has(id) && !blockedWasRef.current.has(id),
+          onPress: open,
+          ...content,
+        });
+        contentRef.current.set(id, signature);
+      } else if (changed) {
+        island.update(id, {
+          label: needsInputLabel(kind, shell.title),
+          priority: islandActivityPriority.needsInput,
+          onPress: open,
+          ...content,
+        });
+        contentRef.current.set(id, signature);
       }
-      return;
     }
 
-    const content = needsInputContent(count, firstBlockedTitle, openFirst);
-    if (!showingRef.current) {
-      island.start({
-        id: NEEDS_INPUT_ID,
-        label: "Needs your input",
-        priority: islandActivityPriority.needsInput,
-        alert: rising,
-        onPress: openFirst,
-        ...content,
-      });
-      showingRef.current = true;
-      return;
+    for (const id of registeredRef.current) {
+      if (registered.has(id)) continue;
+      island.end(id);
+      contentRef.current.delete(id);
     }
-    island.update(NEEDS_INPUT_ID, { ...content, onPress: openFirst, transition: "update" });
-  }, [blockedCount, firstBlockedTitle, island, openFirst]);
+
+    presentRef.current = present;
+    blockedWasRef.current = blockedNow;
+    registeredRef.current = registered;
+  }, [island, navigate, routedEnvironmentId, routedThreadId, shells]);
 
   useEffect(
     () => () => {
-      if (showingRef.current) island.end(NEEDS_INPUT_ID);
+      for (const id of registeredRef.current) island.end(id);
+      registeredRef.current.clear();
+      contentRef.current.clear();
     },
     [island],
   );
@@ -191,451 +186,94 @@ const NeedsInputActivity = () => {
   return null;
 };
 
-interface DesktopUpdateView {
-  readonly action: "download" | "install" | "none";
-  readonly actionable: boolean;
-}
+/** Where the update control lives, so a notice can point at it. */
+const UPDATE_CONTROL_LOCATION = "the update button in the sidebar";
 
-const updateView = (state: DesktopUpdateState): DesktopUpdateView => {
-  const action = resolveDesktopUpdateButtonAction(state);
-  const actionable =
-    state.status === "checking" ||
-    state.status === "downloading" ||
-    state.status === "error" ||
-    action !== "none";
-  return { action, actionable };
+/**
+ * The states worth a notice: the update gained something the user can act on.
+ * Checking and downloading are progress the sidebar control already shows.
+ * The key collapses repeated renders of the same news into one announcement.
+ */
+const updateNewsKey = (state: DesktopUpdateState): string | null => {
+  switch (state.status) {
+    case "available":
+      return `available:${state.availableVersion ?? ""}`;
+    case "downloaded":
+      return `downloaded:${state.downloadedVersion ?? state.availableVersion ?? ""}`;
+    case "error":
+      return `error:${state.errorContext ?? ""}:${state.message ?? ""}`;
+    default:
+      return null;
+  }
 };
 
-const updateCopy = (state: DesktopUpdateState) => {
-  const { action } = updateView(state);
-  const version = state.downloadedVersion ?? state.availableVersion;
+const updateNotice = (state: DesktopUpdateState) => {
   switch (state.status) {
-    case "checking":
-      return { title: "Checking for updates…", subtitle: "Looking for a new build of DAK" };
-    case "downloading": {
-      const percent =
-        typeof state.downloadPercent === "number" ? Math.floor(state.downloadPercent) : null;
+    case "available":
       return {
-        title: "Downloading update",
-        subtitle: `DAK ${version ?? ""}${percent === null ? "" : ` · ${percent}%`}`.trim(),
-      };
+        tone: "warning",
+        kind: "update",
+        title: `DAK ${state.availableVersion ?? "update"} available`,
+        body: `Download it from ${UPDATE_CONTROL_LOCATION}.`,
+        action: { label: "Show update", open: revealSidebarUpdateControl },
+      } as const;
+    case "downloaded": {
+      const version = state.downloadedVersion ?? state.availableVersion;
+      return {
+        tone: "success",
+        kind: "completion",
+        title: "Update ready to install",
+        body: version
+          ? `Restart from ${UPDATE_CONTROL_LOCATION} to install ${version}.`
+          : `Restart from ${UPDATE_CONTROL_LOCATION} to install it.`,
+        action: { label: "Show restart", open: revealSidebarUpdateControl },
+      } as const;
     }
-    case "downloaded":
-      return {
-        title: "Update ready",
-        subtitle: `Restart to install ${version ?? ""}`.trim(),
-      };
     case "error":
       return {
+        tone: "error",
+        kind: "update",
         title: "Could not update",
-        subtitle:
-          state.message?.trim() ||
-          (state.canRetry ? "Something went wrong. Try again." : "Update failed"),
-      };
-    case "available":
-      return {
-        title: `DAK ${version ?? "update"} available`,
-        subtitle: state.releaseNotes[0]?.items[0]?.trim() || "Update ready to download",
-      };
+        body: state.message?.trim() || `Try again from ${UPDATE_CONTROL_LOCATION}.`,
+        action: { label: "Show update", open: revealSidebarUpdateControl },
+      } as const;
     default:
-      return action === "install"
-        ? { title: "Update ready", subtitle: `Restart to install ${version ?? ""}`.trim() }
-        : { title: "You're up to date", subtitle: `DAK ${state.currentVersion}` };
+      return null;
   }
 };
 
-const updateAccent = (state: DesktopUpdateState) => {
-  switch (state.status) {
-    case "checking":
-      return islandAccent.sky;
-    case "available":
-    case "downloading":
-      return islandAccent.blue;
-    case "downloaded":
-      return islandAccent.green;
-    case "error":
-      return islandAccent.orange;
-    default:
-      return islandAccent.sky;
-  }
-};
-
-const updateGlyph = (state: DesktopUpdateState, size: number) => {
-  const color = updateAccent(state);
-  const strokeWidth = 2;
-  if (state.status === "checking")
-    return <RefreshCwIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
-  if (state.status === "available")
-    return <DownloadIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
-  if (state.status === "downloading")
-    return <DownloadIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
-  if (state.status === "downloaded" || updateView(state).action === "install")
-    return <CheckIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
-  if (state.status === "error")
-    return <TriangleAlertIcon size={size} strokeWidth={strokeWidth} color={color} aria-hidden />;
-  return (
-    <RefreshCwIcon size={size} strokeWidth={strokeWidth} color={islandInk.tertiary} aria-hidden />
-  );
-};
-
-const updateTail = (state: DesktopUpdateState): string => {
-  switch (state.status) {
-    case "checking":
-      return "Checking…";
-    case "downloading":
-      return typeof state.downloadPercent === "number"
-        ? `${Math.floor(state.downloadPercent)}%`
-        : "…";
-    case "downloaded":
-      return "Ready";
-    case "error":
-      return "Retry";
-    case "available": {
-      const v = state.availableVersion;
-      return v ? `v${v}` : "Update";
-    }
-    default:
-      return "Check";
-  }
-};
-
-interface UpdateActionHandlers {
-  readonly onCheck: () => void;
-  readonly onDownload: () => void;
-  readonly onInstall: () => void;
-  readonly onReleaseNotes: () => void;
-}
-
-const releaseNotesFor = (state: DesktopUpdateState): boolean =>
-  state.channel === "nightly" && state.releaseNotes.length > 0;
-
-const withReleaseNotes = (
-  state: DesktopUpdateState,
-  node: ReactNode,
-  handlers: UpdateActionHandlers,
-) => (
-  <ExpandedBottom reach="action" gap={2}>
-    {node}
-    {releaseNotesFor(state) ? (
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <CaptionButton
-          color={islandAccent.sky}
-          label="What changed in this nightly build"
-          onPress={handlers.onReleaseNotes}
-        >
-          What&apos;s new
-        </CaptionButton>
-      </div>
-    ) : null}
-  </ExpandedBottom>
-);
-
-const updateButton = (
-  state: DesktopUpdateState,
-  action: DesktopUpdateView,
-  busy: boolean,
-  handlers: UpdateActionHandlers,
-) => {
-  switch (state.status) {
-    case "checking":
-      return (
-        <IslandButton disabled size="regular" fill onPress={() => undefined}>
-          Checking…
-        </IslandButton>
-      );
-    case "downloading":
-      return (
-        <ExpandedBottom reach="action" gap={6}>
-          <LinearProgress
-            value={typeof state.downloadPercent === "number" ? state.downloadPercent / 100 : 0}
-            label="Downloading update"
-            height={6}
-          />
-        </ExpandedBottom>
-      );
-    case "downloaded":
-      return withReleaseNotes(
-        state,
-        <IslandButton
-          tone={{ kind: "accent", color: islandAccent.green }}
-          onPress={handlers.onInstall}
-          disabled={busy}
-          label="Restart to update"
-        >
-          <PowerIcon size={17} strokeWidth={2.25} aria-hidden /> Restart to update
-        </IslandButton>,
-        handlers,
-      );
-    case "available":
-      return withReleaseNotes(
-        state,
-        <IslandButton
-          tone={{ kind: "accent", color: islandAccent.blue, text: "#fff" }}
-          onPress={handlers.onDownload}
-          disabled={busy}
-          label="Download update"
-        >
-          <DownloadIcon size={17} strokeWidth={2.25} aria-hidden /> Download
-        </IslandButton>,
-        handlers,
-      );
-    case "error":
-      return action.action === "install"
-        ? withReleaseNotes(
-            state,
-            <IslandButton
-              tone={{ kind: "accent", color: islandAccent.orange }}
-              onPress={handlers.onInstall}
-              disabled={busy}
-              label="Retry install"
-            >
-              <PowerIcon size={17} strokeWidth={2.25} aria-hidden /> Retry install
-            </IslandButton>,
-            handlers,
-          )
-        : withReleaseNotes(
-            state,
-            <IslandButton
-              tone={{ kind: "accent", color: islandAccent.orange }}
-              onPress={handlers.onDownload}
-              disabled={busy}
-              label="Retry download"
-            >
-              <DownloadIcon size={17} strokeWidth={2.25} aria-hidden /> Retry download
-            </IslandButton>,
-            handlers,
-          );
-    default:
-      return withReleaseNotes(
-        state,
-        <IslandButton
-          onPress={handlers.onCheck}
-          disabled={busy || !canCheckForUpdate(state)}
-          label="Check for updates"
-        >
-          <RefreshCwIcon size={17} strokeWidth={2.25} aria-hidden /> Check for updates
-        </IslandButton>,
-        handlers,
-      );
-  }
-};
-
-const DesktopUpdateActivity = () => {
-  const island = useIslandActions();
+/**
+ * Announces update transitions, once each. The state arrives after mount, so
+ * the first snapshot is what was already true when the window opened — the
+ * sidebar control shows it without interrupting.
+ */
+export const DesktopUpdateNotice = () => {
   const state = useDesktopUpdateState();
-  const [isPending, setIsPending] = useState(false);
-  const showingRef = useRef(false);
-  const bridge = isElectron ? window.desktopBridge : undefined;
-
-  const checkForUpdate = () => {
-    if (!bridge || !state || isPending || !canCheckForUpdate(state)) return;
-    setIsPending(true);
-    void bridge
-      .checkForUpdate()
-      .then((result) => {
-        if (result.checked) return;
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Could not check for updates",
-            description:
-              result.state.message ?? "Automatic updates are not available in this build.",
-          }),
-        );
-      })
-      .catch((error: unknown) => {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Could not check for updates",
-            description: error instanceof Error ? error.message : "Update check failed.",
-          }),
-        );
-      })
-      .finally(() => setIsPending(false));
-  };
-
-  const downloadUpdate = () => {
-    if (!bridge || !state || isPending || isDesktopUpdateButtonDisabled(state)) return;
-    setIsPending(true);
-    void bridge
-      .downloadUpdate()
-      .then((result) => {
-        if (result.completed) showDesktopUpdateDownloadedToast(bridge, result.state);
-        if (!shouldToastDesktopUpdateActionResult(result)) return;
-        const actionError = getDesktopUpdateActionError(result);
-        if (!actionError) return;
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Could not download update",
-            description: actionError,
-          }),
-        );
-      })
-      .catch((error: unknown) => {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Could not start update download",
-            description: error instanceof Error ? error.message : "An unexpected error occurred.",
-          }),
-        );
-      })
-      .finally(() => setIsPending(false));
-  };
-
-  const installUpdate = () => {
-    if (!bridge || !state || isPending) return;
-    let confirmed = false;
-    setIsPending(true);
-    void ensureLocalApi()
-      .dialogs.confirm(getDesktopUpdateInstallConfirmationMessage(state))
-      .then((ok) => {
-        confirmed = ok;
-        if (!confirmed) {
-          setIsPending(false);
-          return;
-        }
-        void bridge
-          .installUpdate()
-          .then((result) => {
-            if (!shouldToastDesktopUpdateActionResult(result)) return;
-            const actionError = getDesktopUpdateActionError(result);
-            if (!actionError) return;
-            toastManager.add(
-              stackedThreadToast({
-                type: "error",
-                title: "Could not install update",
-                description: actionError,
-              }),
-            );
-          })
-          .catch((error: unknown) => {
-            toastManager.add(
-              stackedThreadToast({
-                type: "error",
-                title: "Could not install update",
-                description:
-                  error instanceof Error ? error.message : "An unexpected error occurred.",
-              }),
-            );
-          })
-          .finally(() => setIsPending(false));
-      })
-      .catch((error: unknown) => {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Could not confirm update",
-            description: error instanceof Error ? error.message : "Update confirmation failed.",
-          }),
-        );
-        setIsPending(false);
-      });
-  };
-
-  const openReleaseNotes = () => {
-    if (!state) return;
-    const url = getDesktopUpdateReleaseUrl(state.downloadedVersion ?? state.availableVersion);
-    if (!url) return;
-    void ensureLocalApi()
-      .shell.openExternal(url)
-      .catch(() => undefined);
-  };
-
-  const releaseNotesHandlers: UpdateActionHandlers = {
-    onCheck: checkForUpdate,
-    onDownload: downloadUpdate,
-    onInstall: installUpdate,
-    onReleaseNotes: openReleaseNotes,
-  };
+  const seenStateRef = useRef(false);
+  const announcedKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!state) {
-      if (showingRef.current) {
-        island.end(DESKTOP_UPDATE_ID);
-        showingRef.current = false;
-      }
+    if (state === null) return;
+    const key = updateNewsKey(state);
+    if (!seenStateRef.current) {
+      seenStateRef.current = true;
+      announcedKeyRef.current = key;
       return;
     }
-    const { action, actionable } = updateView(state);
-    // A current build has no live activity. Leaving a low-priority "Check" entry in the
-    // store would still occupy the island whenever no higher-priority activity is running.
-    if (!actionable) {
-      if (showingRef.current) {
-        island.end(DESKTOP_UPDATE_ID);
-        showingRef.current = false;
-      }
-      return;
-    }
-    const accent = updateAccent(state);
-    const copy = updateCopy(state);
-
-    const content = {
-      compact: {
-        leading: (
-          <IslandCompactGlyph>
-            {state.status === "checking" ? (
-              <Spinner size={15} color={accent} thickness={2} />
-            ) : (
-              updateGlyph(state, 19)
-            )}
-          </IslandCompactGlyph>
-        ),
-        trailing: (
-          <CompactText
-            style={{ fontVariantNumeric: "tabular-nums" }}
-            color={actionable ? accent : islandInk.secondary}
-          >
-            {updateTail(state)}
-          </CompactText>
-        ),
-      },
-      expanded: {
-        leading: <IslandTile color={accent}>{updateGlyph(state, 26)}</IslandTile>,
-        center: (
-          <TitleStack
-            title={<ExpandedTitle>{copy.title}</ExpandedTitle>}
-            subtitle={<ExpandedSubtitle>{copy.subtitle}</ExpandedSubtitle>}
-          />
-        ),
-        bottom: updateButton(state, { action, actionable }, isPending, releaseNotesHandlers),
-      },
-    };
-
-    if (!showingRef.current) {
-      island.start({
-        id: DESKTOP_UPDATE_ID,
-        label: "Desktop update",
-        priority: islandActivityPriority.desktopUpdate,
-        onPress: () => island.expand(DESKTOP_UPDATE_ID),
-        ...content,
-      });
-      showingRef.current = true;
-      return;
-    }
-    island.update(DESKTOP_UPDATE_ID, {
-      ...content,
-      priority: islandActivityPriority.desktopUpdate,
-      onPress: () => island.expand(DESKTOP_UPDATE_ID),
-    });
-  }, [island, state, isPending]);
-
-  useEffect(
-    () => () => {
-      if (showingRef.current) island.end(DESKTOP_UPDATE_ID);
-    },
-    [island],
-  );
+    if (key === announcedKeyRef.current) return;
+    announcedKeyRef.current = key;
+    const notice = updateNotice(state);
+    if (notice === null) return;
+    showIslandNotification(notice);
+  }, [state]);
 
   return null;
 };
 
 export const DakIslandController = () => (
   <>
-    <NeedsInputActivity />
-    {isElectron ? <DesktopUpdateActivity /> : null}
+    <NeedsInputActivities />
+    {isElectron ? <DesktopUpdateNotice /> : null}
     <GoalIslandActivities />
   </>
 );

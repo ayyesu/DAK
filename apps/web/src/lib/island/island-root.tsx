@@ -88,7 +88,8 @@ export const Island = ({
   }, []);
 
   const interaction = useMemo<SurfaceInteraction>(() => {
-    // With no activity the pill still swells under a press (idletap-t1), but it is not a control.
+    // With no activity the pill takes no pointers at all (see surface.tsx): it is
+    // not a control, and a press meant for the page beneath it has to land there.
     const primaryLabel = scene.primary?.label ?? null;
     return {
       pillLabel:

@@ -3006,7 +3006,9 @@ export const IslandSurface = (props: IslandSurfaceProps) => {
             aria-hidden={interaction.pillLabel === null || undefined}
             tabIndex={interaction.pillLabel === null ? -1 : undefined}
             aria-expanded={interaction.expanded}
-            style={{ pointerEvents: "auto" }}
+            // The resting pill has nothing to do, so it must not eat a click meant for the
+            // page under it. It only starts taking pointers once an activity gives it a name.
+            style={{ pointerEvents: interaction.pillLabel === null ? "none" : "auto" }}
             onPointerDown={(event) => interaction.onPressStart("pill", event)}
             onPointerUp={(event) => interaction.onPressEnd(event)}
             onPointerCancel={() => interaction.onPressCancel()}
