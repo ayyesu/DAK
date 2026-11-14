@@ -216,6 +216,11 @@ const ExpandedGrid = ({
 }) => {
   const e = metrics.expanded;
   const hasBottom = presentation.bottom !== undefined && presentation.bottom !== null;
+  // The fixed sensor overlaps the centre of the expanded shape. Side regions
+  // intentionally start at the content top, while centre copy begins directly
+  // below that sensor so a title can never be cut through its middle.
+  const centerTop =
+    Math.max(0, metrics.top + metrics.idle.height - (e.top + e.padding.top)) + e.centerTop;
   const centerShift = ((e.padding.trailing ?? e.padding.side) - e.padding.side) / 2;
   // Each region moves on its own while the shape morphs (content follows the container).
   // No will-change here: a layer per region would snap to device pixels on top of the slot's
@@ -315,9 +320,10 @@ const ExpandedGrid = ({
             position: "relative",
             left: centerShift,
             display: "flex",
-            alignSelf: "center",
+            alignSelf: "start",
             justifyContent: "center",
             textAlign: "center",
+            marginTop: centerTop,
           }}
         >
           <div ref={center} style={intrinsic}>
