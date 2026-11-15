@@ -2,7 +2,8 @@ import { TextGenerationError } from "@dak/contracts";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-const isTextGenerationError = Schema.is(TextGenerationError);
+/** Schema-aware runtime check for `TextGenerationError`. */
+export const isTextGenerationError = Schema.is(TextGenerationError);
 const decodeJsonThreadTitle = Schema.decodeOption(
   Schema.fromJsonString(Schema.Struct({ title: Schema.String })),
 );
@@ -78,6 +79,60 @@ export function sanitizeThreadTitle(raw: string): string {
   }
 
   return `${normalized.slice(0, MAX_THREAD_TITLE_CHARS - 3).trimEnd()}...`;
+}
+
+const MAX_ISLAND_DETAIL_CHARS = 90;
+const MAX_ISLAND_COMPACT_CHARS = 12;
+
+// Markdown structure and quote characters, removed outright rather than escaped.
+const ISLAND_STRIP = /[*_~`#[\]()<>|\\"“”‘’']/g;
+const ISLAND_CONTROL = /[\u0000-\u001F\u007F-\u009F]/g;
+
+/** Cut at a word boundary, with an ellipsis, so the result never exceeds `maxChars`. */
+const cutAtWordBoundary = (value: string, maxChars: number): string => {
+  if (value.length <= maxChars) return value;
+  const budget = maxChars - 1; // room for the ellipsis
+  const slice = value.slice(0, budget);
+  const lastSpace = slice.lastIndexOf(" ");
+  const base = (lastSpace >= 1 ? slice.slice(0, lastSpace) : slice).trimEnd();
+  return `${base}\u2026`;
+};
+
+const cleanIslandText = (value: string, maxChars: number): string => {
+  if (typeof value !== "string") return "";
+  // Control characters become a space so they can split words, then everything
+  // collapses to one line; stripping markdown and quotes follows, then a final
+  // whitespace pass undoes the gaps the strip can leave.
+  const singleLine = value.replace(ISLAND_CONTROL, " ").split(/\s+/).filter(Boolean).join(" ");
+  const stripped = singleLine.replace(ISLAND_STRIP, "").replace(/\s+/g, " ").trim();
+  return cutAtWordBoundary(stripped, maxChars);
+};
+
+/**
+ * Normalise the model's island copy. `detail` failing closed (empty after
+ * cleaning) throws a `TextGenerationError`; `compact` is allowed to be empty —
+ * the client falls back to deterministic copy when either line is empty or over
+ * its cap.
+ */
+export function sanitizeIslandCopy(
+  operation: string,
+  raw: { readonly detail?: unknown; readonly compact?: unknown },
+): { detail: string; compact: string } {
+  const detail = cleanIslandText(
+    typeof raw.detail === "string" ? raw.detail : "",
+    MAX_ISLAND_DETAIL_CHARS,
+  );
+  const compact = cleanIslandText(
+    typeof raw.compact === "string" ? raw.compact : "",
+    MAX_ISLAND_COMPACT_CHARS,
+  );
+  if (detail.length === 0) {
+    throw new TextGenerationError({
+      operation,
+      detail: "The model returned an empty island detail line.",
+    });
+  }
+  return { detail, compact };
 }
 
 /** CLI name to human-readable label, e.g. "codex" → "Codex CLI (`codex`)" */

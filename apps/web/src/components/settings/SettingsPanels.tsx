@@ -26,6 +26,7 @@ import {
   DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE,
   DEFAULT_UNIFIED_SETTINGS,
   type ChatWidth,
+  type IslandStyle,
   type DiffLayout,
   type EnvironmentIdentificationMode,
   MAX_APPEARANCE_CONTRAST,
@@ -205,6 +206,11 @@ const CHAT_WIDTH_LABELS: Record<ChatWidth, string> = {
   comfortable: "Comfortable",
   wide: "Wide",
   full: "Full",
+};
+
+const ISLAND_STYLE_LABELS: Record<IslandStyle, string> = {
+  auto: "Automatic",
+  classic: "Classic",
 };
 
 const DIFF_LAYOUT_LABELS: Record<DiffLayout, string> = {
@@ -548,6 +554,10 @@ export function useSettingsRestore(onRestored?: () => void) {
         ? ["Diff colors"]
         : []),
       ...(settings.chatWidth !== DEFAULT_UNIFIED_SETTINGS.chatWidth ? ["Chat width"] : []),
+      ...(settings.islandStyle !== DEFAULT_UNIFIED_SETTINGS.islandStyle ? ["Island style"] : []),
+      ...(settings.islandSmartText !== DEFAULT_UNIFIED_SETTINGS.islandSmartText
+        ? ["Smart island text"]
+        : []),
       ...(settings.panelAnimationDurationMs !== DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs
         ? ["Panel animations"]
         : []),
@@ -675,6 +685,8 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.appearanceContrast,
       settings.diffColorScheme,
       settings.chatWidth,
+      settings.islandStyle,
+      settings.islandSmartText,
       settings.enableAgentBrowserAccess,
       settings.confirmQuit,
       settings.confirmThreadArchive,
@@ -792,6 +804,8 @@ export function useSettingsRestore(onRestored?: () => void) {
       appearanceContrast: DEFAULT_UNIFIED_SETTINGS.appearanceContrast,
       diffColorScheme: DEFAULT_UNIFIED_SETTINGS.diffColorScheme,
       chatWidth: DEFAULT_UNIFIED_SETTINGS.chatWidth,
+      islandStyle: DEFAULT_UNIFIED_SETTINGS.islandStyle,
+      islandSmartText: DEFAULT_UNIFIED_SETTINGS.islandSmartText,
       timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
       notificationMode: DEFAULT_UNIFIED_SETTINGS.notificationMode,
       inAppNotificationsEnabled: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsEnabled,
@@ -1457,6 +1471,62 @@ export function AppearanceSettingsPanel() {
                 </SelectPopup>
               </Select>
             </div>
+          }
+        />
+
+        <SettingsRow
+          {...searchableSetting("island-style")}
+          description="Automatic hides the resting island on displays with a camera notch, so it doesn't sit under the real one. It appears only while there is something to show."
+          resetAction={
+            settings.islandStyle !== DEFAULT_UNIFIED_SETTINGS.islandStyle ? (
+              <SettingResetButton
+                label="island style"
+                onClick={() =>
+                  updateSettings({ islandStyle: DEFAULT_UNIFIED_SETTINGS.islandStyle })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="w-full sm:w-40">
+              <Select
+                value={settings.islandStyle}
+                onValueChange={(value) => {
+                  if (value === "auto" || value === "classic")
+                    updateSettings({ islandStyle: value });
+                }}
+              >
+                <SelectTrigger size="sm" className="w-full min-w-0" aria-label="Island style">
+                  <SelectValue>{ISLAND_STYLE_LABELS[settings.islandStyle]}</SelectValue>
+                </SelectTrigger>
+                <SelectPopup align="end" alignItemWithTrigger={false}>
+                  <SelectItem value="auto">Automatic (default)</SelectItem>
+                  <SelectItem value="classic">Classic</SelectItem>
+                </SelectPopup>
+              </Select>
+            </div>
+          }
+        />
+
+        <SettingsRow
+          {...searchableSetting("island-smart-text")}
+          description="Your selected text-generation model writes the short lines on the island. Falls back to standard text if it's unavailable. Goal status text is sent to the model chosen in Settings -> text generation, nowhere else."
+          resetAction={
+            settings.islandSmartText !== DEFAULT_UNIFIED_SETTINGS.islandSmartText ? (
+              <SettingResetButton
+                label="smart island text"
+                onClick={() =>
+                  updateSettings({ islandSmartText: DEFAULT_UNIFIED_SETTINGS.islandSmartText })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.islandSmartText}
+              onCheckedChange={(checked) => updateSettings({ islandSmartText: Boolean(checked) })}
+              aria-label="Smart island text"
+            />
           }
         />
       </SettingsSection>
@@ -2488,7 +2558,7 @@ export function GeneralSettingsPanel() {
         <NotificationSettings />
         <SettingsRow
           {...searchableSetting("in-app-notifications")}
-          description="Show a toast when another thread or goal finishes, fails, or needs input or approval while this app has focus."
+          description="Show a Dynamic Island alert when another thread or goal finishes, fails, or needs input or approval while this app has focus."
           control={
             <Switch
               checked={settings.inAppNotificationsEnabled}

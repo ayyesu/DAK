@@ -71,24 +71,12 @@ describe("ProviderStatusBanner", () => {
     expect(shouldShowProviderStatusBanner(status, getProviderStatusBannerKey(status))).toBe(false);
   });
 
-  it("renders an accessible dismiss control for provider warnings", () => {
+  it("does not render a disruptive in-chat banner", () => {
     const markup = renderToStaticMarkup(
       <ProviderStatusBanner status={warningProvider()} onDismiss={() => {}} />,
     );
 
-    expect(markup).toContain('role="alert"');
-    expect(markup).toContain('aria-label="Dismiss Codex provider warning"');
-  });
-
-  it("labels error dismiss controls with the correct severity", () => {
-    const markup = renderToStaticMarkup(
-      <ProviderStatusBanner
-        status={{ ...warningProvider(), status: "error" }}
-        onDismiss={() => {}}
-      />,
-    );
-
-    expect(markup).toContain('aria-label="Dismiss Codex provider error"');
+    expect(markup).toBe("");
   });
 });
 

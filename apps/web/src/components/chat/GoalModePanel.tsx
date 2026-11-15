@@ -7,7 +7,6 @@ import type {
   EnvironmentId,
   GoalProof,
   GoalSummary,
-  GoalTask,
   ProjectId,
   RunId,
   ThreadId,
@@ -16,9 +15,7 @@ import { scopeThreadRef } from "@dak/client-runtime/environment";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  CheckIcon,
   ChevronDownIcon,
-  CircleIcon,
   EyeIcon,
   ExternalLinkIcon,
   HistoryIcon,
@@ -56,8 +53,9 @@ import { Spinner } from "../ui/spinner";
 import { Textarea } from "../ui/textarea";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { onOpenGoalComposer } from "../../goalModeBus";
+import { onOpenGoalComposer, onOpenGoalWork } from "../../goalModeBus";
 import { GoalBlockerPanel } from "./GoalBlockerPanel";
+import { GoalCriterionIcon, GoalTaskIcon, TONE_BAR, TONE_PILL } from "./goalVisuals";
 import { GoalChangedFiles } from "./GoalChangedFiles";
 import { goalChangedFiles } from "./GoalChanges.logic";
 import { GoalWorkView } from "./GoalWorkView";
@@ -87,7 +85,6 @@ import {
   isGoalActive,
   isGoalDriven,
   selectGoalForThread,
-  type GoalTone,
 } from "./GoalMode.logic";
 
 /** Tasks shown before the list folds; a long plan must not swallow the chat. */
@@ -96,65 +93,11 @@ const VISIBLE_ACTIVITY_LIMIT = 12;
 /** Acceptance criteria fold earlier than tasks; four is enough to read at a glance. */
 const VISIBLE_CRITERIA_LIMIT = 4;
 
-const TONE_PILL: Record<GoalTone, string> = {
-  active: "bg-info/10 text-info",
-  attention: "bg-warning/10 text-warning",
-  success: "bg-success/10 text-success",
-  danger: "bg-destructive/10 text-destructive",
-  muted: "bg-muted text-muted-foreground",
-};
-
-const TONE_BAR: Record<GoalTone, string> = {
-  active: "bg-info",
-  attention: "bg-warning",
-  success: "bg-success",
-  danger: "bg-destructive",
-  muted: "bg-muted-foreground/50",
-};
-
 type GoalRun = <A, E>(
   title: string,
   effect: () => Promise<AtomCommandResult<A, E>>,
   onSuccess?: (value: A) => void,
 ) => Promise<void>;
-
-function GoalTaskIcon({ task }: { readonly task: GoalTask }) {
-  if (task.status === "completed") {
-    return (
-      <span className="flex size-4 items-center justify-center rounded-full bg-success/15 text-success">
-        <CheckIcon aria-hidden className="size-2.5" strokeWidth={3} />
-      </span>
-    );
-  }
-  if (task.status === "in_progress") {
-    return <Spinner aria-hidden size="xs" />;
-  }
-  if (task.status === "recovering") {
-    return <RotateCcwIcon aria-hidden className="size-4 text-info" />;
-  }
-  if (task.status === "waiting_input" || task.status === "failed") {
-    return <TriangleAlertIcon aria-hidden className="size-4 text-warning" />;
-  }
-  return <CircleIcon aria-hidden className="size-4 text-muted-foreground/40" />;
-}
-
-function GoalCriterionIcon({ met }: { readonly met: boolean | null }) {
-  if (met === true) {
-    return (
-      <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
-        <CheckIcon aria-hidden className="size-2.5" strokeWidth={3} />
-      </span>
-    );
-  }
-  if (met === false) {
-    return (
-      <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive">
-        <XIcon aria-hidden className="size-2.5" strokeWidth={3} />
-      </span>
-    );
-  }
-  return <CircleIcon aria-hidden className="size-4 shrink-0 text-muted-foreground/40" />;
-}
 
 /** One piece of rich proof: an image, screenshot, canvas export, or link to test/run output. */
 function GoalCriterionProof({ proof }: { readonly proof: GoalProof }) {
@@ -235,6 +178,9 @@ function GoalCard(props: {
   readonly busy: boolean;
   /** The composer above is open; the card stays compact until it closes. */
   readonly compact: boolean;
+  /** The island opened this thread's dedicated goal-work surface. */
+  readonly showWork: boolean;
+  readonly onCloseWork: () => void;
   readonly run: GoalRun;
   /** The thread's changed files, for the goal's own file summary. */
   readonly turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
@@ -268,6 +214,12 @@ function GoalCard(props: {
   const [allCriteriaOpen, setAllCriteriaOpen] = useState(false);
   const [otherGoalsOpen, setOtherGoalsOpen] = useState(false);
   const nowMinute = useNowMinute();
+
+  useEffect(() => {
+    if (!props.showWork) return;
+    setCollapsedState(false);
+    setWorkOpen(true);
+  }, [props.showWork]);
 
   const collapsed = collapsedState;
   const expanded = !collapsed;
@@ -568,7 +520,10 @@ function GoalCard(props: {
           now={now}
           loading={goalDetail === null && watchQuery.error === null}
           error={watchQuery.error}
-          onBack={() => setWorkOpen(false)}
+          onBack={() => {
+            setWorkOpen(false);
+            props.onCloseWork();
+          }}
           {...(goal.threadId === null
             ? {}
             : {
@@ -989,6 +944,7 @@ export function GoalModePanel(props: {
   const [hiddenGoalIds, setHiddenGoalIds] = useState<ReadonlySet<string>>(new Set());
   const [hiddenGoalsOpen, setHiddenGoalsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [goalWorkOpen, setGoalWorkOpen] = useState(false);
 
   // The selection belongs to one thread; switching threads must not keep
   // showing the previous thread's goal.
@@ -1004,6 +960,14 @@ export function GoalModePanel(props: {
   // The palette and the chat.key command ask for Goal Mode without owning its
   // state; subscribe here, next to the consumer.
   useEffect(() => onOpenGoalComposer(() => props.onGoalModeOpenChange(true)), [props]);
+  useEffect(
+    () =>
+      onOpenGoalWork((goalId) => {
+        setSelectedGoalId(goalId);
+        setGoalWorkOpen(true);
+      }),
+    [],
+  );
 
   const allGoals = useMemo(
     () =>
@@ -1025,7 +989,7 @@ export function GoalModePanel(props: {
     selectGoalForThread(goals, props.threadId);
   const otherGoals = goals.filter((candidate) => candidate.id !== goal?.id);
 
-  if (projectId === null) return null;
+  if (projectId === null || !goalWorkOpen) return null;
   // Hiding the last goal must not take the panel away with it: the hidden
   // goals are the only way back to them.
   if (goal === null && goalsQuery.error === null && hiddenGoals.length === 0) return null;
@@ -1070,6 +1034,8 @@ export function GoalModePanel(props: {
           canOperate={canOperate}
           busy={busy}
           compact={props.goalModeOpen || goalIsDriven}
+          showWork={goalWorkOpen}
+          onCloseWork={() => setGoalWorkOpen(false)}
           run={run}
           turnDiffSummaries={props.turnDiffSummaries}
           onOpenTurnDiff={props.onOpenTurnDiff}

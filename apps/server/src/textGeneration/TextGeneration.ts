@@ -4,6 +4,7 @@ import * as Layer from "effect/Layer";
 import type {
   BranchNamingOptions,
   ChatAttachment,
+  IslandCopySubject,
   ModelSelection,
   ProviderInstanceId,
 } from "@dak/contracts";
@@ -81,6 +82,19 @@ export interface ThreadTitleGenerationResult {
   needsRefinement?: boolean | undefined;
 }
 
+export interface IslandCopyGenerationInput {
+  cwd: string;
+  /** The goal-shaped facts the model may use; already truncated for the wire. */
+  subject: IslandCopySubject;
+  /** What model and provider to use for generation. */
+  modelSelection: ModelSelection;
+}
+
+export interface IslandCopyGenerationResult {
+  detail: string;
+  compact: string;
+}
+
 /**
  * TextGeneration - Service tag for commit and change request text generation.
  */
@@ -112,6 +126,14 @@ export class TextGeneration extends Context.Service<
     readonly generateThreadTitle: (
       input: ThreadTitleGenerationInput,
     ) => Effect.Effect<ThreadTitleGenerationResult, TextGenerationError>;
+
+    /**
+     * Write the island's short lines (detail and compact) for a subject. The
+     * caller renders deterministic copy immediately and only upgrades on success.
+     */
+    readonly generateIslandCopy: (
+      input: IslandCopyGenerationInput,
+    ) => Effect.Effect<IslandCopyGenerationResult, TextGenerationError>;
   }
 >()("dak/textGeneration/TextGeneration") {}
 
@@ -119,7 +141,8 @@ type TextGenerationOp =
   | "generateCommitMessage"
   | "generatePrContent"
   | "generateBranchName"
-  | "generateThreadTitle";
+  | "generateThreadTitle"
+  | "generateIslandCopy";
 
 const resolveInstance = (
   registry: ProviderInstanceRegistry.ProviderInstanceRegistry["Service"],
@@ -171,6 +194,10 @@ export const make = Effect.gen(function* () {
             return yield* textGeneration.generateThreadTitle({ ...input, linkedContext });
           }),
         ),
+      ),
+    generateIslandCopy: (input) =>
+      resolveInstance(registry, "generateIslandCopy", input.modelSelection.instanceId).pipe(
+        Effect.flatMap((textGeneration) => textGeneration.generateIslandCopy(input)),
       ),
   });
 });

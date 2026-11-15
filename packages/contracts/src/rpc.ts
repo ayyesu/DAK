@@ -136,6 +136,7 @@ import {
   VcsListRefsInput,
   VcsListRefsResult,
   GitManagerServiceError,
+  TextGenerationError,
   GitPreparePullRequestThreadInput,
   GitPreparePullRequestThreadResult,
   VcsPullInput,
@@ -357,6 +358,7 @@ import {
   GoalUpdateInput,
   GoalWatchInput,
 } from "./goals.ts";
+import { IslandCopyInput, IslandCopyResult } from "./island.ts";
 import { SecretRequestAnswerInput, SecretRequestError } from "./secretRequest.ts";
 import {
   ProjectCloneActionInput,
@@ -395,6 +397,9 @@ export const WS_METHODS = {
 
   // Shell methods
   shellOpenInEditor: "shell.openInEditor",
+
+  // Island methods
+  islandGenerateCopy: "island.generateCopy",
 
   // Filesystem methods
   filesystemBrowse: "filesystem.browse",
@@ -1263,6 +1268,14 @@ const WsShellOpenInEditorRpc = Rpc.make(WS_METHODS.shellOpenInEditor, {
   error: Schema.Union([ExternalLauncherError, EnvironmentAuthorizationError]),
 });
 
+// The island's short lines, written by the user's text-generation model. The
+// handler authorizes like an operate call: it spends the user's model quota.
+const WsIslandGenerateCopyRpc = Rpc.make(WS_METHODS.islandGenerateCopy, {
+  payload: IslandCopyInput,
+  success: IslandCopyResult,
+  error: Schema.Union([TextGenerationError, EnvironmentAuthorizationError]),
+});
+
 const WsFilesystemBrowseRpc = Rpc.make(WS_METHODS.filesystemBrowse, {
   payload: FilesystemBrowseInput,
   success: FilesystemBrowseResult,
@@ -2070,6 +2083,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsProjectsWriteFileRpc,
   WsProjectsMutateRpc,
   WsShellOpenInEditorRpc,
+  WsIslandGenerateCopyRpc,
   WsFilesystemBrowseRpc,
   WsAgentSessionsScanRpc,
   WsAgentSessionsImportRpc,

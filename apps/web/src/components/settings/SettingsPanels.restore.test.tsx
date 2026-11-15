@@ -78,6 +78,19 @@ describe("restoring V2 settings", () => {
     expect(state.update.mock.calls[0]?.[0][key]).toBe(DEFAULT_UNIFIED_SETTINGS[key]);
   });
 
+  it("restores islandSmartText when it is the only changed setting", async () => {
+    state.settings = { ...DEFAULT_UNIFIED_SETTINGS, islandSmartText: false };
+    hooks.beginRender();
+    const restore = useSettingsRestore();
+
+    expect(restore.changedSettingLabels).toEqual(["Smart island text"]);
+    await restore.restoreDefaults();
+
+    expect(state.confirm.mock.calls[0]?.[0]).toContain("Smart island text");
+    expect(state.update).toHaveBeenCalledOnce();
+    expect(state.update.mock.calls[0]?.[0]["islandSmartText"]).toBe(true);
+  });
+
   it("does not reset settings after cancellation", async () => {
     state.settings = { ...DEFAULT_UNIFIED_SETTINGS, autoResumeLimitedThreads: true };
     state.confirm.mockResolvedValue(false);

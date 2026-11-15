@@ -254,7 +254,7 @@ export function shouldShowPrimaryProviderUpdateToast(view: ProviderUpdateToastVi
   return view.phase !== "running";
 }
 
-function getProviderUpdateRunningToastView(providerCount: number): ProviderUpdateToastView {
+export function getProviderUpdateRunningToastView(providerCount: number): ProviderUpdateToastView {
   return {
     phase: "running",
     type: "loading",
@@ -582,9 +582,11 @@ function getProviderUpdateInitialToastTitle(
   if (providers.length === 1) {
     const provider = providers[0]!;
     const providerName = PROVIDER_DISPLAY_NAMES[provider.driver] ?? provider.driver;
-    return `Update Available: ${providerName} ${formatVersion(provider.versionAdvisory.latestVersion)}`;
+    // Name and version first: the island's title is one line of about 25 characters, and a
+    // leading "Update Available:" is what gets cut, taking the version with it.
+    return `${providerName} ${formatVersion(provider.versionAdvisory.latestVersion)} available`;
   }
-  return `Updates Available: ${providers.length} providers`;
+  return `${providers.length} provider updates available`;
 }
 
 function getFailedProviderUpdateDescription(providers: ReadonlyArray<ServerProvider>): string {

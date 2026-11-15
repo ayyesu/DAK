@@ -32,6 +32,15 @@ vi.mock("electron", async (importOriginal) => ({
         bounds: { x: 0, y: 0, width: 1920, height: 1080 },
       },
     ]),
+    // A classic 24 pt menu bar: no notch, so the watch never reports a change.
+    getDisplayMatching: vi.fn(() => ({
+      id: 1,
+      internal: true,
+      bounds: { y: 0 },
+      workArea: { y: 24 },
+    })),
+    on: vi.fn(),
+    removeListener: vi.fn(),
   },
 }));
 
@@ -69,8 +78,38 @@ const environmentInput = {
   runningUnderArm64Translation: false,
 } satisfies DesktopEnvironment.MakeDesktopEnvironmentInput;
 
+type FakeWindowListener = ((...args: readonly unknown[]) => void) & {
+  listeners?: readonly FakeWindowListener[];
+};
+// Electron allows many listeners per event; the map keeps one composed listener whose
+// `listeners` list is the full set, so tests can still fire it with `.get(event)?.(...)`.
+const chainListener = (
+  previous: FakeWindowListener | undefined,
+  next: FakeWindowListener,
+): FakeWindowListener => {
+  const parts = [...(previous?.listeners ?? (previous ? [previous] : [])), next];
+  const listener: FakeWindowListener = (...args) => {
+    for (const part of parts) part(...args);
+  };
+  listener.listeners = parts;
+  return listener;
+};
+const unchainListener = (
+  previous: FakeWindowListener | undefined,
+  target: FakeWindowListener,
+): FakeWindowListener | undefined => {
+  if (!previous) return undefined;
+  const parts = (previous.listeners ?? [previous]).filter((part) => part !== target);
+  if (parts.length === 0) return undefined;
+  const listener: FakeWindowListener = (...args) => {
+    for (const part of parts) part(...args);
+  };
+  listener.listeners = parts;
+  return listener;
+};
+
 function makeFakeBrowserWindow() {
-  const windowListeners = new Map<string, (...args: readonly unknown[]) => void>();
+  const windowListeners = new Map<string, FakeWindowListener>();
   const webContentsListeners = new Map<string, (...args: readonly unknown[]) => void>();
   let zoomLevel = 0;
   const webContents = {
@@ -108,11 +147,16 @@ function makeFakeBrowserWindow() {
     isVisible: vi.fn(() => true),
     loadURL: vi.fn(() => Promise.resolve()),
     maximize: vi.fn(),
-    on: vi.fn((eventName: string, listener: (...args: readonly unknown[]) => void) => {
-      windowListeners.set(eventName, listener);
+    on: vi.fn((eventName: string, listener: FakeWindowListener) => {
+      windowListeners.set(eventName, chainListener(windowListeners.get(eventName), listener));
     }),
-    once: vi.fn((eventName: string, listener: (...args: readonly unknown[]) => void) => {
-      windowListeners.set(eventName, listener);
+    removeListener: vi.fn((eventName: string, listener: FakeWindowListener) => {
+      const remaining = unchainListener(windowListeners.get(eventName), listener);
+      if (remaining) windowListeners.set(eventName, remaining);
+      else windowListeners.delete(eventName);
+    }),
+    once: vi.fn((eventName: string, listener: FakeWindowListener) => {
+      windowListeners.set(eventName, chainListener(windowListeners.get(eventName), listener));
     }),
     restore: vi.fn(),
     setBackgroundColor: vi.fn(),
@@ -975,7 +1019,9 @@ describe("DesktopWindow", () => {
         assert.deepEqual(mainWindowBoundsUpdates, [{ x: 220, y: 140, width: 1380, height: 920 }]);
         assert.deepEqual(mainWindowMaximizedUpdates, [true]);
         assert.equal(fakeWindow.getNormalBounds.mock.calls.length, 1);
-        assert.equal(fakeWindow.getBounds.mock.calls.length, 0);
+        // The flush path reads getNormalBounds, never getBounds. The single getBounds
+        // call is the notch watch reading the bounds once to find the window's display.
+        assert.equal(fakeWindow.getBounds.mock.calls.length, 1);
       }).pipe(Effect.provide(layer));
     }),
   );
@@ -1118,7 +1164,9 @@ describe("DesktopWindow", () => {
         yield* desktopWindow.flushMainWindowBounds;
 
         assert.deepEqual(mainWindowBoundsUpdates, [{ x: 200, y: 130, width: 1400, height: 940 }]);
-        assert.equal(fakeWindow.getBounds.mock.calls.length, 0);
+        // The flush path reads getNormalBounds, never getBounds. The single getBounds
+        // call is the notch watch reading the bounds once to find the window's display.
+        assert.equal(fakeWindow.getBounds.mock.calls.length, 1);
         assert.equal(fakeWindow.getNormalBounds.mock.calls.length, 1);
       }).pipe(Effect.provide(layer));
     }),
@@ -1154,7 +1202,9 @@ describe("DesktopWindow", () => {
         yield* desktopWindow.flushMainWindowBounds;
 
         assert.deepEqual(mainWindowBoundsUpdates, [{ x: 180, y: 120, width: 1440, height: 960 }]);
-        assert.equal(fakeWindow.getBounds.mock.calls.length, 0);
+        // The flush path reads getNormalBounds, never getBounds. The single getBounds
+        // call is the notch watch reading the bounds once to find the window's display.
+        assert.equal(fakeWindow.getBounds.mock.calls.length, 1);
         assert.equal(fakeWindow.getNormalBounds.mock.calls.length, 1);
       }).pipe(Effect.provide(layer));
     }),

@@ -100,8 +100,12 @@ import {
   type PullRequestRef,
   WS_METHODS,
   WsRpcGroup,
+  TextGenerationError,
 } from "@dak/contracts";
 import { resolveServerBackgroundActivitySettings } from "@dak/shared/backgroundActivitySettings";
+import { resolveProjectSettings } from "@dak/shared/projectSettings";
+import * as TextGeneration from "./textGeneration/TextGeneration.ts";
+import { isTextGenerationError } from "./textGeneration/TextGenerationUtils.ts";
 import {
   HttpRouter,
   HttpServerRequest,
@@ -1288,6 +1292,7 @@ const layerWsRpc = (
       const config = yield* ServerConfig.ServerConfig;
       const lifecycleEvents = yield* ServerLifecycleEvents.ServerLifecycleEvents;
       const serverSettings = yield* ServerSettings.ServerSettingsService;
+      const textGeneration = yield* TextGeneration.TextGeneration;
       const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
       const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
       const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
@@ -2692,6 +2697,51 @@ const layerWsRpc = (
             ),
           ),
         [WS_METHODS.shellOpenInEditor]: (input) => externalLauncher.launchEditor(input),
+        [WS_METHODS.islandGenerateCopy]: (input) =>
+          Effect.gen(function* () {
+            const projection = yield* threadManagement.getThreadRecords(input.threadId, []);
+            const project = yield* projectStore.get(projection.thread.projectId);
+            if (Option.isNone(project)) {
+              return yield* new TextGenerationError({
+                operation: "generateIslandCopy",
+                detail: "The goal's project no longer exists.",
+              });
+            }
+            const settings = resolveProjectSettings(
+              yield* serverSettings.getSettings,
+              projection.thread.projectId,
+            ).settings;
+            return yield* textGeneration
+              .generateIslandCopy({
+                cwd: projection.thread.worktreePath ?? project.value.workspaceRoot,
+                subject: input.subject,
+                modelSelection: settings.textGenerationModelSelection,
+              })
+              .pipe(
+                Effect.timeoutOrElse({
+                  duration: "6 seconds",
+                  orElse: () =>
+                    Effect.fail(
+                      new TextGenerationError({
+                        operation: "generateIslandCopy",
+                        detail: "Island copy generation timed out.",
+                      }),
+                    ),
+                }),
+              );
+          }).pipe(
+            // The RPC union is TextGenerationError | EnvironmentAuthorizationError; everything
+            // else on this path is a lookup/orchestration failure worth the same typed error.
+            Effect.mapError((cause) =>
+              isTextGenerationError(cause)
+                ? cause
+                : new TextGenerationError({
+                    operation: "generateIslandCopy",
+                    detail: "Island copy generation failed.",
+                    cause,
+                  }),
+            ),
+          ),
         [WS_METHODS.filesystemBrowse]: (input) =>
           workspaceEntries.browse(input).pipe(
             Effect.mapError(

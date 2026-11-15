@@ -347,6 +347,40 @@ describe("ClientSettings chat width", () => {
   });
 });
 
+describe("ClientSettings island style", () => {
+  it("defaults to auto for settings saved before the option existed", () => {
+    expect(decodeClientSettings({}).islandStyle).toBe("auto");
+  });
+
+  it.each(["auto", "classic"])("round-trips the %s style", (islandStyle) => {
+    const settings = decodeClientSettings({ islandStyle });
+    expect(encodeClientSettings(settings).islandStyle).toBe(islandStyle);
+    expect(decodeClientSettingsPatch({ islandStyle }).islandStyle).toBe(islandStyle);
+  });
+
+  it("rejects unsupported styles", () => {
+    expect(() => decodeClientSettings({ islandStyle: "off" })).toThrow();
+    expect(() => decodeClientSettingsPatch({ islandStyle: "off" })).toThrow();
+  });
+});
+
+describe("ClientSettings smart island text", () => {
+  it("defaults to on for settings saved before the option existed", () => {
+    expect(decodeClientSettings({}).islandSmartText).toBe(true);
+  });
+
+  it.each([true, false])("round-trips %s", (islandSmartText) => {
+    const settings = decodeClientSettings({ islandSmartText });
+    expect(encodeClientSettings(settings).islandSmartText).toBe(islandSmartText);
+    expect(decodeClientSettingsPatch({ islandSmartText }).islandSmartText).toBe(islandSmartText);
+  });
+
+  it("rejects non-boolean values", () => {
+    expect(() => decodeClientSettings({ islandSmartText: "yes" })).toThrow();
+    expect(() => decodeClientSettingsPatch({ islandSmartText: "yes" })).toThrow();
+  });
+});
+
 describe("ClientSettings load balancing", () => {
   it("requires opt-in when settings are new or omit load balancing", () => {
     expect(decodeClientSettings({}).loadBalancingEnabled).toBe(false);

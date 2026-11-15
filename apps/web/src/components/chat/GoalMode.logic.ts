@@ -93,6 +93,48 @@ export function goalHasOpenQuestion(goal: Pick<GoalSummary, "question">): boolea
 }
 
 /**
+ * The island is ambient status, not a second goal dashboard. It stays visible
+ * for work in progress and for states where a person can move the goal
+ * forward; a deliberately paused goal remains in the thread card instead.
+ */
+export function goalNeedsIslandAttention(goal: Pick<GoalSummary, "status" | "question">): boolean {
+  return (
+    goal.question !== null ||
+    goal.status === "needs_input" ||
+    goal.status === "waiting_provider" ||
+    goal.status === "failed"
+  );
+}
+
+/** A goal belongs in the ambient island only while it is moving or needs intervention. */
+export function isGoalIslandVisible(goal: Pick<GoalSummary, "status" | "question">): boolean {
+  return isGoalDriven(goal.status) || goalNeedsIslandAttention(goal);
+}
+
+/** The island's one-line explanation of the exact state to act on. */
+export function goalIslandHeadline(
+  goal: Pick<
+    GoalSummary,
+    | "status"
+    | "currentTaskTitle"
+    | "completedTaskCount"
+    | "totalTaskCount"
+    | "waitingReason"
+    | "question"
+  >,
+): string {
+  if (goal.question !== null) return "Needs your answer";
+  return goalSummaryHeadline(goal);
+}
+
+/** A verb that reflects the next useful destination, not merely navigation. */
+export function goalIslandActionLabel(goal: Pick<GoalSummary, "status" | "question">): string {
+  if (goal.question !== null || goal.status === "needs_input") return "Answer goal";
+  if (goal.status === "waiting_provider" || goal.status === "failed") return "Review goal";
+  return "Open goal";
+}
+
+/**
  * Whether a goal is the one driving this thread's work.
  *
  * A goal runs its turns in the thread it is bound to, so the thread knows

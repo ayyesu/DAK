@@ -15,6 +15,9 @@ import {
   goalDeliveryNotice,
   goalDrivesThread,
   goalHasOpenQuestion,
+  goalIslandActionLabel,
+  goalIslandHeadline,
+  goalNeedsIslandAttention,
   goalOccupiesThread,
   goalHeadline,
   goalMetaLine,
@@ -35,6 +38,7 @@ import {
   isGoalActive,
   isGoalEnded,
   isGoalDriven,
+  isGoalIslandVisible,
   isGoalSlashCommand,
   isGoalSlashPrompt,
   isUsableGoalModelSelection,
@@ -629,6 +633,31 @@ describe("goal control matrix", () => {
       expect(canRetryGoal(status)).toBe(false);
       expect(isGoalEnded(status)).toBe(true);
     }
+  });
+});
+
+describe("goal island lifecycle", () => {
+  it("keeps active work and actionable stops visible, but not an intentionally paused goal", () => {
+    expect(isGoalIslandVisible({ status: "running", question: null })).toBe(true);
+    expect(isGoalIslandVisible({ status: "needs_input", question: null })).toBe(true);
+    expect(isGoalIslandVisible({ status: "waiting_provider", question: null })).toBe(true);
+    expect(isGoalIslandVisible({ status: "failed", question: null })).toBe(true);
+    expect(isGoalIslandVisible({ status: "paused", question: null })).toBe(false);
+  });
+
+  it("elevates an open question and names the useful next action", () => {
+    const waiting = {
+      status: "running" as const,
+      question: "Which provider should I use?",
+      currentTaskTitle: "Configure the client",
+      completedTaskCount: 1,
+      totalTaskCount: 3,
+      waitingReason: null,
+    };
+    expect(goalNeedsIslandAttention(waiting)).toBe(true);
+    expect(goalIslandHeadline(waiting)).toBe("Needs your answer");
+    expect(goalIslandActionLabel(waiting)).toBe("Answer goal");
+    expect(goalIslandActionLabel({ status: "failed", question: null })).toBe("Review goal");
   });
 });
 

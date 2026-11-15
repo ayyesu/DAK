@@ -19,6 +19,7 @@ import * as ElectronShell from "../electron/ElectronShell.ts";
 import * as ElectronTheme from "../electron/ElectronTheme.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import {
+  DISPLAY_HAS_NOTCH_CHANNEL,
   MENU_ACTION_CHANNEL,
   QUIT_SHORTCUT_CHANNEL,
   SNAP_SHOT_EVENT_CHANNEL,
@@ -26,6 +27,7 @@ import {
   WINDOW_FULLSCREEN_STATE_CHANNEL,
 } from "../ipc/channels.ts";
 import * as PreviewManager from "../preview/Manager.ts";
+import { watchWindowDisplayNotch } from "./DisplayNotch.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import * as ElectronApp from "../electron/ElectronApp.ts";
@@ -691,6 +693,18 @@ export const make = Effect.gen(function* () {
         syncMacosWindowButtons(window);
         window.webContents.send(WINDOW_FULLSCREEN_STATE_CHANNEL, false);
       });
+      // The renderer hides the island's faux cutout on a notched display, so it needs
+      // to hear when the window changes display or the display setup changes.
+      const stopWatchingDisplayNotch = watchWindowDisplayNotch({
+        window,
+        screen: Electron.screen,
+        platform: environment.platform,
+        onChange: (hasNotch) => {
+          if (window.isDestroyed()) return;
+          window.webContents.send(DISPLAY_HAS_NOTCH_CHANNEL, hasNotch);
+        },
+      });
+      window.once("closed", stopWatchingDisplayNotch);
     }
 
     let developmentLoadRetryIndex = 0;
