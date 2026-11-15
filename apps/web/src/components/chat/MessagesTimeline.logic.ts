@@ -64,6 +64,7 @@ import {
   formatSearchToolLabel,
 } from "@dak/shared/toolActivity";
 import { isWindowsAbsolutePath } from "@dak/shared/path";
+import { parseGoalTurnMessageId, type GoalTurnRef } from "./GoalTurn.logic";
 
 function timelineEntryRunId(entry: TimelineEntry): RunId | null {
   if (entry.kind === "message") {
@@ -605,6 +606,11 @@ type MessagesTimelineRowContent =
       assistantCopyStreaming: boolean;
       assistantTurnDiffSummary?: TurnDiffSummary | undefined;
       revertTurnCount?: number | undefined;
+      /**
+       * Set on the message Goal Mode sent and on the agent's replies to it, up to the next message
+       * a person wrote. Read from the goal turn's message id; see `parseGoalTurnMessageId`.
+       */
+      goalTurn?: GoalTurnRef | undefined;
     }
   | {
       kind: "assistant-meta";
@@ -1483,6 +1489,10 @@ export function deriveMessagesTimelineRows(input: {
     );
   };
 
+  // The goal turn the rows below belong to: set by a message Goal Mode sent, ended by any message a
+  // person wrote. The agent's replies in between are that turn's.
+  let activeGoalTurn: GoalTurnRef | null = null;
+
   for (let index = 0; index < timelineEntries.length; index += 1) {
     const timelineEntry = timelineEntries[index];
     if (!timelineEntry) {
@@ -1767,6 +1777,14 @@ export function deriveMessagesTimelineRows(input: {
       continue;
     }
 
+    if (timelineEntry.message.role === "user") {
+      activeGoalTurn = parseGoalTurnMessageId(timelineEntry.message.id);
+    }
+    const goalTurn =
+      timelineEntry.message.role === "user" || timelineEntry.message.role === "assistant"
+        ? activeGoalTurn
+        : null;
+
     const assistantResponseStillInProgress =
       timelineEntry.message.role === "assistant" &&
       runIdIsActiveResponse(timelineEntry.message.runId);
@@ -1802,6 +1820,7 @@ export function deriveMessagesTimelineRows(input: {
         timelineEntry.message.role === "user"
           ? revertTurnCountByUserMessageId.get(timelineEntry.message.id)
           : undefined,
+      ...(goalTurn === null ? {} : { goalTurn }),
     });
   }
 

@@ -227,6 +227,9 @@ import {
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Spinner } from "../ui/spinner";
+import { splitGoalReport } from "@dak/shared/goalReport";
+import { GoalReportCard } from "./GoalReportCard";
+import { GoalTurnCard } from "./GoalTurnCard";
 import { Tooltip, TooltipPopup, TooltipTrigger, TooltipScrollDismissArea } from "../ui/tooltip";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
 import {
@@ -1888,7 +1891,15 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "turn-fold" ? <TurnFoldTimelineRow row={row} /> : null}
       {row.kind === "attempt-fold" ? <AttemptFoldTimelineRow row={row} /> : null}
       {row.kind === "context-compaction" ? <ContextCompactionTimelineRow row={row} /> : null}
-      {row.kind === "message" && row.message.role === "user" ? <UserTimelineRow row={row} /> : null}
+      {row.kind === "message" && row.message.role === "user" ? (
+        // A turn Goal Mode sent is not something a person wrote: it gets the goal's own card, not
+        // a user bubble holding the protocol prompt.
+        row.goalTurn ? (
+          <GoalTurnCard turn={row.goalTurn} prompt={row.message.text} />
+        ) : (
+          <UserTimelineRow row={row} />
+        )
+      ) : null}
       {row.kind === "message" && row.message.role === "assistant" ? (
         <AssistantTimelineRow row={row} />
       ) : null}
@@ -2562,32 +2573,67 @@ function AttemptFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "at
 
 function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
-  const messageText = row.message.text || (row.message.streaming ? "" : "(empty response)");
+  const plainText = row.message.text || (row.message.streaming ? "" : "(empty response)");
+  // In a goal turn the agent ends with a fenced JSON report for Goal Mode to read. People read the
+  // prose, and the report as a card; the fence itself is never shown.
+  const goalSplit = useMemo(
+    () =>
+      row.goalTurn
+        ? splitGoalReport(row.message.text, { streaming: Boolean(row.message.streaming) })
+        : null,
+    [row.goalTurn, row.message.text, row.message.streaming],
+  );
+  const messageText =
+    goalSplit === null
+      ? plainText
+      : goalSplit.prose !== "" || goalSplit.report !== null || goalSplit.pending
+        ? goalSplit.prose
+        : plainText;
 
   return (
     <>
-      <div className="relative min-w-0 px-1 py-0.5">
+      <div
+        className={cn(
+          "relative min-w-0 px-1 py-0.5",
+          // A rail ties the agent's reply to the goal card that asked for it.
+          row.goalTurn && "ms-1 border-s-2 border-info/25 ps-3",
+        )}
+        data-goal-turn-reply={row.goalTurn ? "true" : undefined}
+      >
         <MessageAuthorHeading>DAK</MessageAuthorHeading>
-        <AssistantCitationSource
-          messageId={row.message.id}
-          {...(ctx.threadRef ? { threadRef: ctx.threadRef } : {})}
-          itemKey={row.id}
-          request={ctx.citationRequest}
-          listRef={ctx.listRef}
-        >
-          <ChatMarkdown
-            text={messageText}
-            cwd={ctx.markdownCwd}
-            threadRef={ctx.threadRef ?? undefined}
-            isStreaming={Boolean(row.message.streaming)}
-            lineBreaks={shouldPreserveAssistantLineBreaks(messageText)}
-            skills={ctx.skills}
-            headingLevelOffset={MESSAGE_HEADING_LEVEL}
-            onUseArtifactTemplate={ctx.onUseArtifactTemplate}
-            onRunShellCommand={ctx.onRunShellCommand}
-            onImageExpand={ctx.onImageExpand}
-          />
-        </AssistantCitationSource>
+        {messageText === "" ? null : (
+          <AssistantCitationSource
+            messageId={row.message.id}
+            {...(ctx.threadRef ? { threadRef: ctx.threadRef } : {})}
+            itemKey={row.id}
+            request={ctx.citationRequest}
+            listRef={ctx.listRef}
+          >
+            <ChatMarkdown
+              text={messageText}
+              cwd={ctx.markdownCwd}
+              threadRef={ctx.threadRef ?? undefined}
+              isStreaming={Boolean(row.message.streaming)}
+              lineBreaks={shouldPreserveAssistantLineBreaks(messageText)}
+              skills={ctx.skills}
+              headingLevelOffset={MESSAGE_HEADING_LEVEL}
+              onUseArtifactTemplate={ctx.onUseArtifactTemplate}
+              onRunShellCommand={ctx.onRunShellCommand}
+              onImageExpand={ctx.onImageExpand}
+            />
+          </AssistantCitationSource>
+        )}
+        {goalSplit?.report ? (
+          <GoalReportCard report={goalSplit.report} goalId={row.goalTurn?.goalId ?? null} />
+        ) : goalSplit?.pending ? (
+          <p
+            role="status"
+            className="mt-2 flex items-center gap-1.5 text-2xs text-muted-foreground"
+          >
+            <Spinner aria-hidden size="xs" />
+            Writing the progress report…
+          </p>
+        ) : null}
         <AssistantChangedFilesSection
           turnSummary={row.assistantTurnDiffSummary}
           routeThreadKey={ctx.routeThreadKey}

@@ -7,7 +7,6 @@ import type {
   EnvironmentId,
   GoalProof,
   GoalSummary,
-  GoalTask,
   ProjectId,
   RunId,
   ThreadId,
@@ -16,9 +15,7 @@ import { scopeThreadRef } from "@dak/client-runtime/environment";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  CheckIcon,
   ChevronDownIcon,
-  CircleIcon,
   EyeIcon,
   ExternalLinkIcon,
   HistoryIcon,
@@ -58,6 +55,7 @@ import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { onOpenGoalComposer, onOpenGoalWork } from "../../goalModeBus";
 import { GoalBlockerPanel } from "./GoalBlockerPanel";
+import { GoalCriterionIcon, GoalTaskIcon, TONE_BAR, TONE_PILL } from "./goalVisuals";
 import { GoalChangedFiles } from "./GoalChangedFiles";
 import { goalChangedFiles } from "./GoalChanges.logic";
 import { GoalWorkView } from "./GoalWorkView";
@@ -87,7 +85,6 @@ import {
   isGoalActive,
   isGoalDriven,
   selectGoalForThread,
-  type GoalTone,
 } from "./GoalMode.logic";
 
 /** Tasks shown before the list folds; a long plan must not swallow the chat. */
@@ -96,65 +93,11 @@ const VISIBLE_ACTIVITY_LIMIT = 12;
 /** Acceptance criteria fold earlier than tasks; four is enough to read at a glance. */
 const VISIBLE_CRITERIA_LIMIT = 4;
 
-const TONE_PILL: Record<GoalTone, string> = {
-  active: "bg-info/10 text-info",
-  attention: "bg-warning/10 text-warning",
-  success: "bg-success/10 text-success",
-  danger: "bg-destructive/10 text-destructive",
-  muted: "bg-muted text-muted-foreground",
-};
-
-const TONE_BAR: Record<GoalTone, string> = {
-  active: "bg-info",
-  attention: "bg-warning",
-  success: "bg-success",
-  danger: "bg-destructive",
-  muted: "bg-muted-foreground/50",
-};
-
 type GoalRun = <A, E>(
   title: string,
   effect: () => Promise<AtomCommandResult<A, E>>,
   onSuccess?: (value: A) => void,
 ) => Promise<void>;
-
-function GoalTaskIcon({ task }: { readonly task: GoalTask }) {
-  if (task.status === "completed") {
-    return (
-      <span className="flex size-4 items-center justify-center rounded-full bg-success/15 text-success">
-        <CheckIcon aria-hidden className="size-2.5" strokeWidth={3} />
-      </span>
-    );
-  }
-  if (task.status === "in_progress") {
-    return <Spinner aria-hidden size="xs" />;
-  }
-  if (task.status === "recovering") {
-    return <RotateCcwIcon aria-hidden className="size-4 text-info" />;
-  }
-  if (task.status === "waiting_input" || task.status === "failed") {
-    return <TriangleAlertIcon aria-hidden className="size-4 text-warning" />;
-  }
-  return <CircleIcon aria-hidden className="size-4 text-muted-foreground/40" />;
-}
-
-function GoalCriterionIcon({ met }: { readonly met: boolean | null }) {
-  if (met === true) {
-    return (
-      <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
-        <CheckIcon aria-hidden className="size-2.5" strokeWidth={3} />
-      </span>
-    );
-  }
-  if (met === false) {
-    return (
-      <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive">
-        <XIcon aria-hidden className="size-2.5" strokeWidth={3} />
-      </span>
-    );
-  }
-  return <CircleIcon aria-hidden className="size-4 shrink-0 text-muted-foreground/40" />;
-}
 
 /** One piece of rich proof: an image, screenshot, canvas export, or link to test/run output. */
 function GoalCriterionProof({ proof }: { readonly proof: GoalProof }) {
