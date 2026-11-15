@@ -17,70 +17,67 @@ const subject = {
   currentTaskTitle: "Wire the submit handler",
 };
 
-const runEffect = <A, E>(effect: Effect.Effect<A, E>) =>
-  Effect.runPromise(
-    effect.pipe(
-      Effect.map((value) => ({ ok: true as const, value })),
-      Effect.catch((error: unknown) => Effect.succeed({ ok: false as const, error })),
-    ),
+describe("fromRunner generateIslandCopy", () => {
+  it.effect("sends the goal facts and returns sanitised copy", () =>
+    Effect.gen(function* () {
+      let seenPrompt = "";
+      let seenOperation = "";
+      const runner: TextGenerationOperations.Runner = (request) => {
+        seenPrompt = request.prompt;
+        seenOperation = request.operation;
+        return Effect.succeed({ detail: "**Working** on the login form", compact: "Working" });
+      };
+      const service = TextGenerationOperations.fromRunner("TestTextGeneration", runner);
+
+      const result = yield* service.generateIslandCopy({
+        cwd: process.cwd(),
+        subject,
+        modelSelection,
+      });
+
+      expect(seenOperation).toBe("generateIslandCopy");
+      expect(seenPrompt).toContain("<island-facts>");
+      expect(seenPrompt).toContain("Goal title: Fix the login form");
+      expect(result).toEqual({ detail: "Working on the login form", compact: "Working" });
+    }),
   );
 
-describe("fromRunner generateIslandCopy", () => {
-  it("sends the goal facts and returns sanitised copy", async () => {
-    let seenPrompt = "";
-    let seenOperation = "";
-    const runner: TextGenerationOperations.Runner = (request) => {
-      seenPrompt = request.prompt;
-      seenOperation = request.operation;
-      return Effect.succeed({ detail: "**Working** on the login form", compact: "Working" });
-    };
-    const service = TextGenerationOperations.fromRunner("TestTextGeneration", runner);
+  it.effect("fails with TextGenerationError when the model returns no usable detail", () =>
+    Effect.gen(function* () {
+      const runner: TextGenerationOperations.Runner = () =>
+        Effect.succeed({ detail: "***", compact: "Working" });
+      const service = TextGenerationOperations.fromRunner("TestTextGeneration", runner);
 
-    const result = await runEffect(
-      service.generateIslandCopy({ cwd: process.cwd(), subject, modelSelection }),
-    );
+      const error = yield* service
+        .generateIslandCopy({ cwd: process.cwd(), subject, modelSelection })
+        .pipe(Effect.flip);
 
-    expect(seenOperation).toBe("generateIslandCopy");
-    expect(seenPrompt).toContain("<island-facts>");
-    expect(seenPrompt).toContain("Goal title: Fix the login form");
-    expect(result).toEqual({
-      ok: true,
-      value: { detail: "Working on the login form", compact: "Working" },
-    });
-  });
+      expect(error).toBeInstanceOf(TextGenerationError);
+      expect(error).toMatchObject({
+        operation: "generateIslandCopy",
+      });
+    }),
+  );
 
-  it("fails with TextGenerationError when the model returns no usable detail", async () => {
-    const runner: TextGenerationOperations.Runner = () =>
-      Effect.succeed({ detail: "***", compact: "Working" });
-    const service = TextGenerationOperations.fromRunner("TestTextGeneration", runner);
+  it.effect("propagates runner failures as TextGenerationError", () =>
+    Effect.gen(function* () {
+      const runner: TextGenerationOperations.Runner = () =>
+        Effect.fail(
+          new TextGenerationError({
+            operation: "generateIslandCopy",
+            detail: "provider is down",
+          }),
+        );
+      const service = TextGenerationOperations.fromRunner("TestTextGeneration", runner);
 
-    const result = await runEffect(
-      service.generateIslandCopy({ cwd: process.cwd(), subject, modelSelection }),
-    );
+      const error = yield* service
+        .generateIslandCopy({ cwd: process.cwd(), subject, modelSelection })
+        .pipe(Effect.flip);
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toBeInstanceOf(TextGenerationError);
-      expect((result.error as TextGenerationError).operation).toBe("generateIslandCopy");
-    }
-  });
-
-  it("propagates runner failures as TextGenerationError", async () => {
-    const runner: TextGenerationOperations.Runner = () =>
-      Effect.fail(
-        new TextGenerationError({ operation: "generateIslandCopy", detail: "provider is down" }),
-      );
-    const service = TextGenerationOperations.fromRunner("TestTextGeneration", runner);
-
-    const result = await runEffect(
-      service.generateIslandCopy({ cwd: process.cwd(), subject, modelSelection }),
-    );
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect((result.error as TextGenerationError).detail).toBe("provider is down");
-    }
-  });
+      expect(error).toBeInstanceOf(TextGenerationError);
+      expect(error).toMatchObject({ detail: "provider is down" });
+    }),
+  );
 });
 
 describe("sanitizeIslandCopy", () => {
