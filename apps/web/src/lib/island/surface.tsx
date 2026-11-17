@@ -694,19 +694,28 @@ const sameTarget = (a: ShapeTarget | null, b: ShapeTarget) =>
   a.bubbleRight === b.bubbleRight &&
   a.bubbleHeight === b.bubbleHeight;
 
-/**
- * Natural width of a slot's content, to the sub-pixel (offsetWidth rounds, and "42" and "43" differ
- * by 0.37 px). The slot's own scale is divided out. Zero for an empty slot, so the pill doesn't
- * reserve space for it.
- */
-const contentWidth = (element: HTMLElement | undefined) => {
-  if (!element || element.childNodes.length === 0) return 0;
+/** The scale a transform gives an element: 1 for none. */
+const scaleOf = (element: Element) => {
   const transform = getComputedStyle(element).transform;
   const scale =
     transform && transform !== "none" && typeof DOMMatrixReadOnly !== "undefined"
       ? new DOMMatrixReadOnly(transform).a
       : 1;
-  return element.getBoundingClientRect().width / (scale > 0.01 ? scale : 1);
+  return scale > 0.01 ? scale : 1;
+};
+
+/**
+ * Natural width of a slot's content, to the sub-pixel (offsetWidth rounds, and "42" and "43" differ
+ * by 0.37 px). The slot's own scale is divided out, and so is a scale on the island itself: a host
+ * that shrinks the whole island to suit its UI (see `ISLAND_UI_SCALE`) shrinks the rect too, while
+ * the widths this is compared with are laid out unscaled. Zero for an empty slot, so the pill
+ * doesn't reserve space for it.
+ */
+export const contentWidth = (element: HTMLElement | undefined) => {
+  if (!element || element.childNodes.length === 0) return 0;
+  const root = element.closest("[data-islandcn]");
+  const ambient = root !== null && root !== element ? scaleOf(root) : 1;
+  return element.getBoundingClientRect().width / (scaleOf(element) * ambient);
 };
 
 /** An element's laid-out height to the sub-pixel, unaffected by any scale on it or its parents. */

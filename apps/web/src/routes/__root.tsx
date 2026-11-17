@@ -1,6 +1,8 @@
 import { PermissionUpdateNotice } from "../components/PermissionUpdateNotice";
 import { DakIslandController } from "../components/islandcn/DakIslandController";
 import { IslandNotificationActivity } from "../components/islandcn/NotificationActivity";
+import { ISLAND_EXPANDED_MAX_HEIGHT, ISLAND_UI_SCALE } from "../components/islandcn/islandScale";
+import { useIslandTopbarSlot } from "../components/islandcn/useIslandTopbarSlot";
 import { DakWordmark } from "../components/DakWordmark";
 import { Island, IslandProvider } from "~/lib/island";
 import { type ServerLifecycleWelcomePayload } from "@dak/contracts";
@@ -157,6 +159,15 @@ function RootRouteView() {
   const islandStyleSetting = useClientSettings((settings) => settings.islandStyle);
   const displayHasNotch = useDisplayHasNotch();
   const islandStyle = resolveIslandStyle(islandStyleSetting, displayHasNotch);
+  const islandSlot = useIslandTopbarSlot(pathname, ISLAND_UI_SCALE);
+  // Resting and expanded share one top, so opening a card never makes the island jump.
+  const islandMetricsOverride = useMemo(
+    () => ({
+      top: islandSlot.top,
+      expanded: { top: islandSlot.top, maxHeight: ISLAND_EXPANDED_MAX_HEIGHT },
+    }),
+    [islandSlot.top],
+  );
   const { authGateState } = Route.useRouteContext();
   const primaryEnvironmentAuthenticated = authGateState.status === "authenticated";
   const returningFromWelcomeRef = useRef(pathname === "/welcome");
@@ -269,13 +280,24 @@ function RootRouteView() {
           {/* Dynamic Island: global live-activity surface (needs-input alerts,
               desktop updates, in-app notifications). Chat views register their
               own composer modes. Wraps the shell so every route sees it. */}
-          {/* Keep every presentation on the workspace header line. Overriding only `top`
-              moves the resting pill while the expanded card keeps islandcn's phone-notch
-              default, making it jump upward when opened. */}
-          <IslandProvider metrics={{ top: 60, expanded: { top: 60 } }}>
+          {/* The island lives on the title bar's centre line, in the part of the bar the header
+              leaves free (see useIslandTopbarSlot), so it never sits over the chat or a header
+              control. Overriding only `top` would move the resting pill while the expanded card
+              kept islandcn's phone-notch default, so both move together. */}
+          <IslandProvider metrics={islandMetricsOverride}>
+            {islandSlot.fits ? null : (
+              // No gap in the bar is wide enough: keep the resting pill out of sight rather than
+              // draw it over something. A card that needs attention still opens.
+              <style href="island-no-room" precedence="default">
+                {
+                  '[data-islandcn][data-presentation]:not([data-presentation="expanded"]){visibility:hidden}'
+                }
+              </style>
+            )}
             <Island
               placement="viewport"
               appearance={resolvedTheme}
+              style={islandSlot.style}
               hideWhenIdle={islandStyle === "notch"}
               idleLogo={
                 <DakWordmark
