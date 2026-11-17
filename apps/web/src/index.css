@@ -2098,6 +2098,15 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* The island sits on the title bar, which is a drag region, and a drag region takes the press even
+   when something is drawn above it. The island's own controls cut themselves out of it, so a press
+   on the pill or on a card's button reaches the island instead of starting a window drag. Only
+   what takes pointers is excluded: the idle pill takes none, so it can still be dragged through. */
+[data-islandcn] [data-islandcn-hit],
+[data-islandcn] button {
+  -webkit-app-region: no-drag;
+}
+
 /* Scrollbar styling. STONE & BLUEPRINT: a wider gutter, so a thin thumb still
    has a comfortable hit target without needing to look like a pill.
    Deliberately left rounded: code blocks and the timeline style their own

@@ -57,6 +57,53 @@ function copyWorkspaceManifestFixture(targetRoot: string): void {
   }
 }
 
+const dependencySections = ["dependencies", "devDependencies", "optionalDependencies"] as const;
+
+/**
+ * The fixture's install resolves from scratch, and pnpm's minimumReleaseAge gate only admits
+ * packages that have aged past it. A caret range drifts onto the newest release once it clears
+ * the gate, while patches/ is keyed to one exact version, so the fresh resolution drops the
+ * patch and dies on the unused declaration. Pin every copied manifest to the patch's own
+ * version, the same way the staged desktop install does.
+ */
+function pinPatchedDependencyVersions(root: string): void {
+  const workspaceYaml = NodeFS.readFileSync(NodePath.join(root, "pnpm-workspace.yaml"), "utf8");
+  const patched = new Map<string, string>();
+  let inPatchedBlock = false;
+  for (const line of workspaceYaml.split(/\r?\n/)) {
+    if (/^\S/.test(line)) {
+      inPatchedBlock = line.startsWith("patchedDependencies:");
+      continue;
+    }
+    if (!inPatchedBlock) continue;
+    const match = /^\s+(?:"([^"]+)"|([A-Za-z0-9._/-]+)):/.exec(line);
+    if (match === null) continue;
+    const key = match[1] ?? match[2]!;
+    const separator = key.lastIndexOf("@");
+    if (separator <= 0) continue;
+    patched.set(key.slice(0, separator), key.slice(separator + 1));
+  }
+  for (const relativePath of workspaceFiles) {
+    if (!relativePath.endsWith("package.json")) continue;
+    const manifestPath = NodePath.join(root, relativePath);
+    if (!NodeFS.existsSync(manifestPath)) continue;
+    const manifest: Record<string, unknown> = JSON.parse(NodeFS.readFileSync(manifestPath, "utf8"));
+    let changed = false;
+    for (const section of dependencySections) {
+      const deps = manifest[section];
+      if (typeof deps !== "object" || deps === null) continue;
+      for (const [name, version] of patched) {
+        const record = deps as Record<string, string>;
+        if (Object.hasOwn(record, name) && record[name] !== version) {
+          record[name] = version;
+          changed = true;
+        }
+      }
+    }
+    if (changed) NodeFS.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
+}
+
 function writeMacManifestFixtures(targetRoot: string): { arm64Path: string; x64Path: string } {
   const assetDirectory = NodePath.resolve(targetRoot, "release-assets");
   NodeFS.mkdirSync(assetDirectory, { recursive: true });
@@ -198,6 +245,7 @@ const tempRoot = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "dak-release-
 
 try {
   copyWorkspaceManifestFixture(tempRoot);
+  pinPatchedDependencyVersions(tempRoot);
 
   NodeChildProcess.execFileSync(
     process.execPath,
