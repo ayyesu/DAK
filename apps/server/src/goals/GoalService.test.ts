@@ -1812,3 +1812,79 @@ it.effect("a question stays open while restart recovery and the sweep pass", () 
     expect(resumed.map((row) => row.summary)).not.toContain("Resumed after a server restart");
   }).pipe(Effect.provide(scriptedLayer(script)));
 });
+
+// A planning turn has no current task yet, so a question asked in it used to
+// be dropped: the goal kept running on the agent's own assumption and the
+// user was never offered a way to answer.
+const planAsksNamedTaskReport = report({
+  status: "needs_input",
+  summary: "Planned, but I need a decision first",
+  plan: [
+    { title: "Confirm the target", detail: null },
+    { title: "Do the thing", detail: null, dependsOn: ["Confirm the target"] },
+  ],
+  tasks: [{ title: "Confirm the target", status: "waiting_input", evidence: "no key found" }],
+  input: {
+    question: "Which Clerk app should I use?",
+    reason: "No secret key exists in the workspace",
+    attempted: "Searched the env files",
+    recommendation: "Use the existing one",
+  },
+});
+const planAsksUnnamedReport = report({
+  status: "needs_input",
+  summary: "Planned, but I need a decision first",
+  plan: [{ title: "Do the thing", detail: null }],
+  question: "Which Clerk app should I use?",
+});
+
+it.effect("a question asked while planning is kept and parks the task that asked it", () => {
+  const script = makeScript({
+    steps: [{ kind: "completed", reply: planAsksNamedTaskReport }],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+    const parked = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    expect(parked.question).toBe("Which Clerk app should I use?");
+    const full = yield* service.get({ id: created.goal.id });
+    const asker = full.goal.tasks.find((task) => task.title === "Confirm the target");
+    expect(asker?.status).toBe("waiting_input");
+    expect(full.goal.questionTaskId).toBe(asker?.id);
+    // The dependent task did not run on a guess while the user was away.
+    expect(script.sentTexts).toHaveLength(1);
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});
+
+it.effect("a question asked while planning with no task named still parks the goal", () => {
+  const script = makeScript({
+    steps: [
+      { kind: "completed", reply: planAsksUnnamedReport },
+      { kind: "completed", reply: answerProgressReport },
+    ],
+  });
+  return Effect.gen(function* () {
+    const service = yield* GoalService.GoalService;
+    const created = yield* service.create(createInput());
+    const parked = yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.status === "needs_input",
+    );
+    expect(parked.question).toBe("Which Clerk app should I use?");
+    expect(script.sentTexts).toHaveLength(1);
+
+    // The answer is accepted and handed to the agent, not refused.
+    yield* service.answer({ id: created.goal.id, text: "Use the existing one." });
+    yield* awaitGoalState(
+      service.subscribeList({}),
+      created.goal.id,
+      (goal) => goal.question === null && goal.status !== "needs_input",
+    );
+    expect(script.sentTexts[1]).toContain("The user answered: Use the existing one.");
+  }).pipe(Effect.provide(scriptedLayer(script)));
+});

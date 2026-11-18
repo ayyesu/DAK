@@ -46,14 +46,30 @@ export interface GoalReportApplication {
   readonly prematureCompletion: boolean;
   /** The agent asked the user a question; only the affected task pauses. */
   readonly question: string | null;
-  /** The task the agent asked about, when the report named one. */
-  readonly questionTaskTitle: string | null;
+  /**
+   * The unfinished task the agent named as waiting for the user, resolved
+   * against the stored plan. A task that was only just planned counts: a
+   * planning turn can ask its question before any task has started.
+   */
+  readonly questionTaskId: string | null;
   /** The evidence the agent supplied for a deadlock, when it supplied any. */
   readonly blocker: GoalBlocker | null;
 }
 
 function normalizedTitle(title: string): string {
   return title.trim().toLowerCase().replaceAll(/\s+/g, " ");
+}
+
+/** The unfinished task a needs_input report names as waiting for the user. */
+function namedWaitingTask(
+  tasks: ReadonlyArray<GoalTask>,
+  report: GoalReport,
+): GoalTask | undefined {
+  if (report.status !== "needs_input") return undefined;
+  const named = report.tasks.find((update) => update.status === "waiting_input");
+  if (named === undefined) return undefined;
+  const key = normalizedTitle(named.title);
+  return tasks.find((task) => task.status !== "completed" && normalizedTitle(task.title) === key);
 }
 
 /**
@@ -272,10 +288,7 @@ export function applyGoalReport(input: {
     changes,
     prematureCompletion: report.status === "completed" && !allCompleted,
     question: report.status === "needs_input" ? (report.question ?? null) : null,
-    questionTaskTitle:
-      report.status === "needs_input"
-        ? (report.tasks.find((task) => task.status === "waiting_input")?.title ?? null)
-        : null,
+    questionTaskId: namedWaitingTask(tasks, report)?.id ?? null,
     blocker: report.blocker,
   };
 }
