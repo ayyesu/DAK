@@ -1319,17 +1319,25 @@ export const layer = Layer.effect(
       // driver sends a recovery turn with the failure as its context.
       const hitObstacle = report.status === "recovering" || reportedFailed;
 
+      // The task that carries the question: the one this turn was about, else
+      // the one the agent named. A planning turn has no current task yet, so
+      // the name is all there is to go on there.
+      const currentOpen = applied.tasks.find(
+        (task) => task.id === currentTaskId && task.status !== "completed",
+      );
+      const askerId = asksForInput ? (currentOpen?.id ?? applied.questionTaskId) : null;
+
       const tasks = applied.tasks.map((task) => {
-        if (task.id !== currentTaskId) return task;
         if (task.status === "completed") return task;
-        if (asksForInput) {
+        if (task.id === askerId) {
           return {
             ...task,
             status: "waiting_input" as const,
             question: task.question ?? applied.question,
+            startedAt: task.startedAt ?? at,
           };
         }
-        if (hitObstacle) {
+        if (task.id === currentTaskId && hitObstacle) {
           return { ...task, status: "recovering" as const };
         }
         return task;
@@ -1347,6 +1355,13 @@ export const layer = Layer.effect(
       const asked = withQuestions.find(
         (task) => task.status === "waiting_input" && task.question !== null,
       );
+
+      // A question that no task can carry still has to reach the user. The
+      // agent said only the user can move this forward, so the goal waits on
+      // the answer instead of running on a guess. (With no plan yet, the
+      // planning loop asks the agent for one instead.)
+      const heldQuestion =
+        asksForInput && asked === undefined && withQuestions.length > 0 ? applied.question : null;
 
       // The agent's assessment of what is in the way is evidence it keeps
       // working with, not a verdict that ends the goal. It rides on the task
@@ -1369,11 +1384,15 @@ export const layer = Layer.effect(
         // A turn that reports no work yet leaves a task-less goal in planning
         // so the loop re-plans instead of giving up on an empty plan.
         status:
-          applied.status === "running" && applied.tasks.length === 0 ? "planning" : applied.status,
+          heldQuestion !== null
+            ? "needs_input"
+            : applied.status === "running" && applied.tasks.length === 0
+              ? "planning"
+              : applied.status,
         verification,
         waitingReason: null,
         failureReason: null,
-        question: asked?.question ?? null,
+        question: asked?.question ?? heldQuestion,
         questionTaskId: asked?.id ?? null,
         progress: report.progress ?? null,
         progressLabel: report.progressLabel ?? null,
@@ -1399,6 +1418,13 @@ export const layer = Layer.effect(
           kind: "status",
           summary: "The agent reported completion, but tasks remain; continuing",
           detail: null,
+        });
+      }
+      if (heldQuestion !== null) {
+        yield* appendActivity(goal.id, {
+          kind: "status",
+          summary: "Waiting for your answer",
+          detail: heldQuestion,
         });
       }
       yield* notifyChanged;
