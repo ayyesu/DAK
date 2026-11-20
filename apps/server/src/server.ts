@@ -61,6 +61,8 @@ import * as McpSessionRegistry from "./mcp/McpSessionRegistry.ts";
 import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
 import * as DeviceService from "./device/DeviceService.ts";
 import * as DeviceHubProxy from "./device/DeviceHubProxy.ts";
+import * as McpConnectors from "./mcpConnectors/McpConnectors.ts";
+import * as McpConnectorProxyRoute from "./mcpConnectors/proxyRoute.ts";
 import * as PreviewManager from "./preview/Manager.ts";
 import * as CanvasChangeBus from "./canvas/CanvasChangeBus.ts";
 import { layerCanvasRenderLimiter } from "./canvas/CanvasSocket.ts";
@@ -683,9 +685,15 @@ const layerMakeRoutes = Layer.mergeAll(
     ServerHttp.layerAssetRoute,
     ServerHttp.layerAttachmentUploadRoute,
     DeviceHubProxy.layer,
+    McpConnectorProxyRoute.layer,
     ServerBrowserStream.routeLayer,
     ServerHttp.layerStaticAndDevRoute,
-    Ws.layer,
+    Layer.unwrap(
+      Effect.gen(function* () {
+        const mcpConnectors = yield* McpConnectors.McpConnectors;
+        return Ws.makeLayer(mcpConnectors);
+      }),
+    ),
   ),
   // The MCP session registry is provided globally (shared with V2 provider
   // sessions) rather than inline here. The orchestrator toolkit resolves
@@ -1082,6 +1090,8 @@ const layerMakeServer = Layer.unwrap(
       Layer.provideMerge(layerHttpServer),
       Layer.provide(layerApplicationObservability),
       Layer.provideMerge(FetchHttpClient.layer),
+      // Connector settings, probes, the proxy route, and adapter injection share one instance.
+      Layer.provide(McpConnectors.layer.pipe(Layer.provide(ServerSecretStore.layer))),
       // PR reads, Git operations, and WebSocket discovery share one process limiter.
       Layer.provide(VcsProcess.layer),
       Layer.provideMerge(layerPlatformServices),

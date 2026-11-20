@@ -328,6 +328,15 @@ import {
 import { UsagePricing, UsageReadError, UsageSummary, UsageSummaryInput } from "./usage.ts";
 import { ServerSettings, ServerSettingsError, ServerSettingsPatch } from "./settings.ts";
 import {
+  McpConnectorConnectInput,
+  McpConnectorConnectResult,
+  McpConnectorDisconnectInput,
+  McpConnectorDisconnectResult,
+  McpConnectorError,
+  McpConnectorsListInput,
+  McpConnectorsListResult,
+} from "./mcpConnectors.ts";
+import {
   ScheduledTaskDeleteInput,
   ScheduledTaskDeleteResult,
   ScheduledTaskError,
@@ -541,6 +550,11 @@ export const WS_METHODS = {
   secretsAnswerRequest: "secrets.answerRequest",
   scheduledTasksListWebhookDeliveries: "scheduledTasks.listWebhookDeliveries",
   scheduledTasksGetWebhookDelivery: "scheduledTasks.getWebhookDelivery",
+
+  // Outbound MCP connectors
+  mcpConnectorsList: "mcpConnectors.list",
+  mcpConnectorsConnect: "mcpConnectors.connect",
+  mcpConnectorsDisconnect: "mcpConnectors.disconnect",
 
   // Goals
   goalsList: "goals.list",
@@ -1932,6 +1946,24 @@ const WsScheduledTasksGetWebhookDeliveryRpc = Rpc.make(
   },
 );
 
+const WsMcpConnectorsListRpc = Rpc.make(WS_METHODS.mcpConnectorsList, {
+  payload: McpConnectorsListInput,
+  success: McpConnectorsListResult,
+  error: Schema.Union([McpConnectorError, EnvironmentAuthorizationError]),
+});
+
+const WsMcpConnectorsConnectRpc = Rpc.make(WS_METHODS.mcpConnectorsConnect, {
+  payload: McpConnectorConnectInput,
+  success: McpConnectorConnectResult,
+  error: Schema.Union([McpConnectorError, EnvironmentAuthorizationError]),
+});
+
+const WsMcpConnectorsDisconnectRpc = Rpc.make(WS_METHODS.mcpConnectorsDisconnect, {
+  payload: McpConnectorDisconnectInput,
+  success: McpConnectorDisconnectResult,
+  error: Schema.Union([McpConnectorError, EnvironmentAuthorizationError]),
+});
+
 const WsSubscribeAuthAccessRpc = Rpc.make(WS_METHODS.subscribeAuthAccess, {
   payload: Schema.Struct({}),
   success: AuthAccessStreamEvent,
@@ -2033,6 +2065,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsSecretsAnswerRequestRpc,
   WsScheduledTasksListWebhookDeliveriesRpc,
   WsScheduledTasksGetWebhookDeliveryRpc,
+  WsMcpConnectorsListRpc,
+  WsMcpConnectorsConnectRpc,
+  WsMcpConnectorsDisconnectRpc,
   WsServerReportClientActivityRpc,
   WsServerReportHostPowerStateRpc,
   WsServerGetBackgroundPolicyRpc,

@@ -414,6 +414,10 @@
     "./mcpApp": {
       "types": "./src/mcpApp.ts",
       "import": "./src/mcpApp.ts"
+    },
+    "./mcpConnectors": {
+      "types": "./src/mcpConnectors.ts",
+      "import": "./src/mcpConnectors.ts"
     }
   },
   "scripts": {
