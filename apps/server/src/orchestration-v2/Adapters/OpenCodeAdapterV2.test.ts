@@ -3,6 +3,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import type { OpencodeClient, ToolPart } from "@opencode-ai/sdk/v2";
 import {
   CheckpointId,
+  EnvironmentId,
   NodeId,
   OpenCodeSettings,
   ProjectId,
@@ -32,6 +33,8 @@ import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 
 import * as ServerConfig from "../../config.ts";
+import * as injection from "../../mcpConnectors/injection.ts";
+import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import type { EventNdjsonLogger } from "../../provider/EventNdjsonLogger.ts";
 import type { OpenCodeRuntimeShape } from "../../provider/opencodeRuntime.ts";
 import * as IdAllocator from "../IdAllocator.ts";
@@ -2529,6 +2532,121 @@ describe("OpenCodeAdapterV2", () => {
           IdAllocator.layer,
           ServerConfig.layerTest(process.cwd(), {
             prefix: "dak-opencode-v2-adapter-",
+          }).pipe(Layer.provide(NodeServices.layer)),
+        ),
+      ),
+    ),
+  );
+
+  it.effect("registers connectors through the SDK without failing the session", () =>
+    Effect.gen(function* () {
+      const idAllocator = yield* IdAllocator.IdAllocatorV2;
+      const serverConfig = yield* ServerConfig.ServerConfig;
+      const added: Array<unknown> = [];
+      const fakeClient = {
+        event: {
+          subscribe: async (_input?: unknown, options?: { readonly signal?: AbortSignal }) => ({
+            stream: {
+              [Symbol.asyncIterator]: () => ({
+                next: () =>
+                  new Promise<IteratorResult<never>>((resolve) => {
+                    const done = () => resolve({ done: true, value: undefined });
+                    if (options?.signal?.aborted) return done();
+                    options?.signal?.addEventListener("abort", done, { once: true });
+                  }),
+              }),
+            },
+          }),
+        },
+        session: {
+          create: async () => ({
+            data: { id: "ses_native_connector", time: { created: 1, updated: 1 } },
+          }),
+        },
+        mcp: {
+          add: async (input: unknown) => {
+            added.push(input);
+            return { data: true };
+          },
+        },
+      } as unknown as OpencodeClient;
+      const runtime: OpenCodeRuntimeShape = {
+        startOpenCodeServerProcess: () => Effect.die("startOpenCodeServerProcess is not used"),
+        connectToOpenCodeServer: () =>
+          Effect.succeed({
+            url: "test://opencode",
+            version: "test",
+            exitCode: null,
+            external: false,
+          }),
+        runOpenCodeCommand: () => Effect.die("runOpenCodeCommand is not used"),
+        createOpenCodeSdkClient: () => fakeClient,
+        loadOpenCodeInventory: () => Effect.die("loadOpenCodeInventory is not used"),
+        loadInventoryFromCli: () => Effect.die("loadInventoryFromCli is not used"),
+        loadOpenCodeSkills: () => Effect.die("loadOpenCodeSkills is not used"),
+        loadSkillsFromCli: () => Effect.die("loadSkillsFromCli is not used"),
+      };
+      const instanceId = ProviderInstanceId.make("opencode");
+      const threadId = ThreadId.make("thread-opencode-connector");
+      McpProviderSession.setMcpProviderSession({
+        environmentId: EnvironmentId.make("test-environment"),
+        threadId,
+        providerSessionId: "test-session",
+        providerInstanceId: instanceId,
+        endpoint: "http://127.0.0.1:43210/mcp",
+        authorizationHeader: "Bearer thread-scoped-test-token",
+        browserToolsAvailable: true,
+      });
+      injection.setConnectedConnectors([
+        { connectorId: "context7-0123456789ab", serverName: "context7_connector" },
+      ]);
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          McpProviderSession.clearMcpProviderSession(threadId);
+          injection.setConnectedConnectors([]);
+        }),
+      );
+      const adapter = makeOpenCodeAdapterV2({
+        instanceId,
+        settings: OPENCODE_TEST_SETTINGS,
+        environment: {},
+        runtime,
+        idAllocator,
+        serverConfig,
+      });
+      yield* adapter.openSession({
+        threadId,
+        providerSessionId: ProviderSessionId.make("provider-session-opencode-connector"),
+        modelSelection: { instanceId, model: "default" },
+        runtimePolicy: runtimePolicy("full-access"),
+      });
+      assert.deepStrictEqual(added, [
+        {
+          name: "dak",
+          config: {
+            type: "remote",
+            url: "http://127.0.0.1:43210/mcp",
+            headers: { Authorization: "Bearer thread-scoped-test-token" },
+            oauth: false,
+          },
+        },
+        {
+          name: "context7_connector",
+          config: {
+            type: "remote",
+            url: "http://127.0.0.1:43210/mcp/connectors/context7-0123456789ab",
+            headers: { Authorization: "Bearer thread-scoped-test-token" },
+            oauth: false,
+          },
+        },
+      ]);
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Layer.mergeAll(
+          IdAllocator.layer,
+          ServerConfig.layerTest(process.cwd(), {
+            prefix: "dak-opencode-v2-connector-",
           }).pipe(Layer.provide(NodeServices.layer)),
         ),
       ),

@@ -35,7 +35,9 @@ const emptyToAccepted = (
   const bodyIsEmpty =
     response.body._tag === "Empty" ||
     (response.body._tag === "Uint8Array" && response.body.contentLength === 0);
-  return bodyIsEmpty && response.status === 200 ? HttpServerResponse.setStatus(response, 202) : response;
+  return bodyIsEmpty && response.status === 200
+    ? HttpServerResponse.setStatus(response, 202)
+    : response;
 };
 
 /**
@@ -50,7 +52,9 @@ export const layer = HttpRouter.add("*", `${MCP_CONNECTORS_ROUTE_PREFIX}/*`, (re
 
     const authorization = request.headers.authorization;
     const token =
-      authorization?.startsWith("Bearer ") === true ? authorization.slice("Bearer ".length).trim() : "";
+      authorization?.startsWith("Bearer ") === true
+        ? authorization.slice("Bearer ".length).trim()
+        : "";
     if ((yield* registry.resolve(token)) === undefined) {
       return textResponse(401, "Unauthorized");
     }
@@ -105,6 +109,9 @@ export const layer = HttpRouter.add("*", `${MCP_CONNECTORS_ROUTE_PREFIX}/*`, (re
           }),
         );
       case "json-error": {
+        // A notification has no id and expects no reply; a JSON-RPC error body
+        // for it would be an answer to nothing.
+        if (outcome.result.id === undefined) return textResponse(202, "");
         return HttpServerResponse.jsonUnsafe(
           {
             jsonrpc: "2.0",

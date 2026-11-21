@@ -57,6 +57,7 @@ import * as Stream from "effect/Stream";
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import * as ServerConfig from "../../config.ts";
 import { mcpToolPresentation } from "../../provider/McpToolPresentation.ts";
+import * as McpConnectorInjection from "../../mcpConnectors/injection.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import type { EventNdjsonLogger } from "../../provider/EventNdjsonLogger.ts";
 import * as ProviderEventLoggers from "../../provider/ProviderEventLoggers.ts";
@@ -987,6 +988,28 @@ export function makeOpenCodeAdapterV2(
               },
             }),
           );
+          // Connectors are an addition to DAK's own tools: one that fails to
+          // register must not stop the session from opening.
+          for (const connector of McpConnectorInjection.connectorMcpServers(input.threadId)) {
+            yield* OpenCodeRuntime.runOpenCodeSdk("mcp.add", () =>
+              client.mcp.add({
+                name: connector.serverName,
+                config: {
+                  type: "remote",
+                  url: connector.url,
+                  headers: { Authorization: connector.authorization },
+                  oauth: false,
+                },
+              }),
+            ).pipe(
+              Effect.catchCause((cause) =>
+                Effect.logWarning("failed to register MCP connector", {
+                  serverName: connector.serverName,
+                  cause,
+                }),
+              ),
+            );
+          }
         }
 
         const now = yield* DateTime.now;

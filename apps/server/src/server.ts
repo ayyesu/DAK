@@ -688,12 +688,7 @@ const layerMakeRoutes = Layer.mergeAll(
     McpConnectorProxyRoute.layer,
     ServerBrowserStream.routeLayer,
     ServerHttp.layerStaticAndDevRoute,
-    Layer.unwrap(
-      Effect.gen(function* () {
-        const mcpConnectors = yield* McpConnectors.McpConnectors;
-        return Ws.makeLayer(mcpConnectors);
-      }),
-    ),
+    Ws.layer,
   ),
   // The MCP session registry is provided globally (shared with V2 provider
   // sessions) rather than inline here. The orchestrator toolkit resolves

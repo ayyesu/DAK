@@ -108,6 +108,7 @@ import {
 import { ProviderEventLoggers } from "../../provider/ProviderEventLoggers.ts";
 import { codexAppServerArgs, resolveCodexLaunchArgs } from "../../provider/codexLaunchArgs.ts";
 import { mergeProviderInstanceEnvironment } from "../../provider/ProviderInstanceEnvironment.ts";
+import * as McpConnectorInjection from "../../mcpConnectors/injection.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import {
   MCP_APP_EXTENSION_ID,
@@ -1327,6 +1328,8 @@ export function codexThreadRuntimeParams(input: {
 } {
   const mcpSession =
     input.threadId === null ? undefined : McpProviderSession.readMcpProviderSession(input.threadId);
+  const connectors =
+    input.threadId === null ? [] : McpConnectorInjection.connectorMcpServers(input.threadId);
   return {
     ...(input.runtimePolicy?.cwd == null ? {} : { cwd: input.runtimePolicy.cwd }),
     ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),
@@ -1342,6 +1345,15 @@ export function codexThreadRuntimeParams(input: {
                   Authorization: mcpSession.authorizationHeader,
                 },
               },
+              ...Object.fromEntries(
+                connectors.map((connector) => [
+                  connector.serverName,
+                  {
+                    url: connector.url,
+                    http_headers: { Authorization: connector.authorization },
+                  },
+                ]),
+              ),
             },
           }),
     },

@@ -22,11 +22,6 @@ export function setConnectedConnectors(connectors: readonly ConnectedConnector[]
   connected = connectors;
 }
 
-/** Current injection snapshot; empty until the connectors service loads. */
-export function readConnectedConnectors(): readonly ConnectedConnector[] {
-  return connected;
-}
-
 export interface ConnectorMcpServer {
   readonly serverName: string;
   readonly url: string;

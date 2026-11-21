@@ -13,24 +13,33 @@ export const MCP_CONNECTOR_CONNECT_TIMEOUT_MS = 15_000;
 export const MCP_CONNECTOR_FORWARD_TIMEOUT_MS = 300_000;
 
 /**
- * Curated catalog. Every entry is still probed before it saves: the marks say
- * which sign-in model the server uses, not that it will answer.
+ * Everything but `tools/call` (initialize, tools/list, pings, notifications)
+ * is a quick exchange. A dead host must fail a provider's startup handshake in
+ * seconds rather than hold a proxy request open for the tool-call limit.
+ */
+export const MCP_CONNECTOR_HANDSHAKE_TIMEOUT_MS = 30_000;
+
+/**
+ * Curated catalog. Every entry is still probed before it saves: `auth` says
+ * which sign-in model the server uses, not that it will answer. Entries are
+ * the vendor's documented remote endpoint; do not add one without checking
+ * the vendor's own docs for the URL and its authentication.
  */
 export const MCP_CONNECTOR_PRESETS: ReadonlyArray<McpConnectorPreset> = [
-  { presetId: "supabase", name: "Supabase", url: "https://mcp.supabase.com/mcp", auth: "oauth" },
   { presetId: "context7", name: "Context7", url: "https://mcp.context7.com/mcp", auth: "none" },
+  { presetId: "supabase", name: "Supabase", url: "https://mcp.supabase.com/mcp", auth: "oauth" },
   { presetId: "sentry", name: "Sentry", url: "https://mcp.sentry.dev/mcp", auth: "oauth" },
   {
     presetId: "clickhouse",
     name: "ClickHouse",
-    url: "https://mcp.clickhouse.com/mcp",
-    auth: "none",
+    url: "https://mcp.clickhouse.cloud/mcp",
+    auth: "oauth",
   },
   { presetId: "stripe", name: "Stripe", url: "https://mcp.stripe.com", auth: "oauth" },
   {
     presetId: "cloudflare",
     name: "Cloudflare",
-    url: "https://developers.cloudflare.com/mcp/server",
+    url: "https://mcp.cloudflare.com/mcp",
     auth: "oauth",
   },
   { presetId: "linear", name: "Linear", url: "https://mcp.linear.app/mcp", auth: "oauth" },
@@ -42,53 +51,31 @@ export const MCP_CONNECTOR_PRESETS: ReadonlyArray<McpConnectorPreset> = [
   },
   { presetId: "vercel", name: "Vercel", url: "https://mcp.vercel.com", auth: "oauth" },
   {
-    presetId: "sentry-developer",
-    name: "Sentry Developer",
-    url: "https://mcp.sentry.dev/mcp/developer",
-    auth: "oauth",
-  },
-  {
     presetId: "atlassian",
     name: "Atlassian",
     url: "https://mcp.atlassian.com/v1/mcp",
     auth: "oauth",
   },
   { presetId: "neon", name: "Neon", url: "https://mcp.neon.tech/mcp", auth: "oauth" },
-  {
-    presetId: "firebase-studio",
-    name: "Firebase Studio",
-    url: "https://studio-mcp-server.firebaseapp.com/mcp",
-    auth: "oauth",
-  },
-  { presetId: "n8n", name: "n8n", url: "https://mcp.n8n.io/mcp", auth: "oauth" },
-  {
-    presetId: "stripe-developer",
-    name: "Stripe Developer",
-    url: "https://mcp.stripe.com/developer",
-    auth: "none",
-  },
 ];
 
-/** Providers whose adapters inject connector servers into their sessions. */
-export const MCP_CONNECTOR_PROVIDERS = [
-  "claude",
-  "codex",
-  "cursor",
-  "opencode",
-  "opencode2",
-  "muse",
-  "acp",
-] as const;
-export type McpConnectorProvider = (typeof MCP_CONNECTOR_PROVIDERS)[number];
+/**
+ * Providers whose adapters inject connector servers into their sessions, with
+ * the names people know them by. A provider is listed only once its adapter
+ * calls `connectorMcpServers`: ACP agents, Pi, Grok, Antigravity, and
+ * OpenCode 2 do not receive connectors yet.
+ */
+export const MCP_CONNECTOR_PROVIDER_LABELS = {
+  claude: "Claude",
+  codex: "Codex",
+  cursor: "Cursor",
+  opencode: "OpenCode",
+  muse: "Muse",
+} as const;
 
-export const mcpConnectorProviderSupports = (
-  provider: string,
-): provider is McpConnectorProvider =>
-  (MCP_CONNECTOR_PROVIDERS as readonly string[]).includes(provider);
+const MCP_CONNECTOR_URL_MAX_LENGTH = 2_048;
 
-export const MCP_CONNECTOR_URL_MAX_LENGTH = 2_048;
-
-export type McpConnectorUrlError =
+type McpConnectorUrlError =
   | "empty"
   | "too-long"
   | "not-a-url"
@@ -96,7 +83,7 @@ export type McpConnectorUrlError =
   | "credentials-not-allowed"
   | "missing-hostname";
 
-export type NormalizeMcpConnectorUrlResult =
+type NormalizeMcpConnectorUrlResult =
   | { readonly ok: true; readonly url: string; readonly origin: string }
   | { readonly ok: false; readonly error: McpConnectorUrlError };
 
@@ -118,8 +105,7 @@ export function mcpConnectorLoopbackHostname(hostname: string): boolean {
 export function normalizeMcpConnectorUrl(input: string): NormalizeMcpConnectorUrlResult {
   const trimmed = input.trim();
   if (trimmed.length === 0) return { ok: false, error: "empty" };
-  if (trimmed.length > MCP_CONNECTOR_URL_MAX_LENGTH)
-    return { ok: false, error: "too-long" };
+  if (trimmed.length > MCP_CONNECTOR_URL_MAX_LENGTH) return { ok: false, error: "too-long" };
   let parsed: URL;
   try {
     parsed = new URL(trimmed);
@@ -138,7 +124,11 @@ export function normalizeMcpConnectorUrl(input: string): NormalizeMcpConnectorUr
   return { ok: true, url, origin: parsed.origin };
 }
 
-const SERVER_NAME_MAX_SLUG_LENGTH = 52;
+/**
+ * Providers prefix every tool with `mcp__<server>__`, and Claude caps the whole
+ * tool name at 64 characters. A short slug leaves room for real tool names.
+ */
+const SERVER_NAME_MAX_SLUG_LENGTH = 20;
 
 /**
  * A provider-safe server-name fragment: lowercase ASCII letters, digits, and
@@ -156,18 +146,11 @@ export function mcpConnectorSlug(source: string): string {
   return slug.length > 0 ? slug : "connector";
 }
 
-/** The exact name providers register, unique across connectors by construction. */
-export function mcpConnectorServerName(slug: string): string {
-  return `${mcpConnectorSlug(slug)}_connector`;
-}
-
-/** Slug source for a URL: host without the TLD noise, falling back to the path. */
-export function mcpConnectorSlugFromUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase().replaceAll(/^www\./u, "");
-    return mcpConnectorSlug(host.split(".")[0] ?? host);
-  } catch {
-    return "connector";
-  }
+/**
+ * The exact name providers register. `disambiguator` is appended after the
+ * slug is truncated, so a collision suffix can never be cut off with it.
+ */
+export function mcpConnectorServerName(source: string, disambiguator?: string): string {
+  const suffix = disambiguator === undefined ? "" : `_${mcpConnectorSlug(disambiguator)}`;
+  return `${mcpConnectorSlug(source)}${suffix}_connector`;
 }

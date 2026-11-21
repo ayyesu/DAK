@@ -36,6 +36,7 @@ import * as Stream from "effect/Stream";
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import * as ServerConfig from "../../config.ts";
+import * as McpConnectorInjection from "../../mcpConnectors/injection.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import { buildRuntimeInstructions } from "../../provider/RuntimeInstructions.ts";
 import {
@@ -1443,6 +1444,17 @@ export function makeMuseAdapterV2(options: MuseAdapterV2Options): ProviderAdapte
                     url: mcpSession.endpoint,
                     headers: { Authorization: mcpSession.authorizationHeader },
                   },
+                  ...Object.fromEntries(
+                    McpConnectorInjection.connectorMcpServers(args.threadId).map((connector) => [
+                      connector.serverName,
+                      {
+                        transport: "streamableHttp",
+                        mode: "optional",
+                        url: connector.url,
+                        headers: { Authorization: connector.authorization },
+                      },
+                    ]),
+                  ),
                 },
               }
             : undefined;

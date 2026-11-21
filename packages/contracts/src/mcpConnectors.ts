@@ -56,6 +56,11 @@ export const McpConnectorsListResult = Schema.Struct({
   presets: Schema.Array(McpConnectorPreset),
   /** How many more connectors may be added before the limit. */
   remaining: Schema.Number,
+  /**
+   * A health pass is still running, so some statuses may be about to change.
+   * Clients re-read until it clears rather than showing a stale label as fact.
+   */
+  checking: Schema.Boolean,
 });
 export type McpConnectorsListResult = typeof McpConnectorsListResult.Type;
 

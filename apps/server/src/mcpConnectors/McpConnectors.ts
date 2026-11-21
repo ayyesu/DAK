@@ -21,10 +21,12 @@ import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import { FetchHttpClient, HttpClient } from "effect/http";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
+import type * as Scope from "effect/Scope";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
@@ -34,6 +36,13 @@ import * as proxy from "./proxy.ts";
 
 /** Secret-store slot holding the whole connector document. */
 const STORE_NAME = "mcp-connectors";
+
+/**
+ * Longest `list` waits for a health pass. A dead host can take the full probe
+ * timeout, and a settings page must not hang on it: slower probes finish in the
+ * background and the result says `checking` until they do.
+ */
+const LIST_REFRESH_WAIT = "3 seconds";
 
 interface ConnectorsState {
   readonly connectors: readonly McpConnector[];
@@ -57,7 +66,12 @@ export type ConnectorForwardResult =
       readonly body: Uint8Array;
     }
   /** A JSON-RPC error the provider should see instead of an HTTP failure. */
-  | { readonly kind: "json-error"; readonly id: unknown; readonly code: number; readonly message: string };
+  | {
+      readonly kind: "json-error";
+      readonly id: unknown;
+      readonly code: number;
+      readonly message: string;
+    };
 
 export interface McpConnectorsShape {
   readonly list: Effect.Effect<McpConnectorsListResult>;
@@ -143,9 +157,16 @@ const displayNameFor = (
   }
 };
 
+/**
+ * Connectors a provider session should be wired to. An unreachable server stays
+ * in: the outage may be brief, and the next proxied call that succeeds marks it
+ * connected again, whereas dropping it would hold it out of every new session
+ * until someone opened settings. Only a connector that needs a sign-in is held
+ * back, because nothing the provider does can fix that.
+ */
 function injectionEntries(connectors: readonly McpConnector[]): injection.ConnectedConnector[] {
   return connectors
-    .filter((connector) => connector.status === "connected")
+    .filter((connector) => connector.status !== "needs-sign-in")
     .map((connector) => ({
       connectorId: connector.connectorId,
       serverName: connector.serverName,
@@ -161,7 +182,9 @@ function blockedMessage(
     case "timeout":
       return `${name} did not answer within the time limit.`;
     case "network":
-      return detail === undefined ? `${name} could not be reached.` : `${name} could not be reached: ${detail}.`;
+      return detail === undefined
+        ? `${name} could not be reached.`
+        : `${name} could not be reached: ${detail}.`;
     case "local-address":
     case "redirect":
     case "invalid-url":
@@ -173,11 +196,12 @@ function blockedMessage(
 export const make: Effect.Effect<
   McpConnectorsShape,
   never,
-  ServerSecretStore.ServerSecretStore | HttpClient.HttpClient | Crypto.Crypto
+  ServerSecretStore.ServerSecretStore | HttpClient.HttpClient | Crypto.Crypto | Scope.Scope
 > = Effect.gen(function* () {
   const secrets = yield* ServerSecretStore.ServerSecretStore;
   const crypto = yield* Crypto.Crypto;
   const httpClient = yield* HttpClient.HttpClient;
+  const scope = yield* Effect.scope;
   // All service methods are pure bookkeeping; probes run on the shared client.
   const probe = (url: string) =>
     proxy.probe(url).pipe(Effect.provideService(HttpClient.HttpClient, httpClient));
@@ -185,7 +209,9 @@ export const make: Effect.Effect<
     proxy.forward(input).pipe(Effect.provideService(HttpClient.HttpClient, httpClient));
 
   const stored = yield* secrets.get(STORE_NAME).pipe(
-    Effect.map(Option.match({ onSome: decodeDocument, onNone: () => [] as readonly McpConnector[] })),
+    Effect.map(
+      Option.match({ onSome: decodeDocument, onNone: () => [] as readonly McpConnector[] }),
+    ),
     Effect.catchCause((cause) =>
       Effect.logWarning("Failed to read stored MCP connectors; starting empty", { cause }).pipe(
         Effect.as([] as readonly McpConnector[]),
@@ -202,9 +228,13 @@ export const make: Effect.Effect<
 
   /** Persists under the ref's semaphore; a disk failure keeps memory authoritative. */
   const persist = (connectors: readonly McpConnector[]) =>
-    secrets.set(STORE_NAME, encodeDocument(connectors)).pipe(
-      Effect.catchCause((cause) => Effect.logWarning("Failed to persist MCP connectors", { cause })),
-    );
+    secrets
+      .set(STORE_NAME, encodeDocument(connectors))
+      .pipe(
+        Effect.catchCause((cause) =>
+          Effect.logWarning("Failed to persist MCP connectors", { cause }),
+        ),
+      );
 
   /**
    * Runs a pure list transition under the ref's semaphore, persisting and
@@ -273,7 +303,9 @@ export const make: Effect.Effect<
               ? { ...connector, status, updatedAt: DateTime.formatIso(probed) }
               : connector;
           });
-          const changed = connectors.some((connector, index) => connector !== state.connectors[index]);
+          const changed = connectors.some(
+            (connector, index) => connector !== state.connectors[index],
+          );
           if (changed) {
             yield* persist(connectors);
             injection.setConnectedConnectors(injectionEntries(connectors));
@@ -289,12 +321,14 @@ export const make: Effect.Effect<
   });
 
   const list: McpConnectorsShape["list"] = Effect.gen(function* () {
-    yield* refreshIfStale;
+    const pass = yield* Effect.forkIn(refreshIfStale, scope);
+    yield* Fiber.join(pass).pipe(Effect.timeoutOption(LIST_REFRESH_WAIT));
     const state = yield* SynchronizedRef.get(stateRef);
     return {
       connectors: [...state.connectors],
       presets: [...MCP_CONNECTOR_PRESETS],
       remaining: Math.max(0, MCP_CONNECTOR_MAX_COUNT - state.connectors.length),
+      checking: yield* Ref.get(refreshInFlight),
     };
   });
 
@@ -355,40 +389,52 @@ export const make: Effect.Effect<
         return yield* Effect.fail(new McpConnectorError({ reason: "probe-failed" }));
       }
 
-      const uuid = yield* crypto.randomUUIDv4.pipe(Effect.orDie);
-      const slug = mcpConnectorSlug(displayName);
+      const uuid = (yield* crypto.randomUUIDv4.pipe(Effect.orDie)).replaceAll("-", "");
       const now = yield* DateTime.now;
-      const created = yield* commit<{ readonly created: McpConnector | undefined }>(
-        (connectors) => {
-          if (connectors.length >= MCP_CONNECTOR_MAX_COUNT) {
-            return [{ created: undefined } as const, connectors] as const;
-          }
-          let serverName = mcpConnectorServerName(slug);
-          if (connectors.some((connector) => connector.serverName === serverName)) {
-            serverName = mcpConnectorServerName(`${slug}_${uuid.slice(0, 4)}`);
-          }
-          const connector: McpConnector = {
-            connectorId: `${slug}-${uuid.slice(0, 12)}`,
-            presetId: preset?.presetId ?? null,
-            name: displayName,
-            serverName,
-            transport: mcpConnectorLoopbackHostname(new URL(normalized.url).hostname)
-              ? "local-http"
-              : "remote-http",
-            url: normalized.url,
-            origin: normalized.origin,
-            auth: preset?.auth ?? "none",
-            status: "connected",
-            createdAt: DateTime.formatIso(now),
-            updatedAt: DateTime.formatIso(now),
-          };
-          return [{ created: connector } as const, [...connectors, connector] as const] as const;
-        },
-      );
-      if (created.created === undefined) {
+      type Landed =
+        | { readonly kind: "created" | "existing"; readonly connector: McpConnector }
+        | { readonly kind: "limit" };
+      // The duplicate and limit checks run here, under the ref's semaphore: two
+      // connects of one URL can both pass the pre-check above while probing.
+      const landed = yield* commit<Landed>((connectors) => {
+        const duplicate = connectors.find((connector) => connector.url === normalized.url);
+        if (duplicate !== undefined) {
+          return [{ kind: "existing", connector: duplicate }, connectors] as const;
+        }
+        if (connectors.length >= MCP_CONNECTOR_MAX_COUNT) {
+          return [{ kind: "limit" }, connectors] as const;
+        }
+        const taken = new Set(connectors.map((connector) => connector.serverName));
+        const serverName =
+          [
+            mcpConnectorServerName(displayName),
+            mcpConnectorServerName(displayName, uuid.slice(0, 4)),
+            mcpConnectorServerName(displayName, uuid.slice(0, 6)),
+          ].find((candidate) => !taken.has(candidate)) ?? mcpConnectorServerName(displayName, uuid);
+        const connector: McpConnector = {
+          connectorId: `${mcpConnectorSlug(displayName)}-${uuid.slice(0, 12)}`,
+          presetId: preset?.presetId ?? null,
+          name: displayName,
+          serverName,
+          transport: mcpConnectorLoopbackHostname(new URL(normalized.url).hostname)
+            ? "local-http"
+            : "remote-http",
+          url: normalized.url,
+          origin: normalized.origin,
+          auth: preset?.auth ?? "none",
+          status: "connected",
+          createdAt: DateTime.formatIso(now),
+          updatedAt: DateTime.formatIso(now),
+        };
+        return [
+          { kind: "created", connector } satisfies Landed,
+          [...connectors, connector] as const,
+        ] as const;
+      });
+      if (landed.kind === "limit") {
         return yield* Effect.fail(new McpConnectorError({ reason: "limit" }));
       }
-      return { connector: created.created };
+      return { connector: landed.connector };
     });
 
   const disconnect: McpConnectorsShape["disconnect"] = (input) =>
@@ -414,7 +460,8 @@ export const make: Effect.Effect<
       switch (outcome.kind) {
         case "pass": {
           // A pass proves the server is alive again after a failed attempt.
-          if (connector.status !== "connected") yield* updateStatus(connector.connectorId, "connected");
+          if (connector.status !== "connected")
+            yield* updateStatus(connector.connectorId, "connected");
           return outcome;
         }
         case "auth-required": {

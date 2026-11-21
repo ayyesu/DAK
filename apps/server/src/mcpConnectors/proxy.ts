@@ -1,6 +1,7 @@
 import {
   MCP_CONNECTOR_CONNECT_TIMEOUT_MS,
   MCP_CONNECTOR_FORWARD_TIMEOUT_MS,
+  MCP_CONNECTOR_HANDSHAKE_TIMEOUT_MS,
 } from "@dak/shared/mcpConnectors";
 import * as Effect from "effect/Effect";
 import type { HttpClient } from "effect/http";
@@ -21,7 +22,11 @@ const FORWARDED_REQUEST_HEADERS = [
 ] as const;
 
 /** Response headers returned to the provider; everything else stays ours. */
-const FORWARDED_RESPONSE_HEADERS = ["content-type", "mcp-session-id", "mcp-protocol-version"] as const;
+const FORWARDED_RESPONSE_HEADERS = [
+  "content-type",
+  "mcp-session-id",
+  "mcp-protocol-version",
+] as const;
 
 const MCP_ACCEPT = "application/json, text/event-stream";
 
@@ -66,6 +71,24 @@ const pickHeaders = (
   return picked;
 };
 
+const isToolCall = (message: unknown): boolean =>
+  isRecord(message) && message.method === "tools/call";
+
+/**
+ * Only a tool call may run for minutes. Every other exchange is a handshake or
+ * a listing, so a dead host fails a provider's startup in seconds.
+ */
+const forwardTimeoutMs = (body: Uint8Array | undefined): number => {
+  if (body === undefined) return MCP_CONNECTOR_HANDSHAKE_TIMEOUT_MS;
+  try {
+    const parsed: unknown = JSON.parse(utf8(body));
+    const longRunning = Array.isArray(parsed) ? parsed.some(isToolCall) : isToolCall(parsed);
+    return longRunning ? MCP_CONNECTOR_FORWARD_TIMEOUT_MS : MCP_CONNECTOR_HANDSHAKE_TIMEOUT_MS;
+  } catch {
+    return MCP_CONNECTOR_HANDSHAKE_TIMEOUT_MS;
+  }
+};
+
 /**
  * Forwards one provider JSON-RPC exchange. Response bodies pass through with
  * their original content type, so a provider that speaks SSE still speaks SSE;
@@ -81,20 +104,26 @@ export const forward: (
     method: request.method,
     headers: { accept: MCP_ACCEPT, ...pickHeaders(request.headers, FORWARDED_REQUEST_HEADERS) },
     ...(request.body === undefined ? {} : { body: request.body }),
-    timeoutMs: MCP_CONNECTOR_FORWARD_TIMEOUT_MS,
+    timeoutMs: forwardTimeoutMs(request.body),
     maxResponseBytes: MCP_CONNECTOR_MAX_RESPONSE_BYTES,
   }).pipe(
     Effect.map((response) => ({ ok: true as const, response })),
     Effect.catch((error) =>
       Effect.succeed({
         ok: false as const,
-        error: error instanceof OutboundBlockedError ? error : new OutboundBlockedError({ reason: "network" }),
+        error:
+          error instanceof OutboundBlockedError
+            ? error
+            : new OutboundBlockedError({ reason: "network" }),
       }),
     ),
   );
   if (!outcome.ok) return { kind: "blocked", error: outcome.error } as const;
   const response = outcome.response;
-  if (response.status === 401 || response.status === 403) return { kind: "auth-required" } as const;
+  // Only 401 means the credential is missing or expired. A 403 on a forwarded
+  // call is usually that one tool being off limits; it passes through to the
+  // provider instead of marking the whole connector signed out.
+  if (response.status === 401) return { kind: "auth-required" } as const;
   return {
     kind: "pass",
     status: response.status,
@@ -171,8 +200,7 @@ const initializeSucceeded = (status: number, contentType: string, body: Uint8Arr
   if (status < 200 || status >= 300) return false;
   if (contentType.includes("text/event-stream")) {
     return parseSseData(body).some(
-      (message) =>
-        isRecord(message) && message.id === 1 && isRecord(message.result),
+      (message) => isRecord(message) && message.id === 1 && isRecord(message.result),
     );
   }
   try {
@@ -187,57 +215,63 @@ const initializeSucceeded = (status: number, contentType: string, body: Uint8Arr
  * One `initialize` round trip: does this URL speak MCP, does it demand a
  * sign-in this environment cannot perform yet, or is it simply not there.
  */
-export const probe: (url: string) => Effect.Effect<ProbeOutcome, never, HttpClient.HttpClient> = Effect.fn(
-  "mcpConnectors.probe",
-)(function* (url: string) {
-  const outcome = yield* outboundFetch({
-    url,
-    method: "POST",
-    headers: { accept: MCP_ACCEPT, "content-type": "application/json" },
-    body: new TextEncoder().encode(initializeBody),
-    timeoutMs: MCP_CONNECTOR_CONNECT_TIMEOUT_MS,
-    maxResponseBytes: MCP_CONNECTOR_MAX_RESPONSE_BYTES,
-  }).pipe(
-    Effect.map((response) => ({ ok: true as const, response })),
-    Effect.catch((error) =>
-      Effect.succeed({
-        ok: false as const,
-        error: error instanceof OutboundBlockedError ? error : new OutboundBlockedError({ reason: "network" }),
-      }),
-    ),
-  );
-  if (!outcome.ok) {
-    return { kind: "unreachable", detail: probeErrorDetail(outcome.error) } as const;
-  }
-  const response = outcome.response;
-  if (response.status === 401 || response.status === 403) return { kind: "needs-sign-in" } as const;
-  const contentType = response.headers["content-type"] ?? "";
-  if (response.status < 200 || response.status >= 300) {
-    return { kind: "unreachable", detail: `HTTP ${response.status}` } as const;
-  }
-  if (!initializeSucceeded(response.status, contentType, response.body)) {
-    if (contentType.includes("text/event-stream") || contentType.includes("application/json")) {
-      const detail = initializeErrorDetail(response.body, contentType);
-      return detail === undefined
-        ? ({ kind: "invalid", detail: "the answer was not an initialize result" } as const)
-        : ({ kind: "invalid", detail } as const);
-    }
-    return { kind: "invalid", detail: `unexpected content type (${contentType || "none"})` } as const;
-  }
-  // Ending the probe session keeps a well-behaved server from holding one open
-  // per health check; a server that never assigned a session ignores this.
-  const sessionId = response.headers["mcp-session-id"];
-  if (sessionId !== undefined) {
-    yield* outboundFetch({
+export const probe: (url: string) => Effect.Effect<ProbeOutcome, never, HttpClient.HttpClient> =
+  Effect.fn("mcpConnectors.probe")(function* (url: string) {
+    const outcome = yield* outboundFetch({
       url,
-      method: "DELETE",
-      headers: { "mcp-session-id": sessionId },
+      method: "POST",
+      headers: { accept: MCP_ACCEPT, "content-type": "application/json" },
+      body: new TextEncoder().encode(initializeBody),
       timeoutMs: MCP_CONNECTOR_CONNECT_TIMEOUT_MS,
       maxResponseBytes: MCP_CONNECTOR_MAX_RESPONSE_BYTES,
-    }).pipe(Effect.ignore);
-  }
-  return { kind: "open" } as const;
-});
+    }).pipe(
+      Effect.map((response) => ({ ok: true as const, response })),
+      Effect.catch((error) =>
+        Effect.succeed({
+          ok: false as const,
+          error:
+            error instanceof OutboundBlockedError
+              ? error
+              : new OutboundBlockedError({ reason: "network" }),
+        }),
+      ),
+    );
+    if (!outcome.ok) {
+      return { kind: "unreachable", detail: probeErrorDetail(outcome.error) } as const;
+    }
+    const response = outcome.response;
+    if (response.status === 401 || response.status === 403)
+      return { kind: "needs-sign-in" } as const;
+    const contentType = response.headers["content-type"] ?? "";
+    if (response.status < 200 || response.status >= 300) {
+      return { kind: "unreachable", detail: `HTTP ${response.status}` } as const;
+    }
+    if (!initializeSucceeded(response.status, contentType, response.body)) {
+      if (contentType.includes("text/event-stream") || contentType.includes("application/json")) {
+        const detail = initializeErrorDetail(response.body, contentType);
+        return detail === undefined
+          ? ({ kind: "invalid", detail: "the answer was not an initialize result" } as const)
+          : ({ kind: "invalid", detail } as const);
+      }
+      return {
+        kind: "invalid",
+        detail: `unexpected content type (${contentType || "none"})`,
+      } as const;
+    }
+    // Ending the probe session keeps a well-behaved server from holding one open
+    // per health check; a server that never assigned a session ignores this.
+    const sessionId = response.headers["mcp-session-id"];
+    if (sessionId !== undefined) {
+      yield* outboundFetch({
+        url,
+        method: "DELETE",
+        headers: { "mcp-session-id": sessionId },
+        timeoutMs: MCP_CONNECTOR_CONNECT_TIMEOUT_MS,
+        maxResponseBytes: MCP_CONNECTOR_MAX_RESPONSE_BYTES,
+      }).pipe(Effect.ignore);
+    }
+    return { kind: "open" } as const;
+  });
 
 const initializeErrorDetail = (body: Uint8Array, contentType: string): string | undefined => {
   const message = (value: unknown): string | undefined =>
@@ -274,12 +308,6 @@ export const connectorProxyErrorCode = (reason: OutboundBlockedReason | "sign-in
       return -32004;
   }
 };
-
-/** A JSON-RPC error body for a request whose id we could parse. */
-export const jsonRpcErrorBody = (id: unknown, code: number, message: string): Uint8Array =>
-  new TextEncoder().encode(
-    JSON.stringify({ jsonrpc: "2.0", id: id ?? null, error: { code, message } }),
-  );
 
 /** The `id` of a provider JSON-RPC request, or undefined when none applies. */
 export const jsonRpcRequestId = (body: Uint8Array | undefined): unknown => {

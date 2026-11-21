@@ -2,7 +2,6 @@ import * as Schema from "effect/Schema";
 import { GitPreparePullRequestThreadInput } from "./git.ts";
 import {
   AuthOrchestrationOperateScope,
-  AuthOrchestrationReadScope,
   AuthProvidersManageScope,
   AuthSettingsWriteScope,
   AuthSourceControlWriteScope,
@@ -53,7 +52,6 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
 
   [WS_METHODS.providerOpenCodeAccountSwitch]: AuthProvidersManageScope,
 
-  [WS_METHODS.mcpConnectorsList]: AuthOrchestrationReadScope,
   [WS_METHODS.mcpConnectorsConnect]: AuthSettingsWriteScope,
   [WS_METHODS.mcpConnectorsDisconnect]: AuthSettingsWriteScope,
 } as const;
