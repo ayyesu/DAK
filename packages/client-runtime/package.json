@@ -263,6 +263,10 @@
       "types": "./src/state/shell.ts",
       "default": "./src/state/shell.ts"
     },
+    "./state/mcp-connectors": {
+      "types": "./src/state/mcpConnectors.ts",
+      "default": "./src/state/mcpConnectors.ts"
+    },
     "./state/source-control": {
       "types": "./src/state/sourceControl.ts",
       "default": "./src/state/sourceControl.ts"
