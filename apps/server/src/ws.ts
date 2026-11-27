@@ -2653,6 +2653,19 @@ const layerWsRpc = (
                 }),
             ),
           ),
+        [WS_METHODS.projectsListRepositories]: (input) =>
+          projectService.listRepositories(input.projectId).pipe(
+            Effect.mapError(
+              (cause) =>
+                new OrchestrationDispatchCommandError({
+                  message:
+                    cause._tag === "ProjectNotFoundError"
+                      ? cause.message
+                      : "Failed to list project repositories.",
+                  cause,
+                }),
+            ),
+          ),
         [WS_METHODS.projectsListEntries]: (input) =>
           workspaceEntries.list(input).pipe(
             Effect.mapError(

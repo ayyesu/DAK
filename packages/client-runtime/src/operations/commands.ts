@@ -13,6 +13,7 @@ import {
   type OrchestrationV2Command,
   type OrchestrationV2CreationSource,
   type PlanId,
+  type ProjectAddedFolder,
   type ProjectId,
   type ProjectIconOverride,
   type ProjectScript,
@@ -59,6 +60,7 @@ export interface UpdateProjectInput extends CommandMetadata {
   readonly faviconPath?: string | null;
   readonly defaultThreadEnvMode?: ThreadEnvMode | null;
   readonly scripts?: ReadonlyArray<ProjectScript>;
+  readonly addedFolders?: ReadonlyArray<ProjectAddedFolder>;
 }
 
 export interface DeleteProjectInput extends CommandMetadata {
@@ -159,6 +161,8 @@ interface StartThreadBootstrap {
     readonly baseBranch: string;
     readonly branch?: string;
     readonly startFromOrigin?: boolean;
+    /** Project-relative repo paths; omitted means every discovered git folder. */
+    readonly repositories?: ReadonlyArray<string>;
   };
   readonly runSetupScript?: boolean;
 }
@@ -327,6 +331,7 @@ const mutateProject = Effect.fn("EnvironmentCommands.mutateProject")(function* (
         readonly workspaceRoot?: string;
         readonly defaultModelSelection?: ModelSelection | null;
         readonly scripts?: ReadonlyArray<ProjectScript>;
+        readonly addedFolders?: ReadonlyArray<ProjectAddedFolder>;
       }
     | {
         readonly type: "project.delete";
@@ -376,6 +381,7 @@ export const updateProject = Effect.fn("EnvironmentCommands.updateProject")(func
       ? {}
       : { defaultThreadEnvMode: input.defaultThreadEnvMode }),
     ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
+    ...(input.addedFolders === undefined ? {} : { addedFolders: input.addedFolders }),
   });
 });
 
@@ -652,6 +658,9 @@ export const startThreadTurn = Effect.fn("EnvironmentCommands.startThreadTurn")(
             ...(prepareWorktree.startFromOrigin === undefined
               ? {}
               : { startFromOrigin: prepareWorktree.startFromOrigin }),
+            ...(prepareWorktree.repositories === undefined
+              ? {}
+              : { repositories: [...prepareWorktree.repositories] }),
           }
         : bootstrap?.worktreePath
           ? {

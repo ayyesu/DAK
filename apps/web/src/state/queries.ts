@@ -358,6 +358,7 @@ export function useCheckpointDiff(
             threadId: target.threadId!,
             toTurnCount: target.toTurnCount!,
             ignoreWhitespace: target.ignoreWhitespace,
+            ...(target.repositoryPath == null ? {} : { repositoryPath: target.repositoryPath }),
           },
         }
       : null;
@@ -370,6 +371,7 @@ export function useCheckpointDiff(
             fromTurnCount: target.fromTurnCount!,
             toTurnCount: target.toTurnCount!,
             ignoreWhitespace: target.ignoreWhitespace,
+            ...(target.repositoryPath == null ? {} : { repositoryPath: target.repositoryPath }),
           },
         }
       : null;

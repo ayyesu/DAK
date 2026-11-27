@@ -58,11 +58,15 @@ export class CheckpointDiffQuery extends Context.Service<
 
 const isTurnDiffResult = Schema.is(OrchestrationGetTurnDiffResult);
 
+const repositoryPathField = (repositoryPath: string | null | undefined) =>
+  repositoryPath == null ? {} : { repositoryPath };
+
 function buildTurnDiffResult(
   input: {
     readonly threadId: ThreadId;
     readonly fromTurnCount: number;
     readonly toTurnCount: number;
+    readonly repositoryPath?: string | null;
   },
   diff: string,
 ): OrchestrationGetTurnDiffResultType {
@@ -70,8 +74,23 @@ function buildTurnDiffResult(
     threadId: input.threadId,
     fromTurnCount: input.fromTurnCount,
     toTurnCount: input.toTurnCount,
+    ...repositoryPathField(input.repositoryPath),
     diff,
   };
+}
+
+function resolveDiffCwd(
+  input: { readonly repositoryPath?: string | null },
+  scope: { readonly cwd: string; readonly additionalCwds?: ReadonlyArray<string> | null },
+  operation: "CheckpointDiffQuery.getTurnDiff" | "CheckpointDiffQuery.getFullThreadDiff",
+  threadId: ThreadId,
+) {
+  const requested = input.repositoryPath?.trim();
+  if (requested === undefined || requested === "") return Effect.succeed(scope.cwd);
+  const allowed = [scope.cwd, ...(scope.additionalCwds ?? [])];
+  return allowed.includes(requested)
+    ? Effect.succeed(requested)
+    : Effect.fail(new CheckpointWorkspacePathMissingError({ operation, threadId }));
 }
 
 /** @public Service construction is part of the canonical Effect module API. */
@@ -156,6 +175,7 @@ export const make = Effect.gen(function* () {
           threadId: input.threadId,
         });
       }
+      const diffCwd = yield* resolveDiffCwd(input, toScope, operation, input.threadId);
 
       // The root scope is shared by every run in this thread. Its runId
       // tracks the latest owner, while ordinal zero stays the baseline.
@@ -184,7 +204,7 @@ export const make = Effect.gen(function* () {
 
       const diff = yield* checkpointStore
         .diffCheckpoints({
-          cwd: toScope.cwd,
+          cwd: diffCwd,
           fromCheckpointRef,
           toCheckpointRef: toCheckpoint.ref,
           fallbackFromToHead: false,
@@ -223,6 +243,7 @@ export const make = Effect.gen(function* () {
           threadId: input.threadId,
           fromTurnCount: 0,
           toTurnCount: 0,
+          ...repositoryPathField(input.repositoryPath),
         },
         "",
       );
@@ -240,6 +261,7 @@ export const make = Effect.gen(function* () {
       fromTurnCount: 0,
       toTurnCount: input.toTurnCount,
       ignoreWhitespace,
+      ...repositoryPathField(input.repositoryPath),
     });
     if (!isTurnDiffResult(turnDiff)) {
       return yield* new CheckpointDiffResultInvalidError({

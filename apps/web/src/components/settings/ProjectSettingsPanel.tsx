@@ -11,7 +11,12 @@ import {
 } from "@dak/client-runtime/state/runtime";
 import { scopeProjectRef, scopeThreadRef } from "@dak/client-runtime/environment";
 import { AsyncResult } from "effect/reactivity";
-import { type EnvironmentId, type ProjectIconOverride } from "@dak/contracts";
+import {
+  MAX_PROJECT_ADDED_FOLDERS,
+  type EnvironmentId,
+  type ProjectAddedFolder,
+  type ProjectIconOverride,
+} from "@dak/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import * as Cause from "effect/Cause";
 import { InfoIcon, Trash2Icon } from "lucide-react";
@@ -26,7 +31,9 @@ import {
 } from "../../sidebarProjectGrouping";
 import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environments";
 import { useThreadShells } from "../../state/entities";
-import { projectEnvironment } from "../../state/projects";
+import { useFilesystemReadAccess } from "../../state/filesystem";
+import { useEnvironmentQuery } from "../../state/query";
+import { projectEnvironment, projectRepositories } from "../../state/projects";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
@@ -55,6 +62,11 @@ const ProjectIconPickerDialog = lazy(() =>
 
 function memberKey(member: { environmentId: string; id: string }): string {
   return `${member.environmentId}:${member.id}`;
+}
+
+function folderNameFromPath(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1]! : path;
 }
 
 /** `project` is the Projects page shortcut: the new-thread defaults people change most. */
@@ -183,6 +195,16 @@ function ProjectDetail({
       (member) => environmentById.get(member.environmentId)?.serverConfig != null,
     ) ?? group.memberProjects[0]!;
   const threads = useThreadShells();
+  const fileAccess = useFilesystemReadAccess(representative.environmentId);
+  const repositories = useEnvironmentQuery(
+    fileAccess.canReadFiles
+      ? projectRepositories({
+          environmentId: representative.environmentId,
+          input: { projectId: representative.id },
+        })
+      : null,
+  );
+  const { refresh: refreshRepositories } = repositories;
   const updateProject = useOrchestrationCommand(projectEnvironment.update, {
     reportFailure: false,
   });
@@ -242,6 +264,7 @@ function ProjectDetail({
         title: string;
         faviconPath: string | null;
         projectIcon: ProjectIconOverride | null;
+        addedFolders: ReadonlyArray<ProjectAddedFolder>;
       }>,
       failureTitle: string,
     ): Promise<AtomCommandResult<void, unknown>> => {
@@ -311,6 +334,7 @@ function ProjectDetail({
   const [faviconPickerOpen, setFaviconPickerOpen] = useComposerMenuState(!canEditGroup);
   const [iconPickerOpen, setIconPickerOpen] = useComposerMenuState(!canEditGroup);
   const [isSavingFavicon, setIsSavingFavicon] = useState(false);
+  const [addedFolderPath, setAddedFolderPath] = useState("");
   const savingFaviconRef = useRef(false);
   const setProjectIcon = useCallback(
     async (input: { faviconPath: string | null; projectIcon: ProjectIconOverride | null }) => {
@@ -325,6 +349,47 @@ function ProjectDetail({
       }
     },
     [updateAllMembers],
+  );
+
+  const addedFolders = useMemo(
+    () =>
+      repositories.data?.repositories
+        .filter((repository) => repository.source === "added")
+        .map((repository) => ({ path: repository.path, name: repository.name })) ?? [],
+    [repositories.data],
+  );
+
+  const updateAddedFolders = useCallback(
+    async (next: ReadonlyArray<ProjectAddedFolder>, failureTitle: string) => {
+      const result = await updateAllMembers({ addedFolders: [...next] }, failureTitle);
+      if (result._tag === "Success") refreshRepositories();
+      return result;
+    },
+    [refreshRepositories, updateAllMembers],
+  );
+
+  const addFolder = useCallback(async () => {
+    const path = addedFolderPath.trim();
+    if (!path || addedFolders.length >= MAX_PROJECT_ADDED_FOLDERS) return;
+    if (addedFolders.some((folder) => folder.path === path)) {
+      toastManager.add({ type: "warning", title: "That folder is already added" });
+      return;
+    }
+    const result = await updateAddedFolders(
+      [...addedFolders, { path, name: folderNameFromPath(path) }],
+      "Failed to add folder",
+    );
+    if (result._tag === "Success") setAddedFolderPath("");
+  }, [addedFolderPath, addedFolders, updateAddedFolders]);
+
+  const removeFolder = useCallback(
+    async (path: string) => {
+      await updateAddedFolders(
+        addedFolders.filter((folder) => folder.path !== path),
+        "Failed to remove folder",
+      );
+    },
+    [addedFolders, updateAddedFolders],
   );
 
   const hasMultipleCheckouts = group.memberProjects.length > 1;
@@ -420,6 +485,70 @@ function ProjectDetail({
       reportFailure,
       threads,
     ],
+  );
+
+  const repositoriesSection = (
+    <SettingsSection id="project-repositories" title="Repositories">
+      {repositories.error ? (
+        <p className="px-3 py-2 text-sm text-destructive sm:px-4">{repositories.error}</p>
+      ) : null}
+      {(repositories.data?.repositories ?? []).map((repository) => (
+        <SettingsRow
+          key={repository.path}
+          title={repository.name}
+          description={repository.path}
+          resetAction={
+            repository.source === "added" && canEditGroup ? (
+              <SettingResetButton
+                label={`added folder ${repository.name}`}
+                disabled={!fileAccess.canReadFiles}
+                onClick={() => void removeFolder(repository.path)}
+              />
+            ) : null
+          }
+          control={
+            <span className="text-xs text-muted-foreground">
+              {repository.kind}
+              {repository.source === "added" ? " · added" : ""}
+            </span>
+          }
+        />
+      ))}
+      <SettingsRow
+        title="Add folder"
+        description="Add a folder outside the project root. Files are never deleted when it is removed."
+        control={
+          <div className="flex items-center gap-2">
+            <Input
+              size="sm"
+              className="w-full sm:w-64"
+              aria-label="Folder path"
+              placeholder="/absolute/path"
+              value={addedFolderPath}
+              disabled={!canEditGroup || !fileAccess.canReadFiles}
+              onChange={(event) => setAddedFolderPath(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void addFolder();
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              type="button"
+              disabled={
+                !canEditGroup ||
+                !fileAccess.canReadFiles ||
+                addedFolderPath.trim().length === 0 ||
+                addedFolders.length >= MAX_PROJECT_ADDED_FOLDERS
+              }
+              onClick={() => void addFolder()}
+            >
+              Add
+            </Button>
+          </div>
+        }
+      />
+    </SettingsSection>
   );
 
   const checkoutChoices = (
@@ -536,6 +665,7 @@ function ProjectDetail({
             }
           />
         </SettingsSection>
+        {repositoriesSection}
         <ProjectDefaultsSettings category="project" />
         <ProjectActionsSettings />
         {hasMultipleCheckouts ? checkoutChoices : null}

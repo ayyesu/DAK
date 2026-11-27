@@ -80,6 +80,7 @@ const project = {
   createdAt: "2026-06-20T00:00:00.000Z",
   updatedAt: "2026-06-20T00:00:00.000Z",
   deletedAt: null,
+  addedFolders: [],
 } as const;
 
 const otherProject = {
@@ -143,6 +144,9 @@ function makeHarness(options: HarnessOptions = {}) {
   const generateThreadTitle = vi.fn(
     options.generateTitle ?? (() => Effect.succeed({ title: "Generated title" })),
   );
+  const layerConfig = ServerConfig.layerTest(process.cwd(), {
+    prefix: "dak-thread-launch-test-",
+  }).pipe(Layer.provideMerge(NodeServices.layer));
   const layerExternalServices = Layer.mergeAll(
     WorktreeSetupTracker.layer,
     Layer.mock(ProjectCloneTracker.ProjectCloneTracker)({ get: () => Effect.succeed(null) }),
@@ -161,6 +165,18 @@ function makeHarness(options: HarnessOptions = {}) {
               : Option.none(),
         ),
       getByWorkspaceRoot: () => Effect.succeed(Option.some(project)),
+      listRepositories: () =>
+        Effect.succeed({
+          repositories: [
+            {
+              path: ".",
+              name: "repo",
+              kind: "git" as const,
+              source: "discovered" as const,
+            },
+          ],
+          codeWorkspaceFile: null,
+        }),
       snapshot: Effect.die("unused"),
       getShell: () => Effect.die("unused"),
       listShells: () => Effect.die("unused"),
@@ -195,6 +211,7 @@ function makeHarness(options: HarnessOptions = {}) {
     Layer.provide(
       Layer.mergeAll(
         layerExternalServices,
+        layerConfig,
         layerThreadManagement,
         layerReceipts,
         IdAllocator.layer,
@@ -218,6 +235,7 @@ function makeHarness(options: HarnessOptions = {}) {
               createdAt: project.createdAt,
               updatedAt: project.updatedAt,
               deletedAt: project.deletedAt,
+              addedFolders: [],
             })
           : Option.none(),
       ),
@@ -235,6 +253,7 @@ function makeHarness(options: HarnessOptions = {}) {
       layerOutbox,
       layerDatabase,
       layerExternalServices,
+      layerConfig,
     ),
     createWorktree,
     removeWorktree,

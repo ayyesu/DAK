@@ -11,6 +11,8 @@ import {
   type OrchestrationV2CreationSource,
   type OrchestrationV2ProviderThreadNativeMetadata,
   type OrchestrationV2ThreadProjection,
+  type OrchestrationV2ThreadWorktreeRepository,
+  type ProjectRepository,
   type ProviderDriverKind,
   type ProviderInteractionMode,
   ProjectId,
@@ -19,12 +21,14 @@ import {
   type ScheduledTaskId,
   ThreadId,
 } from "@dak/contracts";
+import * as NodePath from "@effect/platform-node/NodePath";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
@@ -35,6 +39,7 @@ import {
   WORKTREE_BRANCH_PREFIX,
 } from "@dak/shared/git";
 
+import * as ServerConfig from "../config.ts";
 import * as GitWorkflow from "../git/GitWorkflowService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ProjectSetupScriptRunner from "../project/ProjectSetupScriptRunner.ts";
@@ -48,6 +53,7 @@ import type * as Orchestrator from "./Orchestrator.ts";
 import { makeProviderFailure } from "./ProviderFailure.ts";
 import { randomUuidV4 } from "./RandomUuid.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
+import { resolveWorktreesDirectory } from "../worktreesDirectory.ts";
 
 export type ThreadLaunchWorkspaceStrategy =
   | { readonly type: "root"; readonly branch?: string | undefined }
@@ -61,6 +67,7 @@ export type ThreadLaunchWorkspaceStrategy =
       readonly baseRef: string;
       readonly branch?: string | undefined;
       readonly startFromOrigin?: boolean | undefined;
+      readonly repositories?: ReadonlyArray<string> | undefined;
     };
 
 export interface ThreadLaunchInitialMessage {
@@ -180,11 +187,13 @@ const make = Effect.gen(function* () {
   const setupScripts = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
   const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
+  const serverConfig = yield* ServerConfig.ServerConfig;
   const textGeneration = yield* TextGeneration.TextGeneration;
   const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
   const ids = yield* IdAllocator.IdAllocatorV2;
   const threads = yield* ThreadManagement.ThreadManagementService;
   const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
+  const pathUtil = yield* Path.Path.pipe(Effect.provide(NodePath.layer));
   const preparationScope = yield* Scope.make("sequential");
   const scheduledLaunches = yield* Ref.make<ReadonlySet<CommandId>>(new Set());
   yield* Effect.addFinalizer(() => Scope.close(preparationScope, Exit.void));
@@ -247,7 +256,8 @@ const make = Effect.gen(function* () {
 
     const reused = input.reusedWorktree;
     const tracked = input.workspaceStrategy.type === "worktree" || reused !== undefined;
-    let createdWorktreePath: string | null = null;
+    const createdWorktrees: Array<{ readonly cwd: string; readonly path: string }> = [];
+    const worktreeRepositories: Array<OrchestrationV2ThreadWorktreeRepository> = [];
     let setupTerminalId: string | null = null;
     let workspaceRecorded = false;
     if (input.workspaceStrategy.type === "worktree") {
@@ -330,44 +340,61 @@ const make = Effect.gen(function* () {
             })
             .pipe(Effect.mapError(mapError(input, "update-thread", threadId)));
         }
-        let startRef = input.workspaceStrategy.baseRef;
-        // "Start from origin" is a stored default; repos without the requested
-        // remote branch fall back to the local base branch.
-        const startFromOrigin =
-          input.workspaceStrategy.startFromOrigin === true &&
-          (yield* git
-            .remoteExists({ cwd: project.workspaceRoot, remoteName: "origin" })
-            .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId))));
-        yield* setupTracker.stageStatus(threadId, "fetch", startFromOrigin ? "running" : "skipped");
-        if (startFromOrigin) {
-          yield* git
-            .fetchRemote({
-              cwd: project.workspaceRoot,
-              remoteName: "origin",
-              refName: input.workspaceStrategy.baseRef,
-            })
-            .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId)));
-          const remoteBaseExists = yield* git
-            .remoteBranchExists({
-              cwd: project.workspaceRoot,
-              refName: input.workspaceStrategy.baseRef,
-              remoteName: "origin",
-            })
-            .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId)));
-          if (remoteBaseExists) {
-            startRef = yield* git
-              .resolveRemoteTrackingCommit({
-                cwd: project.workspaceRoot,
-                refName: input.workspaceStrategy.baseRef,
-                fallbackRemoteName: "origin",
-              })
-              .pipe(
-                Effect.map((resolved) => resolved.commitSha),
-                Effect.mapError(mapError(input, "provision-worktree", threadId)),
-              );
-          }
+        const discovered = yield* projects
+          .listRepositories(input.projectId)
+          .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId)));
+        const discoveredRepos = discovered.repositories.filter(
+          (repo) => repo.kind === "git" || repo.kind === "submodule",
+        );
+        const requestedPaths = input.workspaceStrategy.repositories;
+        const selectedRepos: ReadonlyArray<ProjectRepository> =
+          requestedPaths !== undefined && requestedPaths.length > 0
+            ? [...new Set(requestedPaths)].map(
+                (repoPath) =>
+                  discoveredRepos.find((repo) => repo.path === repoPath) ?? {
+                    path: repoPath,
+                    name: pathUtil.basename(repoPath) || repoPath,
+                    kind: "git",
+                    source: "added",
+                  },
+              )
+            : discoveredRepos;
+        const primaryRepo =
+          selectedRepos.find((repo) => repo.path === ".") ?? selectedRepos[0] ?? null;
+        if (primaryRepo === null) {
+          return yield* mapError(
+            input,
+            "provision-worktree",
+            threadId,
+          )("No git repositories were found for this project.");
         }
-        if (startFromOrigin) yield* setupTracker.stageStatus(threadId, "fetch", "done");
+        const orderedRepos = [
+          primaryRepo,
+          ...selectedRepos.filter((repo) => repo.path !== primaryRepo.path),
+        ];
+        const repoCwdFor = (repo: ProjectRepository) =>
+          pathUtil.resolve(project.workspaceRoot, repo.path);
+        const worktreeNameFor = (repo: ProjectRepository) => {
+          const segments =
+            repo.path === "."
+              ? [pathUtil.basename(project.workspaceRoot)]
+              : repo.path.split(/[\\/]+/).filter((segment) => segment.length > 0);
+          return (
+            segments
+              .join("-")
+              .replace(/[^A-Za-z0-9._-]+/g, "-")
+              .replace(/^-+|-+$/g, "") || "repo"
+          );
+        };
+        const worktreesDirectory = yield* serverSettings.getSettings.pipe(
+          Effect.map((settings) => settings.worktreesDirectory),
+          Effect.orElseSucceed(() => ""),
+        );
+        const parentDir = resolveWorktreesDirectory(
+          worktreesDirectory,
+          serverConfig.worktreesDir,
+          pathUtil,
+        );
         if (
           branch !== null &&
           isTemporaryWorktreeBranch(branch) &&
@@ -380,32 +407,102 @@ const make = Effect.gen(function* () {
         ) {
           branch = flattenTemporaryWorktreeBranchName(branch);
         }
+        if (branch === null) {
+          return yield* mapError(
+            input,
+            "provision-worktree",
+            threadId,
+          )("A worktree launch requires a branch.");
+        }
+        const targetBranch = branch;
+        const branchSegment = targetBranch.replace(/[^A-Za-z0-9._-]+/g, "-");
+        const wantsOrigin = input.workspaceStrategy.startFromOrigin === true;
+        yield* setupTracker.stageStatus(threadId, "fetch", wantsOrigin ? "running" : "skipped");
         yield* setupTracker.stageStatus(threadId, "checkout", "running");
-        const worktree = yield* git
-          .createWorktree(
-            {
-              cwd: project.workspaceRoot,
-              refName: startRef,
-              newRefName: branch!,
-              baseRefName: input.workspaceStrategy.baseRef,
-              path: null,
-            },
-            {
-              progress: {
-                onWorktreeClaimed: (path) =>
-                  Effect.sync(() => {
-                    createdWorktreePath = path;
-                  }),
-                onCheckoutProgress: (progress) =>
-                  setupTracker.stage(threadId, "checkout", { percent: progress.percent }),
+        for (const [index, repo] of orderedRepos.entries()) {
+          const repoCwd = repoCwdFor(repo);
+          let startRef = input.workspaceStrategy.baseRef;
+          // "Start from origin" is a stored default; repos without the requested
+          // remote branch fall back to the local base branch.
+          const startFromOrigin =
+            wantsOrigin &&
+            (yield* git
+              .remoteExists({ cwd: repoCwd, remoteName: "origin" })
+              .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId))));
+          if (startFromOrigin) {
+            yield* git
+              .fetchRemote({
+                cwd: repoCwd,
+                remoteName: "origin",
+                refName: input.workspaceStrategy.baseRef,
+              })
+              .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId)));
+            const remoteBaseExists = yield* git
+              .remoteBranchExists({
+                cwd: repoCwd,
+                refName: input.workspaceStrategy.baseRef,
+                remoteName: "origin",
+              })
+              .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId)));
+            if (remoteBaseExists) {
+              startRef = yield* git
+                .resolveRemoteTrackingCommit({
+                  cwd: repoCwd,
+                  refName: input.workspaceStrategy.baseRef,
+                  fallbackRemoteName: "origin",
+                })
+                .pipe(
+                  Effect.map((resolved) => resolved.commitSha),
+                  Effect.mapError(mapError(input, "provision-worktree", threadId)),
+                );
+            }
+          }
+          const branchExists = yield* git.listLocalBranchNames(repoCwd).pipe(
+            Effect.map((names) => names.includes(targetBranch)),
+            Effect.mapError(mapError(input, "provision-worktree", threadId)),
+          );
+          const explicitPath =
+            parentDir === null
+              ? null
+              : pathUtil.join(parentDir, `${worktreeNameFor(repo)}-${branchSegment}`);
+          const worktree = yield* git
+            .createWorktree(
+              {
+                cwd: repoCwd,
+                refName: branchExists ? targetBranch : startRef,
+                ...(branchExists ? {} : { newRefName: targetBranch }),
+                baseRefName: input.workspaceStrategy.baseRef,
+                path: explicitPath,
               },
-            },
-          )
-          .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId)));
-        worktreePath = worktree.worktree.path;
-        branch = worktree.worktree.refName;
-        createdWorktreePath = worktreePath;
-        yield* setupTracker.update(threadId, (snapshot) => ({ ...snapshot, worktreePath, branch }));
+              {
+                progress: {
+                  onWorktreeClaimed: (worktreePath) =>
+                    Effect.sync(() => {
+                      createdWorktrees.push({ cwd: repoCwd, path: worktreePath });
+                    }),
+                  onCheckoutProgress: (progress) =>
+                    setupTracker.stage(threadId, "checkout", { percent: progress.percent }),
+                },
+              },
+            )
+            .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId)));
+          if (index === 0) {
+            worktreePath = worktree.worktree.path;
+            branch = worktree.worktree.refName;
+            yield* setupTracker.update(threadId, (snapshot) => ({
+              ...snapshot,
+              worktreePath,
+              branch,
+            }));
+          } else {
+            worktreeRepositories.push({
+              path: repo.path,
+              name: repo.name,
+              worktreePath: worktree.worktree.path,
+            });
+          }
+        }
+        if (wantsOrigin) yield* setupTracker.stageStatus(threadId, "fetch", "done");
         yield* setupTracker.stageStatus(threadId, "checkout", "done");
       }
 
@@ -419,6 +516,7 @@ const make = Effect.gen(function* () {
             threadId,
             branch,
             worktreePath,
+            worktreeRepositories,
           })
           .pipe(Effect.mapError(mapError(input, "update-thread", threadId)));
       }
@@ -439,12 +537,28 @@ const make = Effect.gen(function* () {
         const worktreeCwd = worktreePath;
         yield* generateBranchNameFor(worktreeCwd, initialMessage).pipe(
           Effect.flatMap(({ branch: newBranch, exactName }) =>
-            git.renameBranch({
-              cwd: worktreeCwd,
-              oldBranch,
-              newBranch,
-              ...(exactName ? { exactName: true } : {}),
-            }),
+            git
+              .renameBranch({
+                cwd: worktreeCwd,
+                oldBranch,
+                newBranch,
+                ...(exactName ? { exactName: true } : {}),
+              })
+              .pipe(
+                Effect.flatMap((renamed) =>
+                  Effect.forEach(
+                    worktreeRepositories,
+                    (repo) =>
+                      git.renameBranch({
+                        cwd: repo.worktreePath,
+                        oldBranch,
+                        newBranch: renamed.branch,
+                        exactName: true,
+                      }),
+                    { discard: true },
+                  ).pipe(Effect.as(renamed)),
+                ),
+              ),
           ),
           Effect.flatMap((renamed) =>
             threads.dispatch({
@@ -453,6 +567,7 @@ const make = Effect.gen(function* () {
               threadId,
               branch: renamed.branch,
               worktreePath: worktreeCwd,
+              worktreeRepositories,
             }),
           ),
           Effect.catchCause((cause) =>
@@ -572,38 +687,36 @@ const make = Effect.gen(function* () {
           // A cancelled setup leaves nothing behind. A failed one keeps a worktree
           // the thread recorded, so a retry reuses it, and removes one it never
           // recorded, which a retry would otherwise duplicate.
-          if (tracked && createdWorktreePath && (cancelled || !workspaceRecorded)) {
+          if (tracked && createdWorktrees.length > 0 && (cancelled || !workspaceRecorded)) {
             if (setupTerminalId)
               yield* terminals
                 .close({ threadId, terminalId: setupTerminalId, deleteHistory: true })
                 .pipe(Effect.ignore);
-            const removedPath = createdWorktreePath;
-            // The thread forgets the worktree only once it is gone; a failed
-            // removal leaves the directory for the user to clean up rather than
-            // reusing a checkout that may be half written.
-            yield* git
-              .removeWorktree({ cwd: project.workspaceRoot, path: removedPath, force: true })
-              .pipe(
-                Effect.andThen(
-                  threads
-                    .dispatch({
-                      type: "thread.metadata.update",
-                      commandId: CommandId.make(`${input.commandId}:cancel-workspace`),
+            yield* Effect.forEach(
+              createdWorktrees,
+              ({ cwd, path }) =>
+                git.removeWorktree({ cwd, path, force: true }).pipe(
+                  Effect.catchCause((removeCause) =>
+                    Effect.logWarning("Failed to remove an abandoned thread worktree", {
+                      commandId: input.commandId,
                       threadId,
-                      worktreePath: null,
-                      branch: null,
-                    })
-                    .pipe(Effect.ignore),
+                      path,
+                      cause: removeCause,
+                    }),
+                  ),
                 ),
-                Effect.catchCause((removeCause) =>
-                  Effect.logWarning("Failed to remove an abandoned thread worktree", {
-                    commandId: input.commandId,
-                    threadId,
-                    path: removedPath,
-                    cause: removeCause,
-                  }),
-                ),
-              );
+              { discard: true },
+            );
+            yield* threads
+              .dispatch({
+                type: "thread.metadata.update",
+                commandId: CommandId.make(`${input.commandId}:cancel-workspace`),
+                threadId,
+                worktreePath: null,
+                branch: null,
+                worktreeRepositories: null,
+              })
+              .pipe(Effect.ignore);
           }
         }),
       ),

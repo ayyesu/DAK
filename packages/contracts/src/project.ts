@@ -162,11 +162,43 @@ export const ReceivedProjectIcon = ForwardCompatibleUnion(projectIconMembers, "k
   ),
 );
 
+export const MAX_PROJECT_ADDED_FOLDERS = 128;
+
+/** A folder a project works in. Git folders can each get their own worktree. */
+export const ProjectRepository = Schema.Struct({
+  path: TrimmedNonEmptyString,
+  name: TrimmedNonEmptyString,
+  kind: Schema.Literals(["git", "submodule", "plain", "missing"]),
+  source: Schema.Literals(["discovered", "workspace", "added"]),
+  parentPath: Schema.optional(TrimmedNonEmptyString),
+});
+export type ProjectRepository = typeof ProjectRepository.Type;
+
+/** Folders added explicitly; discovered folders are read from disk each time. */
+export const ProjectAddedFolder = Schema.Struct({
+  path: TrimmedNonEmptyString,
+  name: TrimmedNonEmptyString,
+});
+export type ProjectAddedFolder = typeof ProjectAddedFolder.Type;
+
+export const ProjectListRepositoriesInput = Schema.Struct({
+  projectId: ProjectId,
+});
+export type ProjectListRepositoriesInput = typeof ProjectListRepositoriesInput.Type;
+
+export const ProjectListRepositoriesResult = Schema.Struct({
+  repositories: Schema.Array(ProjectRepository),
+  codeWorkspaceFile: Schema.NullOr(TrimmedNonEmptyString),
+});
+export type ProjectListRepositoriesResult = typeof ProjectListRepositoriesResult.Type;
+
 export const Project = Schema.Struct({
   id: ProjectId,
   title: TrimmedNonEmptyString,
   workspaceRoot: TrimmedNonEmptyString,
   repositoryIdentity: Schema.optional(Schema.NullOr(RepositoryIdentity)),
+  /** Discovered and added folders; absent on older servers. */
+  repositories: Schema.optional(Schema.Array(ProjectRepository)),
   faviconPath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   projectIcon: Schema.optional(Schema.NullOr(ReceivedProjectIcon)),
   defaultModelSelection: Schema.NullOr(ModelSelection),
@@ -202,6 +234,7 @@ export const ProjectCreatePayload = Schema.Struct({
   createWorkspaceRootIfMissing: Schema.optional(Schema.Boolean),
   defaultModelSelection: Schema.optional(Schema.NullOr(ModelSelection)),
   scripts: Schema.optional(Schema.Array(ProjectScript)),
+  addedFolders: Schema.optional(Schema.Array(ProjectAddedFolder)),
 });
 export type ProjectCreatePayload = typeof ProjectCreatePayload.Type;
 
@@ -214,6 +247,7 @@ export const ProjectUpdatePayload = Schema.Struct({
   faviconPath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   defaultThreadEnvMode: Schema.optional(Schema.NullOr(ThreadEnvMode)),
   scripts: Schema.optional(Schema.Array(ProjectScript)),
+  addedFolders: Schema.optional(Schema.Array(ProjectAddedFolder)),
 });
 export type ProjectUpdatePayload = typeof ProjectUpdatePayload.Type;
 
