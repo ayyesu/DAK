@@ -114,7 +114,7 @@ const isLocalAddress = (address: string, family: number): boolean => {
 const DNS_CACHE_TTL_MS = 60_000;
 const dnsCache = new Map<string, { readonly at: number; readonly blocked: boolean }>();
 
-export const clearOutboundDnsCache = (): void => dnsCache.clear();
+// DNS cache entries expire after DNS_CACHE_TTL_MS.
 
 const errorDetail = (error: unknown): string =>
   error instanceof Error
