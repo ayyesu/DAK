@@ -218,20 +218,22 @@ export const outboundFetch = Effect.fn("mcpConnectors.outboundFetch")(function* 
   const url = new URL(normalized.url);
   yield* assertReachable(url);
 
-  const execute = (yield* HttpClient.HttpClient).execute(
-    request.body === undefined
-      ? HttpClientRequest.make(request.method)(normalized.url).pipe(
-          HttpClientRequest.setHeaders(request.headers ?? {}),
-        )
-      : HttpClientRequest.make(request.method)(normalized.url).pipe(
-          HttpClientRequest.setHeaders(request.headers ?? {}),
-          HttpClientRequest.bodyUint8Array(request.body),
-        ),
-  ).pipe(
-    // A redirect is never followed: the destination has not passed the checks above.
-    Effect.provideService(FetchHttpClient.RequestInit, { redirect: "manual" }),
-    Effect.catch((error) => Effect.fail(blocked("network", errorDetail(error)))),
-  );
+  const execute = (yield* HttpClient.HttpClient)
+    .execute(
+      request.body === undefined
+        ? HttpClientRequest.make(request.method)(normalized.url).pipe(
+            HttpClientRequest.setHeaders(request.headers ?? {}),
+          )
+        : HttpClientRequest.make(request.method)(normalized.url).pipe(
+            HttpClientRequest.setHeaders(request.headers ?? {}),
+            HttpClientRequest.bodyUint8Array(request.body),
+          ),
+    )
+    .pipe(
+      // A redirect is never followed: the destination has not passed the checks above.
+      Effect.provideService(FetchHttpClient.RequestInit, { redirect: "manual" }),
+      Effect.catch((error) => Effect.fail(blocked("network", errorDetail(error)))),
+    );
 
   const response = yield* Effect.gen(function* () {
     const upstream = yield* execute;
