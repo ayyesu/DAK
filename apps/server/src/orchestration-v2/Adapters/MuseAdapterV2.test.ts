@@ -32,6 +32,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
 import * as ServerConfig from "../../config.ts";
+import * as injection from "../../mcpConnectors/injection.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import type { MuseItem } from "../../provider/museProtocol.ts";
 import type { MuseSdkHost } from "../../provider/museSdk.ts";
@@ -382,6 +383,49 @@ describe("MuseAdapterV2", () => {
           },
         });
       }
+    }).pipe(Effect.scoped, Effect.provide(testLayer)),
+  );
+
+  it.effect("adds connectors to the native MCP config", () =>
+    Effect.gen(function* () {
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          McpProviderSession.clearMcpProviderSession(THREAD_ID);
+          injection.setConnectedConnectors([]);
+        }),
+      );
+      McpProviderSession.setMcpProviderSession({
+        environmentId: EnvironmentId.make("test-environment"),
+        threadId: THREAD_ID,
+        providerSessionId: "test-session",
+        providerInstanceId: INSTANCE_ID,
+        endpoint: "http://127.0.0.1:43210/mcp",
+        authorizationHeader: "Bearer thread-scoped-test-token",
+        browserToolsAvailable: true,
+      });
+      injection.setConnectedConnectors([
+        { connectorId: "context7-0123456789ab", serverName: "context7_connector" },
+      ]);
+      const fake = yield* makeFakeMuse();
+      fake.host.initializeResult.grantedCapabilities.push("sessionMcp");
+      yield* makeHarness(fake, INSTANCE_ID);
+      const call = yield* fake.takeCall("session/start");
+      assert.deepStrictEqual(call.params.config, {
+        mcpServers: {
+          dak: {
+            transport: "streamableHttp",
+            mode: "optional",
+            url: "http://127.0.0.1:43210/mcp",
+            headers: { Authorization: "Bearer thread-scoped-test-token" },
+          },
+          context7_connector: {
+            transport: "streamableHttp",
+            mode: "optional",
+            url: "http://127.0.0.1:43210/mcp/connectors/context7-0123456789ab",
+            headers: { Authorization: "Bearer thread-scoped-test-token" },
+          },
+        },
+      });
     }).pipe(Effect.scoped, Effect.provide(testLayer)),
   );
 

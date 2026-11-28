@@ -3,6 +3,7 @@ import { GitPreparePullRequestThreadInput } from "./git.ts";
 import {
   AuthOrchestrationOperateScope,
   AuthProvidersManageScope,
+  AuthSettingsWriteScope,
   AuthSourceControlWriteScope,
   type AuthEnvironmentScope,
 } from "./auth.ts";
@@ -50,6 +51,9 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.goalsRetryTask]: AuthOrchestrationOperateScope,
 
   [WS_METHODS.providerOpenCodeAccountSwitch]: AuthProvidersManageScope,
+
+  [WS_METHODS.mcpConnectorsConnect]: AuthSettingsWriteScope,
+  [WS_METHODS.mcpConnectorsDisconnect]: AuthSettingsWriteScope,
 } as const;
 export type ClientGuardedRpcTag = keyof typeof CLIENT_GUARDED_RPC_SCOPES;
 

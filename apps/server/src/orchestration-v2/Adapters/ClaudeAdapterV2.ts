@@ -114,6 +114,7 @@ import { mergeProviderInstanceEnvironment } from "../../provider/ProviderInstanc
 import { DAK_ORCHESTRATION_INSTRUCTIONS } from "../../provider/DakOrchestrationInstructions.ts";
 import { buildRuntimeInstructions } from "../../provider/RuntimeInstructions.ts";
 import { mcpToolPresentation, normalizeMcpText } from "../../provider/McpToolPresentation.ts";
+import * as McpConnectorInjection from "../../mcpConnectors/injection.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import * as IdAllocator from "../IdAllocator.ts";
 import { makeProviderFailure, makeProviderRetryTurnItem } from "../ProviderFailure.ts";
@@ -972,6 +973,8 @@ export function claudeMcpQueryOverrides(input: {
   const mcpAllowedTools = input.readOnlySandbox
     ? CLAUDE_READ_ONLY_DAK_MCP_ALLOWED_TOOLS
     : [CLAUDE_DAK_MCP_TOOL_WILDCARD];
+  // Connector tools are deliberately not pre-approved: they are third-party
+  // servers, so they go through the session's normal permission flow.
   return {
     allowedTools: Array.from(new Set([...(input.allowedTools ?? []), ...mcpAllowedTools])),
     mcpServers: {
@@ -983,6 +986,17 @@ export function claudeMcpQueryOverrides(input: {
         },
         timeout: CLAUDE_DAK_MCP_TOOL_TIMEOUT_MS,
       },
+      ...Object.fromEntries(
+        McpConnectorInjection.connectorMcpServers(input.threadId).map((connector) => [
+          connector.serverName,
+          {
+            type: "http" as const,
+            url: connector.url,
+            headers: { Authorization: connector.authorization },
+            timeout: CLAUDE_DAK_MCP_TOOL_TIMEOUT_MS,
+          },
+        ]),
+      ),
     },
   };
 }

@@ -45,6 +45,7 @@ import * as Stream from "effect/Stream";
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import * as ServerConfig from "../../config.ts";
 import { mcpToolPresentation } from "../../provider/McpToolPresentation.ts";
+import * as McpConnectorInjection from "../../mcpConnectors/injection.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import { CursorTransportFailure } from "../../provider/acp/CursorTransportFailure.ts";
 import { cursorSdkModelSelection } from "../../provider/cursorSdkModel.ts";
@@ -215,6 +216,16 @@ export function cursorMcpServers(threadId: ThreadId): Record<string, McpServerCo
         Authorization: session.authorizationHeader,
       },
     },
+    ...Object.fromEntries(
+      McpConnectorInjection.connectorMcpServers(threadId).map((connector) => [
+        connector.serverName,
+        {
+          type: "http" as const,
+          url: connector.url,
+          headers: { Authorization: connector.authorization },
+        },
+      ]),
+    ),
   };
 }
 

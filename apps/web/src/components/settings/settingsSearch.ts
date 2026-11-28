@@ -676,6 +676,15 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["xcode android studio sdk avd runtime"],
   },
   {
+    id: "mcp-connectors",
+    title: "Connectors",
+    to: "/settings/integrations",
+    targetId: "connectors",
+    searchTerms: [
+      "mcp model context protocol server tools add remove connect url context7 supabase github linear stripe agents",
+    ],
+  },
+  {
     id: "browser-profiles",
     title: "Browser profiles",
     to: "/settings/integrations",
