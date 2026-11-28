@@ -57,7 +57,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("~/connection/runtime", async () => {
   const { Atom } = await import("effect/reactivity");
-  const { Layer } = await import("effect/Layer");
+  const Layer = await import("effect/Layer");
   return { connectionAtomRuntime: Atom.runtime(Layer.empty) };
 });
 vi.mock("@dak/client-runtime/state/session", () => ({
