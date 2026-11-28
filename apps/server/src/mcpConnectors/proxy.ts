@@ -11,7 +11,7 @@ import { outboundFetch, OutboundBlockedError, type OutboundBlockedReason } from 
 /** Largest provider request this proxy will read before refusing it. */
 export const MCP_CONNECTOR_MAX_REQUEST_BYTES = 1024 * 1024;
 /** Largest upstream response this proxy will buffer; SSE included. */
-export const MCP_CONNECTOR_MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
+const MCP_CONNECTOR_MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 
 /** Request headers a provider may send through to the connector's server. */
 const FORWARDED_REQUEST_HEADERS = [

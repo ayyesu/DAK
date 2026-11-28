@@ -6,6 +6,7 @@ import * as StorageCleanup from "./storageCleanup.ts";
 import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
 import * as PullRequestWatchReactor from "./orchestration-v2/PullRequestWatchReactor.ts";
 // @effect-diagnostics nodeBuiltinImport:off
+// @effect-diagnostics anyUnknownInErrorContext:off
 import * as NodeHttp from "node:http";
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
@@ -1095,4 +1096,5 @@ const layerMakeServer = Layer.unwrap(
 );
 
 // The CLI supplies configuration.
-export const runServer = Layer.launch(layerMakeServer);
+export const runServer: Effect.Effect<void, Error, ServerConfig.ServerConfig> =
+  Layer.launch(layerMakeServer);

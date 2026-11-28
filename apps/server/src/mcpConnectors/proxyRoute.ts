@@ -10,7 +10,7 @@ import * as McpConnectors from "./McpConnectors.ts";
 import { MCP_CONNECTOR_MAX_REQUEST_BYTES, providerForwardHeaders } from "./proxy.ts";
 
 /** Providers address connectors through this route; see injection.connectorMcpServers. */
-export const MCP_CONNECTORS_ROUTE_PREFIX = "/mcp/connectors";
+const MCP_CONNECTORS_ROUTE_PREFIX = "/mcp/connectors";
 
 const textResponse = (status: number, body: string, headers?: Readonly<Record<string, string>>) =>
   HttpServerResponse.text(body, { status, ...(headers === undefined ? {} : { headers }) });
