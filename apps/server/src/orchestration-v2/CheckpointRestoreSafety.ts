@@ -13,8 +13,8 @@ export const SHARED_WORKSPACE_RESTORE_MESSAGE =
 // again before provider rollback so a newly shared worktree is rejected too.
 export const isCheckpointRestoreIsolated = Effect.fn("orchestrationV2.isCheckpointRestoreIsolated")(
   function* (
-    thread: Pick<OrchestrationV2AppThread, "id" | "worktreePath">,
-    scope: Pick<OrchestrationV2CheckpointScope, "cwd">,
+    thread: Pick<OrchestrationV2AppThread, "id" | "worktreePath" | "worktreeRepositories">,
+    scope: Pick<OrchestrationV2CheckpointScope, "cwd" | "additionalCwds">,
     dependencies: {
       readonly fileSystem: FileSystem.FileSystem;
       readonly projections: ProjectionStoreV2["Service"];
@@ -30,12 +30,33 @@ export const isCheckpointRestoreIsolated = Effect.fn("orchestrationV2.isCheckpoi
         (!path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`))
       );
     };
-    const worktreePath = thread.worktreePath;
-    let shared = worktreePath == null;
-    if (!shared && worktreePath !== null) {
-      const cwd = yield* fileSystem.realPath(scope.cwd);
-      const worktreeCwd = yield* fileSystem.realPath(worktreePath);
-      shared = cwd !== worktreeCwd;
+    const realPathOrNull = (candidate: string) =>
+      fileSystem
+        .realPath(candidate)
+        .pipe(
+          Effect.catch((error) =>
+            error.reason._tag === "NotFound" ? Effect.succeed(null) : Effect.fail(error),
+          ),
+        );
+
+    const ownedPaths = [
+      thread.worktreePath,
+      ...(thread.worktreeRepositories ?? []).map((repository) => repository.worktreePath),
+    ].filter((value): value is string => value !== null);
+    const restoreCwds = [scope.cwd, ...(scope.additionalCwds ?? [])];
+    let shared = thread.worktreePath == null || ownedPaths.length === 0;
+    if (!shared) {
+      const ownedRealPaths = new Set(
+        (yield* Effect.forEach(ownedPaths, realPathOrNull, {
+          concurrency: 1,
+        })).filter((value): value is string => value !== null),
+      );
+      const resolvedRestoreCwds = (yield* Effect.forEach(restoreCwds, realPathOrNull, {
+        concurrency: 1,
+      })).filter((value): value is string => value !== null);
+      shared =
+        resolvedRestoreCwds.length === 0 ||
+        resolvedRestoreCwds.some((cwd) => !ownedRealPaths.has(cwd));
       if (!shared) {
         const shell = yield* projections.getShellSnapshot();
         const checkedPaths = new Set<string>();
@@ -45,7 +66,13 @@ export const isCheckpointRestoreIsolated = Effect.fn("orchestrationV2.isCheckpoi
           const providerContext = yield* projections.getThreadProviderContext(otherThread.id);
           const paths = [
             otherThread.worktreePath,
-            ...other.checkpointScopes.map((candidate) => candidate.cwd),
+            ...(otherThread.worktreeRepositories ?? []).map(
+              (repository) => repository.worktreePath,
+            ),
+            ...other.checkpointScopes.flatMap((candidate) => [
+              candidate.cwd,
+              ...(candidate.additionalCwds ?? []),
+            ]),
             // A failed turn can leave an errored session with a live event stream.
             // A session shared across threads keeps the cwd it was opened with,
             // often another thread's; each turn runs in the thread's own
@@ -67,14 +94,11 @@ export const isCheckpointRestoreIsolated = Effect.fn("orchestrationV2.isCheckpoi
           for (const candidate of paths) {
             if (checkedPaths.has(candidate)) continue;
             checkedPaths.add(candidate);
-            const otherCwd = yield* fileSystem
-              .realPath(candidate)
-              .pipe(
-                Effect.catch((error) =>
-                  error.reason._tag === "NotFound" ? Effect.succeed(null) : Effect.fail(error),
-                ),
-              );
-            if (otherCwd !== null && (contains(cwd, otherCwd) || contains(otherCwd, cwd))) {
+            const otherCwd = yield* realPathOrNull(candidate);
+            if (
+              otherCwd !== null &&
+              resolvedRestoreCwds.some((cwd) => contains(cwd, otherCwd) || contains(otherCwd, cwd))
+            ) {
               shared = true;
               break;
             }

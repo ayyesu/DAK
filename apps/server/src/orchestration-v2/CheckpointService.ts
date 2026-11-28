@@ -122,6 +122,7 @@ export interface CheckpointServiceV2Shape {
     readonly rootNodeId: NodeId;
     readonly providerThreadId: ProviderThreadId;
     readonly cwd: string;
+    readonly additionalCwds?: ReadonlyArray<string>;
     readonly createdAt: DateTime.Utc;
   }) => Effect.Effect<OrchestrationV2CheckpointScope, CheckpointServiceV2Error>;
   readonly ensureScope: (
@@ -184,6 +185,23 @@ function checkpointIdForScopeOrdinal(
   });
 }
 
+function checkpointCwds(scope: {
+  readonly cwd: string;
+  readonly additionalCwds?: ReadonlyArray<string> | undefined;
+}): ReadonlyArray<string> {
+  const seen = new Set<string>();
+  return [scope.cwd, ...(scope.additionalCwds ?? [])].filter((cwd) => {
+    if (seen.has(cwd)) return false;
+    seen.add(cwd);
+    return true;
+  });
+}
+
+function checkpointRepositoryLabel(cwd: string): string {
+  const segments = cwd.match(/[^\\/]+/g);
+  return segments?.at(-1) ?? cwd;
+}
+
 function makeRootRunScope(input: {
   readonly idAllocator: IdAllocator.IdAllocatorV2Shape;
   readonly threadId: ThreadId;
@@ -191,6 +209,7 @@ function makeRootRunScope(input: {
   readonly rootNodeId: NodeId;
   readonly providerThreadId: ProviderThreadId;
   readonly cwd: string;
+  readonly additionalCwds?: ReadonlyArray<string>;
   readonly createdAt: DateTime.Utc;
 }) {
   return Effect.gen(function* () {
@@ -209,6 +228,14 @@ function makeRootRunScope(input: {
       ordinalWithinParent: 0,
       advancesAppRunCount: true,
       cwd: input.cwd,
+      ...(checkpointCwds({ cwd: input.cwd, additionalCwds: input.additionalCwds }).length > 1
+        ? {
+            additionalCwds: checkpointCwds({
+              cwd: input.cwd,
+              additionalCwds: input.additionalCwds,
+            }).slice(1),
+          }
+        : {}),
       createdAt: input.createdAt,
     } satisfies OrchestrationV2CheckpointScope;
   });
@@ -265,30 +292,35 @@ export const layer: Layer.Layer<
     const ensureScope: CheckpointServiceV2Shape["ensureScope"] = (scope) => Effect.succeed(scope);
 
     const captureBaseline: CheckpointServiceV2Shape["captureBaseline"] = (input) =>
-      withWorkspaceLock(
-        input.scope.cwd,
-        Effect.gen(function* () {
-          if (!(yield* isGitCheckpointable(input.scope.cwd))) {
-            return;
-          }
+      Effect.forEach(
+        checkpointCwds(input.scope),
+        (cwd) =>
+          withWorkspaceLock(
+            cwd,
+            Effect.gen(function* () {
+              if (!(yield* isGitCheckpointable(cwd))) {
+                return;
+              }
 
-          const checkpointRef = yield* checkpointRefFor({
-            scopeId: input.scope.id,
-            ordinalWithinScope: input.ordinalWithinScope,
-          });
-          const exists = yield* checkpointStore.hasCheckpointRef({
-            cwd: input.scope.cwd,
-            checkpointRef,
-          });
-          if (exists) {
-            return;
-          }
+              const checkpointRef = yield* checkpointRefFor({
+                scopeId: input.scope.id,
+                ordinalWithinScope: input.ordinalWithinScope,
+              });
+              const exists = yield* checkpointStore.hasCheckpointRef({
+                cwd,
+                checkpointRef,
+              });
+              if (exists) {
+                return;
+              }
 
-          yield* checkpointStore.captureCheckpoint({
-            cwd: input.scope.cwd,
-            checkpointRef,
-          });
-        }),
+              yield* checkpointStore.captureCheckpoint({
+                cwd,
+                checkpointRef,
+              });
+            }),
+          ),
+        { concurrency: 1, discard: true },
       ).pipe(
         Effect.mapError(
           (cause) =>
@@ -302,49 +334,50 @@ export const layer: Layer.Layer<
 
     const materializeBaselineCheckpoint: CheckpointServiceV2Shape["materializeBaselineCheckpoint"] =
       (input) =>
-        withWorkspaceLock(
-          input.scope.cwd,
-          Effect.gen(function* () {
-            const checkpointRef = yield* checkpointRefFor({
-              scopeId: input.scope.id,
-              ordinalWithinScope: input.ordinalWithinScope,
-            });
-            const checkpointId = yield* checkpointIdForScopeOrdinal(idAllocator, {
-              scopeId: input.scope.id,
-              ordinalWithinScope: input.ordinalWithinScope,
-            });
-            const checkpointable = yield* isGitCheckpointable(input.scope.cwd);
-            const available = checkpointable
-              ? yield* checkpointStore
-                  .hasCheckpointRef({
-                    cwd: input.scope.cwd,
-                    checkpointRef,
-                  })
-                  .pipe(
+        Effect.gen(function* () {
+          const checkpointRef = yield* checkpointRefFor({
+            scopeId: input.scope.id,
+            ordinalWithinScope: input.ordinalWithinScope,
+          });
+          const checkpointId = yield* checkpointIdForScopeOrdinal(idAllocator, {
+            scopeId: input.scope.id,
+            ordinalWithinScope: input.ordinalWithinScope,
+          });
+          const availableByCwd = yield* Effect.forEach(
+            checkpointCwds(input.scope),
+            (cwd) =>
+              withWorkspaceLock(
+                cwd,
+                Effect.gen(function* () {
+                  if (!(yield* isGitCheckpointable(cwd))) return false;
+                  return yield* checkpointStore.hasCheckpointRef({ cwd, checkpointRef }).pipe(
                     Effect.catch((cause) =>
                       Effect.logWarning("orchestration V2 baseline ref lookup failed", {
                         scopeId: input.scope.id,
                         checkpointRef,
+                        cwd,
                         cause: String(cause),
                       }).pipe(Effect.as(false)),
                     ),
-                  )
-              : false;
-            return makeCheckpoint({
-              id: checkpointId,
-              scope: input.scope,
-              runId: null,
-              nodeId: input.scope.nodeId,
-              parentCheckpointId: null,
-              ordinalWithinScope: input.ordinalWithinScope,
-              appRunOrdinal: null,
-              ref: checkpointRef,
-              status: available ? "ready" : "missing",
-              files: [],
-              capturedAt: input.scope.createdAt,
-            });
-          }),
-        ).pipe(
+                  );
+                }),
+              ),
+            { concurrency: 1 },
+          );
+          return makeCheckpoint({
+            id: checkpointId,
+            scope: input.scope,
+            runId: null,
+            nodeId: input.scope.nodeId,
+            parentCheckpointId: null,
+            ordinalWithinScope: input.ordinalWithinScope,
+            appRunOrdinal: null,
+            ref: checkpointRef,
+            status: availableByCwd.some(Boolean) ? "ready" : "missing",
+            files: [],
+            capturedAt: input.scope.createdAt,
+          });
+        }).pipe(
           Effect.mapError(
             (cause) =>
               new CheckpointCaptureError({
@@ -355,120 +388,29 @@ export const layer: Layer.Layer<
         );
 
     const capture: CheckpointServiceV2Shape["capture"] = (input) =>
-      withWorkspaceLock(
-        input.scope.cwd,
-        Effect.gen(function* () {
-          const checkpointId = yield* checkpointIdForScopeOrdinal(idAllocator, {
-            scopeId: input.scope.id,
-            ordinalWithinScope: input.ordinalWithinScope,
-          });
-          const parentCheckpointId =
-            input.ordinalWithinScope > 0
-              ? yield* checkpointIdForScopeOrdinal(idAllocator, {
-                  scopeId: input.scope.id,
-                  ordinalWithinScope: input.ordinalWithinScope - 1,
-                })
-              : null;
-          const checkpointRef = yield* checkpointRefFor({
-            scopeId: input.scope.id,
-            ordinalWithinScope: input.ordinalWithinScope,
-          });
-          const previousCheckpointRef = yield* checkpointRefFor({
-            scopeId: input.scope.id,
-            ordinalWithinScope: Math.max(0, input.ordinalWithinScope - 1),
-          });
-
-          if (!(yield* isGitCheckpointable(input.scope.cwd))) {
-            return makeCheckpoint({
-              id: checkpointId,
-              scope: input.scope,
-              runId: input.runId,
-              nodeId: input.nodeId,
-              parentCheckpointId,
-              ordinalWithinScope: input.ordinalWithinScope,
-              appRunOrdinal: input.appRunOrdinal,
-              ref: checkpointRef,
-              status: "missing",
-              files: [],
-              capturedAt: input.capturedAt,
-            });
-          }
-
-          const captured = yield* checkpointStore
-            .captureCheckpoint({
-              cwd: input.scope.cwd,
-              checkpointRef,
-            })
-            .pipe(
-              Effect.as(true),
-              Effect.catch((cause) =>
-                Effect.logWarning("orchestration V2 checkpoint capture failed", {
-                  scopeId: input.scope.id,
-                  checkpointRef,
-                  cause: String(cause),
-                }).pipe(Effect.as(false)),
-              ),
-            );
-
-          if (!captured) {
-            return makeCheckpoint({
-              id: checkpointId,
-              scope: input.scope,
-              runId: input.runId,
-              nodeId: input.nodeId,
-              parentCheckpointId,
-              ordinalWithinScope: input.ordinalWithinScope,
-              appRunOrdinal: input.appRunOrdinal,
-              ref: checkpointRef,
-              status: "error",
-              files: [],
-              capturedAt: input.capturedAt,
-            });
-          }
-
-          const previousExists = yield* checkpointStore
-            .hasCheckpointRef({
-              cwd: input.scope.cwd,
-              checkpointRef: previousCheckpointRef,
-            })
-            .pipe(
-              Effect.catch((cause) =>
-                Effect.logWarning("orchestration V2 previous checkpoint ref lookup failed", {
-                  scopeId: input.scope.id,
-                  checkpointRef: previousCheckpointRef,
-                  cause: String(cause),
-                }).pipe(Effect.as(false)),
-              ),
-            );
-          const files = previousExists
-            ? yield* checkpointStore
-                .diffCheckpoints({
-                  cwd: input.scope.cwd,
-                  fromCheckpointRef: previousCheckpointRef,
-                  toCheckpointRef: checkpointRef,
-                  fallbackFromToHead: false,
-                  ignoreWhitespace: false,
-                  format: "numstat",
-                })
-                .pipe(
-                  Effect.map((diff) =>
-                    parseTurnDiffFilesFromNumstat(diff).map((file) => ({
-                      path: file.path,
-                      kind: "modified",
-                      additions: file.additions,
-                      deletions: file.deletions,
-                    })),
-                  ),
-                  Effect.catch((cause) =>
-                    Effect.logWarning("orchestration V2 checkpoint diff summary failed", {
-                      scopeId: input.scope.id,
-                      checkpointRef,
-                      cause: String(cause),
-                    }).pipe(Effect.as([])),
-                  ),
-                )
-            : [];
-
+      Effect.gen(function* () {
+        const checkpointId = yield* checkpointIdForScopeOrdinal(idAllocator, {
+          scopeId: input.scope.id,
+          ordinalWithinScope: input.ordinalWithinScope,
+        });
+        const parentCheckpointId =
+          input.ordinalWithinScope > 0
+            ? yield* checkpointIdForScopeOrdinal(idAllocator, {
+                scopeId: input.scope.id,
+                ordinalWithinScope: input.ordinalWithinScope - 1,
+              })
+            : null;
+        const checkpointRef = yield* checkpointRefFor({
+          scopeId: input.scope.id,
+          ordinalWithinScope: input.ordinalWithinScope,
+        });
+        const previousCheckpointRef = yield* checkpointRefFor({
+          scopeId: input.scope.id,
+          ordinalWithinScope: Math.max(0, input.ordinalWithinScope - 1),
+        });
+        const cwds = checkpointCwds(input.scope);
+        const checkpointableCwds = yield* Effect.filter(cwds, (cwd) => isGitCheckpointable(cwd));
+        if (checkpointableCwds.length === 0) {
           return makeCheckpoint({
             id: checkpointId,
             scope: input.scope,
@@ -478,12 +420,116 @@ export const layer: Layer.Layer<
             ordinalWithinScope: input.ordinalWithinScope,
             appRunOrdinal: input.appRunOrdinal,
             ref: checkpointRef,
-            status: "ready",
-            files,
+            status: "missing",
+            files: [],
             capturedAt: input.capturedAt,
           });
-        }),
-      ).pipe(
+        }
+
+        const capturedCwds = yield* Effect.forEach(
+          checkpointableCwds,
+          (cwd) =>
+            withWorkspaceLock(
+              cwd,
+              checkpointStore.captureCheckpoint({ cwd, checkpointRef }).pipe(
+                Effect.as(cwd),
+                Effect.catch((cause) =>
+                  Effect.logWarning("orchestration V2 checkpoint capture failed", {
+                    scopeId: input.scope.id,
+                    checkpointRef,
+                    cwd,
+                    cause: String(cause),
+                  }).pipe(Effect.as(null)),
+                ),
+              ),
+            ),
+          { concurrency: 1 },
+        ).pipe(Effect.map((results) => results.filter((cwd): cwd is string => cwd !== null)));
+
+        if (capturedCwds.length !== checkpointableCwds.length) {
+          return makeCheckpoint({
+            id: checkpointId,
+            scope: input.scope,
+            runId: input.runId,
+            nodeId: input.nodeId,
+            parentCheckpointId,
+            ordinalWithinScope: input.ordinalWithinScope,
+            appRunOrdinal: input.appRunOrdinal,
+            ref: checkpointRef,
+            status: "error",
+            files: [],
+            capturedAt: input.capturedAt,
+          });
+        }
+
+        const filesByCwd = yield* Effect.forEach(
+          capturedCwds,
+          (cwd) =>
+            withWorkspaceLock(
+              cwd,
+              Effect.gen(function* () {
+                const previousExists = yield* checkpointStore
+                  .hasCheckpointRef({
+                    cwd,
+                    checkpointRef: previousCheckpointRef,
+                  })
+                  .pipe(
+                    Effect.catch((cause) =>
+                      Effect.logWarning("orchestration V2 previous checkpoint ref lookup failed", {
+                        scopeId: input.scope.id,
+                        checkpointRef: previousCheckpointRef,
+                        cwd,
+                        cause: String(cause),
+                      }).pipe(Effect.as(false)),
+                    ),
+                  );
+                if (!previousExists) return [];
+                return yield* checkpointStore
+                  .diffCheckpoints({
+                    cwd,
+                    fromCheckpointRef: previousCheckpointRef,
+                    toCheckpointRef: checkpointRef,
+                    fallbackFromToHead: false,
+                    ignoreWhitespace: false,
+                    format: "numstat",
+                  })
+                  .pipe(
+                    Effect.map((diff) =>
+                      parseTurnDiffFilesFromNumstat(diff).map((file) => ({
+                        path: `${checkpointRepositoryLabel(cwd)}/${file.path}`,
+                        kind: "modified" as const,
+                        additions: file.additions,
+                        deletions: file.deletions,
+                      })),
+                    ),
+                    Effect.catch((cause) =>
+                      Effect.logWarning("orchestration V2 checkpoint diff summary failed", {
+                        scopeId: input.scope.id,
+                        checkpointRef,
+                        cwd,
+                        cause: String(cause),
+                      }).pipe(Effect.as([])),
+                    ),
+                  );
+              }),
+            ),
+          { concurrency: 1 },
+        );
+
+        return makeCheckpoint({
+          id: checkpointId,
+          scope: input.scope,
+          runId: input.runId,
+          nodeId: input.nodeId,
+          parentCheckpointId,
+          ordinalWithinScope: input.ordinalWithinScope,
+          appRunOrdinal: input.appRunOrdinal,
+          ref: checkpointRef,
+          status: "ready",
+          files: filesByCwd.flat(),
+          capturedAt: input.capturedAt,
+        });
+      }).pipe(
         Effect.mapError(
           (cause) =>
             new CheckpointCaptureError({
@@ -494,31 +540,39 @@ export const layer: Layer.Layer<
       );
 
     const restore: CheckpointServiceV2Shape["restore"] = (input) =>
-      withWorkspaceLock(
-        input.scope.cwd,
-        Effect.gen(function* () {
-          if (input.checkpoint.status !== "ready") {
-            return yield* new CheckpointRestoreError({
-              scopeId: input.scope.id,
-              checkpointId: input.checkpoint.id,
-              cause: `Checkpoint status is ${input.checkpoint.status}.`,
-            });
-          }
-
-          const restored = yield* checkpointStore.restoreCheckpoint({
-            cwd: input.scope.cwd,
-            checkpointRef: input.checkpoint.ref,
-            fallbackToHead: false,
+      Effect.gen(function* () {
+        if (input.checkpoint.status !== "ready") {
+          return yield* new CheckpointRestoreError({
+            scopeId: input.scope.id,
+            checkpointId: input.checkpoint.id,
+            cause: `Checkpoint status is ${input.checkpoint.status}.`,
           });
-          if (!restored) {
-            return yield* new CheckpointRestoreError({
-              scopeId: input.scope.id,
-              checkpointId: input.checkpoint.id,
-              cause: "Checkpoint ref is unavailable.",
-            });
-          }
-        }),
-      ).pipe(
+        }
+
+        const restoreCwds = yield* Effect.filter(checkpointCwds(input.scope), (cwd) =>
+          cwd === input.scope.cwd ? Effect.succeed(true) : isGitCheckpointable(cwd),
+        );
+        const restoredByCwd = yield* Effect.forEach(
+          restoreCwds,
+          (cwd) =>
+            withWorkspaceLock(
+              cwd,
+              checkpointStore.restoreCheckpoint({
+                cwd,
+                checkpointRef: input.checkpoint.ref,
+                fallbackToHead: false,
+              }),
+            ),
+          { concurrency: 1 },
+        );
+        if (restoredByCwd.some((restored) => !restored)) {
+          return yield* new CheckpointRestoreError({
+            scopeId: input.scope.id,
+            checkpointId: input.checkpoint.id,
+            cause: "Checkpoint ref is unavailable.",
+          });
+        }
+      }).pipe(
         Effect.mapError((cause) =>
           isCheckpointRestoreError(cause)
             ? cause
@@ -531,12 +585,17 @@ export const layer: Layer.Layer<
       );
 
     const deleteStaleRefs: CheckpointServiceV2Shape["deleteStaleRefs"] = (input) =>
-      withWorkspaceLock(
-        input.scope.cwd,
-        checkpointStore.deleteCheckpointRefs({
-          cwd: input.scope.cwd,
-          checkpointRefs: input.checkpoints.map((checkpoint) => checkpoint.ref),
-        }),
+      Effect.forEach(
+        checkpointCwds(input.scope),
+        (cwd) =>
+          withWorkspaceLock(
+            cwd,
+            checkpointStore.deleteCheckpointRefs({
+              cwd,
+              checkpointRefs: input.checkpoints.map((checkpoint) => checkpoint.ref),
+            }),
+          ),
+        { concurrency: 1, discard: true },
       ).pipe(
         Effect.mapError(
           (cause) =>

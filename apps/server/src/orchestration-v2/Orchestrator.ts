@@ -1540,6 +1540,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                 rootNodeId: rootNode.id,
                 providerThreadId: queuedProviderThread.id,
                 cwd: resolvedRuntimePolicy.cwd ?? projection.thread.worktreePath ?? process.cwd(),
+                additionalCwds: (projection.thread.worktreeRepositories ?? []).map(
+                  (repository) => repository.worktreePath,
+                ),
                 createdAt: now,
               }),
             ),
@@ -2920,6 +2923,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                 : {}),
             ...(command.branch === undefined ? {} : { branch: command.branch }),
             ...(command.worktreePath === undefined ? {} : { worktreePath: command.worktreePath }),
+            ...(command.worktreeRepositories === undefined
+              ? {}
+              : { worktreeRepositories: command.worktreeRepositories ?? [] }),
             ...(command.linkedPullRequest === undefined
               ? {}
               : {
@@ -4238,6 +4244,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             resolvedRuntimePolicy.cwd ??
             input.projection.thread.worktreePath ??
             session.providerSession.cwd,
+          additionalCwds: (input.projection.thread.worktreeRepositories ?? []).map(
+            (repository) => repository.worktreePath,
+          ),
           createdAt: now,
         })
         .pipe(

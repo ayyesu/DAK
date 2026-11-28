@@ -14,6 +14,7 @@ import {
   CheckpointRefUnavailableError,
   CheckpointThreadNotFoundError,
   CheckpointTurnRangeUnavailableError,
+  CheckpointWorkspacePathMissingError,
 } from "./Errors.ts";
 
 const threadId = ThreadId.make("thread:checkpoint-diff-v2");
@@ -90,6 +91,39 @@ it.effect("computes V2 run diffs from projected checkpoint scopes", () => {
       fallbackFromToHead: false,
       ignoreWhitespace: true,
     });
+  }).pipe(Effect.provide(layer));
+});
+
+it.effect("routes per-repository diffs to the selected worktree", () => {
+  const secondaryCwd = "/repo-api";
+  const baseProjection = makeProjection();
+  const projection: ProjectionCheckpointContext = {
+    ...baseProjection,
+    checkpointScopes: baseProjection.checkpointScopes.map((scope) => ({
+      ...scope,
+      additionalCwds: [secondaryCwd],
+    })),
+  };
+  const diffCheckpoints = vi.fn((_input: CheckpointStore.DiffCheckpointsInput) =>
+    Effect.succeed("secondary diff"),
+  );
+  const layer = layerFor({ projection: Effect.succeed(projection), diffCheckpoints });
+
+  return Effect.gen(function* () {
+    const query = yield* CheckpointDiffQuery.CheckpointDiffQuery;
+    const result = yield* query.getFullThreadDiff({
+      threadId,
+      toTurnCount: 2,
+      repositoryPath: secondaryCwd,
+    });
+
+    assert.equal(result.repositoryPath, secondaryCwd);
+    assert.equal(diffCheckpoints.mock.calls[0]?.[0].cwd, secondaryCwd);
+
+    const error = yield* query
+      .getFullThreadDiff({ threadId, toTurnCount: 2, repositoryPath: "/elsewhere" })
+      .pipe(Effect.flip);
+    assert.instanceOf(error, CheckpointWorkspacePathMissingError);
   }).pipe(Effect.provide(layer));
 });
 

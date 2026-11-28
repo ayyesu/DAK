@@ -30,7 +30,11 @@ import { type DraftId } from "../composerDraftStore";
 import { openDiffFilePrimaryAction } from "../diffFileActions";
 import { useCheckpointDiff } from "~/lib/checkpointDiffState";
 import { cn } from "~/lib/utils";
-import { selectThreadDiffPanelSelection, useDiffPanelStore } from "../diffPanelStore";
+import {
+  selectThreadDiffPanelSelection,
+  selectThreadDiffRepositoryPath,
+  useDiffPanelStore,
+} from "../diffPanelStore";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useTheme } from "../hooks/useTheme";
 import {
@@ -235,10 +239,32 @@ export default function DiffPanel({
         }
       : null,
   );
-  const activeCwd = activeThread?.worktreePath ?? activeProject?.workspaceRoot;
-  const activeRepositoryRoot = activeThread?.worktreePath
-    ? undefined
-    : activeProject?.repositoryIdentity?.rootPath;
+  const selectedRepositoryPath = useDiffPanelStore((state) =>
+    selectThreadDiffRepositoryPath(state.repositoryPathByThreadKey, routeThreadRef),
+  );
+  const repositoryOptions = useMemo(() => {
+    const primaryPath = activeThread?.worktreePath ?? activeProject?.workspaceRoot;
+    if (!primaryPath) return [];
+    return [
+      { path: primaryPath, label: activeThread?.worktreePath ? "Primary worktree" : "Workspace" },
+      ...(activeThread?.worktreeRepositories ?? []).map((repository) => ({
+        path: repository.worktreePath,
+        label: repository.name,
+      })),
+    ];
+  }, [activeProject?.workspaceRoot, activeThread]);
+  const activeRepository =
+    repositoryOptions.find((option) => option.path === selectedRepositoryPath) ??
+    repositoryOptions[0];
+  const activeCwd = activeRepository?.path;
+  const selectedSecondaryRepository = activeThread?.worktreeRepositories?.some(
+    (repository) => repository.worktreePath === activeCwd,
+  );
+  const activeRepositoryRoot =
+    activeCwd !== undefined &&
+    (activeCwd === activeThread?.worktreePath || selectedSecondaryRepository)
+      ? undefined
+      : activeProject?.repositoryIdentity?.rootPath;
   const serverConfig = useAtomValue(
     serverEnvironment.configValueAtom(activeThread?.environmentId ?? null),
   );
@@ -308,7 +334,8 @@ export default function DiffPanel({
       : selectedTurn?.runId === latestTurn?.runId
         ? "Latest turn"
         : `Turn ${selectedCheckpointTurnCount ?? "?"}`;
-  const reviewSectionId = selectedTurn ? `turn:${selectedTurn.runId}` : selectedGitScope;
+  const repositoryScopeSuffix = activeCwd ? `:${activeCwd}` : "";
+  const reviewSectionId = `${selectedTurn ? `turn:${selectedTurn.runId}` : selectedGitScope}${repositoryScopeSuffix}`;
   const collapseScopeKey = routeThreadRef
     ? `${routeThreadRef.environmentId}:${routeThreadRef.threadId}:${reviewSectionId}`
     : null;
@@ -335,7 +362,8 @@ export default function DiffPanel({
       fromTurnCount: selectedCheckpointRange?.fromTurnCount ?? null,
       toTurnCount: selectedCheckpointRange?.toTurnCount ?? null,
       ignoreWhitespace: diffIgnoreWhitespace,
-      cacheScope: selectedTurn ? `turn:${selectedTurn.runId}` : null,
+      repositoryPath: activeCwd ?? null,
+      cacheScope: selectedTurn ? `turn:${selectedTurn.runId}${repositoryScopeSuffix}` : null,
     },
     { enabled: isGitRepo && selectedTurn !== undefined },
   );
@@ -353,6 +381,7 @@ export default function DiffPanel({
   );
   const shouldRetryBranchDiffAtEnvironmentCwd =
     selectedRunId === null &&
+    !selectedSecondaryRepository &&
     primaryBranchDiffPreview.error?.includes("configured workspace root") === true &&
     serverConfig?.cwd !== undefined &&
     serverConfig.cwd !== activeCwd;
@@ -807,6 +836,38 @@ export default function DiffPanel({
             </DropdownMenuSub>
           </DropdownMenuContent>
         </DropdownMenu>
+        {repositoryOptions.length > 1 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button size="xs" variant="secondary" />}
+              className="max-w-48"
+              aria-label={`Diff repository: ${activeRepository?.label ?? "Workspace"}`}
+            >
+              <FolderTreeIcon className="size-3.5 shrink-0 opacity-70" />
+              <span className="truncate">{activeRepository?.label ?? "Workspace"}</span>
+              <ChevronDownIcon className="size-3.5 shrink-0 opacity-70" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuRadioGroup
+                value={activeCwd ?? ""}
+                onValueChange={(value) => {
+                  if (routeThreadRef) {
+                    useDiffPanelStore.getState().selectRepositoryPath(routeThreadRef, value);
+                  }
+                }}
+              >
+                {repositoryOptions.map((option) => (
+                  <DropdownMenuRadioItem key={option.path} value={option.path} closeOnClick>
+                    <span className="flex min-w-0 flex-col">
+                      <span>{option.label}</span>
+                      <span className="truncate text-xs text-muted-foreground">{option.path}</span>
+                    </span>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {selectedRunId === null && selectedGitScope === "branch" && selectedGitSource?.baseRef && (
           <div
             className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden text-xs text-muted-foreground"

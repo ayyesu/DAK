@@ -4,6 +4,7 @@ import {
   ProjectId,
   type Project,
   type ProjectCreatePayload,
+  type ProjectListRepositoriesResult,
   type ProjectUpdatePayload,
   type ProjectSnapshot,
   type ThreadId,
@@ -31,6 +32,7 @@ import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ThreadCommandExecutor from "../orchestration-v2/ThreadCommandExecutor.ts";
 import { planThreadDeletion } from "../orchestration-v2/ThreadDeletion.ts";
 import * as ProjectEnrichmentService from "./ProjectEnrichmentService.ts";
+import * as ProjectRepositories from "../workspace/ProjectRepositories.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 
 export interface ProjectCreateInput extends ProjectCreatePayload {
@@ -90,6 +92,7 @@ export class ProjectOperationError extends Schema.TaggedError<ProjectOperationEr
       "read-project",
       "list-projects",
       "list-threads",
+      "list-repositories",
       "delete-thread",
       "dispatch-project-command",
     ]),
@@ -129,6 +132,9 @@ export class ProjectService extends Context.Service<
       workspaceRoot: string,
       options?: { readonly includeDeleted?: boolean },
     ) => Effect.Effect<Option.Option<Project>, ProjectOperationError>;
+    readonly listRepositories: (
+      projectId: ProjectId,
+    ) => Effect.Effect<ProjectListRepositoriesResult, ProjectServiceError>;
     readonly snapshot: Effect.Effect<ProjectSnapshot, ProjectOperationError>;
     /**
      * An active project's shell with its immediately available repository
@@ -147,6 +153,7 @@ export class ProjectService extends Context.Service<
 export const make = Effect.gen(function* () {
   const projects = yield* ProjectStore.ProjectStoreV2;
   const projectEnrichment = yield* ProjectEnrichmentService.ProjectEnrichmentService;
+  const repositories = yield* ProjectRepositories.ProjectRepositories;
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const threadProjections = yield* ProjectionStore.ProjectionStoreV2;
   const eventSink = yield* EventSink.EventSinkV2;
@@ -334,6 +341,26 @@ export const make = Effect.gen(function* () {
     return Option.isNone(row) ? Option.none() : Option.some(yield* hydrate(row.value));
   });
 
+  const listRepositories: ProjectService["Service"]["listRepositories"] = Effect.fn(
+    "ProjectService.listRepositories",
+  )(function* (projectId) {
+    const row = yield* readRow(projectId);
+    if (Option.isNone(row)) {
+      return yield* new ProjectNotFoundError({ projectId });
+    }
+    return yield* repositories
+      .list({
+        workspaceRoot: row.value.workspaceRoot,
+        addedFolders: row.value.addedFolders,
+      })
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new ProjectOperationError({ operation: "list-repositories", projectId, cause }),
+        ),
+      );
+  });
+
   const create: ProjectService["Service"]["create"] = Effect.fn("ProjectService.create")(
     function* (input) {
       const workspaceRoot = yield* normalizeWorkspaceRoot({
@@ -348,6 +375,7 @@ export const make = Effect.gen(function* () {
         title: input.title,
         workspaceRoot,
         ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
+        ...(input.addedFolders === undefined ? {} : { addedFolders: input.addedFolders }),
       });
       yield* projectEnrichment.invalidate([workspaceRoot]);
       return yield* readCommitted(input.projectId);
@@ -384,6 +412,7 @@ export const make = Effect.gen(function* () {
           ? {}
           : { defaultThreadEnvMode: input.defaultThreadEnvMode }),
         ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
+        ...(input.addedFolders === undefined ? {} : { addedFolders: input.addedFolders }),
       });
       if (workspaceRoot !== previousRoot) {
         yield* projectEnrichment.invalidate([previousRoot, workspaceRoot]);
@@ -561,6 +590,7 @@ export const make = Effect.gen(function* () {
     delete: deleteProject,
     getById,
     getByWorkspaceRoot,
+    listRepositories,
     snapshot,
     getShell,
     listShells,
@@ -569,4 +599,5 @@ export const make = Effect.gen(function* () {
 
 export const layer = Layer.effect(ProjectService, make).pipe(
   Layer.provide(ThreadCommandExecutor.layer),
+  Layer.provide(ProjectRepositories.layer),
 );

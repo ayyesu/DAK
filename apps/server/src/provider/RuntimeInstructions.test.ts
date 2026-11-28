@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
-import { buildRuntimeInstructions } from "./RuntimeInstructions.ts";
+import {
+  appendWorktreeContextToUserText,
+  buildRuntimeInstructions,
+} from "./RuntimeInstructions.ts";
 
 describe("buildRuntimeInstructions", () => {
   it("requires explicit registration of every PR and stack layer", () => {
@@ -33,5 +36,46 @@ describe("buildRuntimeInstructions", () => {
     const instructions = buildRuntimeInstructions({ harness: "Cursor", model });
     expect(instructions).toContain("through the Cursor harness.");
     expect(instructions).not.toContain("reasoning effort");
+  });
+});
+
+describe("appendWorktreeContextToUserText", () => {
+  const worktreeRepositories = [
+    {
+      name: "api",
+      path: "packages/api",
+      worktreePath: "/tmp/project-api-branch",
+    },
+  ];
+
+  it("adds primary and sibling worktree paths to the user text", () => {
+    const text = appendWorktreeContextToUserText({
+      text: "Implement the change",
+      primaryWorktreePath: "/tmp/project-branch",
+      worktreeRepositories,
+    });
+    expect(text).toContain("Implement the change");
+    expect(text).toContain("Primary worktree: /tmp/project-branch");
+    expect(text).toContain("- api (repo path: packages/api): /tmp/project-api-branch");
+  });
+
+  it("does not alter slash commands", () => {
+    expect(
+      appendWorktreeContextToUserText({
+        text: "  /compact",
+        originalText: "  /compact",
+        primaryWorktreePath: "/tmp/project-branch",
+        worktreeRepositories,
+      }),
+    ).toBe("  /compact");
+  });
+
+  it("leaves single-repo threads unchanged", () => {
+    expect(
+      appendWorktreeContextToUserText({
+        text: "Implement the change",
+        primaryWorktreePath: "/tmp/project-branch",
+      }),
+    ).toBe("Implement the change");
   });
 });

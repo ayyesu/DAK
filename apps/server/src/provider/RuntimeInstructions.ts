@@ -23,6 +23,38 @@ export function buildRuntimeInstructions(runtime: {
   return `<runtime_info>In case you're asked: you are running in DAK through the ${harness} harness${modelInfo}${effortInfo}. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n${PULL_REQUEST_LINKING_INSTRUCTIONS}`;
 }
 
+export function appendWorktreeContextToUserText(input: {
+  readonly text: string;
+  readonly originalText?: string | undefined;
+  readonly primaryWorktreePath?: string | null | undefined;
+  readonly worktreeRepositories?:
+    | ReadonlyArray<{
+        readonly name: string;
+        readonly path: string;
+        readonly worktreePath: string;
+      }>
+    | undefined;
+}): string {
+  const worktreeRepositories = input.worktreeRepositories ?? [];
+  if (worktreeRepositories.length === 0) return input.text;
+  const commandText = input.originalText ?? input.text;
+  if (commandText.trimStart().startsWith("/")) return input.text;
+  const lines = [
+    "<dak_worktrees>",
+    "This thread has worktrees in multiple repositories. The provider's current working directory is the primary worktree; use the absolute paths below when working in another repository.",
+  ];
+  if (input.primaryWorktreePath) {
+    lines.push(`Primary worktree: ${toSingleLine(input.primaryWorktreePath)}`);
+  }
+  for (const repository of worktreeRepositories) {
+    lines.push(
+      `- ${toSingleLine(repository.name)} (repo path: ${toSingleLine(repository.path)}): ${toSingleLine(repository.worktreePath)}`,
+    );
+  }
+  lines.push("</dak_worktrees>");
+  return `${input.text.trimEnd()}\n\n${lines.join("\n")}`;
+}
+
 function toSingleLine(value: string): string {
   return value.replaceAll(/\s+/g, " ").trim();
 }

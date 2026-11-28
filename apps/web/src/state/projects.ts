@@ -25,3 +25,10 @@ export const projectContentSearch = createEnvironmentRpcQueryAtomFamily(connecti
   staleTimeMs: 5_000,
   idleTtlMs: 60_000,
 });
+
+export const projectRepositories = createEnvironmentRpcQueryAtomFamily(connectionAtomRuntime, {
+  label: "environment-data:projects:list-repositories",
+  tag: WS_METHODS.projectsListRepositories,
+  staleTimeMs: 30_000,
+  idleTtlMs: 5 * 60_000,
+});

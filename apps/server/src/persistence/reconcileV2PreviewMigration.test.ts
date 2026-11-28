@@ -46,6 +46,7 @@ describe("V2 preview upgrade", () => {
         [63, "GoalProgress"],
         [64, "GoalRecovery"],
         [65, "GoalProviderWait"],
+        [66, "ProjectionProjectAddedFolders"],
       ]);
       assert.deepStrictEqual(yield* runMigrations(), []);
       assert.deepStrictEqual(yield* sql`SELECT * FROM orchestration_v2_legacy_imports`, imports);
@@ -134,6 +135,7 @@ describe("V2 preview upgrade", () => {
         [63, "GoalProgress"],
         [64, "GoalRecovery"],
         [65, "GoalProviderWait"],
+        [66, "ProjectionProjectAddedFolders"],
       ]);
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
